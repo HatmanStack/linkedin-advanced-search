@@ -1,16 +1,23 @@
 import express from 'express';
 import Promise from 'Promise';
 import puppeteer from 'puppeteer';
-import { useState } from 'react';
+import fs from 'fs/promises'; 
+import cors from 'cors';
 
 const app = express();
 const port = 3001;
 
-
+app.use(cors({
+  origin: 'http://localhost:3000', // React app's URL
+  methods: ['POST', 'GET', 'OPTIONS'],
+  allowedHeaders: ['Content-Type']
+}));
 app.use(express.json());
 
 async function GetLinks(page, pageNumber, extractedCompanyNumber, encodedRole, extractedGeoNumber) {
- await page.goto(`https://www.linkedin.com/search/results/people/?currentCompany=%5B"${extractedCompanyNumber}"%5D&geoUrn=%5B"${extractedGeoNumber}"%5D&keywords=${encodedRole}&origin=FACETED_SEARCH&page=${pageNumber}`);
+  const url = `https://www.linkedin.com/search/results/people/?currentCompany=%5B"${extractedCompanyNumber}"%5D&geoUrn=%5B"${extractedGeoNumber}"%5D&keywords=${encodedRole}&origin=FACETED_SEARCH&page=${pageNumber}`
+  console.log(url);
+  await page.goto(url);
   
   try {
     const listExists = await page.waitForSelector('ul li', { 
@@ -43,7 +50,7 @@ async function GoodContact(page, link) {
     console.log(activityUrl);
     await page.goto(activityUrl);
     let score = 0;
-    const recencyValues = { days: 5, hours: 10, weeks: 1 };
+    const recencyValues = { days: 4, hours: 6, weeks: 2 };
     const threshold = 50;
     const scrollAttempts = 5;
     let counts = { hour: 0, day: 0, week: 0 };
@@ -56,9 +63,9 @@ for (let i = 0; i < scrollAttempts; i++) {
   // Count timeframe mentions
   const newCounts = await page.evaluate(() => {
       const timeframes = {
-        hour: /(hour|hr|h)\b/i,
-        day: /\b(day|d)\b/i,
-        week: /\b(week|wk|w)\b/i
+        hour: /([1-23]h)\b/i,
+      day: /\b([1-6]d)\b/i,
+      week: /\b([1-4]w)\b/i
       };
       const elements = document.querySelectorAll('span[aria-hidden="true"]');
       return Object.entries(timeframes).reduce((acc, [key, regex]) => {
@@ -79,7 +86,7 @@ for (let i = 0; i < scrollAttempts; i++) {
   score += counts.day * recencyValues.days;
   score += counts.hour * recencyValues.hours;
   score += counts.week * recencyValues.weeks;
-
+  console.log(`score: ${score}`)
     return score >= threshold;
   } catch (error) {
     console.error('Error in GoodContact:', error);
@@ -88,14 +95,15 @@ for (let i = 0; i < scrollAttempts; i++) {
 }
 
 // The main route to scrape and search
-app.get('/', async (req, res) => {
+app.post('/', async (req, res) => {
+  console.log('Received request body:', req.body);
   const { companyName, companyRole, companyLocation, searchName, searchPassword} = req.body;
   const randomInRange = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
   const delay = randomInRange(500, 5000);
   const timeout = 5000;
   let browser = null;
 
-
+ 
   try {
     browser = await puppeteer.launch({ headless: false, slowMo: 50,});
     const page = await browser.newPage();
@@ -108,7 +116,7 @@ app.get('/', async (req, res) => {
     
     await page.goto('https://www.linkedin.com/login');
     
-    page.setDefaultTimeout(1000000);
+    page.setDefaultTimeout(30000);
     let element = await Promise.race([
         page.locator('::-p-aria(Email or phone)'),
         page.locator('#username'),
@@ -122,7 +130,7 @@ app.get('/', async (req, res) => {
             y: 21.5,
           },
         });
-    
+    console.log(searchName);
     try {
     const element = await Promise.race([
         page.locator('::-p-aria(Email or phone)'),
@@ -130,7 +138,7 @@ app.get('/', async (req, res) => {
         page.locator('::-p-xpath(//*[@id=\\"username\\"])'),
         page.locator(':scope >>> #username')
     ])
-      await element.fill('cjgall66@gmail.com');
+      await element.fill(searchName);
     } catch (error){
       console.error('Failed to fill username:', error);
     }
@@ -146,7 +154,7 @@ app.get('/', async (req, res) => {
             page.locator(':scope >>> #password')
         ])
             
-    await element.fill('record6699');
+    await element.fill(searchPassword);
     
     element = await Promise.race([
       page.locator('::-p-aria(Sign in[role="button"])'),
@@ -165,8 +173,6 @@ app.get('/', async (req, res) => {
     });
     await navigationPromise;
     
-   
-    
     element = await Promise.race([
         page.locator('::-p-aria(Search)'),
         page.locator('#global-nav input'),
@@ -174,13 +180,13 @@ app.get('/', async (req, res) => {
         page.locator(':scope >>> #global-nav input')
     ])
         
-    await element.fill('Microsoft');
-    /** 
+    await element.fill(companyName);
+    
     await page.keyboard.down('Enter');
     await page.keyboard.up('Enter');
     
     element = await Promise.race([
-      page.locator('::-p-aria(Microsoft[role=\\"link\\"])'),
+      page.locator(`::-p-aria(${companyName}[role=\\"link\\"])`),
       page.locator('div.search-nec__hero-kcard-v2-content a'),
       page.locator('::-p-xpath(//*[@id=\\"/76nR2TmThOYqRobQEAgiw==\\"]/div/ul/li/div/div/div/div[1]/div[1]/div/div/span/span/a)'),
       page.locator(':scope >>> div.search-nec__hero-kcard-v2-content a')
@@ -245,13 +251,15 @@ app.get('/', async (req, res) => {
         page.locator(':scope >>> #jobs-search-box-location-id-ember1205')
     ])
         
-    await element.fill('Seattle');
-        
+    await element.fill(companyLocation);
+      
     await page.keyboard.down('Enter');
     await page.keyboard.up('Enter');
 
+    await page.waitForSelector('ul li a', { visible: true });
     const geoURL = await page.url();
-    const matchGeo = geoURL.match(/&geoId=(\d{4,15})&/);
+    console.log(geoURL);
+    const matchGeo = geoURL.match(/&geoId=(\d+)&/);
     const matchCompany = geoURL.match(/&f_C=(\d+)/);
     let extractedGeoNumber;
     if (matchGeo && matchGeo[1]) {
@@ -264,36 +272,45 @@ app.get('/', async (req, res) => {
     console.log(extractedCompanyNumber);
     console.log(extractedGeoNumber);
 
-    const encodedRole = encodeURIComponent('Recruiter');
-    /** 
+    const encodedRole = encodeURIComponent(companyRole);
+    
     let tempLinksAccumulator = [];
-    for (let pageNumber = 1; pageNumber <= 1; pageNumber++) {
+    for (let pageNumber = 1; pageNumber <= 25; pageNumber++) {
       const tempLinks = await GetLinks(page, pageNumber, extractedCompanyNumber, encodedRole, extractedGeoNumber);
       if (!tempLinks) {
         break;
       }
       tempLinksAccumulator.push(...tempLinks);
+      try {
+        await fs.writeFile(
+          './possible-links.txt', 
+          JSON.stringify(tempLinksAccumulator, null, 2)
+        );
+        console.log(`Saved ${tempLinksAccumulator.length} links to file after page ${pageNumber}`);
+      } catch (error) {
+        console.error('Error writing to file:', error);
+      }
     }
 
     const uniqueLinks = Array.from(new Set(tempLinksAccumulator));
     console.log(uniqueLinks)
-    */
-   const uniqueLinks = [
-    'toni-brown-bell',
-    'hillary-lundberg',
-    'alexandertbh',
-    'kadra-sheikh-mba-hr-6855bb13a',
-    'ACoAACHnpQUBzCWtwmxlcevtvYte9t1DVVwjn5Y',
-    'hunter-baker-a357767b',
-    'rubalvirdi',
-    'johnpersem',
-    'matt-orrange-37995756'
-  ]
+    
+  
     const results = [];
     for (const link of uniqueLinks) {
       const isGoodContact = await GoodContact(page, link);
       if (isGoodContact) {
         results.push(link);
+      }
+
+      try {
+        await fs.writeFile(
+          './good-connection-links.txt', 
+          JSON.stringify(results, null, 2)
+        );
+        console.log(`Saved ${results.length} links to file`);
+      } catch (error) {
+        console.error('Error writing to file:', error);
       }
     }
     console.log(results)

@@ -7,17 +7,20 @@ const Search = ({ companyName, companyRole, companyLocation, searchName, searchP
   const callLambda = async () => {
     try {
       setLoading(true);
+      console.log(companyName);
+     
       const payload = {
         companyName,
         companyRole,
         companyLocation,
+        searchName,
+        searchPassword
       };
       //const apiUrl = 'https://your-api-gateway-url.amazonaws.com/your-lambda-function-endpoint';
       
       const apiUrl = 'http://localhost:3001/';
       const response = await fetch(apiUrl, {
-        method: 'GET',
-        mode: 'no-cors',
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -29,7 +32,7 @@ const Search = ({ companyName, companyRole, companyLocation, searchName, searchP
       }
 
       const data = await response.json();
-      setSearchResults(data);  // Set the search results in the parent component
+      setSearchResults(Array.isArray(data.results) ? data.results : []);  
     } catch (err) {
       setError(err.message);
     } finally {

@@ -18,7 +18,7 @@ const App = () => {
 
   return (
     <div style={{margin: 5 + 'em'}}>
-      <h1>Company Search</h1>
+      <h1>LinkedIn Advanced Search</h1>
 
       {/* Input fields for company name, role, and location */}
       <div >
@@ -72,8 +72,16 @@ const App = () => {
           <p>No results found.</p>
         ) : (
           <ul>
-            {searchResults.map((result, index) => (
-              <li key={index}>{result}</li>  
+           {searchResults.map((result, index) => (
+              <li key={index}>
+                <a 
+                  href={`https://www.linkedin.com/in/${result}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                {result}
+                </a>
+              </li>  
             ))}
           </ul>
         )}
