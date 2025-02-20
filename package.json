@@ -5,6 +5,7 @@
   "dependencies": {
     "cra-template": "1.2.0",
     "express": "^4.21.2",
+    "nodemon": "^3.1.9",
     "puppeteer": "^24.2.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
