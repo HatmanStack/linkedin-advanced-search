@@ -6,6 +6,14 @@ import cors from 'cors';
 
 const app = express();
 const port = 3001;
+const recencyHours = 6;   // Value assigned to a interaction that happened in the last day
+const recencyDays = 5;  // Value assigned to a interaction that happened in the last 6 days
+const recencyWeeks = 2; // Value assigned to a interaction that happened in the last 3 weeks
+const historyToCheck = 5; // Number of times to scroll to check for interactions
+const threshold = 20;  // Minimum score to consider a contact good
+const pageNumberStart = 1; // Start page number for Checking People on PeopleSearch 1-100
+const pageNumberEnd = 100; // End page number for Checking People on PeopleSearch 1-100
+
 
 app.use(cors({
   origin: 'http://localhost:3000', // React app's URL
@@ -44,48 +52,50 @@ async function GetLinks(page, pageNumber, extractedCompanyNumber, encodedRole, e
   }
 }
 
+
 async function GoodContact(page, link) {
   try {
     const activityUrl = `https://www.linkedin.com/in/${link}/recent-activity/reactions/`;
     console.log(activityUrl);
     await page.goto(activityUrl);
     let score = 0;
-    const recencyValues = { days: 4, hours: 6, weeks: 2 };
-    const threshold = 50;
-    const scrollAttempts = 5;
-    let counts = { hour: 0, day: 0, week: 0 };
-
-for (let i = 0; i < scrollAttempts; i++) {
-  console.log('test');
-  await page.waitForSelector('ul li a', { visible: true });
-  console.log('test1');
-  
-  // Count timeframe mentions
-  const newCounts = await page.evaluate(() => {
-      const timeframes = {
-        hour: /([1-23]h)\b/i,
-      day: /\b([1-6]d)\b/i,
-      week: /\b([1-4]w)\b/i
-      };
-      const elements = document.querySelectorAll('span[aria-hidden="true"]');
-      return Object.entries(timeframes).reduce((acc, [key, regex]) => {
-        acc[key] = [...elements].filter(el => regex.test(el.textContent?.toLowerCase() ?? '')).length;
-        return acc;
-      }, {});
-    });
-    counts.hour += newCounts.hour ?? 0;
-    counts.day += newCounts.day ?? 0;
-    counts.week += newCounts.week ?? 0;
+    const recencyValues = { days: recencyDays, hours: recencyHours, weeks: recencyWeeks };
     
-    console.log(`Scroll ${i + 1} - Counts:`, counts, 'Current Score:', score);
-    await page.evaluate(() => {
-      window.scrollBy(0, window.innerHeight);
-    });
-  }
+    
+    
 
-  score += counts.day * recencyValues.days;
-  score += counts.hour * recencyValues.hours;
-  score += counts.week * recencyValues.weeks;
+    for (let i = 0; i < historyToCheck; i++) {
+      await page.waitForSelector('ul li a', { visible: true });
+    
+      
+      // Count timeframe mentions
+      const counts = await page.evaluate(() => {
+         const timeframes = {
+            hour: /([1-23]h)\b/i,
+          day: /\b([1-6]d)\b/i,
+          week: /\b([1-4]w)\b/i
+          };
+          const elements = document.querySelectorAll('span[aria-hidden="true"]');
+          return Object.entries(timeframes).reduce((acc, [key, regex]) => {
+            acc[key] = [...elements].filter(el => regex.test(el.textContent?.toLowerCase() ?? '')).length;
+            console.log(`${key}:`, acc[key]);
+            return acc;
+          }, {hour: 0, day: 0, week: 0 });
+        });
+        if(i === historyToCheck - 1){
+          score += counts.day * recencyValues.days;
+          score += counts.hour * recencyValues.hours;
+          score += counts.week * recencyValues.weeks;
+        }
+       
+        
+        console.log(`Scroll ${i + 1} - Counts:`, counts);
+        await page.evaluate(() => {
+          window.scrollBy(0, window.innerHeight);
+        });
+      }
+
+      
   console.log(`score: ${score}`)
     return score >= threshold;
   } catch (error) {
@@ -275,9 +285,10 @@ app.post('/', async (req, res) => {
     const encodedRole = encodeURIComponent(companyRole);
     
     let tempLinksAccumulator = [];
-    for (let pageNumber = 1; pageNumber <= 25; pageNumber++) {
+    for (let pageNumber = pageNumberStart; pageNumber <= pageNumberEnd; pageNumber++) {
       const tempLinks = await GetLinks(page, pageNumber, extractedCompanyNumber, encodedRole, extractedGeoNumber);
-      if (!tempLinks) {
+      if (tempLinks.length === 0) {
+        console.log('No more links found on page');
         break;
       }
       tempLinksAccumulator.push(...tempLinks);
@@ -294,7 +305,7 @@ app.post('/', async (req, res) => {
 
     const uniqueLinks = Array.from(new Set(tempLinksAccumulator));
     console.log(uniqueLinks)
-    
+ 
   
     const results = [];
     for (const link of uniqueLinks) {
