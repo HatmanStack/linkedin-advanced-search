@@ -38,5 +38,5 @@ After this the frontend will be running at http://localhost:3000
 
 - View browser activity in non-headless mode for manual verification
 - Search timeouts are handled via local txt file caching in backend/
-- Configure login credentials and authentication settings appropriately (alternate account connected to your main)
+- Configure login credentials and authentication settings appropriately
 - Review LinkedIn's automation policies before use
