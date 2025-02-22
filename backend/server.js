@@ -8,7 +8,7 @@ const app = express();
 const port = 3001;
 const recencyHours = 6;   // Value assigned to a interaction that happened in the last day
 const recencyDays = 5;  // Value assigned to a interaction that happened in the last 6 days
-const recencyWeeks = 2; // Value assigned to a interaction that happened in the last 3 weeks
+const recencyWeeks = 3; // Value assigned to a interaction that happened in the last 3 weeks
 const historyToCheck = 10; // Number of times to scroll to check for interactions
 const threshold = 20;  // Minimum score to consider a contact good
 const pageNumberStart = 1; // Start page number for Checking People on PeopleSearch 1-100
@@ -59,15 +59,13 @@ async function GoodContact(page, link) {
     console.log(activityUrl);
     await page.goto(activityUrl);
     let score = 0;
+    let scoreHolder = 0;
+    let previousScoreHolder = 0;
+    let twoLoopsAgoScoreHolder = 0;
     const recencyValues = { days: recencyDays, hours: recencyHours, weeks: recencyWeeks };
     
-    
-    
-
     for (let i = 0; i < historyToCheck; i++) {
       await page.waitForSelector('ul li a', { visible: true });
-    
-      
       // Count timeframe mentions
       const counts = await page.evaluate(() => {
          const timeframes = {
@@ -82,10 +80,23 @@ async function GoodContact(page, link) {
             return acc;
           }, {hour: 0, day: 0, week: 0 });
         });
-        if(i === historyToCheck - 1){
+        if(i === historyToCheck - 1 ){
           score += counts.day * recencyValues.days;
           score += counts.hour * recencyValues.hours;
           score += counts.week * recencyValues.weeks;
+        } else {
+          twoLoopsAgoScoreHolder = previousScoreHolder;
+          previousScoreHolder = scoreHolder;
+          scoreHolder = 0;
+          
+          scoreHolder += counts.day;
+          scoreHolder += counts.hour;
+          scoreHolder += counts.week;
+
+          if (i > 1 && scoreHolder === twoLoopsAgoScoreHolder) {
+            score += scoreHolder;
+            break;
+          }
         }
        
         
