@@ -10,7 +10,7 @@ const recencyHours = 6;   // Value assigned to a interaction that happened in th
 const recencyDays = 5;  // Value assigned to a interaction that happened in the last 6 days
 const recencyWeeks = 3; // Value assigned to a interaction that happened in the last 3 weeks
 const historyToCheck = 10; // Number of times to scroll to check for interactions
-const threshold = 20;  // Minimum score to consider a contact good
+const threshold = 8;  // Minimum score to consider a contact good
 const pageNumberStart = 1; // Start page number for Checking People on PeopleSearch 1-100
 const pageNumberEnd = 100; // End page number for Checking People on PeopleSearch 1-100
 
@@ -62,6 +62,7 @@ async function GoodContact(page, link) {
     let scoreHolder = 0;
     let previousScoreHolder = 0;
     let twoLoopsAgoScoreHolder = 0;
+    let threeLoopsAgoScoreHolder = 0;
     const recencyValues = { days: recencyDays, hours: recencyHours, weeks: recencyWeeks };
     
     for (let i = 0; i < historyToCheck; i++) {
@@ -85,6 +86,7 @@ async function GoodContact(page, link) {
           score += counts.hour * recencyValues.hours;
           score += counts.week * recencyValues.weeks;
         } else {
+          threeLoopsAgoScoreHolder = twoLoopsAgoScoreHolder;
           twoLoopsAgoScoreHolder = previousScoreHolder;
           previousScoreHolder = scoreHolder;
           scoreHolder = 0;
@@ -93,8 +95,10 @@ async function GoodContact(page, link) {
           scoreHolder += counts.hour;
           scoreHolder += counts.week;
 
-          if (i > 1 && scoreHolder === twoLoopsAgoScoreHolder) {
-            score += scoreHolder;
+          if (i > 1 && scoreHolder === threeLoopsAgoScoreHolder) {
+            score += counts.day * recencyValues.days;
+            score += counts.hour * recencyValues.hours;
+            score += counts.week * recencyValues.weeks;
             break;
           }
         }
@@ -137,7 +141,7 @@ app.post('/', async (req, res) => {
     
     await page.goto('https://www.linkedin.com/login');
     
-    page.setDefaultTimeout(30000);
+    page.setDefaultTimeout(30000000);
     let element = await Promise.race([
         page.locator('::-p-aria(Email or phone)'),
         page.locator('#username'),
@@ -263,8 +267,6 @@ app.post('/', async (req, res) => {
         },
       });
 
-
-
     element = await Promise.race([
         page.locator('::-p-aria(City, state, or zip code)'),
         page.locator('#jobs-search-box-location-id-ember1205'),
@@ -315,11 +317,17 @@ app.post('/', async (req, res) => {
     }
 
     const uniqueLinks = Array.from(new Set(tempLinksAccumulator));
-    console.log(uniqueLinks)
+
+    
+    
+   
  
   
     const results = [];
     for (const link of uniqueLinks) {
+      if (/ACoA/.test(link)) {
+        continue;
+      }
       const isGoodContact = await GoodContact(page, link);
       if (isGoodContact) {
         results.push(link);
