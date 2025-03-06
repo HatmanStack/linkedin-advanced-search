@@ -94,7 +94,9 @@ async function GoodContact(page, link) {
           scoreHolder += counts.day;
           scoreHolder += counts.hour;
           scoreHolder += counts.week;
-
+          if(scoreHolder >= threshold){
+            break;
+          }
           if (i > 1 && scoreHolder === threeLoopsAgoScoreHolder) {
             score += counts.day * recencyValues.days;
             score += counts.hour * recencyValues.hours;
