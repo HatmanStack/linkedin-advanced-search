@@ -3,6 +3,8 @@ import Promise from 'Promise';
 import puppeteer from 'puppeteer';
 import fs from 'fs/promises'; 
 import cors from 'cors';
+import { GoogleGenerativeAI } from "@google/generative-ai";
+
 
 const app = express();
 const port = 3001;
@@ -52,6 +54,234 @@ async function GetLinks(page, pageNumber, extractedCompanyNumber, encodedRole, e
   }
 }
 
+async function ProcessLinks(page) {
+try{
+  let links = await page.$$eval('ul li a', (anchors) => {
+    return anchors.map(anchor => {
+      const href = anchor.href;
+      const match = href.match(/\/in\/(.*?)\?mini/);
+      return match ? match[1] : null;
+    }).filter(Boolean);
+  });
+  return [...new Set(links || [])];
+} catch (error) {
+  console.error('Error in ProcessLinks:', error);
+  return []; // Return empty array on error
+}
+}
+
+async function GetRecentMessages(page) {
+
+    await page.goto('https://www.linkedin.com/feed/');
+
+    let tempLinksAccumulator = [];
+    const targetPage = page;
+    let element = await Promise.race([
+        targetPage.locator('#global-nav li:nth-of-type(4) svg'),
+        targetPage.locator('::-p-xpath(//*[@id=\\"global-nav\\"]/div/nav/ul/li[4]/a/div/div/li-icon/svg)'),
+        targetPage.locator(':scope >>> #global-nav li:nth-of-type(4) svg')
+    ])
+        await element.click();
+      let holder = ProcessLinks(page);
+      if (Array.isArray(holder)) {
+        tempLinksAccumulator.push(...holder);
+      }
+        
+    console.log('TempLinks: ',tempLinksAccumulator);
+    
+    element = await Promise.race([
+        targetPage.locator('#ember1738 p'),
+        targetPage.locator('::-p-xpath(//*[@id=\\"conversation-card-ember1739\\"]/div[1]/div[2]/div[2]/div/div[2]/div[1]/p)'),
+        targetPage.locator(':scope >>> #ember1738 p')
+    ])
+        await element.click();
+        holder = ProcessLinks(page);
+        if (Array.isArray(holder)) {
+        tempLinksAccumulator.push(...holder);
+      }
+    
+    element = await Promise.race([
+        targetPage.locator('#ember1745 p'),
+        targetPage.locator('::-p-xpath(//*[@id=\\"conversation-card-ember1746\\"]/div[1]/div[2]/div[2]/div/div[2]/div[1]/p)'),
+        targetPage.locator(':scope >>> #ember1745 p'),
+        targetPage.locator('::-p-text(Kruthi: Likewise)')
+    ])
+        await element.click();
+        holder = ProcessLinks(page);
+        if (Array.isArray(holder)) {
+        tempLinksAccumulator.push(...holder);
+      }
+
+    element = await Promise.race([
+        targetPage.locator('#ember1752 p'),
+        targetPage.locator('::-p-xpath(//*[@id=\\"conversation-card-ember1753\\"]/div[1]/div[2]/div[2]/div/div[2]/div[1]/p)'),
+        targetPage.locator(':scope >>> #ember1752 p'),
+        targetPage.locator('::-p-text(Jason: Likewise,)')
+    ])
+        await element.click();
+        holder = ProcessLinks(page);
+        if (Array.isArray(holder)) {
+        tempLinksAccumulator.push(...holder);
+      }
+
+    element = await Promise.race([
+        targetPage.locator('#ember1759 p'),
+        targetPage.locator('::-p-xpath(//*[@id=\\"conversation-card-ember1760\\"]/div[1]/div[2]/div[2]/div/div[2]/div[1]/p)'),
+        targetPage.locator(':scope >>> #ember1759 p'),
+        targetPage.locator('::-p-text(Jorg: Likewise)')
+    ])
+        await element.click();
+        holder = ProcessLinks(page);
+        if (Array.isArray(holder)) {
+        tempLinksAccumulator.push(...holder);
+      }
+
+    element = await Promise.race([
+        targetPage.locator('#ember1766 p'),
+        targetPage.locator('::-p-xpath(//*[@id=\\"conversation-card-ember1767\\"]/div[1]/div[2]/div[2]/div/div[2]/div[1]/p)'),
+        targetPage.locator(':scope >>> #ember1766 p')
+    ])
+        await element.click();
+        holder = ProcessLinks(page);
+        if (Array.isArray(holder)) {
+        tempLinksAccumulator.push(...holder);
+      }
+        console.log('TempLinks-1: ',tempLinksAccumulator);
+    element = await Promise.race([
+        targetPage.locator('#ember1773 p'),
+        targetPage.locator('::-p-xpath(//*[@id=\\"conversation-card-ember1774\\"]/div[1]/div[2]/div[2]/div/div[2]/div[1]/p)'),
+        targetPage.locator(':scope >>> #ember1773 p')
+    ])
+        await element.click();
+        holder = ProcessLinks(page);
+        if (Array.isArray(holder)) {
+        tempLinksAccumulator.push(...holder);
+      }
+
+    element = await Promise.race([
+        targetPage.locator('#ember1780 p'),
+        targetPage.locator('::-p-xpath(//*[@id=\\"conversation-card-ember1781\\"]/div[1]/div[2]/div[2]/div/div[2]/div[1]/p)'),
+        targetPage.locator(':scope >>> #ember1780 p')
+    ])
+        await element.click();
+        holder = ProcessLinks(page);
+        if (Array.isArray(holder)) {
+        tempLinksAccumulator.push(...holder);
+      }
+
+    element = await Promise.race([
+        targetPage.locator('#ember1787 h3 span'),
+        targetPage.locator('::-p-xpath(//*[@id=\\"conversation-card-ember1788\\"]/div[1]/div[2]/div[2]/div/div[1]/h3/div/span)'),
+        targetPage.locator(':scope >>> #ember1787 h3 span')
+    ])
+        await element.click();
+        holder = ProcessLinks(page);
+        if (Array.isArray(holder)) {
+        tempLinksAccumulator.push(...holder);
+      }
+        return tempLinksAccumulator;
+}
+
+
+function fileToGenerativePart(path, mimeType) {
+  return {
+    inlineData: {
+      data: Buffer.from(fs.readFileSync(path)).toString("base64"),
+      mimeType
+    },
+  };
+}
+
+async function InitialMessage(page){
+  console.log('Initial Message');
+  const firstMessageLinks = await GetRecentMessages(page);
+  console.log(firstMessageLinks);
+  await page.goto('https://www.linkedin.com/feed/');
+    let element = await Promise.race([
+      page.locator('#global-nav li:nth-of-type(2) span'),
+      page.locator('::-p-xpath(//*[@id=\\"global-nav\\"]/div/nav/ul/li[2]/a/span)'),
+      page.locator(':scope >>> #global-nav li:nth-of-type(2) span')
+    ])
+    await element.click({
+      offset: {
+        x: 56.5,
+        y: 21.5,
+      },
+    });
+
+    element = await Promise.race([
+        page.locator('div > div > section li:nth-of-type(1) span._1xoe5hdu > span'),
+        page.locator('::-p-xpath(//*[@id=\\"root\\"]/div[3]/div[2]/div/div/div/section/div/div/section[1]/div/nav/ul/li[1]/a/span[2]/span)'),
+        page.locator(':scope >>> div > div > section li:nth-of-type(1) span._1xoe5hdu > span'),
+        page.locator('::-p-text(Connections)')
+    ])
+    await element.click({
+      offset: {
+        x: 52.5,
+        y: 21.5,
+      },
+    });
+    let rdyForFirstMessage = false;
+    let tempLinksAccumulator = [];
+    while (!rdyForFirstMessage) {
+      await page.waitForSelector('ul li a', { visible: true });
+      // Count timeframe mentions
+      
+      const links = await page.$$eval('ul li a', (anchors) => {
+        return anchors.map(anchor => {
+          const href = anchor.href;
+          const match = href.match(/\/in\/(.*?)\?mini/);
+          return match ? match[1] : null;
+        }).filter(Boolean);
+      });
+      let tempLinks = [...new Set(links)];
+      tempLinksAccumulator.push(...tempLinks);
+
+      for (let i = tempLinksAccumulator.length - 1; i >= 0; i--) {
+        const currentLink = tempLinksAccumulator[i];
+        if (firstMessageLinks.includes(currentLink)) {
+          const relevantLinks = tempLinksAccumulator.slice(i);
+          tempLinksAccumulator = tempLinksAccumulator.slice(0, i);
+          rdyForFirstMessage = true;
+          break;
+        }
+      }
+
+      
+      await page.evaluate(() => {
+        window.scrollBy(0, window.innerHeight);
+      });     
+    }
+
+    console.log('TempLinksAccumulator: ', tempLinksAccumulator);
+    const genAI = new GoogleGenerativeAI("");
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+    const firstMessageContact = []
+    for (const link of tempLinksAccumulator) {
+      await page.goto(`https://www.linkedin.com/in/${link}`);
+      await page.screenshot({ 
+        path: `./screenshots/${link}.png`, 
+        fullPage: true 
+      });
+
+      const prompt = "Create an introduction message for a newly connected LinkedIn connection, with a personalized message to the user. Here are some examples \
+                     but feel free to deviate from them: \
+                     Hey {{to.first_name}}, happy to connect. I have a lot of respect for the work being done at __company__ and look forward to seeing updates from you in my feed. \
+                     Hey {{to.first_name}}, glad we're connected now. I've been impressed by the innovation happening at __company__- excited to stay updated. \
+                     Hey {{to.first_name}}, good to connect.  Excited to follow along with what you're up to.  All the best.";
+      const imageParts = [
+        fileToGenerativePart(`./screenshots/${link}.png`, "image/jpeg"),
+      ];
+      const generatedContent = await model.generateContent([prompt, ...imageParts]);
+
+      console.log('Gemini: ' ,generatedContent[0].text);
+      firstMessageContact.push({
+        link,
+        content: generatedContent[0].text,
+      });
+    }
+    return firstMessageContact;
+  }
 
 async function GoodContact(page, link) {
   try {
@@ -121,15 +351,19 @@ async function GoodContact(page, link) {
   }
 }
 
+async function sendResponse(response, res) {
+  res.json({ response });
+}
+
 // The main route to scrape and search
 app.post('/', async (req, res) => {
   console.log('Received request body:', req.body);
-  const { companyName, companyRole, companyLocation, searchName, searchPassword} = req.body;
+  const { companyName, companyRole, companyLocation, searchName, searchPassword, getResponse} = req.body;
   const randomInRange = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
   const delay = randomInRange(500, 5000);
   const timeout = 5000;
   let browser = null;
-
+ 
  
   try {
     browser = await puppeteer.launch({ headless: false, slowMo: 50,});
@@ -157,7 +391,7 @@ app.post('/', async (req, res) => {
             y: 21.5,
           },
         });
-    console.log(searchName);
+    
     try {
     const element = await Promise.race([
         page.locator('::-p-aria(Email or phone)'),
@@ -199,6 +433,7 @@ app.post('/', async (req, res) => {
         }
     });
     await navigationPromise;
+
     
     element = await Promise.race([
         page.locator('::-p-aria(Search)'),
@@ -206,7 +441,10 @@ app.post('/', async (req, res) => {
         page.locator('::-p-xpath(//*[@id=\\"global-nav-typeahead\\"]/input)'),
         page.locator(':scope >>> #global-nav input')
     ])
-        
+    
+    
+    
+
     await element.fill(companyName);
     
     await page.keyboard.down('Enter');
@@ -218,6 +456,10 @@ app.post('/', async (req, res) => {
       page.locator('::-p-xpath(//*[@id=\\"/76nR2TmThOYqRobQEAgiw==\\"]/div/ul/li/div/div/div/div[1]/div[1]/div/div/span/span/a)'),
       page.locator(':scope >>> div.search-nec__hero-kcard-v2-content a')
     ])
+
+    if(getResponse.toLowerCase() === 'yes'){
+      sendResponse(InitialMessage(page), res);
+    }
       
     element.click({
         offset: {
@@ -319,10 +561,6 @@ app.post('/', async (req, res) => {
     }
 
     const uniqueLinks = Array.from(new Set(tempLinksAccumulator));
-
-    
-    
-   
  
   
     const results = [];
@@ -347,7 +585,7 @@ app.post('/', async (req, res) => {
     }
     console.log(results)
     // Send the results back to the client
-    res.json({ results });
+    sendResponse(results, res);
   } catch (error) {
     console.error('Error in the main application:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -358,6 +596,8 @@ app.post('/', async (req, res) => {
   }
     
 });
+
+
 
 // Start the server
 app.listen(port, () => {
