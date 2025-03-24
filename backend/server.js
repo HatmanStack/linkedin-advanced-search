@@ -286,73 +286,62 @@ async function InitialMessage(page){
     return firstMessageContact;
   }
 
-async function GoodContact(page, link) {
-  try {
-    const activityUrl = `https://www.linkedin.com/in/${link}/recent-activity/reactions/`;
-    console.log(activityUrl);
-    await page.goto(activityUrl);
-    let score = 0;
-    let scoreHolder = 0;
-    let previousScoreHolder = 0;
-    let twoLoopsAgoScoreHolder = 0;
-    let threeLoopsAgoScoreHolder = 0;
-    const recencyValues = { days: recencyDays, hours: recencyHours, weeks: recencyWeeks };
-    
-    for (let i = 0; i < historyToCheck; i++) {
-      await page.waitForSelector('ul li a', { visible: true });
-      // Count timeframe mentions
-      const counts = await page.evaluate(() => {
-         const timeframes = {
+  async function GoodContact(page, link) {
+    try {
+      const activityUrl = `https://www.linkedin.com/in/${link}/recent-activity/reactions/`;
+      console.log(activityUrl);
+      await page.goto(activityUrl);
+      let score = 0;
+      let totalCounts = { hour: 0, day: 0, week: 0 };
+      const recencyValues = { days: recencyDays, hours: recencyHours, weeks: recencyWeeks };
+      
+      for (let i = 0; i < historyToCheck; i++) {
+        await page.waitForSelector('ul li a', { visible: true });
+
+        const newCounts = await page.evaluate((existingCounts) => {
+          const timeframes = {
             hour: /([1-23]h)\b/i,
-          day: /\b([1-6]d)\b/i,
-          week: /\b([1-4]w)\b/i
+            day: /\b([1-6]d)\b/i,
+            week: /\b([1-4]w)\b/i
           };
           const elements = document.querySelectorAll('span[aria-hidden="true"]');
-          return Object.entries(timeframes).reduce((acc, [key, regex]) => {
-            acc[key] = [...elements].filter(el => regex.test(el.textContent?.toLowerCase() ?? '')).length;
-            console.log(`${key}:`, acc[key]);
-            return acc;
-          }, {hour: 0, day: 0, week: 0 });
-        });
-        if(i === historyToCheck - 1 ){
-          score += counts.day * recencyValues.days;
-          score += counts.hour * recencyValues.hours;
-          score += counts.week * recencyValues.weeks;
-        } else {
-          threeLoopsAgoScoreHolder = twoLoopsAgoScoreHolder;
-          twoLoopsAgoScoreHolder = previousScoreHolder;
-          previousScoreHolder = scoreHolder;
-          scoreHolder = 0;
+
+          const updatedCounts = {...existingCounts};
+          Object.entries(timeframes).forEach(([key, regex]) => {
+            const newCount = [...elements].filter(el => regex.test(el.textContent?.toLowerCase() ?? '')).length;
+            updatedCounts[key] += newCount;
+          });
           
-          scoreHolder += counts.day;
-          scoreHolder += counts.hour;
-          scoreHolder += counts.week;
-          if(scoreHolder >= threshold){
-            break;
-          }
-          if (i > 1 && scoreHolder === threeLoopsAgoScoreHolder) {
-            score += counts.day * recencyValues.days;
-            score += counts.hour * recencyValues.hours;
-            score += counts.week * recencyValues.weeks;
-            break;
-          }
-        }
-       
+          return updatedCounts;
+        }, totalCounts); 
+
+        totalCounts = newCounts;
+
+        score = 
+          (totalCounts.day * recencyValues.days) +
+          (totalCounts.hour * recencyValues.hours) +
+          (totalCounts.week * recencyValues.weeks);
         
-        console.log(`Scroll ${i + 1} - Counts:`, counts);
+        console.log(`Iteration ${i + 1} - Total Counts:`, totalCounts);
+        console.log(`Current Score:`, score);
+        
+        // Break conditions
+        if (score >= threshold) {
+          break;
+        }
+         
         await page.evaluate(() => {
           window.scrollBy(0, window.innerHeight);
         });
       }
-
-      
-  console.log(`score: ${score}`)
-    return score >= threshold;
-  } catch (error) {
-    console.error('Error in GoodContact:', error);
-    return false;
+  
+      console.log(`Final score: ${score}`)
+      return score >= threshold;
+    } catch (error) {
+      console.error('Error in GoodContact:', error);
+      return false;
+    }
   }
-}
 
 async function sendResponse(response, res) {
   res.json({ response });
@@ -540,7 +529,7 @@ app.post('/', async (req, res) => {
     const encodedRole = encodeURIComponent(companyRole);
     
     let tempLinksAccumulator = [];
-    for (let pageNumber = pageNumberStart; pageNumber <= pageNumberEnd; pageNumber++) {
+    /**for (let pageNumber = pageNumberStart; pageNumber <= pageNumberEnd; pageNumber++) {
       const tempLinks = await GetLinks(page, pageNumber, extractedCompanyNumber, encodedRole, extractedGeoNumber);
       if (tempLinks.length === 0) {
         console.log('No more links found on page');
@@ -556,10 +545,10 @@ app.post('/', async (req, res) => {
       } catch (error) {
         console.error('Error writing to file:', error);
       }
-    }
+    }**/
 
-    const uniqueLinks = Array.from(new Set(tempLinksAccumulator));
- 
+    //const uniqueLinks = Array.from(new Set(tempLinksAccumulator));
+    const uniqueLinks = ['bhavinl','mohammad-salehan-59b592b' ]
     const results = [];
     for (const link of uniqueLinks) {
       if (/ACoA/.test(link)) {
