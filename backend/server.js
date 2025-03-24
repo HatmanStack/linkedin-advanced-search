@@ -14,7 +14,7 @@ const recencyWeeks = 3; // Value assigned to a interaction that happened in the 
 const historyToCheck = 10; // Number of times to scroll to check for interactions
 const threshold = 8;  // Minimum score to consider a contact good
 const pageNumberStart = 1; // Start page number for Checking People on PeopleSearch 1-100
-const pageNumberEnd = 100; // End page number for Checking People on PeopleSearch 1-100
+const pageNumberEnd = 10; // End page number for Checking People on PeopleSearch 1-100
 
 
 app.use(cors({
@@ -192,6 +192,9 @@ function fileToGenerativePart(path, mimeType) {
   };
 }
 
+//  Pre-Deployment Code for Creating an initial response to connected 
+//  May break Water-Gun on Campus theory behind LinkedIn Search
+//  Consult User Agreement
 async function InitialMessage(page){
   console.log('Initial Message');
   const firstMessageLinks = await GetRecentMessages(page);
@@ -358,7 +361,7 @@ async function sendResponse(response, res) {
 // The main route to scrape and search
 app.post('/', async (req, res) => {
   console.log('Received request body:', req.body);
-  const { companyName, companyRole, companyLocation, searchName, searchPassword, getResponse} = req.body;
+  const { companyName, companyRole, companyLocation, searchName, searchPassword} = req.body;
   const randomInRange = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
   const delay = randomInRange(500, 5000);
   const timeout = 5000;
@@ -441,9 +444,6 @@ app.post('/', async (req, res) => {
         page.locator('::-p-xpath(//*[@id=\\"global-nav-typeahead\\"]/input)'),
         page.locator(':scope >>> #global-nav input')
     ])
-    
-    
-    
 
     await element.fill(companyName);
     
@@ -457,9 +457,9 @@ app.post('/', async (req, res) => {
       page.locator(':scope >>> div.search-nec__hero-kcard-v2-content a')
     ])
 
-    if(getResponse.toLowerCase() === 'yes'){
+    /**if(getResponse.toLowerCase() === 'yes'){
       sendResponse(InitialMessage(page), res);
-    }
+    }*/
       
     element.click({
         offset: {
@@ -494,8 +494,6 @@ app.post('/', async (req, res) => {
             y: 6.546875,
           },
         });
-    
-    
     
     element = await Promise.race([
             page.locator('::-p-aria(City, state, or zip code)'),
@@ -546,7 +544,7 @@ app.post('/', async (req, res) => {
       const tempLinks = await GetLinks(page, pageNumber, extractedCompanyNumber, encodedRole, extractedGeoNumber);
       if (tempLinks.length === 0) {
         console.log('No more links found on page');
-        break;
+        continue;
       }
       tempLinksAccumulator.push(...tempLinks);
       try {
@@ -562,7 +560,6 @@ app.post('/', async (req, res) => {
 
     const uniqueLinks = Array.from(new Set(tempLinksAccumulator));
  
-  
     const results = [];
     for (const link of uniqueLinks) {
       if (/ACoA/.test(link)) {

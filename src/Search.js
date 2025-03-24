@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-const Search = ({ companyName, companyRole, companyLocation, searchName, searchPassword, setSearchResults, getResponse, setGetResponse }) => {
+const Search = ({ companyName, companyRole, companyLocation, searchName, searchPassword, setSearchResults}) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -15,7 +15,7 @@ const Search = ({ companyName, companyRole, companyLocation, searchName, searchP
         companyLocation,
         searchName,
         searchPassword,
-        getResponse
+        
       };
       //const apiUrl = 'https://your-api-gateway-url.amazonaws.com/your-lambda-function-endpoint';
       
@@ -44,7 +44,7 @@ const Search = ({ companyName, companyRole, companyLocation, searchName, searchP
 
   // Trigger the search when necessary
   const handleSearch = () => {
-    if (companyName || companyRole || companyLocation || searchName || searchPassword || getResponse) {
+    if (companyName || companyRole || companyLocation || searchName || searchPassword ) {
       callLambda();
     }
   };

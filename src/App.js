@@ -7,8 +7,8 @@ const App = () => {
   const [companyLocation, setCompanyLocation] = useState('');
   const [searchName, setSearchName] = useState('');
   const [searchPassword, setSearchPassword] = useState('');
-  const [getResponse, setGetResponse] = useState('');
-  const [response, setResponse] = useState([]);
+  //const [getResponse, setGetResponse] = useState('');
+  //const [response, setResponse] = useState(['']);
   const [searchResults, setSearchResults] = useState([]);
 
   // Optional: Update companyName, companyRole, and companyLocation through user input
@@ -17,7 +17,7 @@ const App = () => {
   const handleCompanyLocationChange = (event) => setCompanyLocation(event.target.value);
   const handleSearchUserNameChange = (event) => setSearchName(event.target.value);
   const handleSearchPasswordChange = (event) => setSearchPassword(event.target.value);
-  const handleGetResponse = (event) => setGetResponse(event.target.value);
+  //const handleGetResponse = (event) => setGetResponse(event.target.value);
 
   return (
     <div style={{margin: 5 + 'em'}}>
@@ -55,12 +55,13 @@ const App = () => {
           value={searchPassword}
           onChange={handleSearchPasswordChange}
         />
+        {/** 
         <input
           type="text"
           placeholder="Get Response Leave Blank if not needed"
           value={getResponse}
           onChange={handleGetResponse}
-        />
+        />*/}
 
       </div>
 
@@ -72,8 +73,7 @@ const App = () => {
         searchName={searchName}
         searchPassword={searchPassword}
         setSearchResults={setSearchResults}
-        getResponse={getResponse}
-        setGetResponse={setGetResponse}
+        
       />
 
       {/* Display search results */}
