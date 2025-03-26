@@ -33,8 +33,8 @@ const Search = ({ companyName, companyRole, companyLocation, searchName, searchP
       }
 
       const data = await response.json();
-      console.log(data);
-      setSearchResults(Array.isArray(data.results) ? data.results : []);  
+      console.log(data.response);
+      setSearchResults(Array.isArray(data.response) ? data.response : []);  
     } catch (err) {
       setError(err.message);
     } finally {

@@ -11,7 +11,7 @@ const port = 3001;
 const recencyHours = 6;   // Value assigned to a interaction that happened in the last day
 const recencyDays = 5;  // Value assigned to a interaction that happened in the last 6 days
 const recencyWeeks = 3; // Value assigned to a interaction that happened in the last 3 weeks
-const historyToCheck = 10; // Number of times to scroll to check for interactions
+const historyToCheck = 4; // Number of times to scroll to check for interactions
 const threshold = 8;  // Minimum score to consider a contact good
 const pageNumberStart = 1; // Start page number for Checking People on PeopleSearch 1-100
 const pageNumberEnd = 10; // End page number for Checking People on PeopleSearch 1-100
@@ -354,6 +354,7 @@ app.post('/', async (req, res) => {
   const randomInRange = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
   const delay = randomInRange(500, 5000);
   const timeout = 5000;
+  
   let browser = null;
  
  
@@ -446,7 +447,9 @@ app.post('/', async (req, res) => {
       page.locator(':scope >>> div.search-nec__hero-kcard-v2-content a')
     ])
 
-    /**if(getResponse.toLowerCase() === 'yes'){
+    // Entry point for the initial message to Contact
+    /**
+    if(getResponse.toLowerCase() === 'yes'){
       sendResponse(InitialMessage(page), res);
     }*/
       
@@ -529,7 +532,7 @@ app.post('/', async (req, res) => {
     const encodedRole = encodeURIComponent(companyRole);
     
     let tempLinksAccumulator = [];
-    /**for (let pageNumber = pageNumberStart; pageNumber <= pageNumberEnd; pageNumber++) {
+    for (let pageNumber = pageNumberStart; pageNumber <= pageNumberEnd; pageNumber++) {
       const tempLinks = await GetLinks(page, pageNumber, extractedCompanyNumber, encodedRole, extractedGeoNumber);
       if (tempLinks.length === 0) {
         console.log('No more links found on page');
@@ -545,10 +548,10 @@ app.post('/', async (req, res) => {
       } catch (error) {
         console.error('Error writing to file:', error);
       }
-    }**/
+    }
 
-    //const uniqueLinks = Array.from(new Set(tempLinksAccumulator));
-    const uniqueLinks = ['bhavinl','mohammad-salehan-59b592b' ]
+    const uniqueLinks = Array.from(new Set(tempLinksAccumulator));
+   
     const results = [];
     for (const link of uniqueLinks) {
       if (/ACoA/.test(link)) {
@@ -567,7 +570,7 @@ app.post('/', async (req, res) => {
         console.log(`Saved ${results.length} links to file`);
       } catch (error) {
         console.error('Error writing to file:', error);
-      }
+      } 
     }
     console.log(results)
     // Send the results back to the client
@@ -578,7 +581,6 @@ app.post('/', async (req, res) => {
   } finally {
     if (browser) {
       await browser.close();
-    }
   }
     
 });
