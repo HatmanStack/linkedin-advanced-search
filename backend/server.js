@@ -415,9 +415,9 @@ app.post('/', async (req, res) => {
       page.locator('form button'),
       page.locator('::-p-xpath(//*[@id="organic-div"]/form/div[4]/button)'),
       page.locator(':scope >>> form button')
-  ]);
+    ]);
   
-  // Wait for navigation after click
+    // Wait for navigation after click
     const navigationPromise = page.waitForNavigation();
     await element.click({
         offset: {
@@ -581,8 +581,8 @@ app.post('/', async (req, res) => {
   } finally {
     if (browser) {
       await browser.close();
+    }
   }
-    
 });
 
 
