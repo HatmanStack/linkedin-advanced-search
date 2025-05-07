@@ -29,7 +29,7 @@ cd linkedin
 npm install
 npm start
 cd backend
-npx nodemon server.js
+npx nodemon --config nodemon.json server.js
 ```
 
 After this the frontend will be running at http://localhost:3000

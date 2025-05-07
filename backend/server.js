@@ -3,6 +3,7 @@ import Promise from 'Promise';
 import puppeteer from 'puppeteer';
 import fs from 'fs/promises'; 
 import cors from 'cors';
+//import linksData from './possible-links.json' with { type: 'json' };
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 
@@ -14,7 +15,7 @@ const recencyWeeks = 3; // Value assigned to a interaction that happened in the 
 const historyToCheck = 4; // Number of times to scroll to check for interactions
 const threshold = 8;  // Minimum score to consider a contact good
 const pageNumberStart = 1; // Start page number for Checking People on PeopleSearch 1-100
-const pageNumberEnd = 10; // End page number for Checking People on PeopleSearch 1-100
+const pageNumberEnd = 100; // End page number for Checking People on PeopleSearch 1-100
 
 
 app.use(cors({
@@ -436,7 +437,7 @@ app.post('/', async (req, res) => {
     ])
 
     await element.fill(companyName);
-    
+     
     await page.keyboard.down('Enter');
     await page.keyboard.up('Enter');
     
@@ -447,7 +448,7 @@ app.post('/', async (req, res) => {
       page.locator(':scope >>> div.search-nec__hero-kcard-v2-content a')
     ])
 
-    // Entry point for the initial message to Contact
+    // Entry point for the initial message to Contact **Breaks Water-Gun on Campus theory**
     /**
     if(getResponse.toLowerCase() === 'yes'){
       sendResponse(InitialMessage(page), res);
@@ -530,7 +531,7 @@ app.post('/', async (req, res) => {
     console.log(extractedGeoNumber);
 
     const encodedRole = encodeURIComponent(companyRole);
-    
+   
     let tempLinksAccumulator = [];
     for (let pageNumber = pageNumberStart; pageNumber <= pageNumberEnd; pageNumber++) {
       const tempLinks = await GetLinks(page, pageNumber, extractedCompanyNumber, encodedRole, extractedGeoNumber);
@@ -541,7 +542,7 @@ app.post('/', async (req, res) => {
       tempLinksAccumulator.push(...tempLinks);
       try {
         await fs.writeFile(
-          './possible-links.txt', 
+          './possible-links.json', 
           JSON.stringify(tempLinksAccumulator, null, 2)
         );
         console.log(`Saved ${tempLinksAccumulator.length} links to file after page ${pageNumber}`);
@@ -552,6 +553,8 @@ app.post('/', async (req, res) => {
 
     const uniqueLinks = Array.from(new Set(tempLinksAccumulator));
    
+    //const uniqueLinks = linksData;
+    console.log(uniqueLinks);
     const results = [];
     for (const link of uniqueLinks) {
       if (/ACoA/.test(link)) {

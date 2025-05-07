@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Search from './Search';
 
 const App = () => {
@@ -7,9 +7,45 @@ const App = () => {
   const [companyLocation, setCompanyLocation] = useState('');
   const [searchName, setSearchName] = useState('');
   const [searchPassword, setSearchPassword] = useState('');
+  const [visitedLinks, setVisitedLinks] = useState({});
   //const [getResponse, setGetResponse] = useState('');
   //const [response, setResponse] = useState(['']);
-  const [searchResults, setSearchResults] = useState([]);
+  const [searchResults, setSearchResults] = useState([
+
+  ]);
+
+  useEffect(() => {
+    // Load visited links from local storage on component mount
+    const storedVisitedLinks = localStorage.getItem('visitedLinks');
+    if (storedVisitedLinks) {
+      setVisitedLinks(JSON.parse(storedVisitedLinks));
+    }
+  }, []);
+
+  const handleLinkClick = (result, event) => {
+    // Update visitedLinks state when a link is clicked
+    
+    setVisitedLinks(prevVisitedLinks => {
+      const updatedVisitedLinks = { ...prevVisitedLinks, [result]: true };
+      // Save updated visitedLinks to local storage
+      localStorage.setItem('visitedLinks', JSON.stringify(updatedVisitedLinks));
+      return updatedVisitedLinks;
+    });
+  
+  };
+
+  const handleContextMenu = (result, event) => {
+    console.log('Context Menu clicked:', result);
+    
+
+    // Update visitedLinks state on right click
+    setVisitedLinks(prevVisitedLinks => {
+      const updatedVisitedLinks = { ...prevVisitedLinks, [result]: true };
+      // Save updated visitedLinks to local storage
+      localStorage.setItem('visitedLinks', JSON.stringify(updatedVisitedLinks));
+      return updatedVisitedLinks;
+    });
+  };
 
   // Optional: Update companyName, companyRole, and companyLocation through user input
   const handleCompanyNameChange = (event) => setCompanyName(event.target.value);
@@ -85,11 +121,13 @@ const App = () => {
           <ul>
            {searchResults.map((result, index) => (
               <li key={index}>
-                <a 
+                <a
                   href={`https://www.linkedin.com/in/${result}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                >
+                  style={{ color: visitedLinks[result] ? 'red' : 'blue' }} // Change color based on visited state
+                  onClick={(event) => handleLinkClick(result, event)} // Track left link clicks
+                  onContextMenu={(event) => handleContextMenu(result, event)} >
                 {result}
                 </a>
               </li>  
