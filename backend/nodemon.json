@@ -1,3 +1,10 @@
 {
-    "watch": ["server.js"]
-  }
+  "watch": ["src", "config", "utils", "services", "controllers", "routes"],
+  "ext": "js,json",
+  "ignore": ["data/", "logs/", "screenshots/", "node_modules/"],
+  "exec": "node src/server.js",
+  "env": {
+    "NODE_ENV": "development"
+  },
+  "delay": 1000
+}

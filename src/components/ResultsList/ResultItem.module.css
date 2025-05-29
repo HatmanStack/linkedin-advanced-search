@@ -1,0 +1,83 @@
+.resultItem {
+  margin-bottom: 0.75rem;
+}
+
+.link {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  text-decoration: none;
+  transition: all 0.2s ease-in-out;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.link:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  border-color: #3b82f6;
+}
+
+.profileInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 1;
+}
+
+.profileId {
+  font-weight: 600;
+  font-size: 1rem;
+  transition: color 0.2s ease-in-out;
+}
+
+.profileUrl {
+  font-size: 0.875rem;
+  color: #6b7280;
+  word-break: break-all;
+}
+
+.statusIndicator {
+  display: flex;
+  align-items: center;
+}
+
+.visitedBadge {
+  background: #dc2626;
+  color: white;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.unvisited .profileId {
+  color: #3b82f6;
+}
+
+.visited .profileId {
+  color: #dc2626;
+}
+
+.unvisited:hover .profileId {
+  color: #1d4ed8;
+}
+
+.visited:hover .profileId {
+  color: #b91c1c;
+}
+
+@media (max-width: 768px) {
+  .link {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+  
+  .statusIndicator {
+    align-self: flex-end;
+  }
+}

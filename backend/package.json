@@ -1,0 +1,38 @@
+{
+  "name": "linkedin-advanced-search-backend",
+  "version": "1.0.0",
+  "description": "Refactored backend for LinkedIn Advanced Search with modern architecture",
+  "main": "src/server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "build": "echo 'No build step required for Node.js backend'",
+    "lint": "eslint src/**/*.js",
+    "test": "echo 'No tests specified yet'"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.24.0",
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "puppeteer": "^24.2.0",
+    "winston": "^3.11.0",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.9",
+    "eslint": "^8.57.0"
+  },
+  "keywords": [
+    "linkedin",
+    "automation",
+    "puppeteer",
+    "search",
+    "scraping"
+  ],
+  "author": "Your Name",
+  "license": "Apache-2.0",
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
