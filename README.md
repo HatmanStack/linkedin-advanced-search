@@ -48,15 +48,14 @@
 ### Frontend (Refactored Version)
 ```bash
 git clone <your-repo-url>
-cd claude-linkedin
+cd ../linkedin-advanced-search/backend
 npm install
-npm run dev
 ```
 
 The frontend will be running at http://localhost:5173 (or next available port)
 
-### Backend (Original)
-To use with the original backend, ensure you have the backend running:
+### Backend 
+To use with the backend, ensure you have the backend running:
 ```bash
 cd ../linkedin-advanced-search/backend
 npm install

@@ -87,10 +87,30 @@ async navigateToJobs(companyLocation) {
       
       // Click on Jobs tab
       logger.info('Attempting to click Jobs tab...');
-      const jobsTabSelector = 'nav[aria-label*="Organization"] a[href*="jobs"], #ember563';
-      const jobsSuccess = await this.puppeteer.safeClick(jobsTabSelector);
-      
-      if (!jobsSuccess) {
+      const jobsTabSelectors = [
+        'a[data-control-name*="jobs"]',
+        'a[aria-label*="Jobs"]',
+        'a[href*="/jobs/"]',
+        'nav a[href*="/jobs"]',
+        'button[aria-label*="Jobs"]'
+      ];
+
+      let jobsTabClicked = false;
+      for (const selector of jobsTabSelectors) {
+        logger.info(`Trying selector for Jobs tab: ${selector}`);
+        try {
+          await this.puppeteer.getPage().waitForSelector(selector, { timeout: 5000 });
+          const success = await this.puppeteer.safeClick(selector);
+          if (success) {
+            logger.info(`Clicked Jobs tab with selector: ${selector}`);
+            jobsTabClicked = true;
+            break;
+          }
+        } catch (e) {
+          logger.info(`Selector failed: ${selector}`);
+        }
+      }
+      if (!jobsTabClicked) {
         throw new Error('Failed to click Jobs tab');
       }
       logger.info('Clicked Jobs tab successfully.');
@@ -99,21 +119,83 @@ async navigateToJobs(companyLocation) {
       logger.info('Waited after clicking Jobs tab.');
 
       // Click "Show all jobs"
-      logger.info('Attempting to click "Show all jobs"...');
-      const showAllSelector = 'span:contains("Show all jobs"), div.org-jobs-recently-posted-jobs-module span';
-      await this.puppeteer.safeClick(showAllSelector);
-      logger.info('"Show all jobs" clicked (if present).');
-      
+       logger.info('Attempting to click "Show all jobs"...');
+      const showAllSelectors = [
+        'a[href*="/jobs/"][data-test-id*="show-all"]',
+        'button[aria-label*="Show all"]',
+        'a[aria-label*="Show all"]'
+      ];
+
+      let showAllClicked = false;
+      for (const selector of showAllSelectors) {
+        logger.info(`Trying selector for "Show all jobs": ${selector}`);
+        try {
+          await this.puppeteer.getPage().waitForSelector(selector, { timeout: 5000 });
+          const success = await this.puppeteer.safeClick(selector);
+          if (success) {
+            logger.info(`Clicked "Show all jobs" with selector: ${selector}`);
+            showAllClicked = true;
+            break;
+          }
+        } catch (e) {
+          logger.info(`Selector failed: ${selector}`);
+        }
+      }
+
+      // Try using XPath as fallback for text content
+      if (!showAllClicked) {
+        try {
+          const page = this.puppeteer.getPage();
+          const elements = await page.$x("//a[contains(text(), 'Show all') or contains(text(), 'View all')]");
+          if (elements.length > 0) {
+            await elements[0].click();
+            showAllClicked = true;
+            logger.info('Clicked "Show all jobs" using XPath');
+          }
+        } catch (e) {
+          logger.info('XPath fallback failed');
+        }
+      }
+      if (!showAllClicked) {
+        logger.info('"Show all jobs" button not found or could not be clicked.');
+      } else {
+        logger.info('"Show all jobs" clicked (if present).');
+      }
+
       await RandomHelpers.randomDelay(2000, 4000);
       logger.info('Waited after clicking "Show all jobs".');
-
       // Set location filter
       if (companyLocation) {
         logger.info(`Attempting to set location filter: ${companyLocation}`);
-        const locationSuccess = await this.puppeteer.safeType(
-          '#jobs-search-box-location-id-ember1277, input[placeholder*="location"]', 
-          companyLocation
-        );
+        const locationSelectors = [
+          'input[aria-label*="location"]',
+          'input[placeholder*="location"]',
+          'input[id*="location"]',
+          '#jobs-search-box-location-id'
+        ];
+        
+        let locationSuccess = false;
+        for (const selector of locationSelectors) {
+          try {
+            const page = this.puppeteer.getPage();
+            const element = await page.$(selector);
+            if (element) {
+              // Clear the field first
+              await element.click({ clickCount: 3 }); // Select all text
+              await element.press('Backspace');
+              await RandomHelpers.randomDelay(500, 1000);
+              
+              // Now type the location
+              locationSuccess = await this.puppeteer.safeType(selector, companyLocation);
+              if (locationSuccess) {
+                logger.info(`Location entered with selector: ${selector}`);
+                break;
+              }
+            }
+          } catch (e) {
+            logger.debug(`Failed to clear/type location with selector ${selector}: ${e.message}`);
+          }
+        }
         
         if (locationSuccess) {
           logger.info('Location entered successfully, pressing Enter...');
@@ -140,8 +222,8 @@ async navigateToJobs(companyLocation) {
       const page = this.puppeteer.getPage();
       const currentUrl = page.url();
       
-      const geoMatch = currentUrl.match(/&geoId=(\d+)&/);
-      const companyMatch = currentUrl.match(/&f_C=(\d+)/);
+      const geoMatch = currentUrl.match(/[?&]geoId=(\d+)/);
+      const companyMatch = currentUrl.match(/[?&]f_C=(\d+)/);
       
       const extractedGeoNumber = geoMatch ? geoMatch[1] : null;
       const extractedCompanyNumber = companyMatch ? companyMatch[1] : null;

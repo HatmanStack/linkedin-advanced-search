@@ -3,7 +3,7 @@ export const API_CONFIG = {
   ENDPOINTS: {
     SEARCH: '/',
   },
-  TIMEOUT: 30000,
+  TIMEOUT: 100000000,
 } as const;
 
 export const STORAGE_KEYS = {
