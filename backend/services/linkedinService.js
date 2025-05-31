@@ -88,12 +88,13 @@ async navigateToJobs(companyLocation) {
       // Click on Jobs tab
       logger.info('Attempting to click Jobs tab...');
       const jobsTabSelectors = [
-        'a[data-control-name*="jobs"]',
-        'a[aria-label*="Jobs"]',
-        'a[href*="/jobs/"]',
-        'nav a[href*="/jobs"]',
-        'button[aria-label*="Jobs"]'
+        '::-p-aria(Organization’s page navigation) >>>> ::-p-aria(Jobs)',
+        '::-p-xpath(//*[@id=\\"ember5530\\"])',
+        ':scope >>> #ember5530',
+        '#ember5530'
       ];
+      
+
 
       let jobsTabClicked = false;
       for (const selector of jobsTabSelectors) {
@@ -121,12 +122,16 @@ async navigateToJobs(companyLocation) {
       // Click "Show all jobs"
        logger.info('Attempting to click "Show all jobs"...');
       const showAllSelectors = [
-        'a[href*="/jobs/"][data-test-id*="show-all"]',
-        'button[aria-label*="Show all"]',
-        'a[aria-label*="Show all"]'
+        'div.org-jobs-recently-posted-jobs-module > div span:nth-of-type(1)',
+        '::-p-xpath(//*[@id=\\"ember5849\\"]/span[1])',
+        ':scope >>> div.org-jobs-recently-posted-jobs-module > div span:nth-of-type(1)',
+        '::-p-text(Show all jobs)'
       ];
 
       let showAllClicked = false;
+      let page = this.puppeteer.getPage();
+      let currentUrl = page.url();
+      logger.debug(`Current URL before clicking "Show all jobs": ${currentUrl}`);
       for (const selector of showAllSelectors) {
         logger.info(`Trying selector for "Show all jobs": ${selector}`);
         try {
@@ -161,7 +166,9 @@ async navigateToJobs(companyLocation) {
       } else {
         logger.info('"Show all jobs" clicked (if present).');
       }
-
+      page = this.puppeteer.getPage();
+      currentUrl = page.url();
+      logger.debug(`Current URL after clicking "Show all jobs": ${currentUrl}`);
       await RandomHelpers.randomDelay(2000, 4000);
       logger.info('Waited after clicking "Show all jobs".');
       // Set location filter
@@ -223,11 +230,12 @@ async navigateToJobs(companyLocation) {
       const currentUrl = page.url();
       
       const geoMatch = currentUrl.match(/[?&]geoId=(\d+)/);
+      
       const companyMatch = currentUrl.match(/[?&]f_C=(\d+)/);
       
       const extractedGeoNumber = geoMatch ? geoMatch[1] : null;
       const extractedCompanyNumber = companyMatch ? companyMatch[1] : null;
-      
+      logger.debug(`Current URL: ${currentUrl}`);
       logger.debug(`Extracted company number: ${extractedCompanyNumber}`);
       logger.debug(`Extracted geo number: ${extractedGeoNumber}`);
       
