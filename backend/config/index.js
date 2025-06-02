@@ -26,7 +26,7 @@ export const config = {
     recencyWeeks: parseInt(process.env.RECENCY_WEEKS) || 3,
     historyToCheck: parseInt(process.env.HISTORY_TO_CHECK) || 4,
     threshold: parseInt(process.env.THRESHOLD) || 8,
-    pageNumberStart: parseInt(process.env.PAGE_NUMBER_START) || 50,
+    pageNumberStart: parseInt(process.env.PAGE_NUMBER_START) || 1,
     pageNumberEnd: parseInt(process.env.PAGE_NUMBER_END) || 100,
   },
   

@@ -276,47 +276,70 @@ async navigateToJobs(companyLocation) {
       const activityUrl = `https://www.linkedin.com/in/${profileId}/recent-activity/reactions/`;
       logger.debug(`Analyzing contact activity: ${activityUrl}`);
       
-      await this.puppeteer.goto(activityUrl);
+      await this.puppeteer.goto(activityUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
+      const currentUrl = this.puppeteer.getPage().url();
+      
+      const pageContent = await this.puppeteer.getPage().content();
+      if (currentUrl.includes('checkpoint') || /captcha|verify/i.test(pageContent)) {
+        logger.warn('Landed on a checkpoint or captcha page!');
+        // Handle accordingly
+      }
       
       let score = 0;
       const totalCounts = { hour: 0, day: 0, week: 0 };
       const { recencyHours, recencyDays, recencyWeeks, historyToCheck } = config.linkedin;
-      
+      logger.debug(`Recency settings - Hours: ${recencyHours}, Days: ${recencyDays}, Weeks: ${recencyWeeks}`);
+      let countedSet = new Set();
+
       for (let i = 0; i < historyToCheck; i++) {
-        await this.puppeteer.waitForSelector('ul li a', { timeout: 5000 });
+        await this.puppeteer.waitForSelector('span[aria-hidden="true"]', { timeout: 5000 });
 
-        const newCounts = await this.puppeteer.getPage().evaluate((existingCounts) => {
-          const timeframes = {
-            hour: /([1-23]h)\b/i,
-            day: /\b([1-6]d)\b/i,
-            week: /\b([1-4]w)\b/i
-          };
-          const elements = document.querySelectorAll('span[aria-hidden="true"]');
+        const result = await this.puppeteer.getPage().evaluate(
+          (existingCounts, countedArr) => {
+            const timeframes = {
+              hour: /([1-23]h)\b/i,
+              day: /\b([1-6]d)\b/i,
+              week: /\b([1-4]w)\b/i
+            };
+            const elements = Array.from(document.querySelectorAll('span[aria-hidden="true"]'));
+            const updatedCounts = { ...existingCounts };
+            const newCounted = [];
 
-          const updatedCounts = { ...existingCounts };
-          Object.entries(timeframes).forEach(([key, regex]) => {
-            const newCount = [...elements].filter(el => 
-              regex.test(el.textContent?.toLowerCase() ?? '')
-            ).length;
-            updatedCounts[key] += newCount;
-          });
-          
-          return updatedCounts;
-        }, totalCounts);
+            elements.forEach((el, idx) => {
+              // Use a unique key: text + index + outerHTML
+              const key = `${el.textContent?.toLowerCase() ?? ''}|${idx}|${el.outerHTML}`;
+              if (!countedArr.includes(key)) {
+                Object.entries(timeframes).forEach(([k, regex]) => {
+                  if (regex.test(el.textContent?.toLowerCase() ?? '')) {
+                    updatedCounts[k]++;
+                  }
+                });
+                newCounted.push(key);
+              }
+            });
 
-        Object.assign(totalCounts, newCounts);
+            return { updatedCounts, newCounted };
+          },
+          totalCounts,
+          Array.from(countedSet)
+        );
+
+        Object.assign(totalCounts, result.updatedCounts);
+        result.newCounted.forEach(key => countedSet.add(key));
 
         score = (totalCounts.day * recencyDays) +
                 (totalCounts.hour * recencyHours) +
                 (totalCounts.week * recencyWeeks);
-        
+
         logger.debug(`Contact ${profileId} - Iteration ${i + 1}, Score: ${score}`);
-        
+
         if (score >= config.linkedin.threshold) {
           break;
         }
-         
-        await this.puppeteer.scrollPage();
+
+        await this.puppeteer.getPage().evaluate(() => {
+          window.scrollBy(0, window.innerHeight);
+        });
       }
 
       const isGoodContact = score >= config.linkedin.threshold;

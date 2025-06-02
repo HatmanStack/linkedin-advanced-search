@@ -36,6 +36,7 @@ export class SearchController {
       logger.info('Logging in to LinkedIn with provided credentials');
       await linkedInService.login(searchName, searchPassword);
       logger.info('Successfully logged in to LinkedIn');
+      
       // Step 2: Search for company
       const companyFound = await linkedInService.searchCompany(companyName);
       if (!companyFound) {
@@ -93,6 +94,7 @@ export class SearchController {
       // Remove duplicates
       const uniqueLinks = [...new Set(allLinks)];
       await FileHelpers.writeJSON(config.paths.linksFile, uniqueLinks);
+      
       
       logger.info(`Found ${uniqueLinks.length} unique profile links`);
 

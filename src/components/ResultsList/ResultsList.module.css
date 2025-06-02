@@ -1,5 +1,5 @@
 .container {
-  max-width: 800px;
+  max-width: 600px;
   margin: 2rem auto 0;
 }
 
@@ -35,9 +35,11 @@
 }
 
 .resultsList {
-  list-style: none;
+  max-height: 40vh;
+  overflow-y: auto;
   padding: 0;
   margin: 0;
+  list-style: none;
 }
 
 .loadingContainer {

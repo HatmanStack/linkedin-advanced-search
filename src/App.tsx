@@ -55,8 +55,10 @@ function App() {
 
       <main className={styles.main}>
         <div className={styles.container}>
-          <SearchForm onSubmit={handleSearch} loading={loading} />
-          
+          {(results.length <= 1) && (
+            <SearchForm onSubmit={handleSearch} loading={loading} />
+          )}
+
           {error && (
             <div className={styles.errorAlert}>
               <strong>Error:</strong> {error}

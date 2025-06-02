@@ -38,6 +38,8 @@ p, h1, h2, h3, h4, h5, h6 {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  justify-content: flex-start; 
+  width: 100%;
 }
 
 /* App-wide utility classes */
