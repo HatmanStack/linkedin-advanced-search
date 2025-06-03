@@ -99,6 +99,25 @@ npm run lint         # Run ESLint
 
 The frontend is configured to connect to the backend API at `http://localhost:3001`. Ensure the original backend is running for full functionality.
 
+## 💾 Restoring Contact Data
+
+If you need to restore previously saved contacts to the frontend:
+
+1. **Using the restore script** (recommended):
+   ```bash
+   node restore-contacts.cjs
+   ```
+   This will output JavaScript code that you can copy and paste into your browser console.
+
+2. **Manual restore**:
+   - Open your browser's Developer Tools (F12)
+   - Go to the Console tab
+   - Copy the output from the restore script and paste it into the console
+   - Press Enter to execute
+   - Refresh the page to see your restored contacts
+
+The app automatically saves search results and visited link states to localStorage, so your data persists between browser sessions.
+
 ## ⚠️ Note on LinkedIn Automation
 
 - View browser activity in non-headless mode for manual verification
