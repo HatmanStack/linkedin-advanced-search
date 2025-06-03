@@ -155,7 +155,7 @@ Health check endpoint with system status.
 ## 🛡️ Security & Best Practices
 
 - **Credential Handling**: Credentials are not logged or stored
-- **Rate Limiting**: Random delays between actions to avoid detection
+- **Rate Limiting**: Random delays between actions
 - **Error Recovery**: Graceful handling of LinkedIn layout changes
 - **Resource Cleanup**: Proper browser cleanup on completion/error
 - **Logging**: Comprehensive logging without sensitive data exposure
@@ -163,7 +163,6 @@ Health check endpoint with system status.
 ## ⚠️ Important Notes
 
 - **LinkedIn ToS**: Review LinkedIn's terms of service and automation policies
-- **Rate Limiting**: Built-in delays to mimic human behavior
 - **Browser Visibility**: Runs in non-headless mode by default for transparency
 - **Data Storage**: Results are cached locally in JSON files
 - **Error Handling**: Continues processing even if individual profiles fail
