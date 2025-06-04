@@ -27,3 +27,4 @@ backend/data
 *.njsproj
 *.sln
 *.sw?
+CLAUDE.md

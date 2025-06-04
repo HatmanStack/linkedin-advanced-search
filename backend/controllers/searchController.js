@@ -3,6 +3,8 @@ import { logger } from '../utils/logger.js';
 import FileHelpers from '../utils/fileHelpers.js';
 import PuppeteerService from '../services/puppeteerService.js';
 import LinkedInService from '../services/linkedinService.js';
+import fs from 'fs';
+import path from 'path';
 
 export class SearchController {
   async performSearch(req, res) {
@@ -97,9 +99,10 @@ export class SearchController {
       
       
       logger.info(`Found ${uniqueLinks.length} unique profile links`);
-
+      
       // Step 6: Analyze contacts for activity
       const goodContacts = [];
+      
       const totalLinks = uniqueLinks.length;
       
       for (let i = 0; i < totalLinks; i++) {

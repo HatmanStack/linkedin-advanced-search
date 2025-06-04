@@ -61,6 +61,7 @@ export class LinkedInService {
       }
 
       // Press Enter
+      await this.puppeteer.getPage().keyboard.press('ArrowDown');
       await this.puppeteer.getPage().keyboard.press('Enter');
       await RandomHelpers.randomDelay(3000, 5000);
 

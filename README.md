@@ -123,7 +123,6 @@ The app automatically saves search results and visited link states to localStora
 - View browser activity in non-headless mode for manual verification
 - Search timeouts are handled via local txt file caching in backend/
 - Configure login credentials and authentication settings appropriately
-- Searching for Companies can occasionally get snagged. To bypass manually navigate to company page in non-headless browser.
 - **Review LinkedIn's automation policies before use**
 
 ## 🔗 Related
