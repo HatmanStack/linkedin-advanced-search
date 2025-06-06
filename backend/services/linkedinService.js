@@ -13,7 +13,7 @@ export class LinkedInService {
       this.genAI.getGenerativeModel({ model: "gemini-2.0-flash" }) : null;
   }
 
-  async login(username, password) {
+  async login(username, password, recursion) {
     try {
       logger.info('Starting LinkedIn login process...');
       
@@ -37,6 +37,9 @@ export class LinkedInService {
         throw new Error('Failed to click login button');
       }
 
+      if(recursion){
+        logger.info('Recursion triggered Consider disabling 2FA')
+      }
       // Wait for navigation and potential 2FA or captcha
       logger.info('Waiting for potential 2FA or captcha...');
       await new Promise(resolve => setTimeout(resolve, 30000));
@@ -349,7 +352,7 @@ async navigateToJobs(companyLocation) {
       return isGoodContact;
     } catch (error) {
       logger.error(`Failed to analyze contact activity for ${profileId}:`, error);
-      return false;
+      throw error;
     }
   }
 

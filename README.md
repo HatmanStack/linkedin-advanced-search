@@ -77,6 +77,7 @@ src/
 ## 🎨 Features
 
 - **Professional UI**: LinkedIn-branded design with modern styling
+- **Self Healing**: Holds State and thoughtfully adds recursion
 - **Form Validation**: Real-time validation with helpful error messages
 - **Loading States**: Visual feedback during API calls
 - **Visited Link Tracking**: Persistent tracking of visited LinkedIn profiles
