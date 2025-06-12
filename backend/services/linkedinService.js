@@ -42,7 +42,7 @@ export class LinkedInService {
       }
       // Wait for navigation and potential 2FA or captcha
       logger.info('Waiting for potential 2FA or captcha...');
-      await new Promise(resolve => setTimeout(resolve, 30000));
+      //await new Promise(resolve => setTimeout(resolve, 30000));
       logger.info('Continuing after waiting for 2FA or captcha...');
       
       logger.info('Login process completed');
@@ -135,6 +135,9 @@ async navigateToJobs(companyLocation) {
       let showAllClicked = false;
       let page = this.puppeteer.getPage();
       let currentUrl = page.url();
+      await page.evaluate(() => {
+          window.scrollBy(0, window.innerHeight);
+        });
       logger.debug(`Current URL before clicking "Show all jobs": ${currentUrl}`);
       for (const selector of showAllSelectors) {
         logger.info(`Trying selector for "Show all jobs": ${selector}`);

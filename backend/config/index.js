@@ -41,7 +41,7 @@ export const config = {
     slowMo: parseInt(process.env.SLOW_MO) || 50,
     viewport: {
       width: parseInt(process.env.VIEWPORT_WIDTH) || 1200,
-      height: parseInt(process.env.VIEWPORT_HEIGHT) || 800,
+      height: parseInt(process.env.VIEWPORT_HEIGHT) || 1200,
     },
   },
   
