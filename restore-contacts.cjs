@@ -10,7 +10,7 @@ const path = require('path');
 
 try {
   // Read the contacts from the JSON file
-  const contactsPath = path.join(__dirname, 'backend', 'data', 'good-connection-links.json');
+  const contactsPath = path.join(__dirname, 'backend', 'data', 'good-connections-links.json');
   const contacts = JSON.parse(fs.readFileSync(contactsPath, 'utf8'));
 
   console.log('// Copy and paste the following code into your browser console:');
