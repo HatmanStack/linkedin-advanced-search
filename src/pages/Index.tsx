@@ -94,13 +94,15 @@ const Index = () => {
               {user ? 'Go to Dashboard' : 'Start Networking Smarter'}
               <ArrowRight className="ml-2 h-5 w-5" />
             </Button>
+            
             <Button 
               variant="outline" 
               size="lg"
-              className="border-white/20 text-white hover:bg-white/10 px-8 py-3 text-lg"
+              className="bg-slate-700 border-white/20 text-white hover:bg-white/10 px-8 py-3 text-lg"
             >
               See How It Works
             </Button>
+            
           </div>
         </div>
       </div>
@@ -206,8 +208,8 @@ const Index = () => {
               <MessageSquare className="h-6 w-6 text-blue-400" />
               <span className="text-white font-semibold">LinkedIn Advanced Search</span>
             </div>
-            <div className="text-slate-400 text-sm">
-              © 2025 LinkedIn Advanced Search. Some stuff from <a href="https://github.com/hatmanstack">Hatman</a>.
+            <div className="text-slate-400 text-sm text-center">
+              © 2025 LinkedIn Advanced Search. Some stuff from <a href="https://github.com/hatmanstack" className="text-red-400">Hatman</a>
             </div>
           </div>
         </div>
