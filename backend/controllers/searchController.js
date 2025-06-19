@@ -3,6 +3,7 @@ import { logger } from '../utils/logger.js';
 import FileHelpers from '../utils/fileHelpers.js';
 import PuppeteerService from '../services/puppeteerService.js';
 import LinkedInService from '../services/linkedinService.js';
+import LinkedInContactService from '../services/linkedinContactService.js';
 import fs from 'fs/promises';
 import path from 'path';
 
@@ -16,7 +17,7 @@ export class SearchController {
       searchName,
       searchPassword
     } = req.body;
-
+    logger.info(companyName, companyRole, companyLocation, searchName, searchPassword);
     // Validate required fields
     if (!companyName || !companyRole || !companyLocation || !searchName || !searchPassword) {
       return res.status(400).json({ 
@@ -172,6 +173,7 @@ export class SearchController {
             errorQueue = [];
             goodContacts.push(link);
             logger.info(`Found good contact: ${link} (${goodContacts.length})`);
+            await LinkedInContactService.takeScreenShotAndUploadToS3(link);
             await FileHelpers.writeJSON(goodConnectionsFile, goodContacts);
           }
           i++;
