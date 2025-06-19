@@ -1,4 +1,4 @@
-import { useState, type FC, type ChangeEvent, type FormEvent } from 'react';
+import { useState, useEffect, type FC, type ChangeEvent, type FormEvent } from 'react';
 import { Input } from '../common';
 import { validateSearchForm, hasValidationErrors } from '../../utils/validation';
 import type { SearchFormData, ValidationErrors } from '../../utils/validation';
@@ -63,7 +63,7 @@ const SearchForm: FC<SearchFormProps> = ({ onSubmit, loading = false }) => {
       searchName: true,
       searchPassword: true,
     });
-
+    
     if (!hasValidationErrors(validationErrors)) {
       onSubmit(formData);
     }

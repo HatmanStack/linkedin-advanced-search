@@ -359,6 +359,14 @@ async navigateToJobs(companyLocation) {
     }
   }
 
+  async createDynamoDBEntryForContact(profileId) {
+    try {
+      const activityUrl = `https://www.linkedin.com/in/${profileId}/`;
+      logger.debug(`Analyzing contact activity: ${activityUrl}`);
+    } catch(error){
+      logger.error(`Faled to add contact to DynamoDB for ${profileID}: `, error)
+    }
+  }
 }
 
 export default LinkedInService;

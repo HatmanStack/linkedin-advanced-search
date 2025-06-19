@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,10 +9,12 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { MessageSquare, ArrowLeft, User, Building, MapPin, Save, Plus, X, Key, Eye, EyeOff } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
+import { useLinkedInCredentials } from '@/contexts/LinkedInCredentialsContext';
 
 const Profile = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { credentials: contextCredentials, setCredentials: setContextCredentials } = useLinkedInCredentials();
   
   const [profile, setProfile] = useState({
     name: 'Tom, Dick, And Harry',
@@ -36,6 +38,13 @@ const Profile = () => {
     setProfile(prev => ({ ...prev, [field]: value }));
   };
 
+  useEffect(() => {
+    // Initialize local state from context if credentials exist
+    if (contextCredentials.email || contextCredentials.password) {
+      setLinkedinCredentials(contextCredentials);
+    }
+  }, [contextCredentials]);
+
   const handleLinkedinCredentialsChange = (field: string, value: string) => {
     setLinkedinCredentials(prev => ({ ...prev, [field]: value }));
   };
@@ -58,6 +67,7 @@ const Profile = () => {
   };
 
   const handleSave = () => {
+    setContextCredentials(linkedinCredentials);
     toast({
       title: "Profile updated!",
       description: "Your profile information has been saved successfully.",

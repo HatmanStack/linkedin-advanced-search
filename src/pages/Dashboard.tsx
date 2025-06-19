@@ -13,6 +13,7 @@ import NewConnectionSearch from '@/components/NewConnectionSearch';
 import PostCreator from '@/components/PostCreator';
 import SavedPostsList from '@/components/SavedPostsList';
 import PostAIAssistant from '@/components/PostAIAssistant';
+import { useLinkedInCredentials } from '@/contexts/LinkedInCredentialsContext';
 
 // Sample data for demonstration with new parameters
 const sampleConnections = [
@@ -122,6 +123,7 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
   const { toast } = useToast();
+  const { credentials: linkedinUserCredentials } = useLinkedInCredentials(); // Added
   const [conversationTopic, setConversationTopic] = useState('');
   const [selectedConnections, setSelectedConnections] = useState<string[]>([]);
   const [postContent, setPostContent] = useState('');
@@ -184,10 +186,10 @@ const Dashboard = () => {
         companyName: filters.company,
         companyRole: filters.job,
         companyLocation: filters.location,
-        searchName: '', // These will need to be handled differently or removed
-        searchPassword: '', // These will need to be handled differently or removed
+        searchName: linkedinUserCredentials.email, // Use credentials from context
+        searchPassword: linkedinUserCredentials.password, // Use credentials from context
       };
-
+      console.log('Search data with credentials:', searchData);
       // Use the existing search functionality
       await searchLinkedIn(searchData);
       
