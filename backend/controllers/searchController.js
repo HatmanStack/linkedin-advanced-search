@@ -97,6 +97,7 @@ export class SearchController {
 
     let puppeteerService;
     let linkedInService;
+    let linkedInContactService;
     let uniqueLinks;
 
     try {
@@ -108,6 +109,7 @@ export class SearchController {
       puppeteerService = new PuppeteerService();
       await puppeteerService.initialize();
       linkedInService = new LinkedInService(puppeteerService);
+      linkedInContactService = new LinkedInContactService(puppeteerService);
 
       logger.info('Logging in...');
       await linkedInService.login(searchName, searchPassword, lastPartialLinksFile);
@@ -115,7 +117,7 @@ export class SearchController {
       
       // If this is a recursive (restart) call, use the split links file, otherwise, do normal search & extraction.
       if (lastPartialLinksFile) {
-        uniqueLinks = JSON.parse(await fs.readFile(lastPartialLinksFile));
+         uniqueLinks = JSON.parse(await fs.readFile(lastPartialLinksFile));
       } else { 
         // Step 2: Search for company
         const companyFound = await linkedInService.searchCompany(companyName);
@@ -173,7 +175,7 @@ export class SearchController {
             errorQueue = [];
             goodContacts.push(link);
             logger.info(`Found good contact: ${link} (${goodContacts.length})`);
-            await LinkedInContactService.takeScreenShotAndUploadToS3(link);
+            await linkedInContactService.takeScreenShotAndUploadToS3(link, { screenshotType: 'single' });
             await FileHelpers.writeJSON(goodConnectionsFile, goodContacts);
           }
           i++;

@@ -34,6 +34,8 @@ DYNAMODB_IMPLEMENTATION.md
 DYNAMODB_SCHEMA.md
 SUMMARY.md
 CLOUDFRONT_SETUP.md
+package-lock.json
+backend/package-lock.json
 
 
 
