@@ -59,7 +59,7 @@ export class PuppeteerService {
     try {
       logger.debug(`Navigating to: ${url}`);
       const response = await this.page.goto(url, {
-        waitUntil: 'networkidle2',
+        waitUntil: 'domcontentloaded',
         timeout: config.timeouts.navigation,
         ...options
       });
