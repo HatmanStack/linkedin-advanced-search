@@ -1,0 +1,139 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Action": [
+        "airflow:PublishMetrics"
+      ],
+      "Resource": "*",
+      "Effect": "Allow"
+    },
+    {
+      "Action": [
+        "s3:ListAllMyBuckets"
+      ],
+      "Resource": "*",
+      "Effect": "Allow"
+    },
+    {
+      "Action": [
+        "s3:GetObject*",
+        "s3:GetBucket*",
+        "s3:List*"
+      ],
+      "Resource": [
+        "arn:aws:s3:::linkedin-profile-processor-631094035453-us-west-2/*",
+        "arn:aws:s3:::linkedin-profile-processor-631094035453-us-west-2"
+      ],
+      "Effect": "Allow"
+    },
+    {
+      "Action": [
+        "logs:CreateLogStream",
+        "logs:CreateLogGroup",
+        "logs:PutLogEvents",
+        "logs:GetLogEvents",
+        "logs:GetLogRecord",
+        "logs:GetLogGroupFields",
+        "logs:GetQueryResults"
+      ],
+      "Resource": "arn:aws:logs:us-west-2:631094035453:log-group:airflow-linkedin-profile-processor-*",
+      "Effect": "Allow"
+    },
+    {
+      "Action": [
+        "logs:DescribeLogGroups"
+      ],
+      "Resource": "*",
+      "Effect": "Allow"
+    },
+    {
+      "Action": [
+        "cloudwatch:PutMetricData"
+      ],
+      "Resource": "*",
+      "Effect": "Allow"
+    },
+    {
+      "Action": [
+        "sqs:ChangeMessageVisibility",
+        "sqs:DeleteMessage",
+        "sqs:GetQueueAttributes",
+        "sqs:GetQueueUrl",
+        "sqs:ReceiveMessage",
+        "sqs:SendMessage"
+      ],
+      "Resource": "arn:aws:sqs:us-west-2:*:airflow-celery-*",
+      "Effect": "Allow"
+    },
+    {
+      "Condition": {
+        "StringEquals": {
+          "kms:ViaService": "s3.us-west-2.amazonaws.com"
+        }
+      },
+      "Action": [
+        "kms:Decrypt",
+        "kms:DescribeKey",
+        "kms:GenerateDataKey*",
+        "kms:Encrypt"
+      ],
+      "Resource": "arn:aws:kms:*:631094035453:key/*",
+      "Effect": "Allow"
+    },
+    {
+      "Condition": {
+        "StringEquals": {
+          "kms:ViaService": "sqs.us-west-2.amazonaws.com"
+        }
+      },
+      "Action": [
+        "kms:Decrypt",
+        "kms:DescribeKey",
+        "kms:GenerateDataKey*",
+        "kms:Encrypt"
+      ],
+      "Resource": "arn:aws:kms:*:631094035453:key/*",
+      "Effect": "Allow"
+    },
+    {
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:ListBucket"
+      ],
+      "Resource": [
+        "arn:aws:s3:::linkedin-advanced-search-screenshots-2024",
+        "arn:aws:s3:::linkedin-advanced-search-screenshots-2024/*"
+      ],
+      "Effect": "Allow"
+    },
+    {
+      "Action": [
+        "textract:DetectDocumentText",
+        "textract:AnalyzeDocument"
+      ],
+      "Resource": "*",
+      "Effect": "Allow"
+    },
+    {
+      "Action": [
+        "dynamodb:PutItem",
+        "dynamodb:UpdateItem",
+        "dynamodb:GetItem",
+        "dynamodb:Query"
+      ],
+      "Resource": "arn:aws:dynamodb:us-west-2:631094035453:table/linkedin-advanced-search",
+      "Effect": "Allow"
+    },
+    {
+      "Action": [
+        "bedrock:InvokeModel"
+      ],
+      "Resource": [
+        "arn:aws:bedrock:*:*:model/anthropic.claude-*"
+      ],
+      "Effect": "Allow"
+    }
+  ]
+}

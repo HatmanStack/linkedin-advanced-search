@@ -144,6 +144,7 @@ const NewConnectionSearch = ({ searchResults, onSearch, isSearching }: NewConnec
   }, [displayResults, activeTags]);
 
   const handleSearch = () => {
+    console.log("Your Linkedin Credentials are not persistent for Security.  For now, add them each time the application is Initiated.");
     onSearch(searchFilters);
   };
 
