@@ -1,0 +1,90 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'MWAA Environment for LinkedIn Profile Processing'
+
+Parameters:
+  MWAAEnvironmentName:
+    Type: String
+    Default: linkedin-profile-processor
+    Description: Name of the MWAA environment
+  
+  MWAABucketName:
+    Type: String
+    Description: Name of the S3 bucket containing DAGs and requirements
+
+Resources:
+  # Security Group for MWAA
+  MWAASecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for MWAA environment
+      VpcId: vpc-08b3e4b2e2b504173
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+          Description: HTTPS access
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+          Description: All outbound traffic
+      Tags:
+        - Key: Name
+          Value: !Sub "${MWAAEnvironmentName}-sg"
+
+  # Security Group Ingress Rule for self-referencing
+  MWAASecurityGroupIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref MWAASecurityGroup
+      IpProtocol: tcp
+      FromPort: 5432
+      ToPort: 5432
+      SourceSecurityGroupId: !Ref MWAASecurityGroup
+      Description: PostgreSQL access within security group
+
+  # MWAA Environment
+  MWAAEnvironment:
+    Type: AWS::MWAA::Environment
+    Properties:
+      Name: !Ref MWAAEnvironmentName
+      SourceBucketArn: !Sub "arn:aws:s3:::${MWAABucketName}"
+      DagS3Path: dags
+      RequirementsS3Path: requirements.txt
+      ExecutionRoleArn: "arn:aws:iam::631094035453:role/linkedin-profile-processor-simple-MWAAExecutionRole-sakWZ0HpNyrZ"
+      NetworkConfiguration:
+        SecurityGroupIds:
+          - !GetAtt MWAASecurityGroup.GroupId
+        SubnetIds:
+          - subnet-0c79ff63788c9a802  # us-west-2a
+          - subnet-0bd873ba0b464a1cd  # us-west-2b
+      WebserverAccessMode: PUBLIC_ONLY
+      MaxWorkers: 2
+      MinWorkers: 1
+      EnvironmentClass: mw1.small
+      AirflowVersion: '2.5.1'
+      LoggingConfiguration:
+        DagProcessingLogs:
+          Enabled: true
+          LogLevel: INFO
+        SchedulerLogs:
+          Enabled: true
+          LogLevel: INFO
+        TaskLogs:
+          Enabled: true
+          LogLevel: INFO
+        WebserverLogs:
+          Enabled: true
+          LogLevel: INFO
+        WorkerLogs:
+          Enabled: true
+          LogLevel: INFO
+
+Outputs:
+  MWAAEnvironmentName:
+    Description: "Name of the MWAA environment"
+    Value: !Ref MWAAEnvironmentName
+  
+  MWAAWebserverUrl:
+    Description: "URL of the MWAA webserver"
+    Value: !GetAtt MWAAEnvironment.WebserverUrl

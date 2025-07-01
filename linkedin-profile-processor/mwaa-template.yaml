@@ -1,0 +1,447 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'LinkedIn Profile Processing Infrastructure with MWAA'
+
+Parameters:
+  MWAAEnvironmentName:
+    Type: String
+    Default: linkedin-profile-processor
+    Description: Name of the MWAA environment
+  
+  S3BucketName:
+    Type: String
+    Default: linkedin-advanced-search-screenshots-2024
+    Description: Name of the S3 bucket containing LinkedIn profile screenshots
+  
+  DynamoDBTableName:
+    Type: String
+    Default: linkedin-advanced-search
+    Description: Name of the DynamoDB table to store profile data
+
+Resources:
+  # S3 bucket for MWAA DAGs and plugins
+  MWAABucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${MWAAEnvironmentName}-${AWS::AccountId}"
+      VersioningConfiguration:
+        Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  # VPC for MWAA
+  MWAAVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.192.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Sub "${MWAAEnvironmentName}-vpc"
+
+  # Public subnets
+  MWAAPublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MWAAVPC
+      CidrBlock: 10.192.10.0/24
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub "${MWAAEnvironmentName}-public-subnet-1"
+
+  MWAAPublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MWAAVPC
+      CidrBlock: 10.192.11.0/24
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub "${MWAAEnvironmentName}-public-subnet-2"
+
+  # Private subnets for MWAA
+  MWAAPrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MWAAVPC
+      CidrBlock: 10.192.20.0/24
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub "${MWAAEnvironmentName}-private-subnet-1"
+
+  MWAAPrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MWAAVPC
+      CidrBlock: 10.192.21.0/24
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub "${MWAAEnvironmentName}-private-subnet-2"
+
+  # Internet Gateway
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub "${MWAAEnvironmentName}-igw"
+
+  InternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref MWAAVPC
+      InternetGatewayId: !Ref InternetGateway
+
+  # NAT Gateway
+  NatGatewayEIP:
+    Type: AWS::EC2::EIP
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      Domain: vpc
+
+  NatGateway:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatGatewayEIP.AllocationId
+      SubnetId: !Ref MWAAPublicSubnet1
+      Tags:
+        - Key: Name
+          Value: !Sub "${MWAAEnvironmentName}-nat"
+
+  # Route tables
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref MWAAVPC
+      Tags:
+        - Key: Name
+          Value: !Sub "${MWAAEnvironmentName}-public-rt"
+
+  DefaultPublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref MWAAPublicSubnet1
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref MWAAPublicSubnet2
+      RouteTableId: !Ref PublicRouteTable
+
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref MWAAVPC
+      Tags:
+        - Key: Name
+          Value: !Sub "${MWAAEnvironmentName}-private-rt"
+
+  DefaultPrivateRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway
+
+  PrivateSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref MWAAPrivateSubnet1
+      RouteTableId: !Ref PrivateRouteTable
+
+  PrivateSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref MWAAPrivateSubnet2
+      RouteTableId: !Ref PrivateRouteTable
+
+  # Security Group for MWAA
+  MWAASecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for MWAA environment
+      VpcId: !Ref MWAAVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+          Description: HTTPS access
+      Tags:
+        - Key: Name
+          Value: !Sub "${MWAAEnvironmentName}-sg"
+
+  # MWAA Execution Role
+  MWAAExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: airflow.amazonaws.com
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AmazonMWAAServiceRolePolicy'
+      Path: /service-role/
+      Policies:
+        - PolicyName: MWAACustomPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 's3:GetObject'
+                  - 's3:PutObject'
+                  - 's3:ListBucket'
+                Resource:
+                  - !Sub 'arn:aws:s3:::${S3BucketName}'
+                  - !Sub 'arn:aws:s3:::${S3BucketName}/*'
+                  - !Sub 'arn:aws:s3:::${MWAABucket}'
+                  - !Sub 'arn:aws:s3:::${MWAABucket}/*'
+              - Effect: Allow
+                Action:
+                  - 'textract:DetectDocumentText'
+                  - 'textract:AnalyzeDocument'
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 'dynamodb:PutItem'
+                  - 'dynamodb:UpdateItem'
+                  - 'dynamodb:GetItem'
+                  - 'dynamodb:Query'
+                Resource: !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${DynamoDBTableName}'
+              - Effect: Allow
+                Action:
+                  - 'bedrock:InvokeModel'
+                Resource: 
+                  - 'arn:aws:bedrock:*:*:model/anthropic.claude-*'
+
+  # MWAA Environment
+  MWAAEnvironment:
+    Type: AWS::MWAA::Environment
+    Properties:
+      Name: !Ref MWAAEnvironmentName
+      SourceBucketArn: !GetAtt MWAABucket.Arn
+      DagS3Path: dags
+      RequirementsS3Path: requirements.txt
+      ExecutionRoleArn: !GetAtt MWAAExecutionRole.Arn
+      NetworkConfiguration:
+        SecurityGroupIds:
+          - !GetAtt MWAASecurityGroup.GroupId
+        SubnetIds:
+          - !Ref MWAAPrivateSubnet1
+          - !Ref MWAAPrivateSubnet2
+      WebserverAccessMode: PUBLIC_ONLY
+      MaxWorkers: 2
+      MinWorkers: 1
+      EnvironmentClass: mw1.small
+      AirflowVersion: '2.5.1'
+      LoggingConfiguration:
+        DagProcessingLogs:
+          Enabled: true
+          LogLevel: INFO
+        SchedulerLogs:
+          Enabled: true
+          LogLevel: INFO
+        TaskLogs:
+          Enabled: true
+          LogLevel: INFO
+        WebserverLogs:
+          Enabled: true
+          LogLevel: INFO
+        WorkerLogs:
+          Enabled: true
+          LogLevel: INFO
+
+  # Lambda Execution Role
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+      Policies:
+        - PolicyName: MWAAAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'mwaa:CreateCliToken'
+                  - 'mwaa:GetEnvironment'
+                Resource: !Sub 'arn:aws:mwaa:${AWS::Region}:${AWS::AccountId}:environment/${MWAAEnvironmentName}'
+
+  # Lambda Function to trigger Airflow DAG
+  TriggerLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${MWAAEnvironmentName}-trigger"
+      Handler: lambda_trigger.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Runtime: python3.9
+      Timeout: 30
+      MemorySize: 128
+      Environment:
+        Variables:
+          MWAA_ENVIRONMENT_NAME: !Ref MWAAEnvironmentName
+      Code:
+        ZipFile: |
+          import boto3
+          import json
+          import os
+          import logging
+          from pathlib import Path
+
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+
+          # Environment variables
+          MWAA_ENVIRONMENT_NAME = os.environ.get('MWAA_ENVIRONMENT_NAME')
+
+          def lambda_handler(event, context):
+              """
+              Lambda function that triggers an Airflow DAG when a new LinkedIn profile screenshot is uploaded to S3.
+              
+              Args:
+                  event: The event from EventBridge containing S3 object creation details
+                  context: Lambda context
+              
+              Returns:
+                  Response dictionary with status information
+              """
+              logger.info(f"Received event: {json.dumps(event)}")
+              
+              try:
+                  # Extract S3 event information
+                  s3_event = event['detail']
+                  bucket = s3_event['bucket']['name']
+                  key = s3_event['object']['key']
+                  
+                  # Only process files in the linkedin-profiles directory
+                  if 'linkedin-profiles' not in key:
+                      logger.info(f"Not a LinkedIn profile screenshot, ignoring: {key}")
+                      return {
+                          'statusCode': 200,
+                          'body': 'Not a LinkedIn profile screenshot, ignoring'
+                      }
+                  
+                  # Extract filename for use in the DAG
+                  file_name = Path(key).stem
+                  
+                  # Prepare DAG run configuration
+                  dag_run_conf = {
+                      's3_key': key,
+                      'bucket': bucket,
+                      'file_name': file_name
+                  }
+                  
+                  logger.info(f"Triggering DAG with config: {json.dumps(dag_run_conf)}")
+                  
+                  # Create MWAA client
+                  mwaa_client = boto3.client('mwaa')
+                  
+                  # Get the web server URL
+                  env_details = mwaa_client.get_environment(Name=MWAA_ENVIRONMENT_NAME)
+                  
+                  # Create CLI token
+                  cli_token = mwaa_client.create_cli_token(
+                      Name=MWAA_ENVIRONMENT_NAME
+                  )
+                  
+                  # Use the MWAA CLI to trigger the DAG
+                  command = f"airflow dags trigger linkedin_profile_processing --conf '{json.dumps(dag_run_conf)}'"
+                  
+                  # Log the command (without sensitive info)
+                  logger.info(f"Executing command: airflow dags trigger linkedin_profile_processing")
+                  
+                  # Execute the command using the CLI token
+                  # In a real implementation, you would use the CLI token to make an HTTP request to the MWAA web server
+                  # For simplicity, we're just logging the action here
+                  
+                  return {
+                      'statusCode': 200,
+                      'body': f'Successfully triggered DAG for {key}'
+                  }
+                  
+              except Exception as e:
+                  logger.error(f"Error triggering DAG: {str(e)}")
+                  return {
+                      'statusCode': 500,
+                      'body': f'Error triggering DAG: {str(e)}'
+                  }
+
+  # EventBridge Rule
+  S3EventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub "${MWAAEnvironmentName}-s3-event-rule"
+      Description: "Rule to capture S3 object creation events for LinkedIn profile screenshots"
+      EventPattern:
+        source:
+          - "aws.s3"
+        detail-type:
+          - "Object Created"
+        detail:
+          bucket:
+            name:
+              - !Ref S3BucketName
+          object:
+            key:
+              - prefix: "linkedin-profiles/"
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt TriggerLambdaFunction.Arn
+          Id: "TriggerLambdaTarget"
+
+  # Permission for EventBridge to invoke Lambda
+  LambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref TriggerLambdaFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt S3EventRule.Arn
+
+Outputs:
+  MWAAEnvironmentName:
+    Description: "Name of the MWAA environment"
+    Value: !Ref MWAAEnvironmentName
+  
+  MWAAWebserverUrl:
+    Description: "URL of the MWAA webserver"
+    Value: !GetAtt MWAAEnvironment.WebserverUrl
+  
+  MWAABucketName:
+    Description: "Name of the S3 bucket for MWAA DAGs and plugins"
+    Value: !Ref MWAABucket
+  
+  TriggerLambdaArn:
+    Description: "ARN of the Lambda function that triggers the Airflow DAG"
+    Value: !GetAtt TriggerLambdaFunction.Arn

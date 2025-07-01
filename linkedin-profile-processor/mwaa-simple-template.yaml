@@ -1,0 +1,134 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Simplified LinkedIn Profile Processing Infrastructure with MWAA'
+
+Parameters:
+  MWAAEnvironmentName:
+    Type: String
+    Default: linkedin-profile-processor
+    Description: Name of the MWAA environment
+
+Resources:
+  # S3 bucket for MWAA DAGs and plugins
+  MWAABucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${MWAAEnvironmentName}-${AWS::AccountId}-${AWS::Region}"
+      VersioningConfiguration:
+        Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  # MWAA Execution Role
+  MWAAExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: 
+                - airflow.amazonaws.com
+                - airflow-env.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: MWAAExecutionPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'airflow:PublishMetrics'
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 's3:ListAllMyBuckets'
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 's3:GetObject*'
+                  - 's3:GetBucket*'
+                  - 's3:List*'
+                Resource:
+                  - !Sub 'arn:aws:s3:::${MWAABucket}/*'
+                  - !Sub 'arn:aws:s3:::${MWAABucket}'
+              - Effect: Allow
+                Action:
+                  - 'logs:CreateLogStream'
+                  - 'logs:CreateLogGroup'
+                  - 'logs:PutLogEvents'
+                  - 'logs:GetLogEvents'
+                  - 'logs:GetLogRecord'
+                  - 'logs:GetLogGroupFields'
+                  - 'logs:GetQueryResults'
+                Resource: !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:airflow-${MWAAEnvironmentName}-*'
+              - Effect: Allow
+                Action:
+                  - 'logs:DescribeLogGroups'
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 'cloudwatch:PutMetricData'
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 'sqs:ChangeMessageVisibility'
+                  - 'sqs:DeleteMessage'
+                  - 'sqs:GetQueueAttributes'
+                  - 'sqs:GetQueueUrl'
+                  - 'sqs:ReceiveMessage'
+                  - 'sqs:SendMessage'
+                Resource: !Sub 'arn:aws:sqs:${AWS::Region}:*:airflow-celery-*'
+              - Effect: Allow
+                Action:
+                  - 'kms:Decrypt'
+                  - 'kms:DescribeKey'
+                  - 'kms:GenerateDataKey*'
+                  - 'kms:Encrypt'
+                Resource: !Sub 'arn:aws:kms:*:${AWS::AccountId}:key/*'
+                Condition:
+                  StringEquals:
+                    'kms:ViaService': !Sub 's3.${AWS::Region}.amazonaws.com'
+              # Custom permissions for our workflow
+              - Effect: Allow
+                Action:
+                  - 's3:GetObject'
+                  - 's3:PutObject'
+                  - 's3:ListBucket'
+                Resource:
+                  - 'arn:aws:s3:::linkedin-advanced-search-screenshots-2024'
+                  - 'arn:aws:s3:::linkedin-advanced-search-screenshots-2024/*'
+              - Effect: Allow
+                Action:
+                  - 'textract:DetectDocumentText'
+                  - 'textract:AnalyzeDocument'
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 'dynamodb:PutItem'
+                  - 'dynamodb:UpdateItem'
+                  - 'dynamodb:GetItem'
+                  - 'dynamodb:Query'
+                Resource: !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/linkedin-advanced-search'
+              - Effect: Allow
+                Action:
+                  - 'bedrock:InvokeModel'
+                Resource: 
+                  - 'arn:aws:bedrock:*:*:model/anthropic.claude-*'
+
+Outputs:
+  MWAABucketName:
+    Description: "Name of the S3 bucket for MWAA DAGs and plugins"
+    Value: !Ref MWAABucket
+    Export:
+      Name: !Sub "${AWS::StackName}-MWAABucket"
+  
+  MWAAExecutionRoleArn:
+    Description: "ARN of the MWAA execution role"
+    Value: !GetAtt MWAAExecutionRole.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-MWAAExecutionRole"

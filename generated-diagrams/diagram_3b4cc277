@@ -1,0 +1,34 @@
+digraph "LinkedIn Profile Processing Architecture" {
+	graph [fontcolor="#2D3436" fontname="Sans-Serif" fontsize=15 label="LinkedIn Profile Processing Architecture" nodesep=0.60 pad=2.0 rankdir=LR ranksep=0.75 splines=ortho]
+	node [fixedsize=true fontcolor="#2D3436" fontname="Sans-Serif" fontsize=13 height=1.4 imagescale=true labelloc=b shape=box style=rounded width=1.4]
+	edge [color="#7B8894"]
+	"3ffc428abbde4e3bb9be4a7469ebbc42" [label=User height=1.9 image="/home/hatmanstack/.cache/uv/archive-v0/dk3QfB0fsRJeAQnSjZlZL/lib/python3.13/site-packages/resources/aws/general/user.png" shape=none]
+	subgraph "cluster_S3 Storage" {
+		graph [bgcolor="#E5F5FD" fontname="Sans-Serif" fontsize=12 label="S3 Storage" labeljust=l pencolor="#AEB6BE" rankdir=LR shape=box style=rounded]
+		e7d36b15bc9944bbb29fd180ec1e431c [label="linkedin-profiles" height=1.9 image="/home/hatmanstack/.cache/uv/archive-v0/dk3QfB0fsRJeAQnSjZlZL/lib/python3.13/site-packages/resources/aws/storage/simple-storage-service-s3.png" shape=none]
+		f7c03284012644d6834442948c511830 [label="processed-markdown" height=1.9 image="/home/hatmanstack/.cache/uv/archive-v0/dk3QfB0fsRJeAQnSjZlZL/lib/python3.13/site-packages/resources/aws/storage/simple-storage-service-s3.png" shape=none]
+	}
+	subgraph "cluster_Event Processing" {
+		graph [bgcolor="#E5F5FD" fontname="Sans-Serif" fontsize=12 label="Event Processing" labeljust=l pencolor="#AEB6BE" rankdir=LR shape=box style=rounded]
+		"6389e7bff40a49cd94f463a7c4d15ea8" [label=EventBridge height=1.9 image="/home/hatmanstack/.cache/uv/archive-v0/dk3QfB0fsRJeAQnSjZlZL/lib/python3.13/site-packages/resources/aws/integration/eventbridge.png" shape=none]
+		"7afbdee5af9848428e4901e30147cead" [label="Trigger Lambda" height=1.9 image="/home/hatmanstack/.cache/uv/archive-v0/dk3QfB0fsRJeAQnSjZlZL/lib/python3.13/site-packages/resources/aws/compute/lambda.png" shape=none]
+	}
+	subgraph "cluster_MWAA Workflow" {
+		graph [bgcolor="#E5F5FD" fontname="Sans-Serif" fontsize=12 label="MWAA Workflow" labeljust=l pencolor="#AEB6BE" rankdir=LR shape=box style=rounded]
+		"184aaf2016754b988a7cab42977f3326" [label="Apache Airflow" height=1.9 image="/home/hatmanstack/.cache/uv/archive-v0/dk3QfB0fsRJeAQnSjZlZL/lib/python3.13/site-packages/resources/aws/management/amazon-managed-workflows-apache-airflow.png" shape=none]
+		subgraph "cluster_Processing Tasks" {
+			graph [bgcolor="#EBF3E7" fontname="Sans-Serif" fontsize=12 label="Processing Tasks" labeljust=l pencolor="#AEB6BE" rankdir=LR shape=box style=rounded]
+			"968e9d8000d14c3693895d0ca3abb5a1" [label="OCR Processing" height=1.9 image="/home/hatmanstack/.cache/uv/archive-v0/dk3QfB0fsRJeAQnSjZlZL/lib/python3.13/site-packages/resources/aws/ml/textract.png" shape=none]
+			c6d2840a55b2437b8129c3681989f5a7 [label="Claude 4.0" height=1.9 image="/home/hatmanstack/.cache/uv/archive-v0/dk3QfB0fsRJeAQnSjZlZL/lib/python3.13/site-packages/resources/aws/ml/bedrock.png" shape=none]
+		}
+	}
+	f618535839454d01a61446f2c07724a3 [label="linkedin-advanced-search" height=1.9 image="/home/hatmanstack/.cache/uv/archive-v0/dk3QfB0fsRJeAQnSjZlZL/lib/python3.13/site-packages/resources/aws/database/dynamodb.png" shape=none]
+	"3ffc428abbde4e3bb9be4a7469ebbc42" -> e7d36b15bc9944bbb29fd180ec1e431c [label="Upload Screenshot" dir=forward fontcolor="#2D3436" fontname="Sans-Serif" fontsize=13]
+	e7d36b15bc9944bbb29fd180ec1e431c -> "6389e7bff40a49cd94f463a7c4d15ea8" [label="Object Created Event" dir=forward fontcolor="#2D3436" fontname="Sans-Serif" fontsize=13]
+	"6389e7bff40a49cd94f463a7c4d15ea8" -> "7afbdee5af9848428e4901e30147cead" [label=Trigger dir=forward fontcolor="#2D3436" fontname="Sans-Serif" fontsize=13]
+	"7afbdee5af9848428e4901e30147cead" -> "184aaf2016754b988a7cab42977f3326" [label="Start DAG" dir=forward fontcolor="#2D3436" fontname="Sans-Serif" fontsize=13]
+	"184aaf2016754b988a7cab42977f3326" -> "968e9d8000d14c3693895d0ca3abb5a1" [label="Extract Text" dir=forward fontcolor="#2D3436" fontname="Sans-Serif" fontsize=13]
+	"968e9d8000d14c3693895d0ca3abb5a1" -> c6d2840a55b2437b8129c3681989f5a7 [label="Process Text" dir=forward fontcolor="#2D3436" fontname="Sans-Serif" fontsize=13]
+	c6d2840a55b2437b8129c3681989f5a7 -> f7c03284012644d6834442948c511830 [label="Generate Markdown" dir=forward fontcolor="#2D3436" fontname="Sans-Serif" fontsize=13]
+	c6d2840a55b2437b8129c3681989f5a7 -> f618535839454d01a61446f2c07724a3 [label="Extract Profile Data" dir=forward fontcolor="#2D3436" fontname="Sans-Serif" fontsize=13]
+}
