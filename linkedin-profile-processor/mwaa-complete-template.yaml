@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'Complete MWAA Environment for LinkedIn Profile Processing'
+Description: 'Complete MWAA Environment for LinkedIn Profile Processing - Airflow 2.10.3 with Bedrock Support'
 
 Parameters:
   MWAAEnvironmentName:
@@ -10,10 +10,6 @@ Parameters:
   MWAABucketName:
     Type: String
     Description: Name of the S3 bucket containing DAGs and requirements
-  
-  MWAAExecutionRoleArn:
-    Type: String
-    Description: ARN of the MWAA execution role
 
 Resources:
   # VPC for MWAA
@@ -190,7 +186,109 @@ Resources:
       SourceSecurityGroupId: !Ref MWAASecurityGroup
       Description: PostgreSQL access within security group
 
-  # MWAA Environment
+  # MWAA Execution Role with Enhanced Permissions
+  MWAAExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${MWAAEnvironmentName}-ExecutionRole"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - airflow-env.amazonaws.com
+                - airflow.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonMWAAServiceRolePolicy
+      Policies:
+        - PolicyName: S3AccessPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                  - s3:PutObject
+                  - s3:DeleteObject
+                  - s3:ListBucket
+                  - s3:ListBucketVersions
+                Resource:
+                  - !Sub "arn:aws:s3:::${MWAABucketName}"
+                  - !Sub "arn:aws:s3:::${MWAABucketName}/*"
+                  - "arn:aws:s3:::linkedin-advanced-search-screenshots-2024"
+                  - "arn:aws:s3:::linkedin-advanced-search-screenshots-2024/*"
+        - PolicyName: DynamoDBAccessPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                  - dynamodb:BatchGetItem
+                  - dynamodb:BatchWriteItem
+                  - dynamodb:DescribeTable
+                  - dynamodb:ListTables
+                Resource:
+                  - "arn:aws:dynamodb:*:*:table/linkedin-advanced-search"
+                  - "arn:aws:dynamodb:*:*:table/linkedin-advanced-search/index/*"
+                  - "arn:aws:dynamodb:*:*:table/linkedin-profiles"
+                  - "arn:aws:dynamodb:*:*:table/linkedin-profiles/index/*"
+        - PolicyName: BedrockAccessPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                  - bedrock:InvokeModelWithResponseStream
+                  - bedrock:ListFoundationModels
+                  - bedrock:GetFoundationModel
+                Resource: "*"
+        - PolicyName: TextractAccessPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - textract:DetectDocumentText
+                  - textract:AnalyzeDocument
+                  - textract:StartDocumentTextDetection
+                  - textract:GetDocumentTextDetection
+                Resource: "*"
+        - PolicyName: KMSAccessPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - kms:Decrypt
+                  - kms:DescribeKey
+                  - kms:Encrypt
+                  - kms:GenerateDataKey
+                  - kms:ReEncrypt*
+                Resource: "*"
+        - PolicyName: LogsAccessPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                  - logs:DescribeLogGroups
+                  - logs:DescribeLogStreams
+                Resource: "*"
+
+  # MWAA Environment - Updated to Airflow 2.10.3
   MWAAEnvironment:
     Type: AWS::MWAA::Environment
     Properties:
@@ -198,7 +296,7 @@ Resources:
       SourceBucketArn: !Sub "arn:aws:s3:::${MWAABucketName}"
       DagS3Path: dags
       RequirementsS3Path: requirements.txt
-      ExecutionRoleArn: !Ref MWAAExecutionRoleArn
+      ExecutionRoleArn: !GetAtt MWAAExecutionRole.Arn
       NetworkConfiguration:
         SecurityGroupIds:
           - !GetAtt MWAASecurityGroup.GroupId
@@ -209,7 +307,7 @@ Resources:
       MaxWorkers: 2
       MinWorkers: 1
       EnvironmentClass: mw1.small
-      AirflowVersion: '2.5.1'
+      AirflowVersion: '2.10.3'  # Updated to latest version with boto3 1.35.36
       LoggingConfiguration:
         DagProcessingLogs:
           Enabled: true
@@ -226,6 +324,13 @@ Resources:
         WorkerLogs:
           Enabled: true
           LogLevel: INFO
+      AirflowConfigurationOptions:
+        # Enable better error handling and logging
+        core.dags_are_paused_at_creation: 'False'
+        core.max_active_runs_per_dag: '1'
+        webserver.expose_config: 'True'
+        # Bedrock-specific configurations
+        core.enable_xcom_pickling: 'True'
 
 Outputs:
   MWAAEnvironmentName:
@@ -235,3 +340,25 @@ Outputs:
   MWAAWebserverUrl:
     Description: "URL of the MWAA webserver"
     Value: !GetAtt MWAAEnvironment.WebserverUrl
+    
+  MWAAEnvironmentArn:
+    Description: "ARN of the MWAA environment"
+    Value: !GetAtt MWAAEnvironment.Arn
+    
+  MWAAExecutionRoleArn:
+    Description: "ARN of the MWAA execution role"
+    Value: !GetAtt MWAAExecutionRole.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-ExecutionRole-ARN"
+    
+  VPCId:
+    Description: "VPC ID for the MWAA environment"
+    Value: !Ref MWAAVPC
+    Export:
+      Name: !Sub "${AWS::StackName}-VPC-ID"
+      
+  PrivateSubnetIds:
+    Description: "Private subnet IDs for MWAA"
+    Value: !Join [",", [!Ref MWAAPrivateSubnet1, !Ref MWAAPrivateSubnet2]]
+    Export:
+      Name: !Sub "${AWS::StackName}-Private-Subnets"

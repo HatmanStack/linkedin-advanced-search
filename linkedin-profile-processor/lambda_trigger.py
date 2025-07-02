@@ -8,7 +8,19 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 # Environment variables
-MWAA_ENVIRONMENT_NAME = os.environ.get('MWAA_ENVIRONMENT_NAME')
+MWAA_ENVIRONMENT_NAME = os.environ.get('MWAA_ENVIRONMENT_NAME', 'linkedin-profile-processor')
+
+def check_lambda_exists(function_name):
+    """Check if Lambda function already exists"""
+    try:
+        lambda_client = boto3.client('lambda')
+        lambda_client.get_function(FunctionName=function_name)
+        return True
+    except lambda_client.exceptions.ResourceNotFoundException:
+        return False
+    except Exception as e:
+        logger.error(f"Error checking Lambda function: {e}")
+        return False
 
 def lambda_handler(event, context):
     """
