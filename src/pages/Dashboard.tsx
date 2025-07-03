@@ -4,6 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MessageSquare, Users, Settings, UserPlus, FileText, LogOut } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { useHealAndRestore } from '@/contexts/HealAndRestoreContext'; // Added
 import { useToast } from '@/hooks/use-toast';
 import { useSearchResults } from '@/hooks';
 import type { SearchFormData } from '@/utils/validation';
@@ -122,6 +123,7 @@ const sampleNewConnections = [
 const Dashboard = () => {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
+  const { startListening } = useHealAndRestore(); // Added
   const { toast } = useToast();
   const { credentials: linkedinUserCredentials } = useLinkedInCredentials(); // Added
   const [conversationTopic, setConversationTopic] = useState('');
@@ -151,6 +153,11 @@ const Dashboard = () => {
   useEffect(() => {
     loadSavedPosts();
   }, []);
+
+  // Start listening for heal and restore notifications
+  useEffect(() => {
+    startListening();
+  }, [startListening]);
 
   const loadSavedPosts = async () => {
     try {

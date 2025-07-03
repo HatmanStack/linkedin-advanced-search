@@ -34,7 +34,7 @@ export const config = {
   googleAI: {
     apiKey: process.env.GOOGLE_AI_API_KEY || '',
   },
-  
+
   // Puppeteer
   puppeteer: {
     headless: process.env.HEADLESS === 'true',
@@ -48,14 +48,15 @@ export const config = {
   // Timeouts
   timeouts: {
     default: parseInt(process.env.DEFAULT_TIMEOUT) || 30000,
-    navigation: parseInt(process.env.NAVIGATION_TIMEOUT) || 30000,
+    navigation: parseInt(process.env.NAVIGATION_TIMEOUT) || 50000,
+    login: parseInt(process.env.LOGIN_SECURITY_TIMEOUT) || 0,
   },
   
   // File Paths
   paths: {
     screenshots: process.env.SCREENSHOTS_DIR || './screenshots',
     linksFile: process.env.LINKS_FILE || './data/possible-links.json',
-    goodConnectionsFile: process.env.GOOD_CONNECTIONS_FILE || './data/good-connection-links.json',
+    goodConnectionsFile: process.env.GOOD_CONNECTIONS_FILE || './data/good-connections-links.json',
   },
 };
 

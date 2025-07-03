@@ -44,7 +44,8 @@ export class LinkedInService {
       }
       // Wait for navigation and potential 2FA or captcha
       logger.info('Waiting for potential 2FA or captcha...');
-      //await new Promise(resolve => setTimeout(resolve, 30000));
+      
+      await new Promise(resolve => setTimeout(resolve, config.timeouts.navigation));
       logger.info('Continuing after waiting for 2FA or captcha...');
       
       logger.info('Login process completed');
@@ -324,8 +325,12 @@ export class LinkedInService {
       
       const pageContent = await this.puppeteer.getPage().content();
       if (currentUrl.includes('checkpoint') || /captcha|verify/i.test(pageContent)) {
+        
         logger.warn('Landed on a checkpoint or captcha page!');
         // Handle accordingly
+      }else {
+        logger.warn('Unstable browser session running');
+        return {shutdown:true}
       }
       
       let score = 0;
@@ -414,11 +419,11 @@ export class LinkedInService {
         // Delete the original screenshot after cropping
         await fs.unlink(screenshotPath);
 
-        return { isGoodContact: true, tempDir};
+        return { isGoodContact: true, shutdown: false, tempDir};
        
       }
       
-      return { isGoodContact: false };
+      return { isGoodContact: false, shutdown:false};
     } catch (error) {
       logger.error(`Failed to analyze contact activity for ${profileId}:`, error);
       throw error;
