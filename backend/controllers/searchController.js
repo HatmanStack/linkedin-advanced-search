@@ -19,9 +19,9 @@ export class SearchController {
     } = req.body;
     logger.info(companyName, companyRole, companyLocation, searchName, searchPassword);
     // Validate required fields
-    if (!companyName || !companyRole || !companyLocation || !searchName || !searchPassword) {
+    if (!searchName || !searchPassword) {
       return res.status(400).json({ 
-        error: 'Missing required fields: companyName, companyRole, companyLocation, searchName, searchPassword' 
+        error: 'Missing required fields: searchName, searchPassword' 
       });
     }
 
@@ -81,9 +81,12 @@ export class SearchController {
     searchName,
     searchPassword,
     resumeIndex = 0,
-    persistGoodContacts = [],
     recursionCount = 0,
-    lastPartialLinksFile = null
+    lastPartialLinksFile = null,
+    extractedCompanyNumber = null,
+    extractedGeoNumber = null,
+    healPhase = null,
+    healReason = null,
   }) {
 
     // Set up file paths
@@ -99,10 +102,11 @@ export class SearchController {
     let linkedInService;
     let linkedInContactService;
     let uniqueLinks;
+    
 
     try {
       // Validate required fields
-      if (!companyName || !companyRole || !companyLocation || !searchName || !searchPassword) {
+      if (!searchName || !searchPassword) {
         throw new Error('Missing required fields.');
       }
 
@@ -114,38 +118,87 @@ export class SearchController {
       logger.info('Logging in...');
       await linkedInService.login(searchName, searchPassword, lastPartialLinksFile);
       logger.info('Login success.');
-      
+      if(healPhase){
+        logger.info(`Heal Phase: ${healPhase}  \nReason: ${healReason}`)
+      }
       // If this is a recursive (restart) call, use the split links file, otherwise, do normal search & extraction.
-      if (lastPartialLinksFile) {
+      if (healPhase === 'profile-parsing') {
          uniqueLinks = JSON.parse(await fs.readFile(lastPartialLinksFile));
       } else { 
-        // Step 2: Search for company
-        const companyFound = await linkedInService.searchCompany(companyName);
-        if (!companyFound) {
-          throw new Error(`Company "${companyName}" not found.`);
+        // Step 2: Search for company and get company number
+        
+        
+        if (!extractedCompanyNumber && companyName) {
+          extractedCompanyNumber = await linkedInService.searchCompany(companyName);
+          if (!extractedCompanyNumber) {
+            throw new Error(`Company "${companyName}" not found.`);
+          }
         }
-        await linkedInService.navigateToJobs(companyLocation);
-
-        const { extractedCompanyNumber, extractedGeoNumber } = await linkedInService.extractCompanyAndGeoNumbers();
-        if (!extractedCompanyNumber || !extractedGeoNumber) {
-          throw new Error('Failed to extract company or location info');
+        // Step 3: Apply location filter and get geo number
+        
+        if (!extractedGeoNumber && companyLocation) {
+          extractedGeoNumber = await linkedInService.applyLocationFilter(companyLocation, companyName);
         }
 
         // Scrape links as before:
-        const encodedRole = encodeURIComponent(companyRole);
+        const encodedRole = companyRole ? encodeURIComponent(companyRole) : null;
         let allLinks = [];
         const { pageNumberStart, pageNumberEnd } = config.linkedin;
-        for (let pageNumber = pageNumberStart; pageNumber <= pageNumberEnd; pageNumber++) {
+        let emptyPageCount = 0;
+        let pageNumber = resumeIndex !== 0 && resumeIndex > pageNumberStart
+        ? resumeIndex
+        : pageNumberStart;
+
+        while (pageNumber <= pageNumberEnd) {
           try {
             const pageLinks = await linkedInService.getLinksFromPeoplePage(pageNumber, extractedCompanyNumber, encodedRole, extractedGeoNumber);
-            if (pageLinks.length === 0) break;
+            if (pageLinks.length === 0) {
+              emptyPageCount++;
+              if (emptyPageCount >= 3 && pageNumber < pageNumberEnd) {
+                logger.warn(`Initiating self-healing restart.`);
+                // Save current progress
+                await FileHelpers.writeJSON(config.paths.linksFile, allLinks);
+                // Prepare partial links file for healing
+                const partialLinksFile = path.join(linksDir, `possible-links-partial-${Date.now()}.json`);
+                await fs.writeFile(partialLinksFile, JSON.stringify(allLinks, null, 2));
+                // Close browser and restart healing
+                if (puppeteerService) {
+                  await puppeteerService.close();
+                  puppeteerService = null;
+                  linkedInService = null;
+                }
+                logger.info('Restarting with fresh Puppeteer instance due to consecutive blank pages...');
+                const healReasonText = emptyPageCount < 3 ?  'TimeoutError: Navigation timeout of 30000 ms exceeded'  : '3 blank pages in a row';
+                await this.healAndRestart({
+                  companyName,
+                  companyRole,
+                  companyLocation,
+                  searchName,
+                  searchPassword,
+                  resumeIndex: pageNumber - 3,
+                  recursionCount: recursionCount + 1,
+                  lastPartialLinksFile: partialLinksFile,
+                  extractedCompanyNumber,
+                  extractedGeoNumber,
+                  healPhase: 'link-collection',
+                  healReason: healReasonText,
+                });
+                return; // Stop further processing! Healer will resume
+              }
+              pageNumber++;
+              continue;
+            } else {
+              emptyPageCount = 0;
+            }
             allLinks.push(...pageLinks);
             if (pageNumber % 5 === 0) {
               await FileHelpers.writeJSON(config.paths.linksFile, allLinks);
               logger.info(`Progress saved: ${allLinks.length} links after page ${pageNumber}`);
             }
+            pageNumber++;
           } catch (error) {
             logger.warn(`Error on page ${pageNumber}`, error);
+            pageNumber++;
             continue;
           }
         }
@@ -153,12 +206,13 @@ export class SearchController {
         await FileHelpers.writeJSON(config.paths.linksFile, uniqueLinks);
         //To use if parsing through profiles is gets stuck, Can change file to current possible-links itteration
         //uniqueLinks = JSON.parse(await fs.readFile('./data/possible-links.json'));
+        
       }
       
       
       logger.info(`Loaded ${uniqueLinks.length} unique links to process. Starting at index: ${resumeIndex}`);
 
-      let goodContacts = [...persistGoodContacts];
+      let goodContacts = [];
       let errorQueue = [];
       let i = resumeIndex;
 
@@ -171,11 +225,12 @@ export class SearchController {
         }
         try {
           logger.info(`Analyzing contact ${i+1}/${uniqueLinks.length}: ${link}`);
-          if (await linkedInService.analyzeContactActivity(link)) {
+          const result = await linkedInService.analyzeContactActivity(link);
+          if (result.isGoodContact) {
             errorQueue = [];
             goodContacts.push(link);
             logger.info(`Found good contact: ${link} (${goodContacts.length})`);
-            await linkedInContactService.takeScreenShotAndUploadToS3(link, { screenshotType: 'single' });
+            await linkedInContactService.takeScreenShotAndUploadToS3(link, result.tempDir);
             await FileHelpers.writeJSON(goodConnectionsFile, goodContacts);
           }
           i++;
@@ -192,7 +247,8 @@ export class SearchController {
             let allRetriesFailed = true;
             for (let retry of linksToRetry) {
               try {
-                if (await linkedInService.analyzeContactActivity(retry)) {
+                const retryResult = await linkedInService.analyzeContactActivity(retry);
+                if (retryResult.isGoodContact) {
                   goodContacts.push(retry);
                   logger.info(`Retry success: ${retry}`);
                   allRetriesFailed = false;
@@ -214,13 +270,6 @@ export class SearchController {
               const newPartialLinksFile = path.join(linksDir, `possible-links-partial-${Date.now()}.json`);
               await fs.writeFile(newPartialLinksFile, JSON.stringify(remainingLinks, null, 2));
               logger.info('written')
-              if (puppeteerService) {
-                console.log('closing browser:', !!puppeteerService);
-                await puppeteerService.close();
-                console.log('closing browser closed');
-                puppeteerService = null;
-                linkedInService = null;
-              }
               logger.info('Restarting with fresh Puppeteer instance...');
               await this.healAndRestart({
                 companyName,
@@ -229,18 +278,21 @@ export class SearchController {
                 searchName,
                 searchPassword,
                 resumeIndex: 0,
-                persistGoodContacts: goodContacts,
                 recursionCount: recursionCount + 1,
-                lastPartialLinksFile: newPartialLinksFile
+                lastPartialLinksFile: newPartialLinksFile,
+                extractedCompanyNumber,
+                extractedGeoNumber,
+                healPhase: 'profile-parsing',
+                healReason: 'Links failed',
               });
-              return; // Stop further processing! Healer will resume
+              return; 
             }
           }
           continue;
         }
-      } // while loop
+      } 
       
-      // Final save for chunk
+     
       await FileHelpers.writeJSON(goodConnectionsFile, goodContacts);
       
       // Merge all partials if we're back at root invocation
