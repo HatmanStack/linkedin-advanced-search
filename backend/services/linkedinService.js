@@ -1,8 +1,10 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import config from '../config/index.js';
 import { logger } from '../utils/logger.js';
-import FileHelpers from '../utils/fileHelpers.js';
+import sharp from 'sharp';
 import RandomHelpers from '../utils/randomHelpers.js';
+import fs from 'fs/promises';
+import path from 'path';
 
 export class LinkedInService {
   constructor(puppeteerService) {
@@ -53,14 +55,33 @@ export class LinkedInService {
     }
   }
 
-  async searchCompany(companyName) {
-    try {
-      logger.info(`Searching for company: ${companyName}`);
+  async navigateToIds(companyName) {
+    try{
+       logger.info(`Searching for company: ${companyName}`);
       
       // Use the search box
-      const searchSuccess = await this.puppeteer.safeType('#global-nav input', companyName);
-      if (!searchSuccess) {
-        throw new Error('Failed to enter search term');
+      const searchSelectors = [
+        'input[placeholder="Search"]',
+        'input[role="combobox"]',
+        'input.search-global-typeahead__input',
+        '#global-nav input'
+      ];
+
+      let searchBoxFound = false;
+      for (const selector of searchSelectors) {
+        try {
+          await this.puppeteer.getPage().waitForSelector(selector, { timeout: 5000 });
+          const searchSuccess = await this.puppeteer.safeType(selector, companyName);
+          if (searchSuccess) {
+            searchBoxFound = true;
+            break;
+          }
+        } catch (e) {
+          logger.debug(`Search box not found with selector: ${selector}`);
+        }
+      }
+      if (!searchBoxFound) {
+        throw new Error('Failed to find or enter search term in the search box');
       }
 
       // Press Enter
@@ -74,20 +95,10 @@ export class LinkedInService {
       
       if (!clickSuccess) {
         logger.warn(`Could not find company link for: ${companyName}`);
-        return false;
+        return null;
       }
 
       logger.info(`Successfully navigated to company: ${companyName}`);
-      return true;
-    } catch (error) {
-      logger.error(`Failed to search company ${companyName}:`, error);
-      throw error;
-    }
-  }
-
-async navigateToJobs(companyLocation) {
-    try {
-      logger.info('Navigating to company jobs section...');
       
       // Click on Jobs tab
       logger.info('Attempting to click Jobs tab...');
@@ -97,8 +108,6 @@ async navigateToJobs(companyLocation) {
         ':scope >>> #ember5530',
         '#ember5530'
       ];
-      
-
 
       let jobsTabClicked = false;
       for (const selector of jobsTabSelectors) {
@@ -173,89 +182,116 @@ async navigateToJobs(companyLocation) {
       } else {
         logger.info('"Show all jobs" clicked (if present).');
       }
-      page = this.puppeteer.getPage();
-      currentUrl = page.url();
-      logger.debug(`Current URL after clicking "Show all jobs": ${currentUrl}`);
-      await RandomHelpers.randomDelay(2000, 4000);
-      logger.info('Waited after clicking "Show all jobs".');
-      // Set location filter
-      if (companyLocation) {
-        logger.info(`Attempting to set location filter: ${companyLocation}`);
-        const locationSelectors = [
-          'input[aria-label*="location"]',
-          'input[placeholder*="location"]',
-          'input[id*="location"]',
-          '#jobs-search-box-location-id'
-        ];
-        
-        let locationSuccess = false;
-        for (const selector of locationSelectors) {
-          try {
-            const page = this.puppeteer.getPage();
-            const element = await page.$(selector);
-            if (element) {
-              // Clear the field first
-              await element.click({ clickCount: 3 }); // Select all text
-              await element.press('Backspace');
-              await RandomHelpers.randomDelay(500, 1000);
-              
-              // Now type the location
-              locationSuccess = await this.puppeteer.safeType(selector, companyLocation);
-              if (locationSuccess) {
-                logger.info(`Location entered with selector: ${selector}`);
-                break;
-              }
-            }
-          } catch (e) {
-            logger.debug(`Failed to clear/type location with selector ${selector}: ${e.message}`);
-          }
-        }
-        
-        if (locationSuccess) {
-          logger.info('Location entered successfully, pressing Enter...');
-          await this.puppeteer.getPage().keyboard.press('Enter');
-          await RandomHelpers.randomDelay(3000, 5000);
-          logger.info('Waited after setting location filter.');
-        } else {
-          logger.info('Failed to enter location filter.');
-        }
-      } else {
-        logger.info('No companyLocation provided, skipping location filter.');
-      }
+    }catch (error) {
+      logger.error(`Failed to search company ${companyName}:`, error);
+      throw error;
+    } 
+  }
 
-      logger.info('Successfully navigated to jobs section');
-      return true;
+  async searchCompany(companyName) {
+    try{
+      await this.navigateToIds(companyName);
+      await RandomHelpers.randomDelay(2000, 4000);
+
+      // Extract company number from URL
+      const page = this.puppeteer.getPage();
+      const currentUrl = page.url();
+      const companyMatch = currentUrl.match(/[?&]f_C=(\d+)/);
+      const extractedCompanyNumber = companyMatch ? companyMatch[1] : null;
+      
+      logger.debug(`Extracted company number: ${extractedCompanyNumber}`);
+      return extractedCompanyNumber;
+      
     } catch (error) {
-      logger.error('Failed to navigate to jobs section:', error);
+      logger.error(`Failed to extract Company ID ${companyName}:`, error);
       throw error;
     }
   }
 
-  async extractCompanyAndGeoNumbers() {
+  async applyLocationFilter(companyLocation, companyName) {
     try {
-      const page = this.puppeteer.getPage();
-      const currentUrl = page.url();
+      if(!companyName){
+        await this.navigateToIds("Google");
+      }
+      logger.info(`Attempting to set location filter: ${companyLocation}`);
+      const locationSelectors = [
+        'input[aria-label*="location"]',
+        'input[placeholder*="location"]',
+        'input[id*="location"]',
+        '#jobs-search-box-location-id'
+      ];
       
-      const geoMatch = currentUrl.match(/[?&]geoId=(\d+)/);
+      let locationSuccess = false;
+      for (const selector of locationSelectors) {
+        try {
+          const page = this.puppeteer.getPage();
+          const element = await page.$(selector);
+          if (element) {
+            // Clear the field first
+            await element.click({ clickCount: 3 }); // Select all text
+            await element.press('Backspace');
+            await RandomHelpers.randomDelay(500, 1000);
+            
+            // Now type the location
+            locationSuccess = await this.puppeteer.safeType(selector, companyLocation);
+            if (locationSuccess) {
+              logger.info(`Location entered with selector: ${selector}`);
+              break;
+            }
+          }
+        } catch (e) {
+          logger.debug(`Failed to clear/type location with selector ${selector}: ${e.message}`);
+        }
+      }
       
-      const companyMatch = currentUrl.match(/[?&]f_C=(\d+)/);
-      
-      const extractedGeoNumber = geoMatch ? geoMatch[1] : null;
-      const extractedCompanyNumber = companyMatch ? companyMatch[1] : null;
-      logger.debug(`Current URL: ${currentUrl}`);
-      logger.debug(`Extracted company number: ${extractedCompanyNumber}`);
-      logger.debug(`Extracted geo number: ${extractedGeoNumber}`);
-      
-      return { extractedCompanyNumber, extractedGeoNumber };
+      if (locationSuccess) {
+        logger.info('Location entered successfully, pressing Enter...');
+        await this.puppeteer.getPage().keyboard.press('Enter');
+        await RandomHelpers.randomDelay(3000, 5000);
+        logger.info('Waited after setting location filter.');
+        
+        // Extract geo number from URL
+        const page = this.puppeteer.getPage();
+        const currentUrl = page.url();
+        const geoMatch = currentUrl.match(/[?&]geoId=(\d+)/);
+        const extractedGeoNumber = geoMatch ? geoMatch[1] : null;
+        
+        logger.debug(`Extracted geo number: ${extractedGeoNumber}`);
+        
+        return extractedGeoNumber;
+      } else {
+        logger.info('Failed to enter location filter.');
+        return null;
+      }
     } catch (error) {
-      logger.error('Failed to extract company/geo numbers:', error);
-      return { extractedCompanyNumber: null, extractedGeoNumber: null };
+      logger.error('Failed to apply location filter:', error);
+      throw error;
     }
   }
 
-  async getLinksFromPeoplePage(pageNumber, extractedCompanyNumber, encodedRole, extractedGeoNumber) {
+
+  async getLinksFromPeoplePage(pageNumber, extractedCompanyNumber = null, encodedRole = null, extractedGeoNumber = null) {
     try {
-      const url = `https://www.linkedin.com/search/results/people/?currentCompany=%5B"${extractedCompanyNumber}"%5D&geoUrn=%5B"${extractedGeoNumber}"%5D&keywords=${encodedRole}&origin=FACETED_SEARCH&page=${pageNumber}`;
+      // Build URL conditionally based on available parameters
+      let urlParts = ['https://www.linkedin.com/search/results/people/?'];
+      let queryParams = [];
+      
+      if (extractedCompanyNumber) {
+        queryParams.push(`currentCompany=%5B"${extractedCompanyNumber}"%5D`);
+      }
+      
+      if (extractedGeoNumber) {
+        queryParams.push(`geoUrn=%5B"${extractedGeoNumber}"%5D`);
+      }
+      
+      if (encodedRole) {
+        queryParams.push(`keywords=${encodedRole}`);
+      }
+      
+      queryParams.push('origin=FACETED_SEARCH');
+      queryParams.push(`page=${pageNumber}`);
+      
+      const url = urlParts[0] + queryParams.join('&');
       
       logger.debug(`Fetching links from page ${pageNumber}: ${url}`);
       
@@ -352,7 +388,37 @@ async navigateToJobs(companyLocation) {
       const isGoodContact = score >= config.linkedin.threshold;
       logger.debug(`Contact ${profileId} final score: ${score}, Good contact: ${isGoodContact}`);
       
-      return isGoodContact;
+      if (isGoodContact) {
+        // Create temp directory and take activity screenshot
+        const screenshotsRoot = path.resolve(process.cwd(), 'screenshots');
+        
+        const tempDir = await fs.mkdtemp(path.join(screenshotsRoot, 'linkedin-screenshots'));
+        
+        const screenshotPath = path.join(tempDir, `${profileId}-Reactions-holder.png`);
+        
+        await this.puppeteer.getPage().screenshot({
+          path: screenshotPath,
+          fullPage: true
+        });
+        
+        logger.debug(`Activity screenshot saved: ${screenshotPath}`);
+        
+        const croppedPath = path.join(tempDir, `${profileId}-Reactions.png`);
+        const image = sharp(screenshotPath);
+        const metadata = await image.metadata();
+        await image
+          .extract({ left: 300, top: 0, width: 575, height: metadata.height })
+          .toFile(croppedPath);
+        logger.info('Cropped screenshot from left 300, width 550.');
+
+        // Delete the original screenshot after cropping
+        await fs.unlink(screenshotPath);
+
+        return { isGoodContact: true, tempDir};
+       
+      }
+      
+      return { isGoodContact: false };
     } catch (error) {
       logger.error(`Failed to analyze contact activity for ${profileId}:`, error);
       throw error;

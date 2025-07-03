@@ -16,11 +16,7 @@ export class LinkedInContactService {
     this.cloudFrontDomain = process.env.CLOUDFRONT_DOMAIN || "";
   }
 
-  async takeScreenShotAndUploadToS3(profileId) {
-    const screenshotsRoot = path.resolve(process.cwd(), 'screenshots');
-    await fs.mkdir(screenshotsRoot, { recursive: true });
-    const tempDir = await fs.mkdtemp(path.join(screenshotsRoot, 'linkedin-screenshots-'));
-    let screenshotPath;
+  async takeScreenShotAndUploadToS3(profileId, tempDir) {
     const s3UploadedObjects = [];
     
     try {
@@ -32,11 +28,14 @@ export class LinkedInContactService {
       await RandomHelpers.randomDelay(2000, 4000);
       
       await this._expandAllContent();
-      screenshotPath = await this._captureSingleScreenshot(tempDir);
+      const screenshotPath = await this._captureSingleScreenshot(tempDir, profileId);
       
+      // Collect all screenshots from temp directory
+      const allScreenshots = await fs.readdir(tempDir);
+      const screenshotPaths = allScreenshots.map(file => path.join(tempDir, file));
 
       // Upload to S3
-      const uploadResults = await this._uploadToS3(screenshotPath, profileId);
+      const uploadResults = await this._uploadToS3(screenshotPaths, profileId);
       s3UploadedObjects.push(...uploadResults);
 
       logger.info(`Successfully captured ${s3UploadedObjects.length} screenshots`);
@@ -135,21 +134,26 @@ export class LinkedInContactService {
 
   }
 
-  async _captureSingleScreenshot(tempDir) {
+  async _captureSingleScreenshot(tempDir, profileId) {
     logger.info('Starting single screenshot capture...');
     const screenshotPath = path.join(tempDir, `screenshot-${uuidv4()}.png`);
     await new Promise(resolve => setTimeout(resolve, 1000));
     await this.puppeteer.screenshot(screenshotPath, { fullPage: true });
     logger.info('Captured single screenshot.');
 
-    // Crop the screenshot to width 300, left 0, top 0, keep original height
-    const croppedPath = path.join(tempDir, `cropped-${uuidv4()}.png`);
+    // Crop the screenshot to width 850, left 0, top 0, keep original height
+    
+    const croppedPath = path.join(tempDir, `${profileId}-Profile.png`);
+    
     const image = sharp(screenshotPath);
     const metadata = await image.metadata();
     await image
       .extract({ left: 0, top: 0, width: 850, height: metadata.height })
       .toFile(croppedPath);
     logger.info('Cropped screenshot to width 300px from left 0, top 0.');
+
+    // Delete the original screenshot after cropping
+    await fs.unlink(screenshotPath);
 
     return [croppedPath];
 }
@@ -161,9 +165,10 @@ export class LinkedInContactService {
     const timestamp = new Date().toISOString().replace(/:/g, '-').replace(/\./g, '_');
 
     for (let i = 0; i < screenshotPaths.length; i++) {
-      const filePath = screenshotPaths[i];
-      const screenshotBuffer = await fs.readFile(filePath);
-      const s3Key = `linkedin-profiles/${profileId}/${timestamp}-part-${i}-${uuidv4()}.png`;
+      let fileName = path.basename(screenshotPaths[i]);
+      fileName = fileName.replace(/\.png$/i, ''); 
+      const screenshotBuffer = await fs.readFile(screenshotPaths[i]);
+      const s3Key = `linkedin-profiles/${profileId}/${fileName}-${timestamp}.png`;
 
       try {
         const command = new PutObjectCommand({
