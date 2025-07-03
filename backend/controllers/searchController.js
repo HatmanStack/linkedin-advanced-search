@@ -86,9 +86,6 @@ export class SearchController {
     healReason = null,
   }) {
 
-    const possibleLinksFile = path.dirname(config.paths.linksFile);
-    const goodConnectionsFile = path.dirname(config.path.goodConnectionsFile)
-
     let puppeteerService;
     let linkedInService;
     let linkedInContactService;
@@ -116,7 +113,7 @@ export class SearchController {
       if (healPhase === 'profile-parsing') {
          uniqueLinks = JSON.parse(await fs.readFile(lastPartialLinksFile));
       } else { 
-           
+        
         if (!extractedCompanyNumber && companyName) {
           extractedCompanyNumber = await linkedInService.searchCompany(companyName);
           if (!extractedCompanyNumber) {
@@ -131,7 +128,7 @@ export class SearchController {
 
         // Scrape links as before:
         const encodedRole = companyRole ? encodeURIComponent(companyRole) : null;
-        allLinks = JSON.parse(await fs.readFile(possibleLinksFile));
+        allLinks = JSON.parse(await fs.readFile(config.paths.linksFile));
         const { pageNumberStart, pageNumberEnd } = config.linkedin;
         let emptyPageCount = 0;
         let pageNumber = resumeIndex !== 0 && resumeIndex > pageNumberStart
@@ -179,12 +176,13 @@ export class SearchController {
         }
         uniqueLinks = [...new Set(allLinks)];
         await FileHelpers.writeJSON(config.paths.linksFile, uniqueLinks);
+        
       }
       
       
       logger.info(`Loaded ${uniqueLinks.length} unique links to process. Starting at index: ${resumeIndex}`);
 
-      goodContacts = JSON.parse(await fs.readFile(goodConnectionsFile));
+      goodContacts = JSON.parse(await fs.readFile(config.paths.goodConnectionsFile));
       let errorQueue = [];
       let i = resumeIndex;
 
@@ -198,12 +196,15 @@ export class SearchController {
         try {
           logger.info(`Analyzing contact ${i+1}/${uniqueLinks.length}: ${link}`);
           const result = await linkedInService.analyzeContactActivity(link);
+          if(result.shutdown){
+            return;
+          }
           if (result.isGoodContact) {
             errorQueue = [];
             goodContacts.push(link);
             logger.info(`Found good contact: ${link} (${goodContacts.length})`);
             await linkedInContactService.takeScreenShotAndUploadToS3(link, result.tempDir);
-            await FileHelpers.writeJSON(goodConnectionsFile, goodContacts);
+            await FileHelpers.writeJSON(config.paths.goodConnectionsFile, goodContacts);
           }
           i++;
         } catch (error) {
@@ -238,7 +239,7 @@ export class SearchController {
                 remainingLinks.unshift(linksToRetry[0]);
               }
               logger.info(`possible-links-partial-${Date.now()}.json`);
-              const newPartialLinksFile = path.join(possibleLinksFile, `possible-links-partial-${Date.now()}.json`);
+              const newPartialLinksFile = path.join(path.dirname(config.paths.linksFile), `possible-links-partial-${Date.now()}.json`);
               await fs.writeFile(newPartialLinksFile, JSON.stringify(remainingLinks, null, 2));
               logger.info('written')
               logger.info('Restarting with fresh Puppeteer instance...');
@@ -262,7 +263,7 @@ export class SearchController {
           continue;
         }
       } 
-      uniqueLinks = JSON.parse(await fs.readFile(possibleLinksFile));
+      uniqueLinks = JSON.parse(await fs.readFile(config.paths.linksFile));
       return {
         goodContacts,
         uniqueLinks,

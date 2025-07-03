@@ -295,6 +295,18 @@ class ApiService {
       body: JSON.stringify({ connectionId, topicId }),
     });
   }
+
+  // Heal and Restore Operations
+  async authorizeHealAndRestore(sessionId: string, autoApprove: boolean = false): Promise<ApiResponse<{ success: boolean }>> {
+    return this.makeRequest<{ success: boolean }>('/heal-restore/authorize', {
+      method: 'POST',
+      body: JSON.stringify({ sessionId, autoApprove }),
+    });
+  }
+
+  async checkHealAndRestoreStatus(): Promise<ApiResponse<{ pendingSession?: { sessionId: string; timestamp: number } }>> {
+    return this.makeRequest<{ pendingSession?: { sessionId: string; timestamp: number } }>('/heal-restore/status');
+  }
 }
 
 export const apiService = new ApiService();
