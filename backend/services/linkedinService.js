@@ -328,9 +328,6 @@ export class LinkedInService {
         
         logger.warn('Landed on a checkpoint or captcha page!');
         // Handle accordingly
-      }else {
-        logger.warn('Unstable browser session running');
-        return {shutdown:true}
       }
       
       let score = 0;
@@ -419,11 +416,11 @@ export class LinkedInService {
         // Delete the original screenshot after cropping
         await fs.unlink(screenshotPath);
 
-        return { isGoodContact: true, shutdown: false, tempDir};
+        return { isGoodContact: true,  tempDir};
        
       }
       
-      return { isGoodContact: false, shutdown:false};
+      return { isGoodContact: false};
     } catch (error) {
       logger.error(`Failed to analyze contact activity for ${profileId}:`, error);
       throw error;

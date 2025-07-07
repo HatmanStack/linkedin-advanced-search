@@ -9,7 +9,7 @@ export async function waitForHealAndRestoreAuthorization(sessionId) {
     const timeout = setTimeout(() => {
       pendingAuthorizations.delete(sessionId);
       reject(new Error('Heal and restore authorization timeout'));
-    }, 900000); // 15 minute timeout
+    }, 3600000); // 60 minute timeout
 
     pendingAuthorizations.set(sessionId, {
       resolve,

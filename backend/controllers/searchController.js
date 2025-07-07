@@ -113,7 +113,9 @@ export class SearchController {
       if (healPhase === 'profile-parsing') {
          uniqueLinks = JSON.parse(await fs.readFile(lastPartialLinksFile));
       } else { 
-        
+        allLinks = JSON.parse(await fs.readFile(config.paths.linksFile))
+        uniqueLinks = [...new Set(allLinks)];
+        /** 
         if (!extractedCompanyNumber && companyName) {
           extractedCompanyNumber = await linkedInService.searchCompany(companyName);
           if (!extractedCompanyNumber) {
@@ -176,7 +178,7 @@ export class SearchController {
         }
         uniqueLinks = [...new Set(allLinks)];
         await FileHelpers.writeJSON(config.paths.linksFile, uniqueLinks);
-        
+        */
       }
       
       
@@ -196,9 +198,7 @@ export class SearchController {
         try {
           logger.info(`Analyzing contact ${i+1}/${uniqueLinks.length}: ${link}`);
           const result = await linkedInService.analyzeContactActivity(link);
-          if(result.shutdown){
-            return;
-          }
+          
           if (result.isGoodContact) {
             errorQueue = [];
             goodContacts.push(link);
