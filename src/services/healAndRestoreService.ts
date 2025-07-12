@@ -15,6 +15,9 @@ export interface HealAndRestoreNotification {
 class HealAndRestoreService {
   private eventSource: EventSource | null = null;
   private listeners: ((notification: HealAndRestoreNotification) => void)[] = [];
+  private isPolling = false;
+  private isListening = false;
+
 
   // Check if auto-approve is enabled for this session
   isAutoApproveEnabled(): boolean {
@@ -43,20 +46,21 @@ class HealAndRestoreService {
 
   // Start listening for heal and restore notifications
   startListening(): void {
-    if (this.eventSource) {
-      return; // Already listening
-    }
-
+    if (this.isListening) return; // Prevent multiple listeners/pollers
+    this.isListening = true;
+    
     // For now, we'll use polling instead of WebSocket/SSE for simplicity
     this.startPolling();
   }
 
   // Stop listening for notifications
   stopListening(): void {
-    if (this.eventSource) {
-      this.eventSource.close();
-      this.eventSource = null;
+  if (this.eventSource) {
+    this.eventSource.close();
+    this.eventSource = null;
     }
+    this.isListening = false;
+    this.isPolling = false;
   }
 
   // Add listener for heal and restore notifications
@@ -76,6 +80,8 @@ class HealAndRestoreService {
 
   // Simple polling implementation (can be replaced with WebSocket/SSE later)
   private startPolling(): void {
+    if (this.isPolling) return;
+    this.isPolling = true;
     const poll = async () => {
       try {
         const response = await apiService.checkHealAndRestoreStatus();

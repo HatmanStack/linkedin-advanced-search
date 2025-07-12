@@ -5,6 +5,7 @@ import sharp from 'sharp';
 import RandomHelpers from '../utils/randomHelpers.js';
 import fs from 'fs/promises';
 import path from 'path';
+import { S3CloudFrontService } from './s3CloudFrontService.js';
 
 export class LinkedInService {
   constructor(puppeteerService) {
@@ -13,8 +14,10 @@ export class LinkedInService {
       new GoogleGenerativeAI(config.googleAI.apiKey) : null;
     this.model = this.genAI ? 
       this.genAI.getGenerativeModel({ model: "gemini-2.0-flash" }) : null;
+    this.s3CloudFrontService = new S3CloudFrontService();
   }
 
+  
   async login(username, password, recursion) {
     try {
       logger.info('Starting LinkedIn login process...');
@@ -317,6 +320,23 @@ export class LinkedInService {
 
   async analyzeContactActivity(profileId) {
     try {
+     
+      
+      // Check if profile analysis is needed
+      const analysisStatus = await this.s3CloudFrontService.shouldAnalyzeProfile(profileId);
+      
+      if (!analysisStatus.shouldAnalyze) {
+        logger.info(`Skipping analysis for ${profileId}: ${analysisStatus.reason}`);
+        return { 
+          skipped: true, 
+          reason: analysisStatus.reason,
+          lastAnalyzed: analysisStatus.lastAnalyzed,
+          profileId 
+        };
+      }
+      
+      logger.info(`Proceeding with analysis for ${profileId}: ${analysisStatus.reason}`);
+      
       const activityUrl = `https://www.linkedin.com/in/${profileId}/recent-activity/reactions/`;
       logger.debug(`Analyzing contact activity: ${activityUrl}`);
       
