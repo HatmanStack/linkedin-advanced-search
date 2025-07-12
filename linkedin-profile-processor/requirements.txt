@@ -15,7 +15,7 @@ pandas==2.2.3
 numpy==1.26.4
 
 # HTTP requests
-requests==2.32.3
+requests==2.32.4
 
 # JSON processing
 jsonschema==4.23.0
