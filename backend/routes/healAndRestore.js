@@ -4,9 +4,9 @@ import { authorizeHealAndRestore, getPendingAuthorizations } from '../services/h
 const router = express.Router();
 
 // Get pending heal and restore sessions
-router.get('/status', (req, res) => {
+router.get('/status', async (req, res) => {
   try {
-    const pendingSessions = getPendingAuthorizations();
+    const pendingSessions = await getPendingAuthorizations();
     const pendingSession = pendingSessions.length > 0 ? pendingSessions[0] : null;
     
     res.json({
@@ -23,7 +23,7 @@ router.get('/status', (req, res) => {
 });
 
 // Authorize heal and restore
-router.post('/authorize', (req, res) => {
+router.post('/authorize', async (req, res) => {
   try {
     const { sessionId, autoApprove } = req.body;
     
@@ -34,7 +34,7 @@ router.post('/authorize', (req, res) => {
       });
     }
     
-    const success = authorizeHealAndRestore(sessionId);
+    const success = await authorizeHealAndRestore(sessionId);
     
     if (success) {
       res.json({
