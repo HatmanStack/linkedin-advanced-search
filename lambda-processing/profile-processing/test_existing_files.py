@@ -25,6 +25,116 @@ DEFAULT_BUCKET = "linkedin-advanced-search-screenshots-2024"
 DEFAULT_PREFIX = "linkedin-profiles/"
 AWS_REGION = "us-west-2"
 
+FAILED_DIRECTORIES = [
+    "linkedin-profiles/aden-abiye-cpa-26663635",
+    "linkedin-profiles/agajula97",
+    "linkedin-profiles/allenchan",
+    "linkedin-profiles/amanimansour92",
+    "linkedin-profiles/annthurium",
+    "linkedin-profiles/antonio-guzman",
+    "linkedin-profiles/anuraagkonda",
+    "linkedin-profiles/anusha-t-b777a9148",
+    "linkedin-profiles/aparna-venkataraman-30b13621",
+    "linkedin-profiles/azmath-begum-55429b291",
+    "linkedin-profiles/bhupindersidana",
+    "linkedin-profiles/brian-angulo-63308a16b",
+    "linkedin-profiles/chandragudimetla",
+    "linkedin-profiles/danielopincariu",
+    "linkedin-profiles/daveklein19",
+    "linkedin-profiles/david-poliakoff-86663223",
+    "linkedin-profiles/dileeshk",
+    "linkedin-profiles/dimitrikourouniotis",
+    "linkedin-profiles/dotnetgirl",
+    "linkedin-profiles/elias-scarborough-0261a7b0",
+    "linkedin-profiles/eliott-nicholson-35739630",
+    "linkedin-profiles/faria-khalid-68b7a858",
+    "linkedin-profiles/gilliankbruce",
+    "linkedin-profiles/gregvanpelt",
+    "linkedin-profiles/gunnargissel",
+    "linkedin-profiles/haakonhestness",
+    "linkedin-profiles/hanna-koh",
+    "linkedin-profiles/haringummidi",
+    "linkedin-profiles/hitesh-j-b976106",
+    "linkedin-profiles/holly-schilling-aabb4272",
+    "linkedin-profiles/jaepaek",
+    "linkedin-profiles/jamielangskov",
+    "linkedin-profiles/jani-syed-18sy",
+    "linkedin-profiles/jcolemorrison",
+    "linkedin-profiles/jeff-miller-a4538",
+    "linkedin-profiles/johnathan-guzman",
+    "linkedin-profiles/josiaho",
+    "linkedin-profiles/judithyeo",
+    "linkedin-profiles/justincastilla",
+    "linkedin-profiles/karthikkonagani",
+    "linkedin-profiles/kelly-p-rankin",
+    "linkedin-profiles/kinga-kimbrel",
+    "linkedin-profiles/kosinova",
+    "linkedin-profiles/krishnamitta",
+    "linkedin-profiles/krunal-shah-5108331710",
+    "linkedin-profiles/kushalhshah1",
+    "linkedin-profiles/laxmi-harika-bibireddy-95496a1a0",
+    "linkedin-profiles/mangalampallykireeti",
+    "linkedin-profiles/matthew-powers-cfa",
+    "linkedin-profiles/micah-h-11333b56",
+    "linkedin-profiles/mkfahaduddin",
+    "linkedin-profiles/mollahosseini",
+    "linkedin-profiles/mrinal-ranjan",
+    "linkedin-profiles/nagarjuna-reddy-5019071a8",
+    "linkedin-profiles/namrathagangaraju17",
+    "linkedin-profiles/naveed-akhtar-26ba15",
+    "linkedin-profiles/navya-bonthu-a569781a3",
+    "linkedin-profiles/nikita-zamwar",
+    "linkedin-profiles/nithin-thampi-81443434",
+    "linkedin-profiles/p-bharath-562248bb",
+    "linkedin-profiles/paultikhomirov",
+    "linkedin-profiles/pavan-kumar-komaravolu-01786b29",
+    "linkedin-profiles/praveena-i-722954bb",
+    "linkedin-profiles/rag28",
+    "linkedin-profiles/rajagopal-kathem",
+    "linkedin-profiles/rajensanjanwala",
+    "linkedin-profiles/rajesh-badugula-4ab24a196",
+    "linkedin-profiles/ramanshakya",
+    "linkedin-profiles/reddy5679",
+    "linkedin-profiles/reneemacdonald",
+    "linkedin-profiles/rob-driskill-2580356",
+    "linkedin-profiles/romilgadia",
+    "linkedin-profiles/sabbirmanandhar",
+    "linkedin-profiles/sai-prakash-reddy-0a7143136",
+    "linkedin-profiles/saideepraomarru",
+    "linkedin-profiles/sanjanaagarw",
+    "linkedin-profiles/sanket-m-salunke",
+    "linkedin-profiles/sarimzaidis",
+    "linkedin-profiles/sergeyvystoropskyi",
+    "linkedin-profiles/shachikshah",
+    "linkedin-profiles/shahaayush24",
+    "linkedin-profiles/shahkaushalb",
+    "linkedin-profiles/sidd-j",
+    "linkedin-profiles/sirivallimeenakshi",
+    "linkedin-profiles/skilbeck",
+    "linkedin-profiles/songtao-steven-leng",
+    "linkedin-profiles/sophiamyang",
+    "linkedin-profiles/sri-charani-gali-16b6827b",
+    "linkedin-profiles/srilakshmi-m-6b9a698b",
+    "linkedin-profiles/sujatha-s-43bb5221",
+    "linkedin-profiles/sumanth-moturi-1a875a192",
+    "linkedin-profiles/suresh-murakonda",
+    "linkedin-profiles/swarajranga",
+    "linkedin-profiles/synedra",
+    "linkedin-profiles/szaske",
+    "linkedin-profiles/tanya-romankova-2a59803",
+    "linkedin-profiles/taylor-krusen",
+    "linkedin-profiles/ted-dooley-3594a1a",
+    "linkedin-profiles/thirupathi-pattipaka-b04a4a31",
+    "linkedin-profiles/thomas-lomas-05630133",
+    "linkedin-profiles/timothyjreynolds",
+    "linkedin-profiles/tom-crebs-9313b02",
+    "linkedin-profiles/vamshi-gunti-357551122",
+    "linkedin-profiles/vardhan-d-a578892b4",
+    "linkedin-profiles/viganosimone",
+    "linkedin-profiles/wangrachelr",
+    "linkedin-profiles/yamini-gade-162a70281",
+]
+
 def list_profile_directories(bucket_name, prefix=""):
     """List directories that contain Profile files"""
     try:
@@ -179,15 +289,14 @@ def main():
         success = test_lambda_on_directory(args.bucket, args.directory)
         sys.exit(0 if success else 1)
     
-    # List Profile directories in bucket
-    print(f"\nListing Profile directories in s3://{args.bucket}/{args.prefix}...")
-    directories = list_profile_directories(args.bucket, args.prefix)
-    
+   # Use the static list of failed directories
+    directories = [{'directory': d} for d in FAILED_DIRECTORIES]
+
     if not directories:
-        print("No Profile directories found to process.")
+        print("No failed directories found to process.")
         return
-    
-    print(f"\nFound {len(directories)} directories with Profile files")
+
+    print(f"\nFound {len(directories)} failed directories to process")
     
     if args.dry_run:
         print("Dry run complete. Use --directory <path> to process a specific directory.")

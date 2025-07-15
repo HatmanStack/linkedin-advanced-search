@@ -21,13 +21,15 @@ from datetime import datetime
 from pathlib import Path
 import re
 import base64
+import time
+from io import BytesIO
 
 # Configure logging
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 # Configuration
-CLAUDE_MODEL_ID = "us.anthropic.claude-sonnet-4-20250514-v1:0"
+AI_MODEL_ID = "us.meta.llama4-maverick-17b-instruct-v1:0"
 AWS_REGION = "us-west-2"
 DYNAMODB_TABLE_NAME = "linkedin-advanced-search"
 
@@ -154,17 +156,17 @@ def lambda_handler(event, context):
 def process_profile(bucket, profile_key):
     """Process a single LinkedIn profile screenshot"""
     try:
-        # Step 1: Extract text using Claude Vision
-        logger.info("Step 1: Extracting text with Claude Vision")
-        textract_response = extract_text_from_s3(bucket, profile_key)
+        # Step 1: Extract text using AI Vision
+        logger.info("Step 1: Extracting text with AI Vision")
+        textract_response = extract_text_with_ai_vision(bucket, profile_key)
         
         # Step 2: Get S3 metadata
         logger.info("Step 2: Getting S3 metadata")
         s3_metadata = get_s3_metadata(bucket, profile_key)
         
-        # Step 3: Parse with Claude
-        logger.info("Step 3: Parsing with Claude")
-        parsed_data = parse_with_claude(textract_response, s3_metadata)
+        # Step 3: Parse with AI
+        logger.info("Step 3: Parsing with AI")
+        parsed_data = parse_with_ai_retry_logic(textract_response, s3_metadata, bucket, profile_key)
         
         # Step 4: Create Profile Metadata Item
         logger.info("Step 4: Creating Profile Metadata Item")
@@ -184,12 +186,39 @@ def process_profile(bucket, profile_key):
         logger.error(f"Profile processing failed: {str(e)}")
         raise
 
-def extract_text_from_s3(bucket, key):
-    """Extract text from S3 image using Claude 3.5 Sonnet vision"""
+def validate_image(image_data):
+    """Validate image size and format"""
     try:
+        # Check file size (20MB limit)
+        if len(image_data) > 20 * 1024 * 1024:
+            raise ValueError(f"Image too large: {len(image_data)} bytes")
+        
+        # Check minimum size
+        if len(image_data) < 1024:
+            raise ValueError(f"Image too small: {len(image_data)} bytes")
+        
+        logger.info(f"Image validation passed: {len(image_data)} bytes")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Image validation failed: {str(e)}")
+        raise
+
+def extract_text_with_ai_vision(bucket, key):
+    """Extract text from S3 image using AI vision model"""
+    start_time = time.time()
+    
+    try:
+        logger.info(f"Starting OCR extraction for s3://{bucket}/{key}")
+        
         # Get image from S3
         response = s3_client.get_object(Bucket=bucket, Key=key)
         image_data = response['Body'].read()
+        
+        # Validate image
+        validate_image(image_data)
+        
+        # Encode image
         image_base64 = base64.b64encode(image_data).decode()
         
         # Determine media type
@@ -197,61 +226,70 @@ def extract_text_from_s3(bucket, key):
         if key.lower().endswith('.jpg') or key.lower().endswith('.jpeg'):
             media_type = "image/jpeg"
         
-        # Use Claude vision for OCR
-        body = {
-            "anthropic_version": "bedrock-2023-05-31",
-            "max_tokens": 2000,
-            "temperature": 0.1,
-            "messages": [
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "image",
-                            "source": {
-                                "type": "base64",
-                                "media_type": media_type,
-                                "data": image_base64
-                            }
-                        },
-                        {
-                            "type": "text",
-                            "text": "Extract all text from this LinkedIn profile screenshot. Return only the text content, preserving line breaks and structure."
-                        }
-                    ]
-                }
-            ]
-        }
+        logger.info(f"Processing image: size={len(image_data)} bytes, type={media_type}")
         
-        # Call Claude via Bedrock
-        response = bedrock_client.invoke_model(
-            modelId=CLAUDE_MODEL_ID,
-            body=json.dumps(body),
-            contentType="application/json"
+        # Use Llama Maverick vision for OCR
+        conversation = [
+            {
+                "role": "user",
+                "content": [
+                    {"text": "Extract all text from this LinkedIn profile screenshot. Return only the text content, preserving line breaks and structure."},
+                    {
+                        "image": {
+                            "format": "png" if media_type == "image/png" else "jpeg",
+                            "source": {"bytes": image_data}
+                        }
+                    }
+                ]
+            }
+        ]
+        
+        # Call Llama via Bedrock using converse API
+        response = bedrock_client.converse(
+            modelId=AI_MODEL_ID,
+            messages=conversation,
+            inferenceConfig={"maxTokens": 2000, "temperature": 0.1}
         )
         
         # Parse the response
-        response_body = json.loads(response['body'].read())
-        extracted_text = response_body['content'][0]['text']
+        extracted_text = response["output"]["message"]["content"][0]["text"]
         
         # Convert to Textract-like format for compatibility
+        text_lines = [line.strip() for line in extracted_text.split('\n') if line.strip()]
+        
         mock_response = {
             'Blocks': [
                 {
                     'BlockType': 'LINE',
-                    'Text': line.strip()
+                    'Text': line
                 }
-                for line in extracted_text.split('\n') 
-                if line.strip()
+                for line in text_lines
             ]
         }
         
-        logger.info(f"Claude vision extracted {len(mock_response['Blocks'])} text lines")
+        processing_time = time.time() - start_time
+        logger.info(f"OCR completed successfully: {len(mock_response['Blocks'])} text lines in {processing_time:.2f}s")
+        
         return mock_response
         
     except Exception as e:
-        logger.error(f"Text extraction with Claude vision failed: {str(e)}")
+        processing_time = time.time() - start_time
+        logger.error(f"Text extraction with AI vision failed after {processing_time:.2f}s: {str(e)}")
         raise
+
+def extract_text_with_retry(bucket, key, max_retries=3):
+    """Extract text with retry logic and exponential backoff"""
+    for attempt in range(max_retries):
+        try:
+            return extract_text_with_ai_vision(bucket, key)
+        except Exception as e:
+            if attempt == max_retries - 1:
+                logger.error(f"OCR failed after {max_retries} attempts: {str(e)}")
+                raise
+            
+            wait_time = 2 ** attempt
+            logger.warning(f"OCR attempt {attempt + 1} failed, retrying in {wait_time}s: {str(e)}")
+            time.sleep(wait_time)
 
 def get_s3_metadata(bucket, key):
     """Get metadata from S3 object including upload date and path structure"""
@@ -277,19 +315,56 @@ def get_s3_metadata(bucket, key):
         logger.error(f"S3 metadata extraction failed: {str(e)}")
         raise
 
-def parse_with_claude(textract_response, s3_metadata):
-    """Use Claude to parse the OCR text and extract structured information"""
+def parse_ai_json_response(response_text):
+    """Parse JSON from AI response with multiple fallback strategies"""
+    # Strategy 1: Direct JSON parsing
     try:
-        # Combine all text blocks from Textract
-        text_blocks = []
-        for block in textract_response['Blocks']:
-            if block['BlockType'] == 'LINE':
-                text_blocks.append(block['Text'])
+        return json.loads(response_text.strip())
+    except json.JSONDecodeError:
+        pass
+    
+    # Strategy 2: Extract JSON block
+    json_patterns = [
+        r'```json\s*(\{.*?\})\s*```',
+        r'```\s*(\{.*?\})\s*```',
+        r'(\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\})'
+    ]
+    
+    for pattern in json_patterns:
+        match = re.search(pattern, response_text, re.DOTALL)
+        if match:
+            try:
+                return json.loads(match.group(1))
+            except json.JSONDecodeError:
+                continue
+    
+    # Strategy 3: Try to fix common JSON issues
+    cleaned = response_text.strip()
+    if cleaned.startswith('{') and cleaned.endswith('}'):
+        try:
+            # Fix common issues like trailing commas
+            cleaned = re.sub(r',\s*}', '}', cleaned)
+            cleaned = re.sub(r',\s*]', ']', cleaned)
+            return json.loads(cleaned)
+        except json.JSONDecodeError:
+            pass
+    
+    raise ValueError(f"Could not parse JSON from AI response: {response_text[:500]}...")
+
+def extract_text_blocks_from_textract(textract_response):
+    """Extract text blocks from Textract response"""
+    text_blocks = []
+    for block in textract_response['Blocks']:
+        if block['BlockType'] == 'LINE':
+            text_blocks.append(block['Text'])
+    return text_blocks
+
+def parse_profile_with_ai(ocr_text, s3_metadata):
+    """Use AI to parse the OCR text and extract structured information"""
+    try:
+        logger.info(f"Processing {len(ocr_text.split())} words with AI")
         
-        ocr_text = "\n".join(text_blocks)
-        logger.info(f"Processing {len(text_blocks)} text lines with Claude")
-        
-        # Prepare the prompt for Claude
+        # Prepare the prompt for AI
         prompt = f"""
         Analyze this LinkedIn profile text and extract structured information for a professional profile database.
         
@@ -322,13 +397,17 @@ def parse_with_claude(textract_response, s3_metadata):
             ],
             "skills": ["List of professional skills mentioned"],
             "industry": "Primary industry/sector",
-            "experience_years": "Estimated total years of experience (number)"
+            "experience_years": "Total years of professional experience as a number"
         }}
         
         Guidelines:
         - Extract only information clearly present in the text
         - Use "Not specified" for missing information
         - For dates, use the most specific format available
+        - For CURRENT COMPANY & TITLE: Look for the work experience entry with "Present" as the end date. That company and title are the current ones. If NO job has "Present" as end date, set both currentCompany and currentTitle to "Available"
+        - For INDUSTRY: Look for explicit industry mentions first, then infer from job titles and companies (e.g., "Software Engineer" = "Technology", "Marketing Manager" = "Marketing", "Financial Analyst" = "Finance")
+        - For EXPERIENCE_YEARS: Calculate from work experience dates OR look for explicit mentions like "20+ years of experience". Return only the number (e.g., 20, not "20 years")
+        - If experience calculation is unclear, look for phrases like "X years of experience" in the summary/about section
         - Focus on current role and key qualifications
         - Include all work experience and education found
         - Be precise and professional
@@ -336,47 +415,100 @@ def parse_with_claude(textract_response, s3_metadata):
         Return ONLY the JSON object, no additional text.
         """
         
-        # Prepare request body for Claude
-        body = {
-            "anthropic_version": "bedrock-2023-05-31",
-            "max_tokens": 3000,
-            "temperature": 0.1,
-            "messages": [
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ]
-        }
-        
-        # Call Claude via Bedrock
-        response = bedrock_client.invoke_model(
-            modelId=CLAUDE_MODEL_ID,
-            body=json.dumps(body),
-            contentType="application/json"
-        )
-        
-        # Parse the response
-        response_body = json.loads(response['body'].read())
-        analysis_text = response_body['content'][0]['text']
-        
-        # Parse the JSON from Claude's response
-        try:
-            parsed_data = json.loads(analysis_text)
-        except json.JSONDecodeError:
-            # Fallback: extract JSON from response if wrapped in text
-            json_match = re.search(r'\{.*\}', analysis_text, re.DOTALL)
-            if json_match:
-                parsed_data = json.loads(json_match.group())
-            else:
-                raise ValueError("Could not parse JSON from Claude response")
-        
-        logger.info(f"Successfully parsed profile: {parsed_data.get('name', 'Unknown')}")
-        return parsed_data
+        return call_ai_model(prompt)
         
     except Exception as e:
-        logger.error(f"Claude parsing failed: {str(e)}")
+        logger.error(f"AI parsing failed: {str(e)}")
         raise
+
+def call_ai_model(prompt):
+    """Make API call to AI model and return parsed response"""
+    # Prepare conversation for AI model
+    conversation = [
+        {
+            "role": "user",
+            "content": [{"text": prompt}]
+        }
+    ]
+    
+    # Call AI via Bedrock using converse API
+    response = bedrock_client.converse(
+        modelId=AI_MODEL_ID,
+        messages=conversation,
+        inferenceConfig={"maxTokens": 3000, "temperature": 0.1}
+    )
+    
+    # Parse the response
+    analysis_text = response["output"]["message"]["content"][0]["text"]
+    
+    logger.info(f"AI parsing response length: {len(analysis_text)} characters")
+    
+    # Parse the JSON from AI response
+    try:
+        parsed_data = json.loads(analysis_text)
+    except json.JSONDecodeError:
+        # Try to extract JSON from response
+        json_match = re.search(r'\{.*\}', analysis_text, re.DOTALL)
+        if json_match:
+            parsed_data = json.loads(json_match.group())
+        else:
+            raise ValueError("Could not parse JSON from AI response")
+    
+    return parsed_data
+
+def check_missing_dates(parsed_data):
+    """Check if there are too many missing dates in work experience"""
+    work_experience = parsed_data.get('workExperience', [])
+    missing_dates_count = 0
+    for job in work_experience:
+        if job.get('startDate') == 'Not specified':
+            missing_dates_count += 1
+        if job.get('endDate') == 'Not specified':
+            missing_dates_count += 1
+    
+    return missing_dates_count > 3
+
+def parse_with_ai_retry_logic(textract_response, s3_metadata, bucket, profile_key):
+    """Parse profile with AI and retry OCR if too many dates are missing"""
+    # Extract text blocks from initial Textract response
+    text_blocks = extract_text_blocks_from_textract(textract_response)
+    ocr_text = "\n".join(text_blocks)
+    
+    # First attempt at parsing
+    parsed_data = parse_profile_with_ai(ocr_text, s3_metadata)
+    
+    # Check if we need to retry due to missing dates
+    if check_missing_dates(parsed_data):
+        logger.warning("Too many missing dates detected, retrying with fresh OCR")
+        
+        # Re-extract text using OCR
+        fresh_textract_response = extract_text_with_ai_vision(bucket, profile_key)
+        fresh_text_blocks = extract_text_blocks_from_textract(fresh_textract_response)
+        fresh_ocr_text = "\n".join(fresh_text_blocks)
+        
+        # Retry parsing with fresh OCR
+        parsed_data = parse_profile_with_ai(fresh_ocr_text, s3_metadata)
+        logger.info("Completed retry parsing with fresh OCR")
+    
+    logger.info(f"Successfully parsed profile: {parsed_data.get('name', 'Unknown')}")
+    return parsed_data
+
+def get_existing_profile(profile_id):
+    """Get existing profile from DynamoDB if it exists"""
+    try:
+        dynamodb = boto3.resource('dynamodb')
+        table = dynamodb.Table(DYNAMODB_TABLE_NAME)
+        
+        response = table.get_item(
+            Key={
+                'PK': profile_id,
+                'SK': '#METADATA'
+            }
+        )
+        return response.get('Item')
+    except Exception as e:
+        logger.warning(f"Error checking for existing profile: {str(e)}")
+        return None
 
 def create_profile_metadata_item(parsed_data, s3_metadata):
     """Create Profile Metadata Item in DynamoDB following new schema"""
@@ -385,6 +517,9 @@ def create_profile_metadata_item(parsed_data, s3_metadata):
         linkedin_url = s3_metadata.get('linkedin_url', 'unknown')
         profile_id_b64 = base64.b64encode(linkedin_url.encode()).decode()
         profile_id = f"PROFILE#{profile_id_b64}"
+        
+        # Check for existing profile
+        existing_profile = get_existing_profile(profile_id)
         
         # Create fulltext content
         fulltext_parts = [
@@ -399,8 +534,9 @@ def create_profile_metadata_item(parsed_data, s3_metadata):
         ]
         fulltext = ' '.join(filter(None, fulltext_parts))
         
-        # Prepare the Profile Metadata Item
+        # Use existing createdAt if profile exists, otherwise use current time
         current_time = datetime.utcnow().isoformat() + 'Z'
+        created_at = existing_profile['createdAt'] if existing_profile else current_time
         
         item = {
             'PK': profile_id,
@@ -427,7 +563,7 @@ def create_profile_metadata_item(parsed_data, s3_metadata):
             'skills': parsed_data.get('skills', []),
             
             # System Metadata
-            'createdAt': current_time,
+            'createdAt': created_at,
             'updatedAt': current_time,
             
             # FullText
@@ -437,8 +573,12 @@ def create_profile_metadata_item(parsed_data, s3_metadata):
         # Add optional fields if they exist
         if parsed_data.get('industry'):
             item['industry'] = parsed_data['industry']
-        if parsed_data.get('experience_years'):
-            item['experience_years'] = int(parsed_data['experience_years'])
+        if parsed_data.get('experience_years') and parsed_data['experience_years'] != 'Not specified':
+            try:
+                item['experience_years'] = int(parsed_data['experience_years'])
+            except (ValueError, TypeError):
+                logger.warning(f"Could not convert experience_years to int: {parsed_data['experience_years']}")
+                # Skip adding this field if conversion fails
         
         # Put item in DynamoDB
         table.put_item(Item=item)
