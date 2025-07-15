@@ -1,0 +1,48 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Edge Service API for LinkedIn Profile Management
+
+Parameters:
+  CognitoUserPoolArn:
+    Type: String
+    Description: ARN of the Cognito User Pool for authentication
+
+Resources:
+  EdgeProcessingFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: lambda_function.lambda_handler
+      Runtime: python3.9
+      Timeout: 30
+      Environment:
+        Variables:
+          DYNAMODB_TABLE_NAME: linkedin-advanced-search
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: linkedin-advanced-search
+      Events:
+        CreateEdge:
+          Type: Api
+          Properties:
+            Path: /edges
+            Method: post
+            Auth:
+              Authorizer: CognitoAuthorizer
+
+  EdgeApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: prod
+      Auth:
+        DefaultAuthorizer: CognitoAuthorizer
+        Authorizers:
+          CognitoAuthorizer:
+            UserPoolArn: !Ref CognitoUserPoolArn
+            Identity:
+              Header: Authorization
+            
+Outputs:
+  EdgeApiEndpoint:
+    Description: "API Gateway endpoint URL"
+    Value: !Sub "https://${EdgeApi}.execute-api.${AWS::Region}.amazonaws.com/prod/edges"

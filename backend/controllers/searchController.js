@@ -4,7 +4,7 @@ import FileHelpers from '../utils/fileHelpers.js';
 import PuppeteerService from '../services/puppeteerService.js';
 import LinkedInService from '../services/linkedinService.js';
 import LinkedInContactService from '../services/linkedinContactService.js';
-import fs from 'fs/promises';
+import EdgeService from '../services/edgeService.js';
 import path from 'path';
 
 export class SearchController {
@@ -14,8 +14,18 @@ export class SearchController {
       companyRole,
       companyLocation,
       searchName,
-      searchPassword
+      searchPassword,
+      userId
     } = req.body;
+
+    // Validate required userId
+    if (!userId) {
+      return res.status(401).json({
+        error: 'Authentication required',
+        message: 'User ID is required to perform searches'
+      });
+    }
+
     logger.info(companyName, companyRole, companyLocation, searchName, searchPassword);
     if (!searchName || !searchPassword) {
       return res.status(400).json({ 
@@ -37,7 +47,8 @@ export class SearchController {
       companyLocation,
       searchName,
       searchPassword,
-      ...opts
+      ...opts,
+      userId: req.user.sub  // Add user ID to state
     };
 
     try {
@@ -84,24 +95,27 @@ export class SearchController {
     extractedGeoNumber = null,
     healPhase = null,
     healReason = null,
+    userId = null,
   }) {
 
     let puppeteerService;
     let linkedInService;
     let linkedInContactService;
+    let edgeService;
     let uniqueLinks;
     let goodContacts;
     let allLinks;
     
     try {
-      if (!searchName || !searchPassword) {
-        throw new Error('Missing required fields.');
+      if (!searchName || !searchPassword || !userId) {
+        throw new Error('Missing required fields: searchName, searchPassword, or userId.');
       }
 
       puppeteerService = new PuppeteerService();
       await puppeteerService.initialize();
       linkedInService = new LinkedInService(puppeteerService);
       linkedInContactService = new LinkedInContactService(puppeteerService);
+      edgeService = new EdgeService();
 
       logger.info('Logging in...');
       await linkedInService.login(searchName, searchPassword, lastPartialLinksFile);
@@ -151,6 +165,7 @@ export class SearchController {
                   companyLocation,
                   searchName,
                   searchPassword,
+                  userId,  // Include userId
                   resumeIndex: pageNumber - 3,
                   recursionCount: recursionCount + 1,
                   extractedCompanyNumber,
@@ -202,6 +217,10 @@ export class SearchController {
             goodContacts.push(link);
             logger.info(`Found good contact: ${link} (${goodContacts.length})`);
             await linkedInContactService.takeScreenShotAndUploadToS3(link, result.tempDir);
+            // Asynchronously check and create edges
+            edgeService.checkAndCreateEdges(userId, link).catch(error => {
+              logger.error('Error creating edges:', error);
+            });
             await FileHelpers.writeJSON(config.paths.goodConnectionsFile, goodContacts);
           }
           i++;
@@ -247,6 +266,7 @@ export class SearchController {
                 companyLocation,
                 searchName,
                 searchPassword,
+                userId,  // Include userId
                 resumeIndex: 0,
                 recursionCount: recursionCount + 1,
                 lastPartialLinksFile: newPartialLinksFile,
@@ -282,10 +302,38 @@ export class SearchController {
     }
   }
 
-  async healAndRestart(stateObj) {
+  async healAndRestart({
+    companyName,
+    companyRole,
+    companyLocation,
+    searchName,
+    searchPassword,
+    userId,  // Add userId to destructured parameters
+    resumeIndex = 0,
+    recursionCount = 0,
+    lastPartialLinksFile = null,
+    extractedCompanyNumber = null,
+    extractedGeoNumber = null,
+    healPhase = null,
+    healReason = null,
+  }) {
     const fsSync = await import('fs');
     const stateFile = path.join('data', `search-heal-${Date.now()}.json`);
-    fsSync.writeFileSync(stateFile, JSON.stringify(stateObj, null, 2));
+    fsSync.writeFileSync(stateFile, JSON.stringify({
+      companyName,
+      companyRole,
+      companyLocation,
+      searchName,
+      searchPassword,
+      userId,  // Include userId in state file
+      resumeIndex,
+      recursionCount,
+      lastPartialLinksFile,
+      extractedCompanyNumber,
+      extractedGeoNumber,
+      healPhase,
+      healReason
+    }, null, 2));
     const { spawn } = await import('child_process');
     const worker = spawn('node', ['searchWorker.js', stateFile], {
       detached: true,

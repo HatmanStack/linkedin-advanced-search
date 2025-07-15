@@ -164,6 +164,7 @@ export class CognitoAuthService {
             userAttributes[attr.getName()] = attr.getValue();
           });
 
+          
           const user: CognitoUserData = {
             id: session.getIdToken().payload.sub,
             email: userAttributes.email,
