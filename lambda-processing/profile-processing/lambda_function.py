@@ -158,7 +158,7 @@ def process_profile(bucket, profile_key):
     try:
         # Step 1: Extract text using AI Vision
         logger.info("Step 1: Extracting text with AI Vision")
-        textract_response = extract_text_with_ai_vision(bucket, profile_key)
+        ai_vision_response = extract_text_with_ai_vision(bucket, profile_key)
         
         # Step 2: Get S3 metadata
         logger.info("Step 2: Getting S3 metadata")
@@ -166,7 +166,7 @@ def process_profile(bucket, profile_key):
         
         # Step 3: Parse with AI
         logger.info("Step 3: Parsing with AI")
-        parsed_data = parse_with_ai_retry_logic(textract_response, s3_metadata, bucket, profile_key)
+        parsed_data = parse_with_ai_retry_logic(ai_vision_response, s3_metadata, bucket, profile_key)
         
         # Step 4: Create Profile Metadata Item
         logger.info("Step 4: Creating Profile Metadata Item")
@@ -174,7 +174,7 @@ def process_profile(bucket, profile_key):
         
         # Step 5: Generate and save markdown
         logger.info("Step 5: Generating markdown")
-        markdown_content = generate_markdown(parsed_data, textract_response)
+        markdown_content = generate_markdown(parsed_data, ai_vision_response)
         save_markdown_to_s3(bucket, markdown_content, parsed_data, profile_id, profile_key)
         
         return {
@@ -351,10 +351,10 @@ def parse_ai_json_response(response_text):
     
     raise ValueError(f"Could not parse JSON from AI response: {response_text[:500]}...")
 
-def extract_text_blocks_from_textract(textract_response):
+def extract_text_blocks_from_textract(ai_vision_response):
     """Extract text blocks from Textract response"""
     text_blocks = []
-    for block in textract_response['Blocks']:
+    for block in ai_vision_response['Blocks']:
         if block['BlockType'] == 'LINE':
             text_blocks.append(block['Text'])
     return text_blocks
@@ -443,18 +443,39 @@ def call_ai_model(prompt):
     
     logger.info(f"AI parsing response length: {len(analysis_text)} characters")
     
-    # Parse the JSON from AI response
+    # Parse the JSON from AI response using robust parsing
     try:
-        parsed_data = json.loads(analysis_text)
-    except json.JSONDecodeError:
-        # Try to extract JSON from response
-        json_match = re.search(r'\{.*\}', analysis_text, re.DOTALL)
-        if json_match:
-            parsed_data = json.loads(json_match.group())
-        else:
-            raise ValueError("Could not parse JSON from AI response")
-    
-    return parsed_data
+        parsed_data = parse_ai_json_response(analysis_text)
+        
+        # Validate and clean skills array
+        if 'skills' in parsed_data:
+            skills = parsed_data['skills']
+            if isinstance(skills, str):
+                # If skills is a string, try to parse it as a list
+                try:
+                    if skills.startswith('[') and skills.endswith(']'):
+                        parsed_data['skills'] = json.loads(skills)
+                    else:
+                        # Split by comma if it's a comma-separated string
+                        parsed_data['skills'] = [s.strip() for s in skills.split(',') if s.strip()]
+                except:
+                    parsed_data['skills'] = ["Not specified"]
+            elif not isinstance(skills, list):
+                parsed_data['skills'] = ["Not specified"]
+            else:
+                # Clean up any malformed entries in the list
+                cleaned_skills = []
+                for skill in skills:
+                    if isinstance(skill, str) and len(skill.strip()) > 0 and not skill.strip().startswith('{'):
+                        cleaned_skills.append(skill.strip())
+                parsed_data['skills'] = cleaned_skills if cleaned_skills else ["Not specified"]
+        
+        return parsed_data
+        
+    except Exception as e:
+        logger.error(f"JSON parsing failed: {str(e)}")
+        logger.error(f"AI response: {analysis_text[:1000]}...")
+        raise ValueError(f"Could not parse JSON from AI response: {str(e)}")
 
 def check_missing_dates(parsed_data):
     """Check if there are too many missing dates in work experience"""
@@ -468,10 +489,10 @@ def check_missing_dates(parsed_data):
     
     return missing_dates_count > 3
 
-def parse_with_ai_retry_logic(textract_response, s3_metadata, bucket, profile_key):
+def parse_with_ai_retry_logic(ai_vision_response, s3_metadata, bucket, profile_key):
     """Parse profile with AI and retry OCR if too many dates are missing"""
     # Extract text blocks from initial Textract response
-    text_blocks = extract_text_blocks_from_textract(textract_response)
+    text_blocks = extract_text_blocks_from_textract(ai_vision_response)
     ocr_text = "\n".join(text_blocks)
     
     # First attempt at parsing
@@ -482,8 +503,8 @@ def parse_with_ai_retry_logic(textract_response, s3_metadata, bucket, profile_ke
         logger.warning("Too many missing dates detected, retrying with fresh OCR")
         
         # Re-extract text using OCR
-        fresh_textract_response = extract_text_with_ai_vision(bucket, profile_key)
-        fresh_text_blocks = extract_text_blocks_from_textract(fresh_textract_response)
+        fresh_ai_vision_response = extract_text_with_ai_vision(bucket, profile_key)
+        fresh_text_blocks = extract_text_blocks_from_textract(fresh_ai_vision_response)
         fresh_ocr_text = "\n".join(fresh_text_blocks)
         
         # Retry parsing with fresh OCR
@@ -590,12 +611,12 @@ def create_profile_metadata_item(parsed_data, s3_metadata):
         logger.error(f"DynamoDB Profile Metadata Item creation failed: {str(e)}")
         raise
 
-def generate_markdown(parsed_data, textract_response):
+def generate_markdown(parsed_data, ai_vision_response):
     """Generate markdown from parsed data and OCR results"""
     try:
         # Combine all text blocks from Textract
         text_blocks = []
-        for block in textract_response['Blocks']:
+        for block in ai_vision_response['Blocks']:
             if block['BlockType'] == 'LINE':
                 text_blocks.append(block['Text'])
         

@@ -217,7 +217,6 @@ export class SearchController {
             goodContacts.push(link);
             logger.info(`Found good contact: ${link} (${goodContacts.length})`);
             await linkedInContactService.takeScreenShotAndUploadToS3(link, result.tempDir);
-            // Asynchronously check and create edges
             edgeService.checkAndCreateEdges(userId, link).catch(error => {
               logger.error('Error creating edges:', error);
             });
