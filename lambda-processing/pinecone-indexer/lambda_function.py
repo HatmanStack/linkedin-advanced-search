@@ -5,7 +5,7 @@ This Lambda function processes DynamoDB Stream events to maintain Pinecone vecto
 1. Triggered by DynamoDB Stream events from linkedin-advanced-search table
 2. Processes Profile Metadata Items (PK: PROFILE#*, SK: #METADATA)
 3. Generates AI-powered summaries from fulltext profile data
-4. Creates embeddings using OpenAI text-embedding-3-large
+4. Uses Pincone Integrated embeddings to create embeddings
 5. Stores vectors with comprehensive metadata in Pinecone
 6. Handles INSERT, MODIFY, and REMOVE stream events
 
@@ -28,8 +28,8 @@ logger.setLevel(logging.INFO)
 
 # Configuration
 AWS_REGION = "us-west-2"
-PINECONE_INDEX_NAME = os.environ.get('PINECONE_INDEX_NAME', 'linkedin-profiles')
-PINECONE_HOST = os.environ.get('PINECONE_HOST', 'linkedin-profiles-86mgnt0.svc.aped-4627-b74a.pinecone.io')
+PINECONE_INDEX_NAME = os.environ.get('PINECONE_INDEX_NAME')
+PINECONE_HOST = os.environ.get('PINECONE_HOST')
 SUMMARIZATION_MODEL = "gpt-4.1"
 
 # Get API keys from environment variables

@@ -1,0 +1,61 @@
+# Shared CloudFormation Parameters and Mappings
+# This file contains common parameter definitions and mappings used across all templates
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, staging, prod]
+    Description: Environment name for resource naming and configuration
+
+  DynamoDBTableName:
+    Type: String
+    Default: linkedin-advanced-search
+    Description: Name of the DynamoDB table for profile and edge data
+
+  LogRetentionDays:
+    Type: Number
+    Default: 14
+    AllowedValues: [1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, 3653]
+    Description: CloudWatch log retention period in days
+
+  ProjectName:
+    Type: String
+    Default: linkedin-advanced-search
+    Description: Project name for resource naming and tagging
+
+Mappings:
+  EnvironmentConfig:
+    dev:
+      LambdaMemorySize: 256
+      LambdaTimeout: 30
+      ApiThrottleBurstLimit: 100
+      ApiThrottleRateLimit: 50
+    staging:
+      LambdaMemorySize: 512
+      LambdaTimeout: 60
+      ApiThrottleBurstLimit: 200
+      ApiThrottleRateLimit: 100
+    prod:
+      LambdaMemorySize: 1024
+      LambdaTimeout: 60
+      ApiThrottleBurstLimit: 500
+      ApiThrottleRateLimit: 250
+
+  RuntimeConfig:
+    Python:
+      Runtime: python3.12
+      Handler: lambda_function.lambda_handler
+    NodeJS:
+      Runtime: nodejs22.x
+      Handler: index.handler
+
+Conditions:
+  IsProduction: !Equals [!Ref Environment, prod]
+  IsNotProduction: !Not [!Equals [!Ref Environment, prod]]
+
+# Common resource naming patterns
+# Format: {ProjectName}-{Service}-{Environment}-{Resource}
+# Examples:
+# - linkedin-advanced-search-edge-processing-dev-lambda
+# - linkedin-advanced-search-pinecone-search-prod-api
