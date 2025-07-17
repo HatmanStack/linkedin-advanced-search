@@ -27,6 +27,7 @@ backend/data
 *.njsproj
 *.sln
 *.sw?
+.kiro*
 CLAUDE.md
 BACKEND_IMPLEMENTATION_SUMMARY.md
 COGNITO_SETUP.md

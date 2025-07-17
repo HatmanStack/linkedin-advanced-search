@@ -1,0 +1,376 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Pinecone Indexer Lambda - Processes DynamoDB Stream events to maintain Pinecone vector index'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, staging, prod]
+    Description: Environment name for resource naming and configuration
+
+  DynamoDBTableName:
+    Type: String
+    Default: linkedin-advanced-search
+    Description: Name of the DynamoDB table for profile and edge data
+
+  DynamoDBStreamArn:
+    Type: String
+    Description: ARN of the DynamoDB Stream to process
+
+  LogRetentionDays:
+    Type: Number
+    Default: 14
+    AllowedValues: [1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, 3653]
+    Description: CloudWatch log retention period in days
+
+  ProjectName:
+    Type: String
+    Default: linkedin-advanced-search
+    Description: Project name for resource naming and tagging
+
+  BatchSize:
+    Type: Number
+    Default: 10
+    MinValue: 1
+    MaxValue: 10
+    Description: Maximum number of records to include in each batch
+
+  MaximumBatchingWindowInSeconds:
+    Type: Number
+    Default: 5
+    MinValue: 0
+    MaxValue: 300
+    Description: Maximum time to gather records before invoking the function
+
+Mappings:
+  EnvironmentConfig:
+    dev:
+      LambdaMemorySize: 1024
+      LambdaTimeout: 60
+    staging:
+      LambdaMemorySize: 1024
+      LambdaTimeout: 60
+    prod:
+      LambdaMemorySize: 2048
+      LambdaTimeout: 120
+
+Resources:
+  # CloudWatch Log Group for Lambda
+  PineconeIndexerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${ProjectName}-pinecone-indexer-${Environment}'
+      RetentionInDays: !Ref LogRetentionDays
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Service
+          Value: pinecone-indexer
+
+  # Dead Letter Queue for failed processing
+  PineconeIndexerDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub '${ProjectName}-pinecone-indexer-${Environment}-dlq'
+      MessageRetentionPeriod: 1209600  # 14 days
+      VisibilityTimeout: 300
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Service
+          Value: pinecone-indexer
+
+  # IAM Role for Lambda Execution
+  PineconeIndexerLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${ProjectName}-pinecone-indexer-${Environment}-lambda-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: DynamoDBStreamsAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:DescribeStream
+                  - dynamodb:GetRecords
+                  - dynamodb:GetShardIterator
+                  - dynamodb:ListStreams
+                Resource: !Ref DynamoDBStreamArn
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                Resource: !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${DynamoDBTableName}'
+        - PolicyName: SQSDeadLetterQueueAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sqs:SendMessage
+                Resource: !GetAtt PineconeIndexerDLQ.Arn
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Service
+          Value: pinecone-indexer
+
+  # Lambda Function
+  PineconeIndexerLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-pinecone-indexer-${Environment}'
+      Runtime: python3.12
+      Handler: lambda_function.lambda_handler
+      Role: !GetAtt PineconeIndexerLambdaRole.Arn
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          import logging
+          import os
+          from datetime import datetime
+
+          # Configure logging
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+
+          # Configuration from environment variables
+          AWS_REGION = os.environ.get('AWS_REGION', 'us-west-2')
+          PINECONE_INDEX_NAME = os.environ.get('PINECONE_INDEX_NAME')
+          PINECONE_HOST = os.environ.get('PINECONE_HOST')
+          PINECONE_API_KEY = os.environ.get('PINECONE_API_KEY')
+          OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
+
+          def lambda_handler(event, context):
+              """
+              AWS Lambda handler for Pinecone indexing
+              
+              Args:
+                  event: DynamoDB Stream event
+                  context: Lambda context object
+                  
+              Returns:
+                  dict: Processing results
+              """
+              try:
+                  logger.info(f"Received DynamoDB Stream event with {len(event['Records'])} records")
+                  
+                  # Process stream records
+                  results = {
+                      'processed': 0,
+                      'skipped': 0,
+                      'errors': 0,
+                      'details': []
+                  }
+                  
+                  for record in event['Records']:
+                      try:
+                          result = process_single_record(record)
+                          results['details'].append(result)
+                          
+                          if result['status'] == 'processed':
+                              results['processed'] += 1
+                          elif result['status'] == 'skipped':
+                              results['skipped'] += 1
+                          else:
+                              results['errors'] += 1
+                              
+                      except Exception as e:
+                          logger.error(f"Error processing record: {str(e)}")
+                          results['errors'] += 1
+                          results['details'].append({
+                              'status': 'error',
+                              'error': str(e),
+                              'record_id': record.get('eventID', 'unknown')
+                          })
+                  
+                  logger.info(f"Processing complete: {results['processed']} processed, {results['skipped']} skipped, {results['errors']} errors")
+                  
+                  return {
+                      'statusCode': 200,
+                      'body': json.dumps({
+                          'message': 'Stream processing completed',
+                          'results': results
+                      })
+                  }
+                  
+              except Exception as e:
+                  logger.error(f"Unexpected error in lambda_handler: {str(e)}")
+                  return {
+                      'statusCode': 500,
+                      'body': json.dumps({
+                          'error': 'Internal server error',
+                          'message': str(e)
+                      })
+                  }
+
+          def process_single_record(record):
+              """Process a single DynamoDB Stream record"""
+              event_name = record['eventName']
+              
+              # Only process Profile Metadata Items
+              if not is_profile_metadata_record(record):
+                  return {
+                      'status': 'skipped',
+                      'reason': 'Not a profile metadata record',
+                      'event_name': event_name
+                  }
+              
+              # Placeholder for actual processing logic
+              # In a real implementation, this would:
+              # 1. Parse the DynamoDB record
+              # 2. Generate embeddings using Pinecone
+              # 3. Upsert or delete vectors in Pinecone
+              
+              logger.info(f"Processing record with event type: {event_name}")
+              
+              return {
+                  'status': 'processed',
+                  'action': 'simulated',
+                  'event_name': event_name
+              }
+
+          def is_profile_metadata_record(record):
+              """Check if record is a Profile Metadata Item"""
+              try:
+                  # Check both NEW and OLD images for the keys
+                  for image_key in ['NewImage', 'OldImage']:
+                      if image_key in record['dynamodb']:
+                          image = record['dynamodb'][image_key]
+                          pk = image.get('PK', {}).get('S', '')
+                          sk = image.get('SK', {}).get('S', '')
+                          
+                          if pk.startswith('PROFILE#') and sk == '#METADATA':
+                              return True
+                  
+                  return False
+                  
+              except Exception as e:
+                  logger.error(f"Error checking record type: {str(e)}")
+                  return False
+      MemorySize: !FindInMap [EnvironmentConfig, !Ref Environment, LambdaMemorySize]
+      Timeout: !FindInMap [EnvironmentConfig, !Ref Environment, LambdaTimeout]
+      DeadLetterConfig:
+        TargetArn: !GetAtt PineconeIndexerDLQ.Arn
+      Environment:
+        Variables:
+          PINECONE_INDEX_NAME: !Sub '${ProjectName}-${Environment}'
+          AWS_REGION: !Ref AWS::Region
+      ReservedConcurrencyLimit: 10
+      TracingConfig:
+        Mode: Active
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Service
+          Value: pinecone-indexer
+    DependsOn: PineconeIndexerLogGroup
+
+  # Event Source Mapping for DynamoDB Stream
+  PineconeIndexerEventSourceMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: !Ref BatchSize
+      Enabled: true
+      EventSourceArn: !Ref DynamoDBStreamArn
+      FunctionName: !GetAtt PineconeIndexerLambda.Arn
+      StartingPosition: LATEST
+      MaximumBatchingWindowInSeconds: !Ref MaximumBatchingWindowInSeconds
+      FilterCriteria:
+        Filters:
+          - Pattern: '{"dynamodb":{"Keys":{"PK":{"S":[{"prefix":"PROFILE#"}]},"SK":{"S":["#METADATA"]}}}}'
+
+  # CloudWatch Alarms
+  PineconeIndexerLambdaErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-pinecone-indexer-${Environment}-lambda-errors'
+      AlarmDescription: 'Lambda function error rate alarm'
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 5
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref PineconeIndexerLambda
+      TreatMissingData: notBreaching
+
+  PineconeIndexerLambdaDurationAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-pinecone-indexer-${Environment}-lambda-duration'
+      AlarmDescription: 'Lambda function duration alarm'
+      MetricName: Duration
+      Namespace: AWS/Lambda
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 50000  # 50 seconds (out of 60s timeout)
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref PineconeIndexerLambda
+      TreatMissingData: notBreaching
+
+  PineconeIndexerDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-pinecone-indexer-${Environment}-dlq-messages'
+      AlarmDescription: 'Dead letter queue message count alarm'
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt PineconeIndexerDLQ.QueueName
+      TreatMissingData: notBreaching
+
+Outputs:
+  LambdaFunctionArn:
+    Description: 'Pinecone Indexer Lambda function ARN'
+    Value: !GetAtt PineconeIndexerLambda.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-LambdaArn'
+
+  LambdaFunctionName:
+    Description: 'Pinecone Indexer Lambda function name'
+    Value: !Ref PineconeIndexerLambda
+    Export:
+      Name: !Sub '${AWS::StackName}-LambdaName'
+
+  DeadLetterQueueUrl:
+    Description: 'URL of the Dead Letter Queue'
+    Value: !Ref PineconeIndexerDLQ
+    Export:
+      Name: !Sub '${AWS::StackName}-DLQUrl'
+
+  DeadLetterQueueArn:
+    Description: 'ARN of the Dead Letter Queue'
+    Value: !GetAtt PineconeIndexerDLQ.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-DLQArn'
