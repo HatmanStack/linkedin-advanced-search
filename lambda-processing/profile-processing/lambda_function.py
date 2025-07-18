@@ -30,7 +30,6 @@ logger.setLevel(logging.INFO)
 
 # Configuration
 AI_MODEL_ID = "us.meta.llama4-maverick-17b-instruct-v1:0"
-AWS_REGION = "us-west-2"
 DYNAMODB_TABLE_NAME = "linkedin-advanced-search"
 
 # Initialize AWS clients

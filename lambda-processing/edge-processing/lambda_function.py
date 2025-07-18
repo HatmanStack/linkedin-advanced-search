@@ -25,7 +25,6 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 # Configuration
-AWS_REGION = "us-west-2"
 DYNAMODB_TABLE_NAME = "linkedin-advanced-search"
 
 # Initialize AWS clients
