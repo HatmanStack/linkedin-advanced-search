@@ -250,12 +250,10 @@ After deployment, ensure the following environment variables are set for each La
 - `DYNAMODB_TABLE_NAME`
 - `DYNAMODB_STREAM_ARN`
 - `PINECONE_API_KEY`
-- `PINECONE_INDEX_NAME`
 - `OPENAI_API_KEY`
 
 ### Pinecone Search Lambda
 - `DYNAMODB_TABLE`
-- `PINECONE_INDEX_NAME`
 - `PINECONE_HOST`
 - `PINECONE_API_KEY`
 

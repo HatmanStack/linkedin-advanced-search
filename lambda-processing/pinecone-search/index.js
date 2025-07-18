@@ -10,12 +10,10 @@ const AWS = require('aws-sdk');
 const jwt = require('jsonwebtoken');
 
 // Configuration
-const PINECONE_INDEX_NAME = process.env.PINECONE_INDEX_NAME || 'linkedin-profiles';
 const PINECONE_HOST = process.env.PINECONE_HOST;
 const PINECONE_API_KEY = process.env.PINECONE_API_KEY;
 const DYNAMODB_TABLE = process.env.DYNAMODB_TABLE || 'linkedin-advanced-search';
-const AWS_REGION = process.env.AWS_REGION || 'us-west-2';
-const COGNITO_USER_POOL_ID = process.env.COGNITO_USER_POOL_ID;
+
 
 // Initialize AWS clients
 const dynamodb = new AWS.DynamoDB.DocumentClient({ region: AWS_REGION });
@@ -28,7 +26,7 @@ let pineconeIndex;
 async function initializePinecone() {
     if (!pineconeClient) {
         pineconeClient = new Pinecone({ apiKey: PINECONE_API_KEY });
-        pineconeIndex = pineconeClient.Index(PINECONE_INDEX_NAME, PINECONE_HOST);
+        pineconeIndex = pineconeClient.Index({ host: PINECONE_HOST });
     }
     return pineconeIndex;
 }

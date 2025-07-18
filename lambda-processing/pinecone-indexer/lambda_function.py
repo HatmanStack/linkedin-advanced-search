@@ -27,8 +27,6 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 # Configuration
-AWS_REGION = "us-west-2"
-PINECONE_INDEX_NAME = os.environ.get('PINECONE_INDEX_NAME')
 PINECONE_HOST = os.environ.get('PINECONE_HOST')
 SUMMARIZATION_MODEL = "gpt-4.1"
 
