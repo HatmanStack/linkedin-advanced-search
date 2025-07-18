@@ -18,7 +18,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Default parameters
-ENVIRONMENT="dev"
+ENVIRONMENT="prod"
 PROJECT_NAME="linkedin-advanced-search"
 DYNAMODB_TABLE_NAME="linkedin-advanced-search"
 VALIDATE_ONLY=false

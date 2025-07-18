@@ -4,7 +4,7 @@ Description: 'Monitoring and Observability Resources for Lambda Functions'
 Parameters:
   Environment:
     Type: String
-    Default: dev
+    Default: prod
     AllowedValues: [dev, staging, prod]
     Description: Environment name for resource naming and configuration
 
@@ -15,7 +15,7 @@ Parameters:
 
   NotificationEmail:
     Type: String
-    Default: ''
+    Default: christopher.galliart@gmail.com
     Description: Email address to receive alarm notifications (leave empty to skip notifications)
 
   DashboardName:

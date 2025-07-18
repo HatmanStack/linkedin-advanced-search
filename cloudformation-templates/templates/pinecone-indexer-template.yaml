@@ -2,9 +2,17 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: 'Pinecone Indexer Lambda - Processes DynamoDB Stream events to maintain Pinecone vector index'
 
 Parameters:
+  LambdaCodeS3Bucket:
+    Type: String
+    Description: S3 bucket containing the Lambda deployment package
+
+  LambdaCodeS3Key:
+    Type: String
+    Description: S3 key (path) to the Lambda deployment package zip file
+
   Environment:
     Type: String
-    Default: dev
+    Default: prod
     AllowedValues: [dev, staging, prod]
     Description: Environment name for resource naming and configuration
 
@@ -16,6 +24,7 @@ Parameters:
   DynamoDBStreamArn:
     Type: String
     Description: ARN of the DynamoDB Stream to process
+    Default: ''
 
   LogRetentionDays:
     Type: Number
@@ -53,6 +62,9 @@ Mappings:
     prod:
       LambdaMemorySize: 2048
       LambdaTimeout: 120
+
+Conditions:
+  HasStreamArn: !Not [!Equals [!Ref DynamoDBStreamArn, ""]]
 
 Resources:
   # CloudWatch Log Group for Lambda
@@ -109,7 +121,7 @@ Resources:
                   - dynamodb:GetRecords
                   - dynamodb:GetShardIterator
                   - dynamodb:ListStreams
-                Resource: !Ref DynamoDBStreamArn
+                Resource: !If [HasStreamArn, !Ref DynamoDBStreamArn, "*"]
               - Effect: Allow
                 Action:
                   - dynamodb:GetItem
@@ -139,131 +151,8 @@ Resources:
       Handler: lambda_function.lambda_handler
       Role: !GetAtt PineconeIndexerLambdaRole.Arn
       Code:
-        ZipFile: |
-          import json
-          import boto3
-          import logging
-          import os
-          from datetime import datetime
-
-          # Configure logging
-          logger = logging.getLogger()
-          logger.setLevel(logging.INFO)
-
-          # Configuration from environment variables
-          AWS_REGION = os.environ.get('AWS_REGION', 'us-west-2')
-          PINECONE_INDEX_NAME = os.environ.get('PINECONE_INDEX_NAME')
-          PINECONE_HOST = os.environ.get('PINECONE_HOST')
-          PINECONE_API_KEY = os.environ.get('PINECONE_API_KEY')
-          OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
-
-          def lambda_handler(event, context):
-              """
-              AWS Lambda handler for Pinecone indexing
-              
-              Args:
-                  event: DynamoDB Stream event
-                  context: Lambda context object
-                  
-              Returns:
-                  dict: Processing results
-              """
-              try:
-                  logger.info(f"Received DynamoDB Stream event with {len(event['Records'])} records")
-                  
-                  # Process stream records
-                  results = {
-                      'processed': 0,
-                      'skipped': 0,
-                      'errors': 0,
-                      'details': []
-                  }
-                  
-                  for record in event['Records']:
-                      try:
-                          result = process_single_record(record)
-                          results['details'].append(result)
-                          
-                          if result['status'] == 'processed':
-                              results['processed'] += 1
-                          elif result['status'] == 'skipped':
-                              results['skipped'] += 1
-                          else:
-                              results['errors'] += 1
-                              
-                      except Exception as e:
-                          logger.error(f"Error processing record: {str(e)}")
-                          results['errors'] += 1
-                          results['details'].append({
-                              'status': 'error',
-                              'error': str(e),
-                              'record_id': record.get('eventID', 'unknown')
-                          })
-                  
-                  logger.info(f"Processing complete: {results['processed']} processed, {results['skipped']} skipped, {results['errors']} errors")
-                  
-                  return {
-                      'statusCode': 200,
-                      'body': json.dumps({
-                          'message': 'Stream processing completed',
-                          'results': results
-                      })
-                  }
-                  
-              except Exception as e:
-                  logger.error(f"Unexpected error in lambda_handler: {str(e)}")
-                  return {
-                      'statusCode': 500,
-                      'body': json.dumps({
-                          'error': 'Internal server error',
-                          'message': str(e)
-                      })
-                  }
-
-          def process_single_record(record):
-              """Process a single DynamoDB Stream record"""
-              event_name = record['eventName']
-              
-              # Only process Profile Metadata Items
-              if not is_profile_metadata_record(record):
-                  return {
-                      'status': 'skipped',
-                      'reason': 'Not a profile metadata record',
-                      'event_name': event_name
-                  }
-              
-              # Placeholder for actual processing logic
-              # In a real implementation, this would:
-              # 1. Parse the DynamoDB record
-              # 2. Generate embeddings using Pinecone
-              # 3. Upsert or delete vectors in Pinecone
-              
-              logger.info(f"Processing record with event type: {event_name}")
-              
-              return {
-                  'status': 'processed',
-                  'action': 'simulated',
-                  'event_name': event_name
-              }
-
-          def is_profile_metadata_record(record):
-              """Check if record is a Profile Metadata Item"""
-              try:
-                  # Check both NEW and OLD images for the keys
-                  for image_key in ['NewImage', 'OldImage']:
-                      if image_key in record['dynamodb']:
-                          image = record['dynamodb'][image_key]
-                          pk = image.get('PK', {}).get('S', '')
-                          sk = image.get('SK', {}).get('S', '')
-                          
-                          if pk.startswith('PROFILE#') and sk == '#METADATA':
-                              return True
-                  
-                  return False
-                  
-              except Exception as e:
-                  logger.error(f"Error checking record type: {str(e)}")
-                  return False
+        S3Bucket: !Ref LambdaCodeS3Bucket
+        S3Key: !Ref LambdaCodeS3Key
       MemorySize: !FindInMap [EnvironmentConfig, !Ref Environment, LambdaMemorySize]
       Timeout: !FindInMap [EnvironmentConfig, !Ref Environment, LambdaTimeout]
       DeadLetterConfig:
@@ -271,8 +160,7 @@ Resources:
       Environment:
         Variables:
           PINECONE_INDEX_NAME: !Sub '${ProjectName}-${Environment}'
-          AWS_REGION: !Ref AWS::Region
-      ReservedConcurrencyLimit: 10
+      ReservedConcurrentExecutions: 10
       TracingConfig:
         Mode: Active
       Tags:

@@ -2,9 +2,17 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: 'Profile Processing Lambda with S3 and SQS - Processes LinkedIn profile screenshots'
 
 Parameters:
+  LambdaCodeS3Bucket:
+    Type: String
+    Description: S3 bucket containing the Lambda deployment package
+
+  LambdaCodeS3Key:
+    Type: String
+    Description: S3 key (path) to the Lambda deployment package zip file
+
   Environment:
     Type: String
-    Default: dev
+    Default: prod
     AllowedValues: [dev, staging, prod]
     Description: Environment name for resource naming and configuration
 
@@ -26,7 +34,7 @@ Parameters:
 
   BucketName:
     Type: String
-    Default: ''
+    Default: linkedin-advanced-search-screenshots-2024
     Description: Name of the S3 bucket for profile screenshots (leave empty to auto-generate)
 
   MaxReceiveCount:
@@ -59,56 +67,7 @@ Conditions:
 
 Resources:
   # S3 Bucket for profile screenshots
-  ProfileProcessingBucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      BucketName: !If 
-        - CreateNewBucket
-        - !Sub '${ProjectName}-profile-screenshots-${Environment}-${AWS::AccountId}'
-        - !Ref BucketName
-      AccessControl: Private
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: true
-        BlockPublicPolicy: true
-        IgnorePublicAcls: true
-        RestrictPublicBuckets: true
-      VersioningConfiguration:
-        Status: Enabled
-      LifecycleConfiguration:
-        Rules:
-          - Id: DeleteOldVersions
-            Status: Enabled
-            NoncurrentVersionExpirationInDays: 90
-      BucketEncryption:
-        ServerSideEncryptionConfiguration:
-          - ServerSideEncryptionByDefault:
-              SSEAlgorithm: AES256
-      Tags:
-        - Key: Environment
-          Value: !Ref Environment
-        - Key: Project
-          Value: !Ref ProjectName
-        - Key: Service
-          Value: profile-processing
-
-  # S3 Bucket Policy
-  ProfileProcessingBucketPolicy:
-    Type: AWS::S3::BucketPolicy
-    Properties:
-      Bucket: !Ref ProfileProcessingBucket
-      PolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Sid: AllowSSLRequestsOnly
-            Effect: Deny
-            Principal: '*'
-            Action: 's3:*'
-            Resource:
-              - !Sub 'arn:aws:s3:::${ProfileProcessingBucket}'
-              - !Sub 'arn:aws:s3:::${ProfileProcessingBucket}/*'
-            Condition:
-              Bool:
-                'aws:SecureTransport': false
+  
 
   # SQS Queue for S3 event notifications
   ProfileProcessingQueue:
@@ -159,25 +118,7 @@ Resources:
             Resource: !GetAtt ProfileProcessingQueue.Arn
             Condition:
               ArnLike:
-                aws:SourceArn: !Sub 'arn:aws:s3:::${ProfileProcessingBucket}'
-
-  # S3 Event Notification to SQS
-  ProfileProcessingBucketNotification:
-    Type: AWS::S3::BucketNotification
-    Properties:
-      Bucket: !Ref ProfileProcessingBucket
-      QueueConfigurations:
-        - Event: s3:ObjectCreated:*
-          Queue: !GetAtt ProfileProcessingQueue.Arn
-          Filter:
-            S3Key:
-              Rules:
-                - Name: suffix
-                  Value: .png
-                - Name: suffix
-                  Value: .jpg
-                - Name: suffix
-                  Value: .jpeg
+                aws:SourceArn: !Sub 'arn:aws:s3:::${BucketName}'
 
   # CloudWatch Log Group for Lambda
   ProfileProcessingLogGroup:
@@ -218,8 +159,8 @@ Resources:
                   - s3:ListBucket
                   - s3:PutObject
                 Resource:
-                  - !Sub 'arn:aws:s3:::${ProfileProcessingBucket}'
-                  - !Sub 'arn:aws:s3:::${ProfileProcessingBucket}/*'
+                  - !Sub 'arn:aws:s3:::${BucketName}'
+                  - !Sub 'arn:aws:s3:::${BucketName}/*'
         - PolicyName: SQSAccess
           PolicyDocument:
             Version: '2012-10-17'
@@ -267,123 +208,15 @@ Resources:
       Handler: lambda_function.lambda_handler
       Role: !GetAtt ProfileProcessingLambdaRole.Arn
       Code:
-        ZipFile: |
-          """
-          LinkedIn Profile Processing Lambda Function
-
-          This Lambda function processes LinkedIn profile screenshots uploaded to S3:
-          1. Triggered by S3 upload events via SQS
-          2. Extracts text using AI vision models
-          3. Parses the text to extract structured profile data
-          4. Creates Profile Metadata Item in DynamoDB
-          5. Generates markdown files and stores them in S3
-          """
-
-          import json
-          import boto3
-          import logging
-          import base64
-          from datetime import datetime
-          from pathlib import Path
-
-          # Configure logging
-          logger = logging.getLogger()
-          logger.setLevel(logging.INFO)
-
-          # Configuration from environment variables
-          import os
-          AWS_REGION = os.environ.get('AWS_REGION', 'us-west-2')
-          DYNAMODB_TABLE_NAME = os.environ.get('DYNAMODB_TABLE_NAME')
-          AI_MODEL_ID = os.environ.get('AI_MODEL_ID')
-
-          # Initialize AWS clients
-          s3_client = boto3.client('s3', region_name=AWS_REGION)
-          bedrock_client = boto3.client('bedrock-runtime', region_name=AWS_REGION)
-          dynamodb = boto3.resource('dynamodb', region_name=AWS_REGION)
-          table = dynamodb.Table(DYNAMODB_TABLE_NAME)
-
-          def lambda_handler(event, context):
-              """Main Lambda handler for SQS trigger events"""
-              try:
-                  logger.info(f"Processing event: {json.dumps(event)}")
-                  
-                  # Parse SQS event
-                  for record in event['Records']:
-                      if record['eventSource'] == 'aws:sqs':
-                          # Parse SQS message body
-                          message_body = json.loads(record['body'])
-                          
-                          # Extract S3 event information
-                          if 'Records' in message_body:
-                              for s3_record in message_body['Records']:
-                                  if s3_record['eventSource'] == 'aws:s3' and s3_record['eventName'].startswith('ObjectCreated:'):
-                                      bucket = s3_record['s3']['bucket']['name']
-                                      key = s3_record['s3']['object']['key']
-                                      
-                                      logger.info(f"Processing S3 object: s3://{bucket}/{key}")
-                                      
-                                      # Process the profile screenshot
-                                      result = process_profile_screenshot(bucket, key)
-                                      logger.info(f"Successfully processed profile: {result}")
-                  
-                  return {
-                      'statusCode': 200,
-                      'body': json.dumps({
-                          'message': 'Profile processing completed successfully'
-                      })
-                  }
-                  
-              except Exception as e:
-                  logger.error(f"Lambda execution failed: {str(e)}")
-                  raise
-
-          def process_profile_screenshot(bucket, key):
-              """Process a single LinkedIn profile screenshot"""
-              try:
-                  # Placeholder for actual processing logic
-                  # In a real implementation, this would:
-                  # 1. Extract text from the image using AI vision
-                  # 2. Parse the text to extract structured profile data
-                  # 3. Create a Profile Metadata Item in DynamoDB
-                  # 4. Generate and save markdown content
-                  
-                  # Get the profile directory from the key
-                  profile_directory = '/'.join(key.split('/')[:-1])
-                  
-                  # Generate a unique profile ID
-                  profile_id = f"PROFILE#{base64.b64encode(profile_directory.encode()).decode()}"
-                  
-                  # Create a simple metadata item in DynamoDB
-                  timestamp = datetime.utcnow().isoformat() + 'Z'
-                  
-                  item = {
-                      'PK': profile_id,
-                      'SK': '#METADATA',
-                      'name': 'Simulated Profile',
-                      'headline': 'Generated from CloudFormation template',
-                      'createdAt': timestamp,
-                      'updatedAt': timestamp,
-                      'originalUrl': f"s3://{bucket}/{key}"
-                  }
-                  
-                  table.put_item(Item=item)
-                  
-                  return {
-                      'profile_id': profile_id,
-                      'status': 'success'
-                  }
-                  
-              except Exception as e:
-                  logger.error(f"Profile processing failed: {str(e)}")
-                  raise
+        S3Bucket: !Ref LambdaCodeS3Bucket
+        S3Key: !Ref LambdaCodeS3Key
       MemorySize: !FindInMap [EnvironmentConfig, !Ref Environment, LambdaMemorySize]
       Timeout: !FindInMap [EnvironmentConfig, !Ref Environment, LambdaTimeout]
       Environment:
         Variables:
           DYNAMODB_TABLE_NAME: !Ref DynamoDBTableName
-          AWS_REGION: !Ref AWS::Region
           AI_MODEL_ID: 'us.meta.llama4-maverick-17b-instruct-v1:0'
-      ReservedConcurrencyLimit: 5
+      ReservedConcurrentExecutions: 5
       TracingConfig:
         Mode: Active
       Tags:
@@ -460,13 +293,13 @@ Resources:
 Outputs:
   BucketName:
     Description: 'S3 bucket for profile screenshots'
-    Value: !Ref ProfileProcessingBucket
+    Value: !Ref BucketName
     Export:
       Name: !Sub '${AWS::StackName}-BucketName'
 
   BucketArn:
     Description: 'S3 bucket ARN'
-    Value: !GetAtt ProfileProcessingBucket.Arn
+    Value: arn:aws:s3:::linkedin-advanced-search-screenshots-2024
     Export:
       Name: !Sub '${AWS::StackName}-BucketArn'
 

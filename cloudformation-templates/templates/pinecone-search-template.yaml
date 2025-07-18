@@ -2,9 +2,17 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: 'Pinecone Search Lambda with API Gateway - Provides semantic search across LinkedIn profiles'
 
 Parameters:
+  LambdaCodeS3Bucket:
+    Type: String
+    Description: S3 bucket containing the Lambda deployment package
+
+  LambdaCodeS3Key:
+    Type: String
+    Description: S3 key (path) to the Lambda deployment package zip file
+
   Environment:
     Type: String
-    Default: dev
+    Default: prod
     AllowedValues: [dev, staging, prod]
     Description: Environment name for resource naming and configuration
 
@@ -122,215 +130,15 @@ Resources:
       Handler: index.handler
       Role: !GetAtt PineconeSearchLambdaRole.Arn
       Code:
-        ZipFile: |
-          /**
-           * Pinecone Search Lambda Function
-           * 
-           * Provides semantic search across LinkedIn profiles with user-profile relationship filtering.
-           * Only returns profiles that the authenticated user has connections to.
-           */
-
-          const AWS = require('aws-sdk');
-          const jwt = require('jsonwebtoken');
-
-          // Configuration from environment variables
-          const PINECONE_INDEX_NAME = process.env.PINECONE_INDEX_NAME;
-          const PINECONE_HOST = process.env.PINECONE_HOST;
-          const PINECONE_API_KEY = process.env.PINECONE_API_KEY;
-          const DYNAMODB_TABLE = process.env.DYNAMODB_TABLE;
-          const AWS_REGION = process.env.AWS_REGION || 'us-west-2';
-
-          // Initialize AWS clients
-          const dynamodb = new AWS.DynamoDB.DocumentClient({ region: AWS_REGION });
-          const bedrock = new AWS.BedrockRuntime({ region: AWS_REGION });
-
-          /**
-           * Extract user ID from Cognito JWT token
-           */
-          function extractUserFromJWT(authHeader) {
-              if (!authHeader || !authHeader.startsWith('Bearer ')) {
-                  throw new Error('Missing or invalid Authorization header');
-              }
-
-              const token = authHeader.substring(7);
-
-              try {
-                  // Decode without verification for now (API Gateway should handle verification)
-                  const decoded = jwt.decode(token);
-
-                  if (!decoded || !decoded.sub) {
-                      throw new Error('Invalid token: missing sub claim');
-                  }
-
-                  return decoded.sub;
-              } catch (error) {
-                  throw new Error(`Token validation failed: ${error.message}`);
-              }
-          }
-
-          /**
-           * Get all profile IDs that the user has connections to
-           */
-          async function getUserConnectedProfiles(userId) {
-              try {
-                  const params = {
-                      TableName: DYNAMODB_TABLE,
-                      KeyConditionExpression: 'PK = :pk AND begins_with(SK, :sk)',
-                      ExpressionAttributeValues: {
-                          ':pk': `USER#${userId}`,
-                          ':sk': 'PROFILE#'
-                      },
-                      ProjectionExpression: 'SK'
-                  };
-
-                  const result = await dynamodb.query(params).promise();
-
-                  // Extract profile IDs from SK values
-                  const profileIds = result.Items.map(item => item.SK);
-
-                  console.log(`Found ${profileIds.length} connected profiles for user ${userId}`);
-                  return profileIds;
-
-              } catch (error) {
-                  console.error('Error fetching user connected profiles:', error);
-                  throw new Error('Failed to fetch user connections');
-              }
-          }
-
-          /**
-           * Main Lambda handler
-           */
-          exports.handler = async (event) => {
-              try {
-                  console.log('Received event:', JSON.stringify(event, null, 2));
-
-                  // Handle CORS preflight
-                  if (event.httpMethod === 'OPTIONS') {
-                      return {
-                          statusCode: 200,
-                          headers: {
-                              'Access-Control-Allow-Origin': '*',
-                              'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-                              'Access-Control-Allow-Methods': 'POST,OPTIONS'
-                          },
-                          body: ''
-                      };
-                  }
-
-                  // Extract user ID from JWT token
-                  const userId = extractUserFromJWT(event.headers.Authorization || event.headers.authorization);
-                  console.log(`Processing search request for user: ${userId}`);
-
-                  // Parse request body
-                  let requestBody;
-                  try {
-                      requestBody = JSON.parse(event.body || '{}');
-                  } catch (parseError) {
-                      throw new Error('Invalid JSON in request body');
-                  }
-
-                  const {
-                      query,
-                      filters = {},
-                      limit = 10
-                  } = requestBody;
-
-                  // Validate required parameters
-                  if (!query || typeof query !== 'string' || query.trim().length === 0) {
-                      throw new Error('Query parameter is required and must be a non-empty string');
-                  }
-
-                  if (limit > 50) {
-                      throw new Error('Limit cannot exceed 50');
-                  }
-
-                  // Get user's connected profile IDs
-                  const connectedProfileIds = await getUserConnectedProfiles(userId);
-
-                  if (connectedProfileIds.length === 0) {
-                      return {
-                          statusCode: 200,
-                          headers: {
-                              'Content-Type': 'application/json',
-                              'Access-Control-Allow-Origin': '*'
-                          },
-                          body: JSON.stringify({
-                              results: [],
-                              total: 0,
-                              query_time_ms: 0
-                          })
-                      };
-                  }
-
-                  // Placeholder for actual search logic
-                  // In a real implementation, this would:
-                  // 1. Call Pinecone API for vector search
-                  // 2. Filter results based on user connections
-                  // 3. Format and return the results
-
-                  // Simulate search results
-                  const mockResults = connectedProfileIds.slice(0, limit).map((profileId, index) => ({
-                      profile_id: profileId,
-                      name: `Test User ${index + 1}`,
-                      title: 'Software Engineer',
-                      company: 'Example Corp',
-                      location: 'San Francisco, CA',
-                      score: 0.95 - (index * 0.05),
-                      summary: 'This is a simulated search result.',
-                      skills: ['JavaScript', 'Python', 'AWS'],
-                      headline: 'Senior Software Engineer'
-                  }));
-
-                  return {
-                      statusCode: 200,
-                      headers: {
-                          'Content-Type': 'application/json',
-                          'Access-Control-Allow-Origin': '*',
-                          'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-                          'Access-Control-Allow-Methods': 'POST,OPTIONS'
-                      },
-                      body: JSON.stringify({
-                          results: mockResults,
-                          total: mockResults.length,
-                          query_time_ms: 100
-                      })
-                  };
-
-              } catch (error) {
-                  console.error('Lambda error:', error);
-
-                  let statusCode = 500;
-                  let message = 'Internal server error';
-
-                  if (error.message.includes('Authorization') || error.message.includes('Token')) {
-                      statusCode = 401;
-                      message = 'Unauthorized';
-                  } else if (error.message.includes('validation') || error.message.includes('Invalid')) {
-                      statusCode = 400;
-                      message = 'Bad request';
-                  }
-
-                  return {
-                      statusCode,
-                      headers: {
-                          'Content-Type': 'application/json',
-                          'Access-Control-Allow-Origin': '*'
-                      },
-                      body: JSON.stringify({
-                          error: message,
-                          details: process.env.NODE_ENV === 'development' ? error.message : undefined
-                      })
-                  };
-              }
-          };
+        S3Bucket: !Ref LambdaCodeS3Bucket
+        S3Key: !Ref LambdaCodeS3Key
       MemorySize: !FindInMap [EnvironmentConfig, !Ref Environment, LambdaMemorySize]
       Timeout: !FindInMap [EnvironmentConfig, !Ref Environment, LambdaTimeout]
       Environment:
         Variables:
           DYNAMODB_TABLE: !Ref DynamoDBTableName
           PINECONE_INDEX_NAME: !Sub '${ProjectName}-${Environment}'
-          AWS_REGION: !Ref AWS::Region
-      ReservedConcurrencyLimit: 10
+      ReservedConcurrentExecutions: 10
       TracingConfig:
         Mode: Active
       Tags:
@@ -429,29 +237,10 @@ Resources:
     Type: AWS::ApiGateway::Deployment
     Properties:
       RestApiId: !Ref PineconeSearchApi
-      StageName: !Ref Environment
+      StageName: !Sub '${Environment}-${AWS::StackName}'
     DependsOn:
       - PineconeSearchApiMethod
       - PineconeSearchApiOptionsMethod
-
-  # API Gateway Stage
-  PineconeSearchApiStage:
-    Type: AWS::ApiGateway::Stage
-    Properties:
-      RestApiId: !Ref PineconeSearchApi
-      DeploymentId: !Ref PineconeSearchApiDeployment
-      StageName: !Ref Environment
-      ThrottleSettings:
-        BurstLimit: !FindInMap [EnvironmentConfig, !Ref Environment, ApiThrottleBurstLimit]
-        RateLimit: !FindInMap [EnvironmentConfig, !Ref Environment, ApiThrottleRateLimit]
-      TracingEnabled: true
-      Tags:
-        - Key: Environment
-          Value: !Ref Environment
-        - Key: Project
-          Value: !Ref ProjectName
-        - Key: Service
-          Value: pinecone-search
 
   # Lambda Permission for API Gateway
   PineconeSearchLambdaPermission:
