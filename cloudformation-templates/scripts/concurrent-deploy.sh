@@ -19,13 +19,19 @@ CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
 # Default parameters
-ENVIRONMENT="dev"
-PROJECT_NAME="linkedin-advanced-search"
-DYNAMODB_TABLE_NAME="linkedin-advanced-search"
+ENVIRONMENT="[ENVIRONMENT_VALUE]"
+PROJECT_NAME="[PROJECT_NAME]"
+DYNAMODB_TABLE_NAME="[TABLE_NAME]"
+DYNAMODB_STREAM_ARN="arn:aws:dynamodb:[REGION]:[ACCOUNT_ID]:table/[TABLE_NAME]/stream/[TIMESTAMP]"
 VALIDATE_ONLY=false
 NOTIFICATION_EMAIL=""
 SKIP_VALIDATION=false
 SKIP_MONITORING=false
+BUCKET_NAME="[BUCKET_NAME]"
+COGNITO_USER_POOL_ID="[REGION]_[POOL_ID]"
+COGNITO_USER_POOL_CLIENT_ID="[CLIENT_ID]"
+LAMBDA_CODE_S3_BUCKET="[BUCKET_NAME]"
+LAMBDA_CODE_S3_KEY="[S3_KEY_PATH]"
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -43,6 +49,21 @@ while [[ $# -gt 0 ]]; do
             ;;
         --table-name|-t)
             DYNAMODB_TABLE_NAME="$2"
+            shift
+            shift
+            ;;
+        --bucket-name|-b)
+            BUCKET_NAME="$2"
+            shift
+            shift
+            ;;
+        --cognito-user-pool-id|-u)
+            COGNITO_USER_POOL_ID="$2"
+            shift
+            shift
+            ;;
+        --cognito-user-pool-client-id|-c)
+            COGNITO_USER_POOL_CLIENT_ID="$2"
             shift
             shift
             ;;
@@ -143,27 +164,53 @@ deploy_template() {
     local template_file="$1"
     local template_name=$(basename "$template_file" .yaml)
     local stack_name="${PROJECT_NAME}-${template_name%%-template}-${ENVIRONMENT}"
-    
+
     echo -e "\n${YELLOW}Deploying stack: $stack_name${NC}"
-    
-    # Determine parameters based on template
+
+    # Base parameters
     local parameters="ParameterKey=Environment,ParameterValue=$ENVIRONMENT ParameterKey=ProjectName,ParameterValue=$PROJECT_NAME ParameterKey=DynamoDBTableName,ParameterValue=$DYNAMODB_TABLE_NAME"
-    
-    # Add template-specific parameters
+
+    if [[ "$template_name" == *"-template" ]]; then
+        # Remove '-template' and use the rest for the zip name
+        local lambda_zip_name="${template_name%%-template}.zip"
+        local lambda_code_s3_key="lambda/$lambda_zip_name"
+        parameters="$parameters ParameterKey=LambdaCodeS3Bucket,ParameterValue=$LAMBDA_CODE_S3_BUCKET ParameterKey=LambdaCodeS3Key,ParameterValue=$lambda_code_s3_key"
+    fi
+    # Template-specific parameters
     if [[ "$template_name" == "pinecone-indexer-template" ]]; then
         # Get DynamoDB Stream ARN
-        local stream_arn=$(aws dynamodb describe-table --table-name "$DYNAMODB_TABLE_NAME" --query "Table.LatestStreamArn" --output text)
+        local stream_arn="$DYNAMODB_STREAM_ARN"
+        if [ -z "$stream_arn" ] || [ "$stream_arn" == "None" ]; then
+            stream_arn=$(aws dynamodb describe-table --table-name "$DYNAMODB_TABLE_NAME" --query "Table.LatestStreamArn" --output text)
+        fi
         if [ -z "$stream_arn" ] || [ "$stream_arn" == "None" ]; then
             echo -e "${RED}DynamoDB Stream not enabled for table: $DYNAMODB_TABLE_NAME${NC}"
             return 1
         fi
         parameters="$parameters ParameterKey=DynamoDBStreamArn,ParameterValue=$stream_arn"
-    elif [[ "$template_name" == "monitoring-resources" ]]; then
+    fi
+
+    if [[ "$template_name" == "profile-processing-template" ]]; then
+        if [ ! -z "$BUCKET_NAME" ]; then
+            parameters="$parameters ParameterKey=BucketName,ParameterValue=$BUCKET_NAME"
+        fi
+    fi
+
+    if [[ "$template_name" == "edge-processing-template" || "$template_name" == "pinecone-search-template" ]]; then
+        if [ ! -z "$COGNITO_USER_POOL_ID" ]; then
+            parameters="$parameters ParameterKey=CognitoUserPoolId,ParameterValue=$COGNITO_USER_POOL_ID"
+        fi
+        if [ ! -z "$COGNITO_USER_POOL_CLIENT_ID" ]; then
+            parameters="$parameters ParameterKey=CognitoUserPoolClientId,ParameterValue=$COGNITO_USER_POOL_CLIENT_ID"
+        fi
+    fi
+
+    if [[ "$template_name" == "monitoring-resources" ]]; then
         if [ ! -z "$NOTIFICATION_EMAIL" ]; then
             parameters="$parameters ParameterKey=NotificationEmail,ParameterValue=$NOTIFICATION_EMAIL"
         fi
     fi
-    
+
     # Deploy or validate the stack
     if [ "$VALIDATE_ONLY" = true ]; then
         echo "Performing dry run deployment (validate only)"
@@ -173,14 +220,7 @@ deploy_template() {
             --parameter-overrides $parameters \
             --capabilities CAPABILITY_NAMED_IAM \
             --no-execute-changeset
-        
-        local result=$?
-        if [ $result -eq 0 ]; then
-            echo -e "${GREEN}✓ Dry run deployment successful: $stack_name${NC}"
-        else
-            echo -e "${RED}✗ Dry run deployment failed: $stack_name${NC}"
-        fi
-        return $result
+        return $?
     else
         echo "Deploying stack: $stack_name"
         aws cloudformation deploy \
@@ -189,21 +229,7 @@ deploy_template() {
             --parameter-overrides $parameters \
             --capabilities CAPABILITY_NAMED_IAM \
             --no-fail-on-empty-changeset
-        
-        local result=$?
-        if [ $result -eq 0 ]; then
-            echo -e "${GREEN}✓ Deployment successful: $stack_name${NC}"
-            
-            # Get stack outputs
-            echo "Stack outputs:"
-            aws cloudformation describe-stacks \
-                --stack-name "$stack_name" \
-                --query "Stacks[0].Outputs" \
-                --output table
-        else
-            echo -e "${RED}✗ Deployment failed: $stack_name${NC}"
-        fi
-        return $result
+        return $?
     fi
 }
 

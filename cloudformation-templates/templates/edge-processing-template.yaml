@@ -2,9 +2,27 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: 'Edge Processing Lambda with API Gateway - Manages edges between users and profiles in DynamoDB'
 
 Parameters:
+  LambdaCodeS3Bucket:
+    Type: String
+    Description: S3 bucket containing the Lambda deployment package
+
+  LambdaCodeS3Key:
+    Type: String
+    Description: S3 key (path) to the Lambda deployment package zip file
+
+  CognitoUserPoolId:
+    Type: String
+    Default: ''
+    Description: (Optional) Cognito User Pool ID for JWT authentication
+
+  CognitoUserPoolClientId:
+    Type: String
+    Default: ''
+    Description: (Optional) Cognito User Pool Client ID for JWT authentication
+
   Environment:
     Type: String
-    Default: dev
+    Default: prod
     AllowedValues: [dev, staging, prod]
     Description: Environment name for resource naming and configuration
 
@@ -43,6 +61,8 @@ Mappings:
       ApiThrottleRateLimit: 250
 
 Conditions:
+  HasCognitoUserPool: !Not [!Equals [!Ref CognitoUserPoolId, ""]]
+
   IsProduction: !Equals [!Ref Environment, prod]
 
 Resources:
@@ -106,132 +126,14 @@ Resources:
       Handler: lambda_function.lambda_handler
       Role: !GetAtt EdgeProcessingLambdaRole.Arn
       Code:
-        ZipFile: |
-          import json
-          import boto3
-          import logging
-          import base64
-          import time
-          from datetime import datetime, timezone
-          from botocore.exceptions import ClientError
-
-          # Configure logging
-          logger = logging.getLogger()
-          logger.setLevel(logging.INFO)
-
-          # Configuration from environment variables
-          import os
-          AWS_REGION = os.environ.get('AWS_REGION', 'us-west-2')
-          DYNAMODB_TABLE_NAME = os.environ.get('DYNAMODB_TABLE_NAME', 'linkedin-advanced-search')
-
-          # Initialize AWS clients
-          dynamodb = boto3.resource('dynamodb', region_name=AWS_REGION)
-          table = dynamodb.Table(DYNAMODB_TABLE_NAME)
-
-          def lambda_handler(event, context):
-              """AWS Lambda handler for edge management"""
-              try:
-                  logger.info(f"Received event: {json.dumps(event)}")
-                  
-                  # Parse the request body
-                  if 'body' in event:
-                      if isinstance(event['body'], str):
-                          body = json.loads(event['body'])
-                      else:
-                          body = event['body']
-                  else:
-                      body = event
-                  
-                  # Extract required parameters
-                  linkedin_url = body.get('linkedinurl')
-                  operation = body.get('operation', 'create')
-                  updates = body.get('updates', {})
-                  
-                  if not linkedin_url:
-                      return {
-                          'statusCode': 400,
-                          'headers': {
-                              'Content-Type': 'application/json',
-                              'Access-Control-Allow-Origin': '*',
-                              'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-                              'Access-Control-Allow-Methods': 'POST,OPTIONS'
-                          },
-                          'body': json.dumps({
-                              'error': 'Missing required parameter: linkedinurl'
-                          })
-                      }
-                  
-                  # Extract user ID from JWT token or use test user
-                  user_id = event.get('requestContext', {}).get('authorizer', {}).get('claims', {}).get('sub')
-                  if not user_id:
-                      auth_header = event.get('headers', {}).get('Authorization', '')
-                      if auth_header:
-                          user_id = "test-user-id"
-                      else:
-                          return {
-                              'statusCode': 401,
-                              'headers': {
-                                  'Content-Type': 'application/json',
-                                  'Access-Control-Allow-Origin': '*',
-                                  'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-                                  'Access-Control-Allow-Methods': 'POST,OPTIONS'
-                              },
-                              'body': json.dumps({
-                                  'error': 'Unauthorized: Missing or invalid JWT token'
-                              })
-                          }
-                  
-                  # Simple edge creation logic (placeholder)
-                  profile_id_b64 = base64.b64encode(linkedin_url.encode()).decode()
-                  timestamp = datetime.now(timezone.utc).isoformat()
-                  
-                  # Create edge record
-                  edge_data = {
-                      'PK': f"USER#{user_id}",
-                      'SK': f"PROFILE#{profile_id_b64}",
-                      'status': updates.get('status', 'possible'),
-                      'addedAt': timestamp,
-                      'operation': operation
-                  }
-                  
-                  table.put_item(Item=edge_data)
-                  
-                  return {
-                      'statusCode': 200,
-                      'headers': {
-                          'Content-Type': 'application/json',
-                          'Access-Control-Allow-Origin': '*',
-                          'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-                          'Access-Control-Allow-Methods': 'POST,OPTIONS'
-                      },
-                      'body': json.dumps({
-                          'message': f'Edge {operation} operation completed successfully',
-                          'user_id': user_id,
-                          'profile_id': f"PROFILE#{profile_id_b64}"
-                      })
-                  }
-              
-              except Exception as e:
-                  logger.error(f"Unexpected error: {str(e)}")
-                  return {
-                      'statusCode': 500,
-                      'headers': {
-                          'Content-Type': 'application/json',
-                          'Access-Control-Allow-Origin': '*',
-                          'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-                          'Access-Control-Allow-Methods': 'POST,OPTIONS'
-                      },
-                      'body': json.dumps({
-                          'error': 'Internal server error'
-                      })
-                  }
+        S3Bucket: !Ref LambdaCodeS3Bucket
+        S3Key: !Ref LambdaCodeS3Key
       MemorySize: !FindInMap [EnvironmentConfig, !Ref Environment, LambdaMemorySize]
       Timeout: !FindInMap [EnvironmentConfig, !Ref Environment, LambdaTimeout]
       Environment:
         Variables:
           DYNAMODB_TABLE_NAME: !Ref DynamoDBTableName
-          AWS_REGION: !Ref AWS::Region
-      ReservedConcurrencyLimit: 10
+      ReservedConcurrentExecutions: 10
       TracingConfig:
         Mode: Active
       Tags:
@@ -268,14 +170,25 @@ Resources:
       ParentId: !GetAtt EdgeProcessingApi.RootResourceId
       PathPart: '{proxy+}'
 
-  # API Gateway Method (ANY)
+  EdgeProcessingApiAuthorizer:
+    Type: AWS::ApiGateway::Authorizer
+    Condition: HasCognitoUserPool
+    Properties:
+      Name: !Sub '${ProjectName}-edge-processing-${Environment}-authorizer'
+      RestApiId: !Ref EdgeProcessingApi
+      Type: COGNITO_USER_POOLS
+      IdentitySource: method.request.header.Authorization
+      ProviderARNs:
+        - !Sub 'arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${CognitoUserPoolId}'
+
   EdgeProcessingApiMethod:
     Type: AWS::ApiGateway::Method
     Properties:
       RestApiId: !Ref EdgeProcessingApi
       ResourceId: !Ref EdgeProcessingApiResource
       HttpMethod: ANY
-      AuthorizationType: NONE
+      AuthorizationType: !If [HasCognitoUserPool, COGNITO_USER_POOLS, NONE]
+      AuthorizerId: !If [HasCognitoUserPool, !Ref EdgeProcessingApiAuthorizer, !Ref 'AWS::NoValue']
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
@@ -317,29 +230,10 @@ Resources:
     Type: AWS::ApiGateway::Deployment
     Properties:
       RestApiId: !Ref EdgeProcessingApi
-      StageName: !Ref Environment
+      StageName: !Sub '${Environment}-${AWS::StackName}'
     DependsOn:
       - EdgeProcessingApiMethod
       - EdgeProcessingApiOptionsMethod
-
-  # API Gateway Stage
-  EdgeProcessingApiStage:
-    Type: AWS::ApiGateway::Stage
-    Properties:
-      RestApiId: !Ref EdgeProcessingApi
-      DeploymentId: !Ref EdgeProcessingApiDeployment
-      StageName: !Ref Environment
-      ThrottleSettings:
-        BurstLimit: !FindInMap [EnvironmentConfig, !Ref Environment, ApiThrottleBurstLimit]
-        RateLimit: !FindInMap [EnvironmentConfig, !Ref Environment, ApiThrottleRateLimit]
-      TracingEnabled: true
-      Tags:
-        - Key: Environment
-          Value: !Ref Environment
-        - Key: Project
-          Value: !Ref ProjectName
-        - Key: Service
-          Value: edge-processing
 
   # Lambda Permission for API Gateway
   EdgeProcessingLambdaPermission:
@@ -348,7 +242,7 @@ Resources:
       FunctionName: !Ref EdgeProcessingLambda
       Action: lambda:InvokeFunction
       Principal: apigateway.amazonaws.com
-      SourceArn: !Sub '${EdgeProcessingApi}/*/*'
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${EdgeProcessingApi}/*/*/*'
 
   # CloudWatch Alarms
   EdgeProcessingLambdaErrorAlarm:

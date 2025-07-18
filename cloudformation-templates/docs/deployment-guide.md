@@ -235,6 +235,33 @@ After deploying the templates, verify the deployment by:
    aws cloudformation describe-stacks --stack-name linkedin-advanced-search-monitoring-dev --query "Stacks[0].Outputs[?OutputKey=='DashboardURL'].OutputValue" --output text
    ```
 
+## Required Lambda Environment Variables
+
+After deployment, ensure the following environment variables are set for each Lambda function via the AWS Management Console:
+
+### Profile Processing Lambda
+- `DYNAMODB_TABLE_NAME`
+- `AI_MODEL_ID`
+
+### Edge Processing Lambda
+- `DYNAMODB_TABLE_NAME`
+
+### Pinecone Indexer Lambda
+- `DYNAMODB_TABLE_NAME`
+- `DYNAMODB_STREAM_ARN`
+- `PINECONE_API_KEY`
+- `PINECONE_INDEX_NAME`
+- `OPENAI_API_KEY`
+
+### Pinecone Search Lambda
+- `DYNAMODB_TABLE`
+- `PINECONE_INDEX_NAME`
+- `PINECONE_HOST`
+- `PINECONE_API_KEY`
+
+**Set these variables in the Lambda configuration after deployment to ensure correct operation.**
+
+
 ## Troubleshooting
 
 ### Common Issues
