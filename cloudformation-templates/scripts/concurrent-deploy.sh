@@ -30,6 +30,7 @@ SKIP_MONITORING=false
 BUCKET_NAME="[BUCKET_NAME]"
 COGNITO_USER_POOL_ID="[REGION]_[POOL_ID]"
 COGNITO_USER_POOL_CLIENT_ID="[CLIENT_ID]"
+COGNITO_USER_POOL_ARN="[COGNITO_ARN]"
 LAMBDA_CODE_S3_BUCKET="[BUCKET_NAME]"
 LAMBDA_CODE_S3_KEY="[S3_KEY_PATH]"
 
@@ -67,6 +68,21 @@ while [[ $# -gt 0 ]]; do
             shift
             shift
             ;;
+        --cognito-user-pool-arn|-a)
+            COGNITO_USER_POOL_ARN="$2"
+            shift
+            shift
+            ;;
+        --lambda-code-s3-bucket|-l)
+            LAMBDA_CODE_S3_BUCKET="$2"
+            shift
+            shift
+            ;;
+        --lambda-code-s3-key|-k)
+            LAMBDA_CODE_S3_KEY="$2"
+            shift
+            shift
+            ;;
         --validate-only|-v)
             VALIDATE_ONLY=true
             shift
@@ -90,6 +106,12 @@ while [[ $# -gt 0 ]]; do
             echo "  --environment, -e       Environment name (dev, staging, prod) [default: dev]"
             echo "  --project-name, -p      Project name for resource naming [default: linkedin-advanced-search]"
             echo "  --table-name, -t        DynamoDB table name [default: linkedin-advanced-search]"
+            echo "  --bucket-name, -b       S3 bucket name for screenshots"
+            echo "  --cognito-user-pool-id, -u    Cognito User Pool ID"
+            echo "  --cognito-user-pool-client-id, -c    Cognito User Pool Client ID"
+            echo "  --cognito-user-pool-arn, -a    Cognito User Pool ARN"
+            echo "  --lambda-code-s3-bucket, -l    S3 bucket for Lambda code"
+            echo "  --lambda-code-s3-key, -k    S3 key for Lambda code"
             echo "  --notification-email, -n Email address for alarm notifications"
             echo "  --validate-only, -v     Only validate templates, don't deploy"
             echo "  --skip-validation, -s   Skip template validation step"
@@ -121,8 +143,8 @@ if [ ! -d "$TEMPLATES_DIR" ]; then
     exit 1
 fi
 
-# Find all YAML templates
-template_files=($(find "$TEMPLATES_DIR" -name "*.yaml" -o -name "*.yml"))
+# Find all YAML templates and convert to absolute paths
+template_files=($(find "$TEMPLATES_DIR" -name "*.yaml" -o -name "*.yml" | while read file; do realpath "$file"; done))
 
 if [ ${#template_files[@]} -eq 0 ]; then
     echo -e "${RED}No CloudFormation templates found in $TEMPLATES_DIR${NC}"
@@ -159,6 +181,69 @@ validate_template() {
     fi
 }
 
+# Helper function to add parameter if value is not empty
+add_parameter() {
+    local param_name="$1"
+    local param_value="$2"
+    
+    if [ ! -z "$param_value" ]; then
+        echo " ParameterKey=$param_name,ParameterValue=$param_value"
+    fi
+}
+
+# Helper function to add Cognito parameters
+add_cognito_parameters() {
+    local cognito_params=""
+    
+    if [ ! -z "$COGNITO_USER_POOL_ID" ]; then
+        cognito_params="$cognito_params ParameterKey=CognitoUserPoolId,ParameterValue=$COGNITO_USER_POOL_ID"
+    fi
+    if [ ! -z "$COGNITO_USER_POOL_CLIENT_ID" ]; then
+        cognito_params="$cognito_params ParameterKey=CognitoUserPoolClientId,ParameterValue=$COGNITO_USER_POOL_CLIENT_ID"
+    fi
+    if [ ! -z "$COGNITO_USER_POOL_ARN" ]; then
+        cognito_params="$cognito_params ParameterKey=CognitoUserPoolArn,ParameterValue=$COGNITO_USER_POOL_ARN"
+    fi
+    
+    echo "$cognito_params"
+}
+
+# Helper function to add Lambda code parameters
+add_lambda_parameters() {
+    local template_name="$1"
+    local lambda_params=""
+    
+    if [[ "$template_name" == *"-template" ]]; then
+        local lambda_zip_name="${template_name%%-template}.zip"
+        local lambda_code_s3_key="lambda/$lambda_zip_name"
+        
+        if [ ! -z "$LAMBDA_CODE_S3_BUCKET" ]; then
+            lambda_params="$lambda_params ParameterKey=LambdaCodeS3Bucket,ParameterValue=$LAMBDA_CODE_S3_BUCKET"
+        fi
+        if [ ! -z "$lambda_code_s3_key" ]; then
+            lambda_params="$lambda_params ParameterKey=LambdaCodeS3Key,ParameterValue=$lambda_code_s3_key"
+        fi
+    fi
+    
+    echo "$lambda_params"
+}
+
+# Helper function to get DynamoDB Stream ARN
+get_dynamodb_stream_arn() {
+    local stream_arn="$DYNAMODB_STREAM_ARN"
+    
+    if [ -z "$stream_arn" ] || [ "$stream_arn" == "None" ]; then
+        stream_arn=$(aws dynamodb describe-table --table-name "$DYNAMODB_TABLE_NAME" --query "Table.LatestStreamArn" --output text)
+    fi
+    
+    if [ -z "$stream_arn" ] || [ "$stream_arn" == "None" ]; then
+        echo -e "${RED}DynamoDB Stream not enabled for table: $DYNAMODB_TABLE_NAME${NC}"
+        return 1
+    fi
+    
+    echo "$stream_arn"
+}
+
 # Function to deploy a template
 deploy_template() {
     local template_file="$1"
@@ -166,70 +251,151 @@ deploy_template() {
     local stack_name="${PROJECT_NAME}-${template_name%%-template}-${ENVIRONMENT}"
 
     echo -e "\n${YELLOW}Deploying stack: $stack_name${NC}"
-
-    # Base parameters
-    local parameters="ParameterKey=Environment,ParameterValue=$ENVIRONMENT ParameterKey=ProjectName,ParameterValue=$PROJECT_NAME ParameterKey=DynamoDBTableName,ParameterValue=$DYNAMODB_TABLE_NAME"
-
-    if [[ "$template_name" == *"-template" ]]; then
-        # Remove '-template' and use the rest for the zip name
-        local lambda_zip_name="${template_name%%-template}.zip"
-        local lambda_code_s3_key="lambda/$lambda_zip_name"
-        parameters="$parameters ParameterKey=LambdaCodeS3Bucket,ParameterValue=$LAMBDA_CODE_S3_BUCKET ParameterKey=LambdaCodeS3Key,ParameterValue=$lambda_code_s3_key"
+    echo -e "${CYAN}DEBUG: Template file path: $template_file${NC}"
+    echo -e "${CYAN}DEBUG: Template name: $template_name${NC}"
+    echo -e "${CYAN}DEBUG: Stack name: $stack_name${NC}"
+    
+    # Check if template file exists and is readable
+    if [ ! -f "$template_file" ]; then
+        echo -e "${RED}ERROR: Template file does not exist: $template_file${NC}"
+        return 1
     fi
+    
+    if [ ! -r "$template_file" ]; then
+        echo -e "${RED}ERROR: Template file is not readable: $template_file${NC}"
+        return 1
+    fi
+    
+    echo -e "${CYAN}DEBUG: Template file exists and is readable${NC}"
+
+    # Debug: Check if key variables are set
+    echo -e "${CYAN}DEBUG: LAMBDA_CODE_S3_BUCKET='$LAMBDA_CODE_S3_BUCKET'${NC}"
+    echo -e "${CYAN}DEBUG: LAMBDA_CODE_S3_KEY='$LAMBDA_CODE_S3_KEY'${NC}"
+    echo -e "${CYAN}DEBUG: COGNITO_USER_POOL_ID='$COGNITO_USER_POOL_ID'${NC}"
+    echo -e "${CYAN}DEBUG: COGNITO_USER_POOL_ARN='$COGNITO_USER_POOL_ARN'${NC}"
+
+    # Build parameters as an array using simplified format
+    local param_array=()
+    
+    # Base parameters - always required
+    param_array+=("Environment=$ENVIRONMENT")
+    param_array+=("ProjectName=$PROJECT_NAME")
+    param_array+=("DynamoDBTableName=$DYNAMODB_TABLE_NAME")
+
+    echo -e "${CYAN}DEBUG: Base parameters added: ${#param_array[@]} parameters${NC}"
+
     # Template-specific parameters
-    if [[ "$template_name" == "pinecone-indexer-template" ]]; then
-        # Get DynamoDB Stream ARN
-        local stream_arn="$DYNAMODB_STREAM_ARN"
-        if [ -z "$stream_arn" ] || [ "$stream_arn" == "None" ]; then
-            stream_arn=$(aws dynamodb describe-table --table-name "$DYNAMODB_TABLE_NAME" --query "Table.LatestStreamArn" --output text)
-        fi
-        if [ -z "$stream_arn" ] || [ "$stream_arn" == "None" ]; then
-            echo -e "${RED}DynamoDB Stream not enabled for table: $DYNAMODB_TABLE_NAME${NC}"
-            return 1
-        fi
-        parameters="$parameters ParameterKey=DynamoDBStreamArn,ParameterValue=$stream_arn"
-    fi
+    case "$template_name" in
+        "pinecone-indexer-template")
+            echo -e "${CYAN}DEBUG: Adding pinecone-indexer parameters${NC}"
+            # Lambda parameters
+            if [[ "$template_name" == *"-template" ]]; then
+                local lambda_zip_name="${template_name%%-template}.zip"
+                local lambda_code_s3_key="lambda/$lambda_zip_name"
+                param_array+=("LambdaCodeS3Bucket=$LAMBDA_CODE_S3_BUCKET")
+                param_array+=("LambdaCodeS3Key=$lambda_code_s3_key")
+            fi
+            # Stream ARN
+            local stream_arn=$(get_dynamodb_stream_arn)
+            if [ $? -ne 0 ]; then
+                return 1
+            fi
+            param_array+=("DynamoDBStreamArn=$stream_arn")
+            ;;
+        "profile-processing-template")
+            echo -e "${CYAN}DEBUG: Adding profile-processing parameters${NC}"
+            # Lambda parameters
+            if [[ "$template_name" == *"-template" ]]; then
+                local lambda_zip_name="${template_name%%-template}.zip"
+                local lambda_code_s3_key="lambda/$lambda_zip_name"
+                param_array+=("LambdaCodeS3Bucket=$LAMBDA_CODE_S3_BUCKET")
+                param_array+=("LambdaCodeS3Key=$lambda_code_s3_key")
+            fi
+            # Bucket name
+            if [ ! -z "$BUCKET_NAME" ]; then
+                param_array+=("BucketName=$BUCKET_NAME")
+            fi
+            ;;
+        "edge-processing-template"|"pinecone-search-template"|"dynamodb-api-template")
+            echo -e "${CYAN}DEBUG: Adding parameters for $template_name${NC}"
+            # Lambda parameters
+            if [[ "$template_name" == *"-template" ]]; then
+                local lambda_zip_name="${template_name%%-template}.zip"
+                local lambda_code_s3_key="lambda/$lambda_zip_name"
+                param_array+=("LambdaCodeS3Bucket=$LAMBDA_CODE_S3_BUCKET")
+                param_array+=("LambdaCodeS3Key=$lambda_code_s3_key")
+            fi
+            # Cognito parameters
+            if [ ! -z "$COGNITO_USER_POOL_ID" ]; then
+                param_array+=("CognitoUserPoolId=$COGNITO_USER_POOL_ID")
+            fi
+            if [ ! -z "$COGNITO_USER_POOL_CLIENT_ID" ]; then
+                param_array+=("CognitoUserPoolClientId=$COGNITO_USER_POOL_CLIENT_ID")
+            fi
+            if [ ! -z "$COGNITO_USER_POOL_ARN" ]; then
+                param_array+=("CognitoUserPoolArn=$COGNITO_USER_POOL_ARN")
+            fi
+            ;;
+        "monitoring-resources")
+            echo -e "${CYAN}DEBUG: Adding monitoring parameters${NC}"
+            # No Lambda parameters for monitoring
+            if [ ! -z "$NOTIFICATION_EMAIL" ]; then
+                param_array+=("NotificationEmail=$NOTIFICATION_EMAIL")
+            fi
+            ;;
+        *)
+            echo -e "${CYAN}DEBUG: No specific parameters for $template_name${NC}"
+            ;;
+    esac
 
-    if [[ "$template_name" == "profile-processing-template" ]]; then
-        if [ ! -z "$BUCKET_NAME" ]; then
-            parameters="$parameters ParameterKey=BucketName,ParameterValue=$BUCKET_NAME"
-        fi
-    fi
-
-    if [[ "$template_name" == "edge-processing-template" || "$template_name" == "pinecone-search-template" ]]; then
-        if [ ! -z "$COGNITO_USER_POOL_ID" ]; then
-            parameters="$parameters ParameterKey=CognitoUserPoolId,ParameterValue=$COGNITO_USER_POOL_ID"
-        fi
-        if [ ! -z "$COGNITO_USER_POOL_CLIENT_ID" ]; then
-            parameters="$parameters ParameterKey=CognitoUserPoolClientId,ParameterValue=$COGNITO_USER_POOL_CLIENT_ID"
-        fi
-    fi
-
-    if [[ "$template_name" == "monitoring-resources" ]]; then
-        if [ ! -z "$NOTIFICATION_EMAIL" ]; then
-            parameters="$parameters ParameterKey=NotificationEmail,ParameterValue=$NOTIFICATION_EMAIL"
-        fi
-    fi
+    echo -e "${CYAN}DEBUG: Total parameters: ${#param_array[@]}${NC}"
+    echo -e "${CYAN}DEBUG: Parameter array contents:${NC}"
+    for i in "${!param_array[@]}"; do
+        echo -e "${CYAN}  [$i]: ${param_array[$i]}${NC}"
+    done
 
     # Deploy or validate the stack
+    echo -e "${CYAN}DEBUG: About to execute AWS CLI command${NC}"
+
+    # Test: Let's try a simple validation first to see what AWS sees
+    echo -e "${CYAN}DEBUG: Testing AWS CloudFormation validate-template first${NC}"
+    aws cloudformation validate-template --template-body "file://$template_file"
+    local validate_result=$?
+    echo -e "${CYAN}DEBUG: Template validation result: $validate_result${NC}"
+    
+    if [ $validate_result -ne 0 ]; then
+        echo -e "${RED}ERROR: Template validation failed${NC}"
+        return 1
+    fi
+
     if [ "$VALIDATE_ONLY" = true ]; then
         echo "Performing dry run deployment (validate only)"
+        echo -e "${CYAN}DEBUG: Running with --no-execute-changeset${NC}"
+        echo -e "${CYAN}DEBUG: Command will be: aws cloudformation deploy --template-file '$template_file' --stack-name '$stack_name' --parameter-overrides [${#param_array[@]} parameters] --capabilities CAPABILITY_NAMED_IAM --no-execute-changeset${NC}"
+        
         aws cloudformation deploy \
             --template-file "$template_file" \
             --stack-name "$stack_name" \
-            --parameter-overrides $parameters \
+            --parameter-overrides "${param_array[@]}" \
             --capabilities CAPABILITY_NAMED_IAM \
             --no-execute-changeset
-        return $?
+        local result=$?
+        echo -e "${CYAN}DEBUG: Validation result: $result${NC}"
+        return $result
     else
         echo "Deploying stack: $stack_name"
+        echo -e "${CYAN}DEBUG: Running with --no-fail-on-empty-changeset${NC}"
+        echo -e "${CYAN}DEBUG: Command will be: aws cloudformation deploy --template-file '$template_file' --stack-name '$stack_name' --parameter-overrides [${#param_array[@]} parameters] --capabilities CAPABILITY_NAMED_IAM --no-fail-on-empty-changeset${NC}"
+        
         aws cloudformation deploy \
             --template-file "$template_file" \
             --stack-name "$stack_name" \
-            --parameter-overrides $parameters \
+            --parameter-overrides "${param_array[@]}" \
             --capabilities CAPABILITY_NAMED_IAM \
             --no-fail-on-empty-changeset
-        return $?
+        local result=$?
+        echo -e "${CYAN}DEBUG: Deployment result: $result${NC}"
+        return $result
     fi
 }
 
