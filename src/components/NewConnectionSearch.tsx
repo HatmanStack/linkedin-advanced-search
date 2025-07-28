@@ -145,6 +145,7 @@ const NewConnectionSearch = ({ searchResults, onSearch, isSearching, userId }: N
   }, [displayResults, activeTags]);
 
   const handleSearch = () => {
+    console.log(userId);
     if (!userId) {
       toast({
         title: "Authentication Required",

@@ -49,7 +49,7 @@ class ApiService {
       return data;
     } catch (error) {
       clearTimeout(timeoutId);
-      
+
       if (error instanceof Error) {
         if (error.name === 'AbortError') {
           throw new ApiError({
@@ -60,7 +60,7 @@ class ApiService {
           message: error.message || 'An unexpected error occurred',
         });
       }
-      
+
       throw new ApiError({
         message: 'An unexpected error occurred',
       });

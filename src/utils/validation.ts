@@ -4,6 +4,7 @@ export interface SearchFormData {
   companyLocation: string;
   searchName: string;
   searchPassword: string;
+  userId?: string;
 }
 
 export interface ValidationErrors {
