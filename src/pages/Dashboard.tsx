@@ -129,7 +129,7 @@ const Dashboard = () => {
   const [conversationTopic, setConversationTopic] = useState('');
   const [selectedConnections, setSelectedConnections] = useState<string[]>([]);
   const [postContent, setPostContent] = useState('');
-  const [savedPosts, setSavedPosts] = useState<Array<{id: string, title: string, content: string, created_at: string}>>([]);
+  const [savedPosts, setSavedPosts] = useState<Array<{ id: string, title: string, content: string, created_at: string }>>([]);
   const [linkedinSearchResults, setLinkedinSearchResults] = useState([]);
   const [isSearchingLinkedIn, setIsSearchingLinkedIn] = useState(false);
   const [isGeneratingIdeas, setIsGeneratingIdeas] = useState(false);
@@ -184,9 +184,9 @@ const Dashboard = () => {
     );
   };
 
-  const handleLinkedInSearch = async (filters: { company: string; job: string; location: string }) => {
+  const handleLinkedInSearch = async (filters: { company: string; job: string; location: string; userId: string }) => {
     setIsSearchingLinkedIn(true);
-    
+
     try {
       // Convert the new filter format to the existing SearchFormData format
       const searchData: SearchFormData = {
@@ -195,11 +195,12 @@ const Dashboard = () => {
         companyLocation: filters.location,
         searchName: linkedinUserCredentials.email, // Use credentials from context
         searchPassword: linkedinUserCredentials.password, // Use credentials from context
+        userId: filters.userId, // Include userId from filters
       };
       console.log('Search data with credentials:', searchData);
       // Use the existing search functionality
       await searchLinkedIn(searchData);
-      
+
       // Convert results to the new format if needed
       if (results && results.length > 0) {
         const convertedResults = results.map((result, index) => ({
@@ -215,7 +216,7 @@ const Dashboard = () => {
         }));
         setLinkedinSearchResults(convertedResults);
       }
-      
+
       console.log('LinkedIn search results:', results);
     } catch (error) {
       console.error('Error searching LinkedIn:', error);
@@ -423,9 +424,9 @@ const Dashboard = () => {
     if (selectedConnections.length === 0 || !conversationTopic) {
       return;
     }
-    navigate('/messages', { 
-      state: { 
-        selectedConnections: selectedConnections.map(id => 
+    navigate('/messages', {
+      state: {
+        selectedConnections: selectedConnections.map(id =>
           sampleConnections.find(c => c.id === id)
         ),
         topic: conversationTopic
@@ -446,20 +447,20 @@ const Dashboard = () => {
             <div className="flex items-center space-x-4">
               {/* Welcome message with current user by name */}
               <span className="text-white">Welcome, {user?.firstName || user?.email}</span>
-              
+
               {/* User profile section */}
-              <Button 
-                variant="ghost" 
+              <Button
+                variant="ghost"
                 className="text-white hover:bg-white/10"
                 onClick={() => navigate('/profile')}
               >
                 <Settings className="h-4 w-4 mr-2" />
                 Profile
               </Button>
-              
+
               {/* Sign Out button */}
-              <Button 
-                variant="ghost" 
+              <Button
+                variant="ghost"
                 onClick={handleSignOut}
                 className="text-white hover:bg-white/10"
               >
@@ -520,8 +521,9 @@ const Dashboard = () => {
               searchResults={linkedinSearchResults}
               onSearch={handleLinkedInSearch}
               isSearching={isSearchingLinkedIn || loading}
+              userId={user?.id || ''}
             />
-            
+
             {error && (
               <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4">
                 <p className="text-red-300">

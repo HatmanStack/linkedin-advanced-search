@@ -3,9 +3,10 @@ import config from '../config/index.js';
 import { logger } from '../utils/logger.js';
 import sharp from 'sharp';
 import RandomHelpers from '../utils/randomHelpers.js';
+import { DynamoDBService } from './dynamoDBService.js';
 import fs from 'fs/promises';
 import path from 'path';
-import { S3CloudFrontService } from './s3CloudFrontService.js';
+import { DynamoDBService } from './DynamoDBService.js';
 
 export class LinkedInService {
   constructor(puppeteerService) {
@@ -14,7 +15,7 @@ export class LinkedInService {
       new GoogleGenerativeAI(config.googleAI.apiKey) : null;
     this.model = this.genAI ? 
       this.genAI.getGenerativeModel({ model: "gemini-2.0-flash" }) : null;
-    this.s3CloudFrontService = new S3CloudFrontService();
+    this.DynamoDBService = new DynamoDBService();
   }
 
   
@@ -48,7 +49,7 @@ export class LinkedInService {
       // Wait for navigation and potential 2FA or captcha
       logger.info('Waiting for potential 2FA or captcha...');
       
-      await new Promise(resolve => setTimeout(resolve, config.timeouts.navigation));
+      //await new Promise(resolve => setTimeout(resolve, config.timeouts.navigation));
       logger.info('Continuing after waiting for 2FA or captcha...');
       
       logger.info('Login process completed');
@@ -318,12 +319,12 @@ export class LinkedInService {
     }
   }
 
-  async analyzeContactActivity(profileId) {
+  async analyzeContactActivity(profileId, userId) {
     try {
      
       
       // Check if profile analysis is needed
-      const analysisStatus = await this.s3CloudFrontService.shouldAnalyzeProfile(profileId);
+      const analysisStatus = await this.DynamoDBService.checkProfileRecentlyProcessed(profileId, userId);
       
       if (!analysisStatus.shouldAnalyze) {
         logger.info(`Skipping analysis for ${profileId}: ${analysisStatus.reason}`);
@@ -412,6 +413,11 @@ export class LinkedInService {
       
       if (isGoodContact) {
         // Create temp directory and take activity screenshot
+        await this.puppeteer.getPage().setViewport({
+          width: 1200,
+          height: 1200,
+          deviceScaleFactor: 1,
+        });
         const screenshotsRoot = path.resolve(process.cwd(), 'screenshots');
         
         const tempDir = await fs.mkdtemp(path.join(screenshotsRoot, 'linkedin-screenshots'));
@@ -439,6 +445,7 @@ export class LinkedInService {
         return { isGoodContact: true,  tempDir};
        
       }
+      await this.DynamoDBService.checkProfileRecentlyProcessed(profileId, userId);
       
       return { isGoodContact: false};
     } catch (error) {

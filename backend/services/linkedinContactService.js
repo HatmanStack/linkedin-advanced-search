@@ -137,6 +137,11 @@ export class LinkedInContactService {
 
   async _captureSingleScreenshot(tempDir, profileId) {
     logger.info('Starting single screenshot capture...');
+    await this.puppeteer.getPage().setViewport({
+      width: 1200,
+      height: 1200,
+      deviceScaleFactor: 1,
+    });
     const screenshotPath = path.join(tempDir, `screenshot-${uuidv4()}.png`);
     await new Promise(resolve => setTimeout(resolve, 1000));
     await this.puppeteer.screenshot(screenshotPath, { fullPage: true });

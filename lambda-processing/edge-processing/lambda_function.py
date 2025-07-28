@@ -28,7 +28,7 @@ logger.setLevel(logging.INFO)
 DYNAMODB_TABLE_NAME = "linkedin-advanced-search"
 
 # Initialize AWS clients
-dynamodb = boto3.resource('dynamodb', region_name=AWS_REGION)
+dynamodb = boto3.resource('dynamodb')
 table = dynamodb.Table(DYNAMODB_TABLE_NAME)
 
 

@@ -44,6 +44,11 @@ Parameters:
     MaxValue: 10
     Description: Maximum number of times a message can be received before being sent to the DLQ
 
+  PineconeApiKey:
+    Type: String
+    NoEcho: true
+    Description: Pinecone API key for vector database operations
+
 Mappings:
   EnvironmentConfig:
     dev:
@@ -188,9 +193,10 @@ Resources:
               - Effect: Allow
                 Action:
                   - bedrock:InvokeModel
-                  - bedrock:Converse
+                  - bedrock:InvokeModelWithResponseStream
                 Resource: 
-                  - !Sub 'arn:aws:bedrock:${AWS::Region}::foundation-model/us.meta.llama4-maverick-17b-instruct-v1:0'
+                  - !Sub 'arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:foundation-model/us.meta.llama3-2-90b-instruct-v1:0'
+                  - !Sub 'arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:foundation-model/*'
       Tags:
         - Key: Environment
           Value: !Ref Environment
@@ -215,7 +221,9 @@ Resources:
       Environment:
         Variables:
           DYNAMODB_TABLE_NAME: !Ref DynamoDBTableName
-          AI_MODEL_ID: 'us.meta.llama4-maverick-17b-instruct-v1:0'
+          AI_MODEL_ID: 'us.meta.llama3-2-90b-instruct-v1:0'
+          AWS_REGION: !Ref 'AWS::Region'
+          PINECONE_API_KEY: !Ref PineconeApiKey
       ReservedConcurrentExecutions: 5
       TracingConfig:
         Mode: Active

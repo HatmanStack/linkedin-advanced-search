@@ -29,8 +29,16 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 # Configuration
-AI_MODEL_ID = "us.meta.llama4-maverick-17b-instruct-v1:0"
-DYNAMODB_TABLE_NAME = "linkedin-advanced-search"
+import os
+AWS_REGION = os.environ.get('AWS_REGION', 'us-west-2')
+AI_MODEL_ID = os.environ.get('AI_MODEL_ID', 'us.meta.llama3-2-90b-instruct-v1:0')
+DYNAMODB_TABLE_NAME = os.environ.get('DYNAMODB_TABLE_NAME', 'linkedin-advanced-search')
+PINECONE_API_KEY = os.environ.get('PINECONE_API_KEY')
+
+# Validate required environment variables
+if not PINECONE_API_KEY:
+    logger.error("PINECONE_API_KEY environment variable is not set")
+    raise ValueError("PINECONE_API_KEY is required but not found in environment variables")
 
 # Initialize AWS clients
 s3_client = boto3.client('s3', region_name=AWS_REGION)
@@ -113,27 +121,61 @@ def lambda_handler(event, context):
                 # Parse SQS message body
                 message_body = json.loads(record['body'])
                 
-                bucket = message_body.get('bucket')
-                profile_directory = message_body.get('profile_directory')
+                # Handle S3 event notification format
+                if 'Records' in message_body:
+                    # This is an S3 event notification
+                    for s3_record in message_body['Records']:
+                        if s3_record.get('eventSource') == 'aws:s3':
+                            bucket = s3_record['s3']['bucket']['name']
+                            object_key = s3_record['s3']['object']['key']
+                            
+                            logger.info(f"Processing S3 event: s3://{bucket}/{object_key}")
+                            
+                            # Extract profile directory from the object key
+                            # Key format: linkedin-profiles/jonathanking10/jonathanking10-Profile-2025-07-28T17-05-46_271Z.png
+                            path_parts = object_key.split('/')
+                            if len(path_parts) >= 2:
+                                profile_directory = '/'.join(path_parts[:-1])  # Everything except the filename
+                            else:
+                                logger.error(f"Invalid S3 object key format: {object_key}")
+                                continue
+                            
+                            logger.info(f"Extracted profile directory: {profile_directory}")
+                            
+                            # Process the specific file directly since we have the exact key
+                            if 'Profile' in object_key and (object_key.lower().endswith('.png') or 
+                                                          object_key.lower().endswith('.jpg') or 
+                                                          object_key.lower().endswith('.jpeg')):
+                                logger.info(f"Processing Profile file: s3://{bucket}/{object_key}")
+                                result = process_profile(bucket, object_key)
+                                logger.info(f"Successfully processed profile: {result['profile_id']}")
+                            else:
+                                logger.info(f"Skipping non-Profile file: {object_key}")
+                                continue
                 
-                if not bucket or not profile_directory:
-                    logger.error(f"Invalid SQS message: missing bucket or profile_directory")
-                    continue
-                
-                logger.info(f"Processing profile directory: s3://{bucket}/{profile_directory}")
-                
-                # Find the most recent Profile file in the specified directory
-                profile_key = find_latest_profile_file_in_directory(bucket, profile_directory)
-                
-                if not profile_key:
-                    logger.warning(f"No Profile file found in directory: {profile_directory}")
-                    continue
-                
-                logger.info(f"Processing Profile file: s3://{bucket}/{profile_key}")
-                
-                # Process the profile
-                result = process_profile(bucket, profile_key)
-                logger.info(f"Successfully processed profile: {result['profile_id']}")
+                else:
+                    # Handle legacy format (direct bucket/profile_directory)
+                    bucket = message_body.get('bucket')
+                    profile_directory = message_body.get('profile_directory')
+                    
+                    if not bucket or not profile_directory:
+                        logger.error(f"Invalid SQS message: missing bucket or profile_directory")
+                        continue
+                    
+                    logger.info(f"Processing profile directory: s3://{bucket}/{profile_directory}")
+                    
+                    # Find the most recent Profile file in the specified directory
+                    profile_key = find_latest_profile_file_in_directory(bucket, profile_directory)
+                    
+                    if not profile_key:
+                        logger.warning(f"No Profile file found in directory: {profile_directory}")
+                        continue
+                    
+                    logger.info(f"Processing Profile file: s3://{bucket}/{profile_key}")
+                    
+                    # Process the profile
+                    result = process_profile(bucket, profile_key)
+                    logger.info(f"Successfully processed profile: {result['profile_id']}")
         
         return {
             'statusCode': 200,

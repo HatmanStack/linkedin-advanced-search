@@ -4,11 +4,22 @@ import FileHelpers from '../utils/fileHelpers.js';
 import PuppeteerService from '../services/puppeteerService.js';
 import LinkedInService from '../services/linkedinService.js';
 import LinkedInContactService from '../services/linkedinContactService.js';
-import EdgeService from '../services/edgeService.js';
+import DynamoDBService from '../services/dynamoDBService.js'
 import path from 'path';
+import fs from 'fs/promises';
+import fsSync from 'fs';
 
 export class SearchController {
   async performSearch(req, res, opts = {}) {
+    // Log raw request details
+    logger.info('Raw request details:', {
+      method: req.method,
+      url: req.url,
+      headers: req.headers,
+      bodyType: typeof req.body,
+      bodyKeys: req.body ? Object.keys(req.body) : 'no body'
+    });
+
     const {
       companyName,
       companyRole,
@@ -18,18 +29,30 @@ export class SearchController {
       userId
     } = req.body;
 
+    // Log the full request body
+    logger.info('Request body received:', JSON.stringify(req.body, null, 2));
+
     // Validate required userId
+
+
+    // Log individual parameters (with password redacted)
+    logger.info('Search parameters:', {
+      companyName,
+      companyRole,
+      companyLocation,
+      searchName,
+      userId,
+      hasPassword: !!searchPassword
+    });
+    if (!searchName || !searchPassword) {
+      return res.status(400).json({
+        error: 'Missing required fields: searchName, searchPassword'
+      });
+    }
     if (!userId) {
       return res.status(401).json({
         error: 'Authentication required',
         message: 'User ID is required to perform searches'
-      });
-    }
-
-    logger.info(companyName, companyRole, companyLocation, searchName, searchPassword);
-    if (!searchName || !searchPassword) {
-      return res.status(400).json({ 
-        error: 'Missing required fields: searchName, searchPassword' 
       });
     }
 
@@ -48,7 +71,7 @@ export class SearchController {
       searchName,
       searchPassword,
       ...opts,
-      userId: req.user.sub  // Add user ID to state
+      userId: userId  // Add user ID to state
     };
 
     try {
@@ -64,10 +87,10 @@ export class SearchController {
 
       // Otherwise, send the result
       res.json({
-        response: result.allGoodContacts,
+        response: result.goodContacts,
         metadata: {
           totalProfilesAnalyzed: result.uniqueLinks?.length,
-          goodContactsFound: result.allGoodContacts?.length,
+          goodContactsFound: result.goodContacts?.length,
           successRate: result.stats?.successRate,
           searchParameters: { companyName, companyRole, companyLocation }
         }
@@ -101,11 +124,11 @@ export class SearchController {
     let puppeteerService;
     let linkedInService;
     let linkedInContactService;
-    let edgeService;
+    let DynamoDBService;
     let uniqueLinks;
     let goodContacts;
     let allLinks;
-    
+
     try {
       if (!searchName || !searchPassword || !userId) {
         throw new Error('Missing required fields: searchName, searchPassword, or userId.');
@@ -115,19 +138,22 @@ export class SearchController {
       await puppeteerService.initialize();
       linkedInService = new LinkedInService(puppeteerService);
       linkedInContactService = new LinkedInContactService(puppeteerService);
-      edgeService = new EdgeService();
+      DynamoDBService = new DynamoDBService();
 
       logger.info('Logging in...');
       await linkedInService.login(searchName, searchPassword, lastPartialLinksFile);
       logger.info('Login success.');
-      if(healPhase){
-        logger.info(`Heal Phase: ${healPhase}  \nReason: ${healReason}`)
+      if (healPhase) {
+        logger.info(`Heal Phase: ${healPhase}  \nReason: ${healReason}`);
+      } else{
+        await FileHelpers.writeJSON(config.paths.linksFile, []);
       }
-      
+
       if (healPhase === 'profile-parsing') {
-         uniqueLinks = JSON.parse(await fs.readFile(lastPartialLinksFile));
-      } else { 
+        uniqueLinks = JSON.parse(await fs.readFile(lastPartialLinksFile));
+      } else {
         
+
         if (!extractedCompanyNumber && companyName) {
           extractedCompanyNumber = await linkedInService.searchCompany(companyName);
           if (!extractedCompanyNumber) {
@@ -135,19 +161,30 @@ export class SearchController {
           }
         }
         // Step 3: Apply location filter and get geo number
-        
+
         if (!extractedGeoNumber && companyLocation) {
           extractedGeoNumber = await linkedInService.applyLocationFilter(companyLocation, companyName);
         }
 
         // Scrape links as before:
         const encodedRole = companyRole ? encodeURIComponent(companyRole) : null;
-        allLinks = JSON.parse(await fs.readFile(config.paths.linksFile));
+
+        if( healPhase === "link-collection"){
+          allLinks = JSON.parse(await fs.readFile(config.paths.linksFile));
+        } else {
+          // Initialize allLinks for normal flow - try to load existing file or start with empty array
+          try {
+            allLinks = JSON.parse(await fs.readFile(config.paths.linksFile));
+          } catch (error) {
+            // File doesn't exist or is invalid, start with empty array
+            allLinks = [];
+          }
+        }
         const { pageNumberStart, pageNumberEnd } = config.linkedin;
         let emptyPageCount = 0;
         let pageNumber = resumeIndex !== 0 && resumeIndex > pageNumberStart
-        ? resumeIndex
-        : pageNumberStart;
+          ? resumeIndex
+          : pageNumberStart;
 
         while (pageNumber <= pageNumberEnd) {
           try {
@@ -158,7 +195,7 @@ export class SearchController {
                 logger.warn(`Initiating self-healing restart.`);
                 // Close browser and restart healing
                 logger.info('Restarting with fresh Puppeteer instance..');
-                const healReasonText = emptyPageCount < 3 ?  'TimeoutError: Navigation timeout of 30000 ms exceeded'  : '3 blank pages in a row';
+                const healReasonText = emptyPageCount < 3 ? 'TimeoutError: Navigation timeout of 30000 ms exceeded' : '3 blank pages in a row';
                 await this.healAndRestart({
                   companyName,
                   companyRole,
@@ -173,7 +210,7 @@ export class SearchController {
                   healPhase: 'link-collection',
                   healReason: healReasonText,
                 });
-                return; 
+                return;
               }
               pageNumber++;
               continue;
@@ -190,11 +227,11 @@ export class SearchController {
           }
         }
         uniqueLinks = [...new Set(allLinks)];
-        await FileHelpers.writeJSON(config.paths.linksFile, uniqueLinks);
         
+        await FileHelpers.writeJSON(config.paths.linksFile, uniqueLinks);
       }
-      
-      
+
+
       logger.info(`Loaded ${uniqueLinks.length} unique links to process. Starting at index: ${resumeIndex}`);
 
       goodContacts = JSON.parse(await fs.readFile(config.paths.goodConnectionsFile));
@@ -209,15 +246,15 @@ export class SearchController {
           continue;
         }
         try {
-          logger.info(`Analyzing contact ${i+1}/${uniqueLinks.length}: ${link}`);
-          const result = await linkedInService.analyzeContactActivity(link);
-          
+          logger.info(`Analyzing contact ${i + 1}/${uniqueLinks.length}: ${link}`);
+          const result = await linkedInService.analyzeContactActivity(link, userId);
+
           if (result.isGoodContact) {
             errorQueue = [];
             goodContacts.push(link);
             logger.info(`Found good contact: ${link} (${goodContacts.length})`);
             await linkedInContactService.takeScreenShotAndUploadToS3(link, result.tempDir);
-            edgeService.checkAndCreateEdges(userId, link).catch(error => {
+            DynamoDBService.checkAndCreateEdges(userId, link).catch(error => {
               logger.error('Error creating edges:', error);
             });
             await FileHelpers.writeJSON(config.paths.goodConnectionsFile, goodContacts);
@@ -231,7 +268,7 @@ export class SearchController {
             logger.warn(`3 errors in a row, pausing 5min and retrying...`);
             const linksToRetry = [...errorQueue];
             errorQueue = [];
-            await new Promise(resolve => setTimeout(resolve, 300000)); 
+            await new Promise(resolve => setTimeout(resolve, 300000));
             let allRetriesFailed = true;
             for (let retry of linksToRetry) {
               try {
@@ -274,12 +311,12 @@ export class SearchController {
                 healPhase: 'profile-parsing',
                 healReason: 'Links failed',
               });
-              return; 
+              return;
             }
           }
           continue;
         }
-      } 
+      }
       uniqueLinks = JSON.parse(await fs.readFile(config.paths.linksFile));
       return {
         goodContacts,
@@ -293,7 +330,7 @@ export class SearchController {
       logger.error('Search failed:', error);
       throw error;
     } finally {
-        logger.info('In finally, closing browser:', !!puppeteerService);
+      logger.info('In finally, closing browser:', !!puppeteerService);
       if (puppeteerService) {
         await puppeteerService.close();
         logger.info('Closed browser in finally!');
@@ -316,7 +353,6 @@ export class SearchController {
     healPhase = null,
     healReason = null,
   }) {
-    const fsSync = await import('fs');
     const stateFile = path.join('data', `search-heal-${Date.now()}.json`);
     fsSync.writeFileSync(stateFile, JSON.stringify({
       companyName,
