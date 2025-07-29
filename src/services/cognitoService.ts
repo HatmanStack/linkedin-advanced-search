@@ -256,4 +256,26 @@ export class CognitoAuthService {
       });
     });
   }
+
+  // Get current user's JWT token
+  static async getCurrentUserToken(): Promise<string | null> {
+    return new Promise((resolve) => {
+      const cognitoUser = userPool.getCurrentUser();
+
+      if (!cognitoUser) {
+        resolve(null);
+        return;
+      }
+
+      cognitoUser.getSession((err: any, session: CognitoUserSession) => {
+        if (err || !session.isValid()) {
+          resolve(null);
+          return;
+        }
+
+        // Return the ID token (JWT)
+        resolve(session.getIdToken().getJwtToken());
+      });
+    });
+  }
 }

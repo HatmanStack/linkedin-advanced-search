@@ -20,36 +20,45 @@ export class SearchController {
       bodyKeys: req.body ? Object.keys(req.body) : 'no body'
     });
 
+    // Extract JWT token from Authorization header
+    const authHeader = req.headers.authorization;
+    const jwtToken = authHeader && authHeader.startsWith('Bearer ')
+      ? authHeader.substring(7)
+      : null;
+
+    if (!jwtToken) {
+      return res.status(401).json({
+        error: 'Missing or invalid Authorization header'
+      });
+    }
+
     const {
       companyName,
       companyRole,
       companyLocation,
       searchName,
-      searchPassword,
-      userId
+      searchPassword
     } = req.body;
 
-    // Log the full request body
-    logger.info('Request body received:', JSON.stringify(req.body, null, 2));
+    // Use JWT token as jwtToken
+    
 
-    // Validate required userId
-
-
-    // Log individual parameters (with password redacted)
-    logger.info('Search parameters:', {
+    // Log the full request body (without sensitive data)
+    logger.info('Request body received:', {
       companyName,
       companyRole,
       companyLocation,
       searchName,
-      userId,
-      hasPassword: !!searchPassword
+      hasPassword: !!searchPassword,
+      hasJwtToken: !!jwtToken
     });
+
     if (!searchName || !searchPassword) {
       return res.status(400).json({
         error: 'Missing required fields: searchName, searchPassword'
       });
     }
-    if (!userId) {
+    if (!jwtToken) {
       return res.status(401).json({
         error: 'Authentication required',
         message: 'User ID is required to perform searches'
@@ -71,7 +80,7 @@ export class SearchController {
       searchName,
       searchPassword,
       ...opts,
-      userId: userId  // Add user ID to state
+      jwtToken: jwtToken  // Add user ID to state
     };
 
     try {
@@ -118,41 +127,41 @@ export class SearchController {
     extractedGeoNumber = null,
     healPhase = null,
     healReason = null,
-    userId = null,
+    jwtToken = null,
   }) {
 
     let puppeteerService;
     let linkedInService;
     let linkedInContactService;
-    let DynamoDBService;
+    let dynamoDBService;
     let uniqueLinks;
     let goodContacts;
     let allLinks;
 
     try {
-      if (!searchName || !searchPassword || !userId) {
-        throw new Error('Missing required fields: searchName, searchPassword, or userId.');
+      if (!searchName || !searchPassword) {
+        throw new Error('Missing required fields: searchName, searchPassword, or jwtToken.');
       }
 
       puppeteerService = new PuppeteerService();
       await puppeteerService.initialize();
       linkedInService = new LinkedInService(puppeteerService);
       linkedInContactService = new LinkedInContactService(puppeteerService);
-      DynamoDBService = new DynamoDBService();
+      dynamoDBService = new DynamoDBService();
 
       logger.info('Logging in...');
       await linkedInService.login(searchName, searchPassword, lastPartialLinksFile);
       logger.info('Login success.');
       if (healPhase) {
         logger.info(`Heal Phase: ${healPhase}  \nReason: ${healReason}`);
-      } else{
+      } else {
         await FileHelpers.writeJSON(config.paths.linksFile, []);
       }
 
       if (healPhase === 'profile-parsing') {
         uniqueLinks = JSON.parse(await fs.readFile(lastPartialLinksFile));
       } else {
-        
+
 
         if (!extractedCompanyNumber && companyName) {
           extractedCompanyNumber = await linkedInService.searchCompany(companyName);
@@ -169,7 +178,7 @@ export class SearchController {
         // Scrape links as before:
         const encodedRole = companyRole ? encodeURIComponent(companyRole) : null;
 
-        if( healPhase === "link-collection"){
+        if (healPhase === "link-collection") {
           allLinks = JSON.parse(await fs.readFile(config.paths.linksFile));
         } else {
           // Initialize allLinks for normal flow - try to load existing file or start with empty array
@@ -202,7 +211,7 @@ export class SearchController {
                   companyLocation,
                   searchName,
                   searchPassword,
-                  userId,  // Include userId
+                  jwtToken,  // Include jwtToken
                   resumeIndex: pageNumber - 3,
                   recursionCount: recursionCount + 1,
                   extractedCompanyNumber,
@@ -227,7 +236,7 @@ export class SearchController {
           }
         }
         uniqueLinks = [...new Set(allLinks)];
-        
+
         await FileHelpers.writeJSON(config.paths.linksFile, uniqueLinks);
       }
 
@@ -247,14 +256,15 @@ export class SearchController {
         }
         try {
           logger.info(`Analyzing contact ${i + 1}/${uniqueLinks.length}: ${link}`);
-          const result = await linkedInService.analyzeContactActivity(link, userId);
+          const result = await linkedInService.analyzeContactActivity(link, jwtToken);
 
           if (result.isGoodContact) {
             errorQueue = [];
             goodContacts.push(link);
             logger.info(`Found good contact: ${link} (${goodContacts.length})`);
             await linkedInContactService.takeScreenShotAndUploadToS3(link, result.tempDir);
-            DynamoDBService.checkAndCreateEdges(userId, link).catch(error => {
+            await dynamoDBService.setAuthToken(jwtToken);
+            dynamoDBService.checkAndCreateEdges(link, jwtToken).catch(error => {
               logger.error('Error creating edges:', error);
             });
             await FileHelpers.writeJSON(config.paths.goodConnectionsFile, goodContacts);
@@ -272,7 +282,7 @@ export class SearchController {
             let allRetriesFailed = true;
             for (let retry of linksToRetry) {
               try {
-                const retryResult = await linkedInService.analyzeContactActivity(retry);
+                const retryResult = await linkedInService.analyzeContactActivity(retry, jwtToken);
                 if (retryResult.isGoodContact) {
                   goodContacts.push(retry);
                   logger.info(`Retry success: ${retry}`);
@@ -302,7 +312,7 @@ export class SearchController {
                 companyLocation,
                 searchName,
                 searchPassword,
-                userId,  // Include userId
+                jwtToken,  // Include jwtToken
                 resumeIndex: 0,
                 recursionCount: recursionCount + 1,
                 lastPartialLinksFile: newPartialLinksFile,
@@ -344,7 +354,7 @@ export class SearchController {
     companyLocation,
     searchName,
     searchPassword,
-    userId,  // Add userId to destructured parameters
+    jwtToken,  // Add jwtToken to destructured parameters
     resumeIndex = 0,
     recursionCount = 0,
     lastPartialLinksFile = null,
@@ -360,7 +370,7 @@ export class SearchController {
       companyLocation,
       searchName,
       searchPassword,
-      userId,  // Include userId in state file
+      jwtToken,  // Include jwtToken in state file
       resumeIndex,
       recursionCount,
       lastPartialLinksFile,
