@@ -1,5 +1,6 @@
 import { API_CONFIG } from '../utils/constants';
 import type { SearchFormData } from '../utils/validation';
+import { CognitoAuthService } from './cognitoService';
 
 export interface SearchResponse {
   response: string[];
@@ -19,6 +20,29 @@ class ApiService {
     this.timeout = API_CONFIG.TIMEOUT;
   }
 
+  // Get JWT token from session storage or Cognito
+  private async getAuthToken(): Promise<string | null> {
+    try {
+      
+      const token = await CognitoAuthService.getCurrentUserToken();
+      if (token) {
+        // Store in session storage for future use
+        sessionStorage.setItem('jwt_token', token);
+        return token;
+      }
+
+      return null;
+    } catch (error) {
+      console.error('Error getting auth token:', error);
+      return null;
+    }
+  }
+
+  // Clear stored token (useful for logout)
+  public clearAuthToken(): void {
+    sessionStorage.removeItem('jwt_token');
+  }
+
   private async makeRequest<T>(
     endpoint: string,
     options: RequestInit = {}
@@ -27,13 +51,23 @@ class ApiService {
     const timeoutId = setTimeout(() => controller.abort(), this.timeout);
 
     try {
+      // Get JWT token for authentication
+      const token = await this.getAuthToken();
+      
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        ...options.headers as Record<string, string>,
+      };
+
+      // Add Authorization header if token is available
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
       const response = await fetch(`${this.baseURL}${endpoint}`, {
         ...options,
         signal: controller.signal,
-        headers: {
-          'Content-Type': 'application/json',
-          ...options.headers,
-        },
+        headers,
       });
 
       clearTimeout(timeoutId);

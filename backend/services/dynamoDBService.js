@@ -1,217 +1,188 @@
+import axios from 'axios';
 import { logger } from '../utils/logger.js';
+
+const API_BASE_URL = process.env.API_GATEWAY_BASE_URL;
 
 class DynamoDBService {
     constructor() {
-        this.apiGatewayUrl = process.env.API_GATEWAY_BASE_URL;
+        this.authToken = null;
+        this.apiClient = axios.create({
+            baseURL: API_BASE_URL,
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
     }
 
     /**
-     * Check if a profile has been processed recently
-     * @param {string} profileId - The LinkedIn profile ID
-     * @param {number} hoursThreshold - Hours to consider "recent" (default: 24)
-     * @returns {Promise<{shouldProcess: boolean, reason: string, lastProcessed?: string}>}
+     * Set the authorization token for API requests
+     * @param {string} token - JWT token from Cognito
      */
-    async checkProfileRecentlyProcessed(profileId, userId, hoursThreshold = 24) {
+    setAuthToken(token) {
+        this.authToken = token;
+    }
+
+    /**
+     * Get headers for API requests
+     * @returns {Object} Headers object
+     */
+    getHeaders() {
+        const headers = {
+            'Content-Type': 'application/json'
+        };
+        
+        if (this.authToken) {
+            headers['Authorization'] = `Bearer ${this.authToken}`;
+        }
+        
+        return headers;
+    }
+
+    /**
+     * Check if a profile exists and has been updated in the past month
+     * @param {string} profileId - Profile ID to check
+     * @returns {Promise<boolean>} true if profile doesn't exist or hasn't been updated in last month, false otherwise
+     */
+    async getProfileDetails(profileId) {
         try {
-            logger.info(`Checking if profile ${profileId} was processed recently (within ${hoursThreshold} hours)`);
-            
-            const response = await fetch(`${this.apiGatewayUrl}/edges/check-processed`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${this.jwtToken}`
-                },
-                body: JSON.stringify({
-                    operation: 'get_last_updated',
-                    updates: {
-                        limit: 1,
-                        days_back: Math.ceil(hoursThreshold / 24) // Convert hours to days, round up
-                    }
-                })
+            logger.info(`Making request to get profile details for: ${profileId}`);
+            logger.info(`API Base URL: ${API_BASE_URL}`);
+            logger.info(`Request payload:`, {
+                operation: 'get_details',
+                profileId: profileId
             });
 
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                logger.error(`Failed to check profile processing status: ${response.status}`, errorData);
-                // If API call fails, allow processing to continue
-                return {
-                    shouldProcess: true,
-                    reason: 'API call failed, allowing processing to continue'
-                };
+            const response = await this.apiClient.post('/profiles', {
+                operation: 'get_details',
+                profileId: profileId
+            });
+
+            logger.info(`Response from DynamoDBService:`, response.data);
+            logger.info(`Response status: ${response.status}`);
+            logger.info(`Response headers:`, response.headers);
+            // If profile doesn't exist, return true
+            if (!response.data || !response.data.profile) {
+                return true;
             }
 
-            const result = await response.json();
-            
-            if (result.result && result.result.success && result.result.profiles) {
-                // Check if this specific profile was processed recently
-                const recentProfile = result.result.profiles.find(profile => 
-                    profile.linkedin_url && profile.linkedin_url.includes(profileId)
-                );
+            const profile = response.data.profile;
+            const updatedAt = profile.updatedAt;
 
-                if (recentProfile && recentProfile.hours_ago <= hoursThreshold) {
-                    logger.info(`Profile ${profileId} was processed ${recentProfile.hours_ago} hours ago - skipping`);
-                    return {
-                        shouldProcess: false,
-                        reason: `Profile processed ${recentProfile.hours_ago} hours ago`,
-                        lastProcessed: recentProfile.last_updated
-                    };
+            logger.info(`Profile from DynamoDBService:`, profile);
+            logger.info(`UpdatedAt from DynamoDBService: ${updatedAt}`);
+
+            // If no update timestamp, consider it as not recently updated
+            if (!updatedAt) {
+                return true;
+            }
+
+            // Check if updated within the last month (30 days)
+            const oneMonthAgo = new Date();
+            oneMonthAgo.setDate(oneMonthAgo.getDate() - 30);
+            const profileUpdateDate = new Date(updatedAt);
+
+            // Return true if NOT updated in the last month, false if it WAS updated recently
+            return profileUpdateDate < oneMonthAgo;
+
+        } catch (error) {
+            logger.info(`Caught error in getProfileDetails:`, error.message);
+            logger.info(`Full error object:`, error);
+            logger.info(`Error status:`, error.response?.status);
+            logger.info(`Error response:`, error.response?.data);
+            logger.info(`Has error.response:`, !!error.response);
+
+            // API Gateway likely returns 200 with error in body, not HTTP error codes
+            logger.info(`This is likely a 200 response with error in body, not a real HTTP error`);
+            return true;
+
+            console.error('Error checking profile details:', error);
+            // On error, assume profile doesn't exist or needs updating
+            logger.info(`Other error occurred, returning true`);
+            return true;
+        }
+    }
+
+    /**
+     * Create a "bad contact" profile and its edges with processed status
+     * @param {Object} profileData - Profile information
+     * @param {Object} edgesData - Edge relationship data
+     * @returns {Promise<Object>} Creation result
+     */
+    async createBadContactProfile(profileId) {
+        try {
+            const response = await this.apiClient.post('/profiles', {
+                operation: 'create',
+                profileId: profileId,
+                updates: {
+                    status: 'processed',
+                    addedAt: new Date().toISOString(),
+                    processedAt: new Date().toISOString(),
                 }
-            }
+            });
 
-            logger.info(`Profile ${profileId} not found in recent processing - proceeding with analysis`);
-            return {
-                shouldProcess: true,
-                reason: 'Profile not processed recently or not found in recent activity'
-            };
-
+            return response.data;
         } catch (error) {
-            logger.error('Error checking profile processing status:', error);
-            // If there's an error, allow processing to continue
-            return {
-                shouldProcess: true,
-                reason: 'Error checking status, allowing processing to continue'
-            };
+            console.error('Error creating bad contact profile:', error);
+            throw this.handleError(error);
         }
     }
 
     /**
-     * Mark a profile as processed with a specific status
-     * @param {string} profileId - The LinkedIn profile ID
-     * @param {string} status - The processing status ('good_contact', 'bad_contact', 'processed', etc.)
-     * @param {Date} date - The processing date (defaults to now)
-     * @param {Object} additionalData - Any additional data to store
-     * @returns {Promise<boolean>} - Success status
+     * Create edges for a good contact with possible status
+     * @param {string} profileId - Profile ID for the good contact
+     * @param {Object} edgesData - Edge relationship data
+     * @returns {Promise<Object>} Edge creation result
      */
-    async markProfileAsProcessed(profileId, userId, status = 'processed', date = new Date(), additionalData = {}) {
+    async createGoodContactEdges(profileId) {
         try {
-            logger.info(`Marking profile ${profileId} as processed with status: ${status}`);
-            
-            const linkedinUrl = `https://www.linkedin.com/in/${profileId}`;
-            
-            const response = await fetch(`${this.apiGatewayUrl}/edges/mark-processed`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${this.jwtToken}`
-                },
-                body: JSON.stringify({
-                    linkedinurl: linkedinUrl,
-                    operation: 'create',
-                    updates: {
-                        status: status,
-                        processedAt: date.toISOString(),
-                        addedAt: date.toISOString(),
-                        ...additionalData
-                    }
-                })
+            // Call the edge-processing endpoint to create edges with possible status
+            const response = await this.apiClient.post('/edge', {
+                operation: 'create_edges',
+                profileId: profileId,
+                status: 'possible',
+                edgesData: {
+                    addedAt: new Date().toISOString()
+                }
             });
 
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                logger.error(`Failed to mark profile as processed: ${response.status}`, errorData);
-                return false;
-            }
-
-            const result = await response.json();
-            logger.info(`Successfully marked profile ${profileId} as processed:`, result);
-            return true;
-
+            return response.data;
         } catch (error) {
-            logger.error('Error marking profile as processed:', error);
-            return false;
+            console.error('Error creating good contact edges:', error);
+            throw this.handleError(error);
         }
     }
 
     /**
-     * Create or update edges between user and profile (legacy method from edgeService)
-     * @param {string} userId - The user ID
-     * @param {string} linkedinUrl - The LinkedIn profile URL
-     * @returns {Promise<boolean>} - Success status
+     * Handle API errors consistently
+     * @param {Error} error - The error object
+     * @returns {Error} Formatted error
      */
-    async checkAndCreateEdges(userId, linkedinUrl) {
-        try {
-            logger.info(`Calling edge processing API for user ${userId} and profile ${linkedinUrl}`);
-            
-            // Add delay as in original edgeService
-            await new Promise(resolve => setTimeout(resolve, 60000));
+    handleError(error) {
+        if (error.response) {
+            // API responded with error status
+            const message = error.response.data?.error || error.response.statusText;
+            const statusCode = error.response.status;
 
-            const response = await fetch(`${this.apiGatewayUrl}/edges/create`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${this.jwtToken}`
-                },
-                body: JSON.stringify({
-                    linkedinurl: linkedinUrl,
-                    operation: 'create',
-                    updates: {
-                        status: 'good_contact',
-                        addedAt: new Date().toISOString()
-                    }
-                })
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                logger.error(`API Gateway call failed with status ${response.status}:`, errorData);
-                return false;
+            if (statusCode === 401) {
+                return new Error('Authentication required. Please log in again.');
+            } else if (statusCode === 403) {
+                return new Error('Access denied. Check your permissions.');
+            } else if (statusCode === 404) {
+                return new Error('Resource not found.');
+            } else if (statusCode >= 500) {
+                return new Error('Server error. Please try again later.');
             }
 
-            const result = await response.json();
-            logger.info(`Edge processing API response:`, result);
-            return true;
-
-        } catch (error) {
-            logger.error('Error calling edge processing API:', error);
-            return false;
-        }
-    }
-
-    /**
-     * Update profile status (e.g., from 'processed' to 'good_contact' or 'bad_contact')
-     * @param {string} profileId - The LinkedIn profile ID
-     * @param {string} newStatus - The new status
-     * @param {Object} additionalUpdates - Additional fields to update
-     * @returns {Promise<boolean>} - Success status
-     */
-    async updateProfileStatus(profileId, userId, newStatus, additionalUpdates = {}) {
-        try {
-            logger.info(`Updating profile ${profileId} status to: ${newStatus}`);
-            
-            const linkedinUrl = `https://www.linkedin.com/in/${profileId}`;
-            
-            const response = await fetch(`${this.apiGatewayUrl}/edges/update-status`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${this.jwtToken}`
-                },
-                body: JSON.stringify({
-                    linkedinurl: linkedinUrl,
-                    operation: 'update_status',
-                    updates: {
-                        status: newStatus,
-                        updatedAt: new Date().toISOString(),
-                        ...additionalUpdates
-                    }
-                })
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                logger.error(`Failed to update profile status: ${response.status}`, errorData);
-                return false;
-            }
-
-            const result = await response.json();
-            logger.info(`Successfully updated profile ${profileId} status:`, result);
-            return true;
-
-        } catch (error) {
-            logger.error('Error updating profile status:', error);
-            return false;
+            return new Error(`API Error (${statusCode}): ${message}`);
+        } else if (error.request) {
+            // Network error
+            return new Error('Network error. Please check your connection.');
+        } else {
+            // Other error
+            return new Error(error.message || 'An unexpected error occurred.');
         }
     }
 }
 
+// Export singleton instance
 export default DynamoDBService;

@@ -5,7 +5,7 @@ import path from 'path';
 import { logger } from '../utils/logger.js';
 import RandomHelpers from '../utils/randomHelpers.js';
 import sharp from 'sharp';
-import { S3CloudFrontService } from './s3CloudFrontService.js';
+
 
 export class LinkedInContactService {
   constructor(puppeteerService) {
@@ -14,7 +14,7 @@ export class LinkedInContactService {
       region: process.env.AWS_REGION || "us-west-2" 
     });
     this.bucketName = process.env.S3_SCREENSHOT_BUCKET_NAME || "";
-    this.s3CloudFrontService = new S3CloudFrontService();
+    this.cloudFrontDomain = process.env.CLOUDFRONT_DOMAIN || "";
   }
 
   async takeScreenShotAndUploadToS3(profileId, tempDir) {
@@ -188,7 +188,7 @@ export class LinkedInContactService {
         
         if (result.$metadata.httpStatusCode === 200) {
           const s3ObjectUrl = `https://${this.bucketName}.s3.${process.env.AWS_REGION || "us-west-2"}.amazonaws.com/${s3Key}`;
-          const cloudFrontUrl = this.s3CloudFrontService.getCloudFrontUrl(s3Key);
+          const cloudFrontUrl = `https://${this.cloudFrontDomain}/${s3Key}`;
           uploadResults.push({ s3ObjectUrl, cloudFrontUrl, s3Key });
           logger.debug(`Uploaded screenshot ${i} to S3 and available via CloudFront`);
         }

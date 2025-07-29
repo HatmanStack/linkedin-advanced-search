@@ -24,9 +24,8 @@ interface NewConnection {
 
 interface NewConnectionSearchProps {
   searchResults: NewConnection[];
-  onSearch: (filters: { company: string; job: string; location: string; userId: string }) => void;
+  onSearch: (filters: { company: string; job: string; location: string }) => void;
   isSearching: boolean;
-  userId: string;  // Add userId prop
 }
 
 // Fake data for when server is unavailable
@@ -103,7 +102,7 @@ const generateFakeConnections = (): NewConnection[] => [
   }
 ];
 
-const NewConnectionSearch = ({ searchResults, onSearch, isSearching, userId }: NewConnectionSearchProps) => {
+const NewConnectionSearch = ({ searchResults, onSearch, isSearching }: NewConnectionSearchProps) => {
   const { toast } = useToast();
   const [searchFilters, setSearchFilters] = useState({
     company: '',
@@ -145,20 +144,8 @@ const NewConnectionSearch = ({ searchResults, onSearch, isSearching, userId }: N
   }, [displayResults, activeTags]);
 
   const handleSearch = () => {
-    console.log(userId);
-    if (!userId) {
-      toast({
-        title: "Authentication Required",
-        description: "Please sign in to perform searches",
-        variant: "destructive"
-      });
-      return;
-    }
     console.log("Your Linkedin Credentials are not persistent for Security.  For now, add them each time the application is Initiated.");
-    onSearch({
-      ...searchFilters,
-      userId
-    });
+    onSearch(searchFilters);
   };
 
   const handleNewConnectionClick = (connection: NewConnection) => {

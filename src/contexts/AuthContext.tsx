@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { CognitoAuthService, type CognitoUserData } from '@/services/cognitoService';
 import { isCognitoConfigured } from '@/config/cognito';
 import { generateUniqueUserId, validateUserForDatabase, securityUtils } from '@/utils/userUtils';
+import { apiService } from '@/services/api';
 
 export interface User {
   id: string;
@@ -14,6 +15,7 @@ export interface User {
 interface AuthContextType {
   user: User | null;
   loading: boolean;
+  getToken: () => Promise<string | null>;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signUp: (email: string, password: string, firstName?: string, lastName?: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
@@ -25,7 +27,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const useAuth = () => {
+const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {
     throw new Error('useAuth must be used within an AuthProvider');
@@ -57,7 +59,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             lastName: cognitoUser.lastName,
             emailVerified: cognitoUser.emailVerified,
           };
-          
+
           // Validate user data before setting
           if (validateUserForDatabase(userData)) {
             setUser(userData);
@@ -89,6 +91,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setLoading(false);
   };
 
+  const getToken = async (): Promise<string | null> => {
+    if (isCognitoConfigured) {
+      try {
+        return await CognitoAuthService.getCurrentUserToken();
+      } catch (error) {
+        console.error('Error getting token:', error);
+        return null;
+      }
+    } else {
+      // For mock auth, return a fake token or null
+      return user ? 'mock-jwt-token' : null;
+    }
+  };
+
   const signIn = async (email: string, password: string) => {
     // Validate email format
     if (!securityUtils.isValidEmail(email)) {
@@ -102,7 +118,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (result.error) {
           return { error: result.error };
         }
-        
+
         if (result.user) {
           const userData: User = {
             id: result.user.id, // Cognito sub (UUID)
@@ -111,7 +127,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             lastName: result.user.lastName,
             emailVerified: result.user.emailVerified,
           };
-          
+
           if (validateUserForDatabase(userData)) {
             setUser(userData);
             console.log('User signed in:', securityUtils.maskUserForLogging(userData));
@@ -119,7 +135,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             return { error: { message: 'Invalid user data received' } };
           }
         }
-        
+
         return { error: null };
       } catch (error) {
         return { error: { message: 'Authentication failed' } };
@@ -134,7 +150,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           lastName: 'User',
           emailVerified: true,
         };
-        
+
         if (validateUserForDatabase(mockUser)) {
           setUser(mockUser);
           localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(mockUser));
@@ -163,10 +179,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // For Cognito, user needs to verify email before they can sign in
         // Don't set user state here, they need to verify first
         console.log('User registered with Cognito, verification required');
-        return { 
+        return {
           error: null,
           message: 'Registration successful! Please check your email for verification code.',
-          needsVerification: true 
+          needsVerification: true
         };
       } catch (error) {
         return { error: { message: 'Registration failed' } };
@@ -181,7 +197,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           lastName: lastName || 'User',
           emailVerified: true,
         };
-        
+
         if (validateUserForDatabase(mockUser)) {
           setUser(mockUser);
           localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(mockUser));
@@ -198,6 +214,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.log('User signing out:', securityUtils.maskUserForLogging(user));
     }
 
+    // Clear JWT token from session storage
+    apiService.clearAuthToken();
+
     if (isCognitoConfigured) {
       // Use AWS Cognito
       try {
@@ -213,53 +232,54 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   // Cognito-specific methods (only available when Cognito is configured)
-  const confirmSignUp = isCognitoConfigured 
+  const confirmSignUp = isCognitoConfigured
     ? async (email: string, code: string) => {
-        try {
-          const result = await CognitoAuthService.confirmSignUp(email, code);
-          if (!result.error) {
-            console.log('User email verified:', email);
-          }
-          return result;
-        } catch (error) {
-          return { error: { message: 'Verification failed' } };
+      try {
+        const result = await CognitoAuthService.confirmSignUp(email, code);
+        if (!result.error) {
+          console.log('User email verified:', email);
         }
+        return result;
+      } catch (error) {
+        return { error: { message: 'Verification failed' } };
       }
+    }
     : undefined;
 
   const resendConfirmationCode = isCognitoConfigured
     ? async (email: string) => {
-        try {
-          return await CognitoAuthService.resendConfirmationCode(email);
-        } catch (error) {
-          return { error: { message: 'Failed to resend code' } };
-        }
+      try {
+        return await CognitoAuthService.resendConfirmationCode(email);
+      } catch (error) {
+        return { error: { message: 'Failed to resend code' } };
       }
+    }
     : undefined;
 
   const forgotPassword = isCognitoConfigured
     ? async (email: string) => {
-        try {
-          return await CognitoAuthService.forgotPassword(email);
-        } catch (error) {
-          return { error: { message: 'Failed to initiate password reset' } };
-        }
+      try {
+        return await CognitoAuthService.forgotPassword(email);
+      } catch (error) {
+        return { error: { message: 'Failed to initiate password reset' } };
       }
+    }
     : undefined;
 
   const confirmPassword = isCognitoConfigured
     ? async (email: string, code: string, newPassword: string) => {
-        try {
-          return await CognitoAuthService.confirmPassword(email, code, newPassword);
-        } catch (error) {
-          return { error: { message: 'Failed to reset password' } };
-        }
+      try {
+        return await CognitoAuthService.confirmPassword(email, code, newPassword);
+      } catch (error) {
+        return { error: { message: 'Failed to reset password' } };
       }
+    }
     : undefined;
 
   const value = {
     user,
     loading,
+    getToken,
     signIn,
     signUp,
     signOut,
@@ -271,3 +291,5 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
+
+export { useAuth };
