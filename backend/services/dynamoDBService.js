@@ -55,7 +55,7 @@ class DynamoDBService {
             const response = await this.apiClient.post('/profiles', {
                 operation: 'get_details',
                 profileId: profileId
-            });
+            }, { headers: this.getHeaders() });
 
             logger.info(`Response from DynamoDBService:`, response.data);
             logger.info(`Response status: ${response.status}`);
@@ -118,7 +118,7 @@ class DynamoDBService {
                     addedAt: new Date().toISOString(),
                     processedAt: new Date().toISOString(),
                 }
-            });
+            }, { headers: this.getHeaders() });
 
             return response.data;
         } catch (error) {
@@ -143,7 +143,7 @@ class DynamoDBService {
                 edgesData: {
                     addedAt: new Date().toISOString()
                 }
-            });
+            }, { headers: this.getHeaders() });
 
             return response.data;
         } catch (error) {

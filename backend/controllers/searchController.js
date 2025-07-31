@@ -155,14 +155,14 @@ export class SearchController {
       if (healPhase) {
         logger.info(`Heal Phase: ${healPhase}  \nReason: ${healReason}`);
       } else {
-        await FileHelpers.writeJSON(config.paths.linksFile, []);
+        //await FileHelpers.writeJSON(config.paths.linksFile, []);
       }
 
       if (healPhase === 'profile-parsing') {
         uniqueLinks = JSON.parse(await fs.readFile(lastPartialLinksFile));
       } else {
 
-
+/** 
         if (!extractedCompanyNumber && companyName) {
           extractedCompanyNumber = await linkedInService.searchCompany(companyName);
           if (!extractedCompanyNumber) {
@@ -239,7 +239,9 @@ export class SearchController {
 
         await FileHelpers.writeJSON(config.paths.linksFile, uniqueLinks);
       }
-
+*/
+      }
+  uniqueLinks = JSON.parse(await fs.readFile(config.paths.linksFile));
 
       logger.info(`Loaded ${uniqueLinks.length} unique links to process. Starting at index: ${resumeIndex}`);
 
@@ -264,7 +266,7 @@ export class SearchController {
             logger.info(`Found good contact: ${link} (${goodContacts.length})`);
             await linkedInContactService.takeScreenShotAndUploadToS3(link, result.tempDir);
             await dynamoDBService.setAuthToken(jwtToken);
-            dynamoDBService.checkAndCreateEdges(link, jwtToken).catch(error => {
+            dynamoDBService.createGoodContactEdges(link, jwtToken).catch(error => {
               logger.error('Error creating edges:', error);
             });
             await FileHelpers.writeJSON(config.paths.goodConnectionsFile, goodContacts);

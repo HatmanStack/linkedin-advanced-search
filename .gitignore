@@ -6,7 +6,7 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
-
+mcp-servers.json
 node_modules
 dist
 dist-ssr
@@ -45,5 +45,9 @@ PINE*.md
 .*cpython-311.pyc
 
 lambda-deployments
+.crush
+CRUSH.md
+
+
 
 
