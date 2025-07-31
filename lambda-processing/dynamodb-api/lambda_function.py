@@ -41,6 +41,13 @@ def lambda_handler(event: Dict[str, Any], context) -> Dict[str, Any]:
         if not operation:
             return create_response(400, {'error': 'Missing operation field in request body'})
         
+        # Parse and encode profileId once here
+        profile_id = body.get('profileId')
+        if not profile_id:
+            return create_response(400, {'error': 'profileId is required'})
+        profile_id_b64 = base64.urlsafe_b64encode(profile_id.encode()).decode()
+        body['profileId_b64'] = profile_id_b64  # Pass encoded profileId to downstream functions
+        
         # Route to appropriate operation handler - PROFILE OPERATIONS ONLY
         if operation == 'get_details':
             return get_profile_details(user_id, body)
@@ -59,19 +66,13 @@ def lambda_handler(event: Dict[str, Any], context) -> Dict[str, Any]:
 def get_profile_details(user_id: str, body: Dict[str, Any]) -> Dict[str, Any]:
     """Get detailed profile information"""
     try:
-        profile_id = body.get('profileId')
-        if not profile_id:
-            return create_response(400, {'error': 'profileId is required'})
+        profile_id_b64 = body.get('profileId_b64')
+        if not profile_id_b64:
+            return create_response(400, {'error': 'profileId_b64 is required'})
         
-        # Handle both URL and encoded profile IDs
-        if profile_id.startswith('http'):
-            profile_id_b64 = base64.urlsafe_b64encode(profile_id.encode()).decode().rstrip('=')
-        else:
-            profile_id_b64 = profile_id
-            
         profile_data = get_profile_metadata(profile_id_b64)
         if not profile_data:
-            return create_response(404, {'error': 'Profile not found'})
+            return create_response(200, {'message': 'Profile not found', 'profile': None})
             
         return create_response(200, {'profile': profile_data})
         
@@ -82,22 +83,19 @@ def get_profile_details(user_id: str, body: Dict[str, Any]) -> Dict[str, Any]:
 def create_bad_contact_profile(user_id: str, body: Dict[str, Any]) -> Dict[str, Any]:
     """Create a bad contact profile with processed status AND create edges"""
     try:
-        profileId = body.get('profileId') 
-        if not profileId:
-            return create_response(400, {'error': 'linkedin_url or linkedinurl is required'})
+        profile_id_b64 = body.get('profileId_b64')
+        if not profile_id_b64:
+            return create_response(400, {'error': 'profileId_b64 is required'})
         
         updates = body.get('updates', {})
-        
-        # Encode URL for use as profile ID
-        profile_id_b64 = base64.urlsafe_b64encode(profileId.encode()).decode().rstrip('=')
-        
         current_time = datetime.now(timezone.utc).isoformat()
         
+        print(f'THIS IS THE BAD CONTACT:   PROFILE#{profile_id_b64}')
         # Create or update profile metadata
         profile_metadata = {
             'PK': f'PROFILE#{profile_id_b64}',
             'SK': '#METADATA',
-            'originalUrl': profileId,
+            'originalUrl': body.get('profileId', ''),
             'createdAt': updates.get('addedAt', current_time),
             'updatedAt': current_time,
             'name': updates.get('name', ''),
@@ -174,6 +172,7 @@ def create_bad_contact_profile(user_id: str, body: Dict[str, Any]) -> Dict[str, 
 def get_profile_metadata(profile_id_b64: str) -> Optional[Dict[str, Any]]:
     """Helper function to get profile metadata"""
     try:
+        print(f'THIS IS THE PROFILE BEING CHECKED:  PROFILE#{profile_id_b64}')
         response = table.get_item(
             Key={
                 'PK': f'PROFILE#{profile_id_b64}',
@@ -195,5 +194,5 @@ def create_response(status_code: int, body: Dict[str, Any]) -> Dict[str, Any]:
             'Access-Control-Allow-Headers': 'Content-Type,Authorization',
             'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'
         },
-        'body': json.dumps(body)
+        'body': json.dumps(body, default=str)
     }
