@@ -5,66 +5,35 @@ import PuppeteerService from '../services/puppeteerService.js';
 import LinkedInService from '../services/linkedinService.js';
 import LinkedInContactService from '../services/linkedinContactService.js';
 import DynamoDBService from '../services/dynamoDBService.js'
+import { SearchRequestValidator } from '../utils/searchRequestValidator.js';
+import { SearchStateManager } from '../utils/searchStateManager.js';
+import { LinkCollector } from '../utils/linkCollector.js';
+import { ContactProcessor } from '../utils/contactProcessor.js';
+import { HealingManager } from '../utils/healingManager.js';
 import path from 'path';
 import fs from 'fs/promises';
-import fsSync from 'fs';
 
 export class SearchController {
   async performSearch(req, res, opts = {}) {
-    // Log raw request details
-    logger.info('Raw request details:', {
-      method: req.method,
-      url: req.url,
-      headers: req.headers,
-      bodyType: typeof req.body,
-      bodyKeys: req.body ? Object.keys(req.body) : 'no body'
-    });
-
-    // Extract JWT token from Authorization header
-    const authHeader = req.headers.authorization;
-    const jwtToken = authHeader && authHeader.startsWith('Bearer ')
-      ? authHeader.substring(7)
-      : null;
-
+    this._logRequestDetails(req);
+    
+    const jwtToken = this._extractJwtToken(req);
     if (!jwtToken) {
       return res.status(401).json({
         error: 'Missing or invalid Authorization header'
       });
     }
 
-    const {
-      companyName,
-      companyRole,
-      companyLocation,
-      searchName,
-      searchPassword
-    } = req.body;
+    const validationResult = SearchRequestValidator.validateRequest(req.body, jwtToken);
+    if (!validationResult.isValid) {
+      return res.status(validationResult.statusCode).json({
+        error: validationResult.error,
+        message: validationResult.message
+      });
+    }
 
-    // Use JWT token as jwtToken
+    const { companyName, companyRole, companyLocation, searchName, searchPassword } = req.body;
     
-
-    // Log the full request body (without sensitive data)
-    logger.info('Request body received:', {
-      companyName,
-      companyRole,
-      companyLocation,
-      searchName,
-      hasPassword: !!searchPassword,
-      hasJwtToken: !!jwtToken
-    });
-
-    if (!searchName || !searchPassword) {
-      return res.status(400).json({
-        error: 'Missing required fields: searchName, searchPassword'
-      });
-    }
-    if (!jwtToken) {
-      return res.status(401).json({
-        error: 'Authentication required',
-        message: 'User ID is required to perform searches'
-      });
-    }
-
     logger.info('Starting LinkedIn search request', {
       companyName,
       companyRole,
@@ -72,21 +41,19 @@ export class SearchController {
       username: searchName ? '[REDACTED]' : 'not provided'
     });
 
-    // Build the state object required by both in-process and background worker runs
-    const state = {
+    const state = SearchStateManager.buildInitialState({
       companyName,
       companyRole,
       companyLocation,
       searchName,
       searchPassword,
-      ...opts,
-      jwtToken: jwtToken  // Add user ID to state
-    };
+      jwtToken,
+      ...opts
+    });
 
     try {
-      let result = await this.performSearchFromState(state);
+      const result = await this.performSearchFromState(state);
 
-      // If result is undefined, healing was started and work continues in a background process
       if (result === undefined) {
         return res.status(202).json({
           status: 'healing',
@@ -94,302 +61,218 @@ export class SearchController {
         });
       }
 
-      // Otherwise, send the result
-      res.json({
-        response: result.goodContacts,
-        metadata: {
-          totalProfilesAnalyzed: result.uniqueLinks?.length,
-          goodContactsFound: result.goodContacts?.length,
-          successRate: result.stats?.successRate,
-          searchParameters: { companyName, companyRole, companyLocation }
-        }
-      });
+      res.json(this._buildSuccessResponse(result, { companyName, companyRole, companyLocation }));
     } catch (e) {
       logger.error('Search failed:', e);
-      res.status(500).json({
-        error: 'Internal server error during search',
-        message: e.message,
-        details: process.env.NODE_ENV === 'development' ? e.stack : undefined
-      });
+      res.status(500).json(this._buildErrorResponse(e));
     }
   }
 
-  async performSearchFromState({
-    companyName,
-    companyRole,
-    companyLocation,
-    searchName,
-    searchPassword,
-    resumeIndex = 0,
-    recursionCount = 0,
-    lastPartialLinksFile = null,
-    extractedCompanyNumber = null,
-    extractedGeoNumber = null,
-    healPhase = null,
-    healReason = null,
-    jwtToken = null,
-  }) {
-
-    let puppeteerService;
-    let linkedInService;
-    let linkedInContactService;
-    let dynamoDBService;
-    let uniqueLinks;
-    let goodContacts;
-    let allLinks;
+  async performSearchFromState(state) {
+    const services = await this._initializeServices();
+    let searchData = {};
 
     try {
-      if (!searchName || !searchPassword) {
-        throw new Error('Missing required fields: searchName, searchPassword, or jwtToken.');
-      }
-
-      puppeteerService = new PuppeteerService();
-      await puppeteerService.initialize();
-      linkedInService = new LinkedInService(puppeteerService);
-      linkedInContactService = new LinkedInContactService(puppeteerService);
-      dynamoDBService = new DynamoDBService();
-
-      logger.info('Logging in...');
-      await linkedInService.login(searchName, searchPassword, lastPartialLinksFile);
-      logger.info('Login success.');
-      if (healPhase) {
-        logger.info(`Heal Phase: ${healPhase}  \nReason: ${healReason}`);
+      SearchRequestValidator.validateStateFields(state);
+      
+      await this._performLogin(services.linkedInService, state);
+      
+      if (state.healPhase === 'profile-parsing') {
+        searchData.uniqueLinks = await this._loadLinksFromFile(state.lastPartialLinksFile);
       } else {
-        //await FileHelpers.writeJSON(config.paths.linksFile, []);
+        const companyData = await this._extractCompanyData(services.linkedInService, state);
+        searchData = await this._collectLinks(services.linkedInService, state, companyData);
       }
 
-      if (healPhase === 'profile-parsing') {
-        uniqueLinks = JSON.parse(await fs.readFile(lastPartialLinksFile));
-      } else {
-
-/** 
-        if (!extractedCompanyNumber && companyName) {
-          extractedCompanyNumber = await linkedInService.searchCompany(companyName);
-          if (!extractedCompanyNumber) {
-            throw new Error(`Company "${companyName}" not found.`);
-          }
-        }
-        // Step 3: Apply location filter and get geo number
-
-        if (!extractedGeoNumber && companyLocation) {
-          extractedGeoNumber = await linkedInService.applyLocationFilter(companyLocation, companyName);
-        }
-
-        // Scrape links as before:
-        const encodedRole = companyRole ? encodeURIComponent(companyRole) : null;
-
-        if (healPhase === "link-collection") {
-          allLinks = JSON.parse(await fs.readFile(config.paths.linksFile));
-        } else {
-          // Initialize allLinks for normal flow - try to load existing file or start with empty array
-          try {
-            allLinks = JSON.parse(await fs.readFile(config.paths.linksFile));
-          } catch (error) {
-            // File doesn't exist or is invalid, start with empty array
-            allLinks = [];
-          }
-        }
-        const { pageNumberStart, pageNumberEnd } = config.linkedin;
-        let emptyPageCount = 0;
-        let pageNumber = resumeIndex !== 0 && resumeIndex > pageNumberStart
-          ? resumeIndex
-          : pageNumberStart;
-
-        while (pageNumber <= pageNumberEnd) {
-          try {
-            const pageLinks = await linkedInService.getLinksFromPeoplePage(pageNumber, extractedCompanyNumber, encodedRole, extractedGeoNumber);
-            if (pageLinks.length === 0) {
-              emptyPageCount++;
-              if (emptyPageCount >= 3 && pageNumber < pageNumberEnd) {
-                logger.warn(`Initiating self-healing restart.`);
-                // Close browser and restart healing
-                logger.info('Restarting with fresh Puppeteer instance..');
-                const healReasonText = emptyPageCount < 3 ? 'TimeoutError: Navigation timeout of 30000 ms exceeded' : '3 blank pages in a row';
-                await this.healAndRestart({
-                  companyName,
-                  companyRole,
-                  companyLocation,
-                  searchName,
-                  searchPassword,
-                  jwtToken,  // Include jwtToken
-                  resumeIndex: pageNumber - 3,
-                  recursionCount: recursionCount + 1,
-                  extractedCompanyNumber,
-                  extractedGeoNumber,
-                  healPhase: 'link-collection',
-                  healReason: healReasonText,
-                });
-                return;
-              }
-              pageNumber++;
-              continue;
-            } else {
-              emptyPageCount = 0;
-            }
-            allLinks.push(...pageLinks);
-            await FileHelpers.writeJSON(config.paths.linksFile, allLinks);
-            pageNumber++;
-          } catch (error) {
-            logger.warn(`Error on page ${pageNumber}`, error);
-            pageNumber++;
-            continue;
-          }
-        }
-        uniqueLinks = [...new Set(allLinks)];
-
-        await FileHelpers.writeJSON(config.paths.linksFile, uniqueLinks);
-      }
-*/
-      }
-  uniqueLinks = JSON.parse(await fs.readFile(config.paths.linksFile));
-
-      logger.info(`Loaded ${uniqueLinks.length} unique links to process. Starting at index: ${resumeIndex}`);
-
-      goodContacts = JSON.parse(await fs.readFile(config.paths.goodConnectionsFile));
-      let errorQueue = [];
-      let i = resumeIndex;
-
-      while (i < uniqueLinks.length) {
-        const link = uniqueLinks[i];
-        if (/ACoA/.test(link)) {
-          logger.debug(`Skipping profile: ${link}`);
-          i++;
-          continue;
-        }
-        try {
-          logger.info(`Analyzing contact ${i + 1}/${uniqueLinks.length}: ${link}`);
-          const result = await linkedInService.analyzeContactActivity(link, jwtToken);
-
-          if (result.isGoodContact) {
-            errorQueue = [];
-            goodContacts.push(link);
-            logger.info(`Found good contact: ${link} (${goodContacts.length})`);
-            await linkedInContactService.takeScreenShotAndUploadToS3(link, result.tempDir);
-            await dynamoDBService.setAuthToken(jwtToken);
-            dynamoDBService.createGoodContactEdges(link, jwtToken).catch(error => {
-              logger.error('Error creating edges:', error);
-            });
-            await FileHelpers.writeJSON(config.paths.goodConnectionsFile, goodContacts);
-          }
-          i++;
-        } catch (error) {
-          logger.error(`Error collecting contact: ${link}`);
-          errorQueue.push(link);
-          i++;
-          if (errorQueue.length >= 3) {
-            logger.warn(`3 errors in a row, pausing 5min and retrying...`);
-            const linksToRetry = [...errorQueue];
-            errorQueue = [];
-            await new Promise(resolve => setTimeout(resolve, 300000));
-            let allRetriesFailed = true;
-            for (let retry of linksToRetry) {
-              try {
-                const retryResult = await linkedInService.analyzeContactActivity(retry, jwtToken);
-                if (retryResult.isGoodContact) {
-                  goodContacts.push(retry);
-                  logger.info(`Retry success: ${retry}`);
-                  allRetriesFailed = false;
-                }
-              } catch (e) {
-                logger.error(`Retry failed: ${retry}`);
-              }
-            }
-
-            if (allRetriesFailed) {
-              logger.warn(`All retry links failed. Initiating self-healing restart.`);
-              let restartIndex = i - linksToRetry.length;
-              if (restartIndex < 0) restartIndex = 0;
-              let remainingLinks = uniqueLinks.slice(restartIndex);
-              if (remainingLinks[0] !== linksToRetry[0]) {
-                remainingLinks.unshift(linksToRetry[0]);
-              }
-              logger.info(`possible-links-partial-${Date.now()}.json`);
-              const newPartialLinksFile = path.join(path.dirname(config.paths.linksFile), `possible-links-partial-${Date.now()}.json`);
-              await fs.writeFile(newPartialLinksFile, JSON.stringify(remainingLinks, null, 2));
-              logger.info('written')
-              logger.info('Restarting with fresh Puppeteer instance...');
-              await this.healAndRestart({
-                companyName,
-                companyRole,
-                companyLocation,
-                searchName,
-                searchPassword,
-                jwtToken,  // Include jwtToken
-                resumeIndex: 0,
-                recursionCount: recursionCount + 1,
-                lastPartialLinksFile: newPartialLinksFile,
-                extractedCompanyNumber,
-                extractedGeoNumber,
-                healPhase: 'profile-parsing',
-                healReason: 'Links failed',
-              });
-              return;
-            }
-          }
-          continue;
-        }
-      }
-      uniqueLinks = JSON.parse(await fs.readFile(config.paths.linksFile));
-      return {
-        goodContacts,
-        uniqueLinks,
-        stats: {
-          successRate: ((goodContacts.length / uniqueLinks.length) * 100).toFixed(2) + '%'
-        }
-      };
+      const goodContacts = await this._processContacts(services, searchData.uniqueLinks, state);
+      
+      return this._buildSearchResult(goodContacts, searchData.uniqueLinks);
 
     } catch (error) {
       logger.error('Search failed:', error);
       throw error;
     } finally {
-      logger.info('In finally, closing browser:', !!puppeteerService);
-      if (puppeteerService) {
-        await puppeteerService.close();
-        logger.info('Closed browser in finally!');
-      }
+      await this._cleanupServices(services);
     }
   }
 
-  async healAndRestart({
-    companyName,
-    companyRole,
-    companyLocation,
-    searchName,
-    searchPassword,
-    jwtToken,  // Add jwtToken to destructured parameters
-    resumeIndex = 0,
-    recursionCount = 0,
-    lastPartialLinksFile = null,
-    extractedCompanyNumber = null,
-    extractedGeoNumber = null,
-    healPhase = null,
-    healReason = null,
-  }) {
-    const stateFile = path.join('data', `search-heal-${Date.now()}.json`);
-    fsSync.writeFileSync(stateFile, JSON.stringify({
-      companyName,
-      companyRole,
-      companyLocation,
-      searchName,
-      searchPassword,
-      jwtToken,  // Include jwtToken in state file
-      resumeIndex,
-      recursionCount,
-      lastPartialLinksFile,
-      extractedCompanyNumber,
-      extractedGeoNumber,
-      healPhase,
-      healReason
-    }, null, 2));
-    const { spawn } = await import('child_process');
-    const worker = spawn('node', ['searchWorker.js', stateFile], {
-      detached: true,
-      stdio: 'ignore'
-    });
-    worker.unref();
-    logger.info(`Launched healing worker with state file: ${stateFile}`);
+  async _initializeServices() {
+    const puppeteerService = new PuppeteerService();
+    await puppeteerService.initialize();
+    
+    return {
+      puppeteerService,
+      linkedInService: new LinkedInService(puppeteerService),
+      linkedInContactService: new LinkedInContactService(puppeteerService),
+      dynamoDBService: new DynamoDBService()
+    };
   }
 
+  async _performLogin(linkedInService, state) {
+    logger.info('Logging in...');
+    await linkedInService.login(state.searchName, state.searchPassword, state.lastPartialLinksFile);
+    logger.info('Login success.');
+    
+    if (state.healPhase) {
+      logger.info(`Heal Phase: ${state.healPhase}\nReason: ${state.healReason}`);
+    }
+  }
+
+  async _extractCompanyData(linkedInService, state) {
+    let extractedCompanyNumber = state.extractedCompanyNumber;
+    let extractedGeoNumber = state.extractedGeoNumber;
+
+    if (!extractedCompanyNumber && state.companyName) {
+      extractedCompanyNumber = await linkedInService.searchCompany(state.companyName);
+      if (!extractedCompanyNumber) {
+        throw new Error(`Company "${state.companyName}" not found.`);
+      }
+    }
+
+    if (!extractedGeoNumber && state.companyLocation) {
+      extractedGeoNumber = await linkedInService.applyLocationFilter(state.companyLocation, state.companyName);
+    }
+
+    return { extractedCompanyNumber, extractedGeoNumber };
+  }
+
+  async _collectLinks(linkedInService, state, companyData) {
+    const linkCollector = new LinkCollector(linkedInService, config);
+    
+    if (state.healPhase === "link-collection") {
+      const allLinks = await this._loadLinksFromFile(config.paths.linksFile);
+      return { uniqueLinks: [...new Set(allLinks)] };
+    }
+
+    const allLinks = await linkCollector.collectAllLinks(
+      state,
+      companyData,
+      (pageNumber) => this._handleLinkCollectionHealing(state, companyData, pageNumber)
+    );
+
+    const uniqueLinks = [...new Set(allLinks)];
+    await FileHelpers.writeJSON(config.paths.linksFile, uniqueLinks);
+    
+    return { uniqueLinks };
+  }
+
+  async _processContacts(services, uniqueLinks, state) {
+    const contactProcessor = new ContactProcessor(
+      services.linkedInService,
+      services.linkedInContactService,
+      services.dynamoDBService,
+      config
+    );
+
+    logger.info(`Loaded ${uniqueLinks.length} unique links to process. Starting at index: ${state.resumeIndex}`);
+
+    return await contactProcessor.processAllContacts(
+      uniqueLinks,
+      state,
+      (restartParams) => this._handleContactProcessingHealing(restartParams)
+    );
+  }
+
+  async _handleLinkCollectionHealing(state, companyData, pageNumber) {
+    logger.warn(`Initiating self-healing restart.`);
+    logger.info('Restarting with fresh Puppeteer instance..');
+    
+    const healReasonText = '3 blank pages in a row';
+    await this._initiateHealing({
+      ...state,
+      ...companyData,
+      resumeIndex: pageNumber - 3,
+      recursionCount: state.recursionCount + 1,
+      healPhase: 'link-collection',
+      healReason: healReasonText,
+    });
+  }
+
+  async _handleContactProcessingHealing(restartParams) {
+    logger.warn(`All retry links failed. Initiating self-healing restart.`);
+    logger.info('Restarting with fresh Puppeteer instance...');
+    
+    await this._initiateHealing({
+      ...restartParams,
+      healPhase: 'profile-parsing',
+      healReason: 'Links failed',
+    });
+  }
+
+  async _initiateHealing(healingParams) {
+    const healingManager = new HealingManager();
+    await healingManager.healAndRestart(healingParams);
+  }
+
+  async _loadLinksFromFile(filePath) {
+    try {
+      const fileContent = await fs.readFile(filePath);
+      return JSON.parse(fileContent);
+    } catch (error) {
+      return [];
+    }
+  }
+
+  async _cleanupServices(services) {
+    logger.info('In finally, closing browser:', !!services.puppeteerService);
+    if (services.puppeteerService) {
+      await services.puppeteerService.close();
+      logger.info('Closed browser in finally!');
+    }
+  }
+
+  _logRequestDetails(req) {
+    logger.info('Raw request details:', {
+      method: req.method,
+      url: req.url,
+      headers: req.headers,
+      bodyType: typeof req.body,
+      bodyKeys: req.body ? Object.keys(req.body) : 'no body'
+    });
+  }
+
+  _extractJwtToken(req) {
+    const authHeader = req.headers.authorization;
+    return authHeader && authHeader.startsWith('Bearer ')
+      ? authHeader.substring(7)
+      : null;
+  }
+
+  _buildSuccessResponse(result, searchParameters) {
+    return {
+      response: result.goodContacts,
+      metadata: {
+        totalProfilesAnalyzed: result.uniqueLinks?.length,
+        goodContactsFound: result.goodContacts?.length,
+        successRate: result.stats?.successRate,
+        searchParameters
+      }
+    };
+  }
+
+  _buildErrorResponse(error) {
+    return {
+      error: 'Internal server error during search',
+      message: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    };
+  }
+
+  _buildSearchResult(goodContacts, uniqueLinks) {
+    return {
+      goodContacts,
+      uniqueLinks,
+      stats: {
+        successRate: ((goodContacts.length / uniqueLinks.length) * 100).toFixed(2) + '%'
+      }
+    };
+  }
+
+  // Legacy method for backward compatibility
+  async healAndRestart(params) {
+    const healingManager = new HealingManager();
+    await healingManager.healAndRestart(params);
+  }
 }
 
 export default SearchController;

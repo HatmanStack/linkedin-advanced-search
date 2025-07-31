@@ -45,8 +45,6 @@ class DynamoDBService {
      */
     async getProfileDetails(profileId) {
         try {
-            logger.info(`Making request to get profile details for: ${profileId}`);
-            logger.info(`API Base URL: ${API_BASE_URL}`);
             logger.info(`Request payload:`, {
                 operation: 'get_details',
                 profileId: profileId
@@ -56,10 +54,6 @@ class DynamoDBService {
                 operation: 'get_details',
                 profileId: profileId
             }, { headers: this.getHeaders() });
-
-            logger.info(`Response from DynamoDBService:`, response.data);
-            logger.info(`Response status: ${response.status}`);
-            logger.info(`Response headers:`, response.headers);
             // If profile doesn't exist, return true
             if (!response.data || !response.data.profile) {
                 return true;
@@ -67,8 +61,6 @@ class DynamoDBService {
 
             const profile = response.data.profile;
             const updatedAt = profile.updatedAt;
-
-            logger.info(`Profile from DynamoDBService:`, profile);
             logger.info(`UpdatedAt from DynamoDBService: ${updatedAt}`);
 
             // If no update timestamp, consider it as not recently updated
@@ -93,11 +85,6 @@ class DynamoDBService {
 
             // API Gateway likely returns 200 with error in body, not HTTP error codes
             logger.info(`This is likely a 200 response with error in body, not a real HTTP error`);
-            return true;
-
-            console.error('Error checking profile details:', error);
-            // On error, assume profile doesn't exist or needs updating
-            logger.info(`Other error occurred, returning true`);
             return true;
         }
     }
