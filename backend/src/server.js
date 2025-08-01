@@ -34,12 +34,12 @@ app.use((req, res, next) => {
 // Routes
 app.use('/', searchRoutes);
 app.use('/heal-restore', healAndRestoreRoutes);
-app.use('/api/profile-init', profileInitRoutes);
+app.use('/profile-init', profileInitRoutes);
 
 // Error handling middleware
 app.use((error, req, res, next) => {
   logger.error('Unhandled error:', error);
-  
+
   res.status(500).json({
     error: 'Internal server error',
     message: config.nodeEnv === 'development' ? error.message : 'Something went wrong',
@@ -84,7 +84,7 @@ process.on('SIGINT', () => {
 async function startServer() {
   try {
     await initializeDirectories();
-    
+
     app.listen(config.port, () => {
       logger.info(`🚀 LinkedIn Advanced Search Backend started`, {
         port: config.port,
@@ -92,15 +92,15 @@ async function startServer() {
         frontendUrls: config.frontendUrls,
         hasGoogleAI: !!config.googleAI.apiKey
       });
-      
+
       logger.info('📋 Available endpoints:');
       logger.info(`  POST http://localhost:${config.port}/          - Perform LinkedIn search`);
       logger.info(`  GET  http://localhost:${config.port}/results   - Get stored results`);
       logger.info(`  GET  http://localhost:${config.port}/health    - Health check`);
       logger.info(`  GET  http://localhost:${config.port}/heal-restore/status - Check heal & restore status`);
       logger.info(`  POST http://localhost:${config.port}/heal-restore/authorize - Authorize heal & restore`);
-      logger.info(`  POST http://localhost:${config.port}/api/profile-init - Initialize LinkedIn profile database`);
-      logger.info(`  GET  http://localhost:${config.port}/api/profile-init/health - Profile init health check`);
+      logger.info(`  POST http://localhost:${config.port}/profile-init - Initialize LinkedIn profile database`);
+      logger.info(`  GET  http://localhost:${config.port}/profile-init/health - Profile init health check`);
     });
   } catch (error) {
     logger.error('Failed to start server:', error);

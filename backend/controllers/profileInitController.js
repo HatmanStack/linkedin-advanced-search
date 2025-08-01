@@ -1,4 +1,3 @@
-import config from '../config/index.js';
 import { logger } from '../utils/logger.js';
 import PuppeteerService from '../services/puppeteerService.js';
 import LinkedInService from '../services/linkedinService.js';
@@ -13,10 +12,10 @@ export class ProfileInitController {
   async performProfileInit(req, res, opts = {}) {
     const requestId = this._generateRequestId();
     const startTime = Date.now();
-    
+
     // Enhanced request logging with request ID for tracking
     this._logRequestDetails(req, requestId);
-    
+
     try {
       const jwtToken = this._extractJwtToken(req);
       if (!jwtToken) {
@@ -42,7 +41,7 @@ export class ProfileInitController {
       }
 
       const { searchName, searchPassword } = req.body;
-      
+
       logger.info('Starting LinkedIn profile initialization request', {
         requestId,
         username: searchName ? '[REDACTED]' : 'not provided',
@@ -83,7 +82,7 @@ export class ProfileInitController {
           healPhase: state.healPhase,
           healReason: state.healReason
         });
-        
+
         return res.status(202).json({
           status: 'healing',
           message: 'Worker process started for healing/recovery.',
@@ -109,11 +108,11 @@ export class ProfileInitController {
       profileInitMonitor.recordSuccess(requestId, result);
 
       res.json(this._buildSuccessResponse(result, requestId));
-      
+
     } catch (error) {
       const totalDuration = Date.now() - startTime;
       const errorDetails = this._categorizeError(error);
-      
+
       logger.error('Profile initialization failed with unhandled error', {
         requestId,
         totalDuration,
@@ -144,11 +143,11 @@ export class ProfileInitController {
 
     try {
       this._validateStateFields(state);
-      
+
       // Note: Authentication is now handled within ProfileInitService
       // to maintain consistency with the service's state management
       const profileData = await this._processUserProfile(services, state);
-      
+
       return this._buildProfileInitResult(profileData);
 
     } catch (error) {
@@ -162,7 +161,7 @@ export class ProfileInitController {
   async _initializeServices() {
     const puppeteerService = new PuppeteerService();
     await puppeteerService.initialize();
-    
+
     return {
       puppeteerService,
       linkedInService: new LinkedInService(puppeteerService),
@@ -175,7 +174,7 @@ export class ProfileInitController {
 
   async _processUserProfile(services, state) {
     logger.info('Processing user profile initialization...');
-    
+
     try {
       // Initialize ProfileInitService with all required services
       const profileInitService = new ProfileInitService(
@@ -190,19 +189,19 @@ export class ProfileInitController {
 
       // Process the profile initialization using the service
       const result = await profileInitService.initializeUserProfile(state);
-      
+
       logger.info('Profile initialization processing completed successfully');
       return result;
 
     } catch (error) {
       logger.error('Profile initialization processing failed:', error);
-      
+
       // Check if this is a recoverable error that should trigger healing
       if (this._shouldTriggerHealing(error)) {
         await this._handleProfileInitHealing(state);
         return undefined; // Signal healing in progress
       }
-      
+
       throw error;
     }
   }
@@ -210,7 +209,33 @@ export class ProfileInitController {
   async _handleProfileInitHealing(state, errorMessage = 'Profile initialization failed') {
     const requestId = state.requestId || 'unknown';
     const recursionCount = (state.recursionCount || 0) + 1;
-    
+
+    // Check if this is a list creation healing scenario
+    if (errorMessage.includes('LIST_CREATION_HEALING_NEEDED')) {
+      try {
+        const healingDataMatch = errorMessage.match(/LIST_CREATION_HEALING_NEEDED:(.+)$/);
+        if (healingDataMatch) {
+          const healingState = JSON.parse(healingDataMatch[1]);
+
+          logger.warn('List creation failed. Initiating list creation healing restart.', {
+            requestId,
+            connectionType: healingState.listCreationState?.connectionType,
+            expansionAttempt: healingState.listCreationState?.expansionAttempt,
+            currentFileIndex: healingState.listCreationState?.currentFileIndex,
+            recursionCount: healingState.recursionCount
+          });
+
+          await this._initiateHealing(healingState);
+          return;
+        }
+      } catch (parseError) {
+        logger.warn('Failed to parse list creation healing data, falling back to standard healing', {
+          requestId,
+          parseError: parseError.message
+        });
+      }
+    }
+
     logger.warn('Profile initialization failed. Initiating self-healing restart.', {
       requestId,
       recursionCount,
@@ -222,12 +247,12 @@ export class ProfileInitController {
         masterIndexFile: state.masterIndexFile
       }
     });
-    
+
     logger.info('Restarting with fresh Puppeteer instance...', {
       requestId,
       recursionCount
     });
-    
+
     // Create healing state using ProfileInitStateManager
     const healingState = ProfileInitStateManager.createHealingState(
       state,
@@ -238,7 +263,7 @@ export class ProfileInitController {
         timestamp: new Date().toISOString()
       }
     );
-    
+
     // Log healing state for debugging
     logger.info('Created healing state for profile initialization', {
       requestId,
@@ -252,7 +277,7 @@ export class ProfileInitController {
         masterIndexFile: healingState.masterIndexFile
       }
     });
-    
+
     await this._initiateHealing(healingState);
   }
 
@@ -274,14 +299,21 @@ export class ProfileInitController {
       /rate.*limit/i,
       /linkedin.*error/i,
       /puppeteer.*error/i,
-      /navigation.*failed/i
+      /navigation.*failed/i,
+      /LIST_CREATION_HEALING_NEEDED/i
     ];
 
     const errorMessage = error.message || error.toString();
-    
+
+    // Check for list creation healing specifically
+    if (errorMessage.includes('LIST_CREATION_HEALING_NEEDED')) {
+      logger.info(`List creation healing needed: ${errorMessage}`);
+      return true;
+    }
+
     // Check if error matches any recoverable pattern
     const isRecoverable = recoverableErrors.some(pattern => pattern.test(errorMessage));
-    
+
     if (isRecoverable) {
       logger.info(`Error is recoverable, will trigger healing: ${errorMessage}`);
       return true;

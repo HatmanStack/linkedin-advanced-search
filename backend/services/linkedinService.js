@@ -440,10 +440,11 @@ export class LinkedInService {
 
         // Delete the original screenshot after cropping
         await fs.unlink(screenshotPath);
-
+        await this.dynamoDBService.createGoodContactEdges(profileId, "possible");
         return { isGoodContact: true, tempDir };
 
       }
+      await this.dynamoDBService.createGoodContactEdges(profileId, "processed");
       await this.dynamoDBService.createBadContactProfile(profileId);
 
       return { isGoodContact: false };

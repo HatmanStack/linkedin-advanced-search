@@ -8,7 +8,7 @@ router.get('/status', async (req, res) => {
   try {
     const pendingSessions = await getPendingAuthorizations();
     const pendingSession = pendingSessions.length > 0 ? pendingSessions[0] : null;
-    
+
     res.json({
       success: true,
       data: { pendingSession }
@@ -26,16 +26,16 @@ router.get('/status', async (req, res) => {
 router.post('/authorize', async (req, res) => {
   try {
     const { sessionId, autoApprove } = req.body;
-    
+
     if (!sessionId) {
       return res.status(400).json({
         success: false,
         error: 'Session ID is required'
       });
     }
-    
+
     const success = await authorizeHealAndRestore(sessionId);
-    
+
     if (success) {
       res.json({
         success: true,

@@ -312,7 +312,6 @@ class ApiService {
   async initializeProfileDatabase(credentials: {
     searchName: string;
     searchPassword: string;
-    jwtToken: string;
   }): Promise<ApiResponse<{ success?: boolean; healing?: boolean; message?: string }>> {
     return this.makeRequest<{ success?: boolean; healing?: boolean; message?: string }>('/profile-init', {
       method: 'POST',
