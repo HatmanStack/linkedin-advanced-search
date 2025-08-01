@@ -140,6 +140,43 @@ class DynamoDBService {
     }
 
     /**
+     * Check if an edge relationship exists between user and connection profile
+     * @param {string} userProfileId - User profile ID (not used in current implementation, but kept for interface consistency)
+     * @param {string} connectionProfileId - Connection profile ID to check
+     * @returns {Promise<boolean>} true if edge exists, false otherwise
+     */
+    async checkEdgeExists(userProfileId, connectionProfileId) {
+        try {
+            logger.info(`Checking edge existence between user and profile: ${connectionProfileId}`);
+
+            // Call the edge-processing endpoint to check if edge exists
+            const response = await this.apiClient.post('/edge', {
+                operation: 'check_exists',
+                linkedinurl: connectionProfileId
+            }, { headers: this.getHeaders() });
+
+            // Extract the result from the response
+            const result = response.data?.result;
+            
+            if (result && result.success) {
+                const exists = result.exists || false;
+                logger.info(`Edge existence check result: ${exists} for profile ${connectionProfileId}`);
+                return exists;
+            } else {
+                logger.warn(`Edge existence check failed for profile ${connectionProfileId}:`, result);
+                return false;
+            }
+
+        } catch (error) {
+            logger.error(`Error checking edge existence for profile ${connectionProfileId}:`, error.message);
+            
+            // If there's an error checking, assume edge doesn't exist to allow processing
+            // This ensures the system continues to work even if the check fails
+            return false;
+        }
+    }
+
+    /**
      * Handle API errors consistently
      * @param {Error} error - The error object
      * @returns {Error} Formatted error

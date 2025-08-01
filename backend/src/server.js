@@ -5,6 +5,7 @@ import { logger } from '../utils/logger.js';
 import FileHelpers from '../utils/fileHelpers.js';
 import searchRoutes from '../routes/searchRoutes.js';
 import healAndRestoreRoutes from '../routes/healAndRestore.js';
+import profileInitRoutes from '../routes/profileInitRoutes.js';
 
 const app = express();
 
@@ -33,6 +34,7 @@ app.use((req, res, next) => {
 // Routes
 app.use('/', searchRoutes);
 app.use('/heal-restore', healAndRestoreRoutes);
+app.use('/api/profile-init', profileInitRoutes);
 
 // Error handling middleware
 app.use((error, req, res, next) => {
@@ -97,6 +99,8 @@ async function startServer() {
       logger.info(`  GET  http://localhost:${config.port}/health    - Health check`);
       logger.info(`  GET  http://localhost:${config.port}/heal-restore/status - Check heal & restore status`);
       logger.info(`  POST http://localhost:${config.port}/heal-restore/authorize - Authorize heal & restore`);
+      logger.info(`  POST http://localhost:${config.port}/api/profile-init - Initialize LinkedIn profile database`);
+      logger.info(`  GET  http://localhost:${config.port}/api/profile-init/health - Profile init health check`);
     });
   } catch (error) {
     logger.error('Failed to start server:', error);

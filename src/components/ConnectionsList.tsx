@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useConnections } from '@/hooks/useConnections';
+import { useProfileInit } from '@/hooks/useProfileInit';
 import { Connection } from '@/services/apiService';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -7,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Search, Users, MessageSquare, Tag, Calendar, Filter, X } from 'lucide-react';
+import { Search, Users, MessageSquare, Tag, Calendar, Filter, X, Database } from 'lucide-react';
 import ConnectionCard from './ConnectionCard';
 
 // Fake data for when server is unavailable
@@ -115,6 +116,12 @@ const ConnectionsList: React.FC<ConnectionsListProps> = ({
   const [activeTags, setActiveTags] = useState<string[]>([]);
   
   const { connections, loading, error, refetch } = useConnections();
+  const { 
+    isInitializing, 
+    initializationMessage, 
+    initializationError, 
+    initializeProfile 
+  } = useProfileInit();
   
   // Use fake data if no real connections are available
   const displayConnections = connections.length > 0 ? connections : generateFakeConnections();
@@ -186,6 +193,14 @@ const ConnectionsList: React.FC<ConnectionsListProps> = ({
 
   const clearAllTags = () => {
     setActiveTags([]);
+  };
+
+  // Handle profile initialization with connection refresh
+  const handleInitializeProfile = async () => {
+    await initializeProfile(() => {
+      // Refresh connections list to show any new data after successful initialization
+      refetch();
+    });
   };
 
   if (loading) {
@@ -288,21 +303,49 @@ const ConnectionsList: React.FC<ConnectionsListProps> = ({
             <Users className="h-5 w-5" />
             Your Connections ({filteredConnections.length})
           </CardTitle>
-          {activeTags.length > 0 && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={clearAllTags}
-              className="border-white/20 text-white hover:bg-white/10"
+          <div className="flex items-center gap-2">
+            {/* Initialize Profile Database Button */}
+            <Button 
+              onClick={handleInitializeProfile}
+              disabled={isInitializing}
+              className="bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700 text-white"
             >
-              <X className="h-3 w-3 mr-1" />
-              Clear Tag Filters
+              <Database className="h-4 w-4 mr-2" />
+              {isInitializing ? 'Initializing...' : 'Initialize Profile Database'}
             </Button>
-          )}
+            {activeTags.length > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={clearAllTags}
+                className="border-white/20 text-white hover:bg-white/10"
+              >
+                <X className="h-3 w-3 mr-1" />
+                Clear Tag Filters
+              </Button>
+            )}
+          </div>
         </div>
         <CardDescription className="text-slate-300">
           Manage and interact with your LinkedIn connections
         </CardDescription>
+        
+        {/* Status Messages */}
+        {initializationMessage && (
+          <div className="bg-green-600/20 border border-green-500/30 rounded-lg p-3 mt-4">
+            <p className="text-green-200 text-sm font-medium">
+              <strong>✓ Success:</strong> {initializationMessage}
+            </p>
+          </div>
+        )}
+        
+        {initializationError && (
+          <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 mt-4">
+            <p className="text-red-300 text-sm font-medium">
+              <strong>✗ Error:</strong> {initializationError}
+            </p>
+          </div>
+        )}
       </CardHeader>
       <CardContent>
         {/* Search and Filter Controls */}

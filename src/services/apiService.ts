@@ -307,6 +307,18 @@ class ApiService {
   async checkHealAndRestoreStatus(): Promise<ApiResponse<{ pendingSession?: { sessionId: string; timestamp: number } }>> {
     return this.makeRequest<{ pendingSession?: { sessionId: string; timestamp: number } }>('/heal-restore/status');
   }
+
+  // Profile Initialization Operations
+  async initializeProfileDatabase(credentials: {
+    searchName: string;
+    searchPassword: string;
+    jwtToken: string;
+  }): Promise<ApiResponse<{ success?: boolean; healing?: boolean; message?: string }>> {
+    return this.makeRequest<{ success?: boolean; healing?: boolean; message?: string }>('/profile-init', {
+      method: 'POST',
+      body: JSON.stringify(credentials),
+    });
+  }
 }
 
 export const apiService = new ApiService();
