@@ -51,6 +51,10 @@ export class SearchController {
       ...opts
     });
 
+    if (!state.healPhase) {
+      await FileHelpers.writeJSON(config.paths.linksFile, []);
+    }
+    
     try {
       const result = await this.performSearchFromState(state);
 

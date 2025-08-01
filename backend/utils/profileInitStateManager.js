@@ -109,8 +109,8 @@ export class ProfileInitStateManager {
       throw new Error('batchSize must be positive');
     }
 
-    // Validate connection list type
-    const validConnectionTypes = ['all', 'pending', 'sent'];
+    // Validate connection list type - updated for new connection types
+    const validConnectionTypes = ['allies', 'incoming', 'outgoing'];
     if (state.currentProcessingList && !validConnectionTypes.includes(state.currentProcessingList)) {
       throw new Error(`Invalid currentProcessingList: ${state.currentProcessingList}. Must be one of: ${validConnectionTypes.join(', ')}`);
     }
@@ -188,6 +188,86 @@ export class ProfileInitStateManager {
   }
 
   /**
+   * Create healing state for list creation scenarios
+   * @param {Object} baseState - Base state
+   * @param {string} connectionType - Type of connection being collected (allies, incoming, outgoing)
+   * @param {number} expansionAttempt - Current expansion attempt number
+   * @param {number} currentFileIndex - Current file index being written
+   * @param {Object} masterIndex - Current master index state
+   * @param {string} healReason - Reason for healing
+   * @returns {Object} List creation healing state
+   */
+  static createListCreationHealingState(baseState, connectionType, expansionAttempt, currentFileIndex, masterIndex, healReason) {
+    return {
+      ...baseState,
+      recursionCount: (baseState.recursionCount || 0) + 1,
+      healPhase: 'list-creation',
+      healReason: healReason,
+      currentProcessingList: connectionType,
+      listCreationState: {
+        connectionType: connectionType,
+        expansionAttempt: expansionAttempt,
+        currentFileIndex: currentFileIndex,
+        masterIndexFile: baseState.masterIndexFile,
+        lastSavedFile: masterIndex?.files?.[`${connectionType}Connections`]?.slice(-1)?.[0] || null,
+        resumeFromExpansion: true
+      },
+      timestamp: new Date().toISOString()
+    };
+  }
+
+  /**
+   * Update state with list creation progress
+   * @param {Object} state - Current state
+   * @param {Object} progress - Progress update
+   * @returns {Object} Updated state
+   */
+  static updateListCreationProgress(state, progress) {
+    return {
+      ...state,
+      currentProcessingList: progress.connectionType || state.currentProcessingList,
+      listCreationState: {
+        ...state.listCreationState,
+        expansionAttempt: progress.expansionAttempt !== undefined ? progress.expansionAttempt : state.listCreationState?.expansionAttempt,
+        currentFileIndex: progress.currentFileIndex !== undefined ? progress.currentFileIndex : state.listCreationState?.currentFileIndex,
+        lastSavedFile: progress.lastSavedFile || state.listCreationState?.lastSavedFile,
+        totalLinksCollected: progress.totalLinksCollected || state.listCreationState?.totalLinksCollected
+      },
+      timestamp: new Date().toISOString()
+    };
+  }
+
+  /**
+   * Check if state indicates list creation healing
+   * @param {Object} state - State to check
+   * @returns {boolean} True if list creation healing is in progress
+   */
+  static isListCreationHealingState(state) {
+    return state.healPhase === 'list-creation' && !!state.listCreationState;
+  }
+
+  /**
+   * Get list creation resume parameters from healing state
+   * @param {Object} state - Healing state
+   * @returns {Object} Resume parameters for list creation
+   */
+  static getListCreationResumeParams(state) {
+    if (!this.isListCreationHealingState(state)) {
+      return null;
+    }
+
+    return {
+      connectionType: state.listCreationState.connectionType,
+      expansionAttempt: state.listCreationState.expansionAttempt || 0,
+      currentFileIndex: state.listCreationState.currentFileIndex || 0,
+      masterIndexFile: state.listCreationState.masterIndexFile,
+      lastSavedFile: state.listCreationState.lastSavedFile,
+      resumeFromExpansion: state.listCreationState.resumeFromExpansion || false,
+      totalLinksCollected: state.listCreationState.totalLinksCollected || 0
+    };
+  }
+
+  /**
    * Reset state for fresh start while preserving authentication
    * @param {Object} state - Current state
    * @returns {Object} Reset state
@@ -195,13 +275,14 @@ export class ProfileInitStateManager {
   static resetProcessingState(state) {
     return {
       ...state,
-      currentProcessingList: 'all',
+      currentProcessingList: 'allies',
       currentBatch: 0,
       currentIndex: 0,
       completedBatches: [],
       masterIndexFile: null,
       healPhase: null,
       healReason: null,
+      listCreationState: null,
       timestamp: new Date().toISOString()
     };
   }

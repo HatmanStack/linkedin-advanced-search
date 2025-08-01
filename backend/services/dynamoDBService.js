@@ -30,11 +30,11 @@ class DynamoDBService {
         const headers = {
             'Content-Type': 'application/json'
         };
-        
+
         if (this.authToken) {
             headers['Authorization'] = `Bearer ${this.authToken}`;
         }
-        
+
         return headers;
     }
 
@@ -120,13 +120,13 @@ class DynamoDBService {
      * @param {Object} edgesData - Edge relationship data
      * @returns {Promise<Object>} Edge creation result
      */
-    async createGoodContactEdges(profileId) {
+    async createGoodContactEdges(profileId, connectionType) {
         try {
             // Call the edge-processing endpoint to create edges with possible status
             const response = await this.apiClient.post('/edge', {
                 operation: 'create_edges',
                 profileId: profileId,
-                status: 'possible',
+                status: connectionType,
                 edgesData: {
                     addedAt: new Date().toISOString()
                 }
@@ -141,15 +141,16 @@ class DynamoDBService {
 
     /**
      * Check if an edge relationship exists between user and connection profile
-     * @param {string} userProfileId - User profile ID (not used in current implementation, but kept for interface consistency)
+     * The user ID is extracted from the JWT token in the Lambda function
      * @param {string} connectionProfileId - Connection profile ID to check
      * @returns {Promise<boolean>} true if edge exists, false otherwise
      */
-    async checkEdgeExists(userProfileId, connectionProfileId) {
+    async checkEdgeExists(connectionProfileId) {
         try {
-            logger.info(`Checking edge existence between user and profile: ${connectionProfileId}`);
+            logger.info(`Checking edge existence for profile: ${connectionProfileId}`);
 
             // Call the edge-processing endpoint to check if edge exists
+            // The user ID is extracted from the JWT token in the Lambda function
             const response = await this.apiClient.post('/edge', {
                 operation: 'check_exists',
                 linkedinurl: connectionProfileId
@@ -157,7 +158,7 @@ class DynamoDBService {
 
             // Extract the result from the response
             const result = response.data?.result;
-            
+
             if (result && result.success) {
                 const exists = result.exists || false;
                 logger.info(`Edge existence check result: ${exists} for profile ${connectionProfileId}`);
@@ -169,7 +170,7 @@ class DynamoDBService {
 
         } catch (error) {
             logger.error(`Error checking edge existence for profile ${connectionProfileId}:`, error.message);
-            
+
             // If there's an error checking, assume edge doesn't exist to allow processing
             // This ensures the system continues to work even if the check fails
             return false;

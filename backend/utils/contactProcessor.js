@@ -60,12 +60,7 @@ export class ContactProcessor {
       logger.info(`Found good contact: ${link} (${goodContacts.length})`);
       
       await this.linkedInContactService.takeScreenShotAndUploadToS3(link, result.tempDir);
-      await this.dynamoDBService.setAuthToken(jwtToken);
-      
-      this.dynamoDBService.createGoodContactEdges(link, jwtToken).catch(error => {
-        logger.error('Error creating edges:', error);
-      });
-      
+    
       await FileHelpers.writeJSON(this.config.paths.goodConnectionsFile, goodContacts);
     }
 

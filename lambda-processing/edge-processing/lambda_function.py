@@ -57,7 +57,7 @@ class EdgeManager:
             
         try:
             # Encode the LinkedIn URL for use as profile ID
-            profile_id_b64 = base64.urlsafe_b64encode(linkedin_url.encode()).decode().rstrip('=')
+            profile_id_b64 = base64.urlsafe_b64encode(linkedin_url.encode()).decode()
             
             logger.info(f"Managing edges for user {user_id}, profile {profile_id_b64}, operation: {operation}")
             
@@ -105,7 +105,7 @@ class EdgeManager:
             # Handle both URL and encoded profile IDs
             if profile_id.startswith('http'):
                 linkedin_url = profile_id
-                profile_id_b64 = base64.urlsafe_b64encode(profile_id.encode()).decode().rstrip('=')
+                profile_id_b64 = base64.urlsafe_b64encode(profile_id.encode()).decode()
             else:
                 profile_id_b64 = profile_id
                 # Try to decode to get original URL

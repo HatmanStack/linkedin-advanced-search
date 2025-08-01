@@ -37,17 +37,11 @@ export const useProfileInit = (): UseProfileInitReturn => {
     setInitializationMessage('');
 
     try {
-      // Get JWT token from session storage or Cognito
-      const token = sessionStorage.getItem('jwt_token');
-      if (!token) {
-        throw new Error('Authentication token not found. Please log in again.');
-      }
-
       // Prepare the request payload following the same structure as search
+      // Note: JWT token is automatically handled by apiService via Authorization header
       const requestPayload = {
         searchName: credentials.email,
         searchPassword: credentials.password,
-        jwtToken: token,
       };
 
       // Make API call using the apiService

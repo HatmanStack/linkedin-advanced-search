@@ -207,10 +207,23 @@ const ConnectionsList: React.FC<ConnectionsListProps> = ({
     return (
       <Card className="bg-white/5 backdrop-blur-md border-white/10">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-white">
-            <Users className="h-5 w-5" />
-            Loading Connections...
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2 text-white">
+              <Users className="h-5 w-5" />
+              Loading Connections...
+            </CardTitle>
+            <div className="flex items-center gap-2">
+              {/* Initialize Profile Database Button */}
+              <Button 
+                onClick={handleInitializeProfile}
+                disabled={isInitializing}
+                className="bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700 text-white"
+              >
+                <Database className="h-4 w-4 mr-2" />
+                {isInitializing ? 'Initializing...' : 'Initialize Profile Database'}
+              </Button>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-center py-8">
@@ -228,10 +241,23 @@ const ConnectionsList: React.FC<ConnectionsListProps> = ({
     return (
       <Card className="bg-white/5 backdrop-blur-md border-white/10">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-red-400">
-            <Users className="h-5 w-5" />
-            Error Loading Connections
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2 text-red-400">
+              <Users className="h-5 w-5" />
+              Error Loading Connections
+            </CardTitle>
+            <div className="flex items-center gap-2">
+              {/* Initialize Profile Database Button */}
+              <Button 
+                onClick={handleInitializeProfile}
+                disabled={isInitializing}
+                className="bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700 text-white"
+              >
+                <Database className="h-4 w-4 mr-2" />
+                {isInitializing ? 'Initializing...' : 'Initialize Profile Database'}
+              </Button>
+            </div>
+          </div>
           <CardDescription className="text-slate-300">
             Unable to connect to server. Showing demo data below.
           </CardDescription>
