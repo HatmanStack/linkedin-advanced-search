@@ -46,7 +46,7 @@ class EdgeManager:
         Args:
             user_id (str): The user ID from Cognito
             linkedin_url (str): The LinkedIn profile URL/identifier
-            operation (str): Operation type (create, update_status, add_message, update_metadata)
+            operation (str): Operation type (create, update_status, add_message, update_metadata, check_exists)
             updates (dict): Updates to apply based on operation type
             
         Returns:
@@ -69,11 +69,13 @@ class EdgeManager:
                 return self._add_message(user_id, profile_id_b64, updates)
             elif operation == "update_metadata":
                 return self._update_metadata(user_id, profile_id_b64, updates)
+            elif operation == "check_exists":
+                return self._check_edge_exists(user_id, profile_id_b64)
             else:
                 return {
                     'success': False,
                     'error': f'Unsupported operation: {operation}',
-                    'supported_operations': ['create', 'update_status', 'add_message', 'update_metadata']
+                    'supported_operations': ['create', 'update_status', 'add_message', 'update_metadata', 'check_exists']
                 }
                 
         except Exception as e:
@@ -374,6 +376,43 @@ class EdgeManager:
             
         except Exception as e:
             logger.error(f"Error updating metadata: {str(e)}")
+            return {
+                'success': False,
+                'error': str(e)
+            }
+    
+    def _check_edge_exists(self, user_id, profile_id_b64):
+        """Check if an edge exists between user and profile"""
+        try:
+            logger.info(f"Checking edge existence for user {user_id}, profile {profile_id_b64}")
+            
+            # Check if user-to-profile edge exists
+            response = self.table.get_item(
+                Key={
+                    'PK': f'USER#{user_id}',
+                    'SK': f'PROFILE#{profile_id_b64}'
+                }
+            )
+            
+            edge_exists = 'Item' in response
+            edge_data = response.get('Item', {}) if edge_exists else {}
+            
+            logger.info(f"Edge exists: {edge_exists} for user {user_id}, profile {profile_id_b64}")
+            
+            return {
+                'success': True,
+                'exists': edge_exists,
+                'profileId': profile_id_b64,
+                'edge_data': {
+                    'status': edge_data.get('status'),
+                    'addedAt': edge_data.get('addedAt'),
+                    'updatedAt': edge_data.get('updatedAt'),
+                    'processedAt': edge_data.get('processedAt')
+                } if edge_exists else None
+            }
+            
+        except Exception as e:
+            logger.error(f"Error checking edge existence: {str(e)}")
             return {
                 'success': False,
                 'error': str(e)
