@@ -1,11 +1,13 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { UserPlus, Building, User, Search, Filter, X } from 'lucide-react';
-import ConnectionCard from './ConnectionCard';
+import { UserPlus, Building, User, Search, Filter, X, Loader2, AlertCircle } from 'lucide-react';
+import VirtualConnectionList from './VirtualConnectionList';
 import { useToast } from "@/hooks/use-toast";
+import { dbConnector, ApiError } from '@/services/dbConnector';
+import { connectionCache } from '@/utils/connectionCache';
 
 interface NewConnection {
   id: string;
@@ -20,89 +22,29 @@ interface NewConnection {
   linkedin_url?: string;
   isFakeData?: boolean;
   last_activity_summary?: string;
+  status?: 'possible' | 'incoming' | 'outgoing' | 'allies';
+  conversion_likelihood?: number;
 }
 
 interface NewConnectionSearchProps {
   searchResults: NewConnection[];
-  onSearch: (filters: { company: string; job: string; location: string }) => void;
+  onSearch: (filters: { company: string; job: string; location: string; userId: string }) => void;
   isSearching: boolean;
+  userId: string;
+  connectionsLoading?: boolean;
+  connectionsError?: string | null;
+  onRefresh?: () => void;
 }
 
-// Fake data for when server is unavailable
-const generateFakeConnections = (): NewConnection[] => [
-  {
-    id: 'fake-1',
-    first_name: 'Sarah',
-    last_name: 'Johnson',
-    position: 'Senior Product Manager',
-    company: 'TechCorp Inc',
-    location: 'San Francisco, CA',
-    headline: 'Building innovative products that scale',
-    tags: ['Product Management', 'AI', 'SaaS', 'Leadership'],
-    common_interests: ['Product Management', 'AI', 'SaaS', 'Leadership'],
-    linkedin_url: 'sarah-johnson-pm',
-    last_activity_summary: 'Recently published an article about AI product strategy',
-    isFakeData: true
-  },
-  {
-    id: 'fake-2',
-    first_name: 'Michael',
-    last_name: 'Chen',
-    position: 'Full Stack Developer',
-    company: 'StartupXYZ',
-    location: 'New York, NY',
-    headline: 'Passionate about clean code and user experience',
-    tags: ['React', 'Node.js', 'TypeScript', 'AWS'],
-    common_interests: ['React', 'Node.js', 'TypeScript', 'AWS'],
-    linkedin_url: 'michael-chen-dev',
-    last_activity_summary: 'Shared insights about modern web development practices',
-    isFakeData: true
-  },
-  {
-    id: 'fake-3',
-    first_name: 'Emily',
-    last_name: 'Rodriguez',
-    position: 'UX Designer',
-    company: 'DesignStudio',
-    location: 'Austin, TX',
-    headline: 'Creating delightful user experiences',
-    tags: ['UX Design', 'Figma', 'User Research', 'Prototyping'],
-    common_interests: ['UX Design', 'Figma', 'User Research', 'Prototyping'],
-    linkedin_url: 'emily-rodriguez-ux',
-    last_activity_summary: 'Posted about accessibility in design systems',
-    isFakeData: true
-  },
-  {
-    id: 'fake-4',
-    first_name: 'David',
-    last_name: 'Kim',
-    position: 'Data Scientist',
-    company: 'DataCorp',
-    location: 'Seattle, WA',
-    headline: 'Turning data into actionable insights',
-    tags: ['Machine Learning', 'Python', 'Data Analysis', 'AI'],
-    common_interests: ['Machine Learning', 'Python', 'Data Analysis', 'AI'],
-    linkedin_url: 'david-kim-data',
-    last_activity_summary: 'Presented at the Data Science Summit 2024',
-    isFakeData: true
-  },
-  {
-    id: 'fake-5',
-    first_name: 'Lisa',
-    last_name: 'Thompson',
-    position: 'Marketing Director',
-    company: 'GrowthLabs',
-    location: 'Los Angeles, CA',
-    headline: 'Scaling B2B companies through strategic marketing',
-    tags: ['Marketing', 'Growth Hacking', 'B2B', 'Analytics'],
-    common_interests: ['Marketing', 'Growth Hacking', 'B2B', 'Analytics'],
-    linkedin_url: 'lisa-thompson-marketing',
-    last_activity_summary: 'Launched a successful multi-channel campaign',
-    isFakeData: true
-  }
-];
-
-const NewConnectionSearch = ({ searchResults, onSearch, isSearching }: NewConnectionSearchProps) => {
+const NewConnectionSearch = ({
+  searchResults,
+  onSearch,
+  isSearching,
+  userId,
+  connectionsLoading = false,
+  connectionsError = null,
+  onRefresh
+}: NewConnectionSearchProps) => {
   const { toast } = useToast();
   const [searchFilters, setSearchFilters] = useState({
     company: '',
@@ -111,8 +53,8 @@ const NewConnectionSearch = ({ searchResults, onSearch, isSearching }: NewConnec
   });
   const [activeTags, setActiveTags] = useState<string[]>([]);
 
-  // Use fake data if no search results are available
-  const displayResults = searchResults.length > 0 ? searchResults : generateFakeConnections();
+  // Use real data from props instead of fake data
+  const displayResults = searchResults.length > 0 ? searchResults : [];
 
   // Get all unique tags from connections
   const allTags = useMemo(() => {
@@ -132,12 +74,12 @@ const NewConnectionSearch = ({ searchResults, onSearch, isSearching }: NewConnec
     return [...displayResults].sort((a, b) => {
       const aTagsMatch = (a.tags || a.common_interests || []).filter(tag => activeTags.includes(tag)).length;
       const bTagsMatch = (b.tags || b.common_interests || []).filter(tag => activeTags.includes(tag)).length;
-      
+
       // Sort by number of matching tags (descending)
       if (aTagsMatch !== bTagsMatch) {
         return bTagsMatch - aTagsMatch;
       }
-      
+
       // If same number of matches, sort alphabetically
       return `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`);
     });
@@ -145,37 +87,57 @@ const NewConnectionSearch = ({ searchResults, onSearch, isSearching }: NewConnec
 
   const handleSearch = () => {
     console.log("Your Linkedin Credentials are not persistent for Security.  For now, add them each time the application is Initiated.");
-    onSearch(searchFilters);
-  };
-
-  const handleNewConnectionClick = (connection: NewConnection) => {
-    if (connection.linkedin_url) {
-      const fullLinkedInUrl = `https://www.linkedin.com/in/${connection.linkedin_url}`;
-      window.open(fullLinkedInUrl, '_blank', 'noopener,noreferrer');
-    } else {
-      // For connections without LinkedIn URL, search LinkedIn
-      const searchQuery = `${connection.first_name} ${connection.last_name} ${connection.company}`;
-      const linkedinSearchUrl = `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(searchQuery)}`;
-      window.open(linkedinSearchUrl, '_blank', 'noopener,noreferrer');
-      
-      toast({
-        title: "Searching LinkedIn",
-        description: `Opening LinkedIn search for ${connection.first_name} ${connection.last_name}`,
-      });
-    }
-  };
-
-  const handleTagClick = (tag: string) => {
-    setActiveTags(prev => 
-      prev.includes(tag) 
-        ? prev.filter(t => t !== tag)
-        : [...prev, tag]
-    );
+    onSearch({
+      ...searchFilters,
+      userId
+    });
   };
 
   const clearAllTags = () => {
     setActiveTags([]);
   };
+
+  // Handle connection removal with optimistic updates
+  const handleRemoveConnection = useCallback(async (connectionId: string) => {
+    try {
+      // Update status from 'possible' to 'processed' using DBConnector
+      await dbConnector.updateConnectionStatus(connectionId, 'processed');
+
+      // Update cache
+      connectionCache.update(connectionId, { status: 'processed' });
+
+      // Show success feedback
+      toast({
+        title: "Connection Removed",
+        description: "Connection has been removed from new connections.",
+        variant: "default",
+      });
+
+      // The parent component should handle removing from UI via state management
+      if (onRefresh) {
+        onRefresh();
+      }
+    } catch (error) {
+      console.error('Error removing connection:', error);
+      const errorMessage = error instanceof ApiError ? error.message : 'Failed to remove connection';
+
+      // Show error feedback
+      toast({
+        title: "Remove Failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    }
+  }, [toast, onRefresh]);
+
+  // Handle tag clicks for filtering
+  const handleTagClick = useCallback((tag: string) => {
+    setActiveTags(prev =>
+      prev.includes(tag)
+        ? prev.filter(t => t !== tag)
+        : [...prev, tag]
+    );
+  }, []);
 
   return (
     <div className="grid lg:grid-cols-4 gap-8">
@@ -198,17 +160,17 @@ const NewConnectionSearch = ({ searchResults, onSearch, isSearching }: NewConnec
                 </Button>
               )}
             </div>
-            
+
             {/* Demo Data Warning */}
             {searchResults.length === 0 && (
               <div className="bg-yellow-600/20 border border-yellow-500/30 rounded-lg p-3 mb-4">
                 <p className="text-yellow-200 text-sm font-medium">
-                  <strong>⚠️ Demo Mode:</strong> The data displayed below is sample data for demonstration purposes. 
+                  <strong>⚠️ Demo Mode:</strong> The data displayed below is sample data for demonstration purposes.
                   Connect to your DynamoDB backend to see real LinkedIn connections.
                 </p>
               </div>
             )}
-            
+
             {/* Search Filters */}
             <div className="grid grid-cols-3 gap-4 mt-4">
               <div className="relative">
@@ -240,33 +202,71 @@ const NewConnectionSearch = ({ searchResults, onSearch, isSearching }: NewConnec
               </div>
             </div>
           </CardHeader>
-          <CardContent className="space-y-4 h-[100vh] overflow-y-auto">
-            {sortedConnections.map((connection) => (
-              <ConnectionCard
-                key={connection.id}
-                connection={{
-                  id: connection.id,
-                  first_name: connection.first_name,
-                  last_name: connection.last_name,
-                  position: connection.position,
-                  company: connection.company,
-                  location: connection.location,
-                  headline: connection.headline,
-                  tags: connection.tags,
-                  linkedin_url: connection.linkedin_url,
-                  recent_activity: connection.last_activity_summary,
-                  common_interests: connection.tags || connection.common_interests,
-                  messages: 0,
-                  date_added: new Date().toISOString(),
-                  isFakeData: connection.isFakeData === true,
-                  last_activity_summary: connection.last_activity_summary
-                }}
-                isNewConnection={true}
-                onNewConnectionClick={handleNewConnectionClick}
-                onTagClick={handleTagClick}
-                activeTags={activeTags}
-              />
-            ))}
+          <CardContent className="p-2 pt-4">
+            {/* Loading State */}
+            {connectionsLoading && (
+              <div className="flex items-center justify-center h-64 p-6">
+                <div className="flex flex-col items-center space-y-4">
+                  <Loader2 className="h-8 w-8 animate-spin text-blue-400" />
+                  <p className="text-slate-300">Loading new connections...</p>
+                </div>
+              </div>
+            )}
+
+            {/* Error State */}
+            {connectionsError && !connectionsLoading && (
+              <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-6 m-6">
+                <div className="flex items-center space-x-3">
+                  <AlertCircle className="h-5 w-5 text-red-400 flex-shrink-0" />
+                  <div>
+                    <h3 className="text-red-300 font-medium">Failed to Load New Connections</h3>
+                    <p className="text-red-400 text-sm mt-1">{connectionsError}</p>
+                    {onRefresh && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="mt-3 border-red-500/30 text-red-300 hover:bg-red-500/10"
+                        onClick={onRefresh}
+                      >
+                        Try Again
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* New Connections with Virtual Scrolling */}
+            {!connectionsLoading && !connectionsError && (
+              <>
+                {sortedConnections.length === 0 ? (
+                  <div className="flex items-center justify-center h-64 text-slate-400 p-6">
+                    <div className="text-center">
+                      <UserPlus className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                      <p className="text-lg mb-2">No new connections available</p>
+                      <p className="text-sm">
+                        Check back later or use the search above to find new connections.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-6">
+                    <VirtualConnectionList
+                      connections={sortedConnections}
+                      isNewConnection={true}
+                      onRemove={handleRemoveConnection}
+                      onTagClick={handleTagClick}
+                      activeTags={activeTags}
+                      className="min-h-[80vh]"
+                      itemHeight={206} // Card height + 24px margin
+                      showFilters={true}
+                      sortBy="conversion_likelihood"
+                      sortOrder="desc"
+                    />
+                  </div>
+                )}
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -277,7 +277,7 @@ const NewConnectionSearch = ({ searchResults, onSearch, isSearching }: NewConnec
             <CardTitle className="text-white">Search Filters</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Button 
+            <Button
               onClick={handleSearch}
               disabled={isSearching}
               className="w-full bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700 text-white"

@@ -1,0 +1,16 @@
+[
+  {
+    "operation": "status-change",
+    "fromStatus": "good_contact",
+    "toStatus": "possible",
+    "userId": null,
+    "description": "Convert all good_contact status to possible"
+  },
+  {
+    "operation": "status-change", 
+    "fromStatus": "bad_contact",
+    "toStatus": "processed",
+    "userId": "specific-user-123",
+    "description": "Convert bad_contact to processed for specific user"
+  }
+]
