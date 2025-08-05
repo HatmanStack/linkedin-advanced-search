@@ -1,35 +1,27 @@
 import { Badge } from "@/components/ui/badge";
 import { MessageSquare, ExternalLink, User, Building, MapPin, Tag } from 'lucide-react';
+import type { Connection, ConnectionCardProps } from '@/types';
 
-interface Connection {
-  id: string;
-  first_name: string;
-  last_name: string;
-  position: string;
-  company: string;
-  location?: string;
-  headline?: string;
-  recent_activity?: string;
-  common_interests?: string[];
-  messages?: number;
-  date_added?: string;
-  linkedin_url?: string;
-  tags?: string[];
-  last_action_summary?: string;
-  isFakeData?: boolean;
-  last_activity_summary?: string;
-}
-
-interface ConnectionCardProps {
-  connection: Connection;
-  isSelected?: boolean;
-  isNewConnection?: boolean;
-  onSelect?: (connectionId: string) => void;
-  onNewConnectionClick?: (connection: Connection) => void;
-  onTagClick?: (tag: string) => void;
-  activeTags?: string[];
-}
-
+/**
+ * ConnectionCard Component
+ * 
+ * Displays a connection's information in a card format with interactive elements.
+ * Supports both regular connections and new connection variants with different
+ * styling and behavior patterns.
+ * 
+ * @param props - The component props
+ * @param props.connection - Connection data to display
+ * @param props.isSelected - Whether this card is currently selected
+ * @param props.isNewConnection - Whether this is a new connection card variant
+ * @param props.onSelect - Callback when card is selected
+ * @param props.onNewConnectionClick - Callback for new connection card clicks
+ * @param props.onTagClick - Callback when a tag is clicked
+ * @param props.onMessageClick - Callback when message count is clicked
+ * @param props.activeTags - Array of currently active/selected tags
+ * @param props.className - Additional CSS classes
+ * 
+ * @returns JSX element representing the connection card
+ */
 const ConnectionCard = ({ 
   connection, 
   isSelected = false, 
@@ -37,22 +29,81 @@ const ConnectionCard = ({
   onSelect,
   onNewConnectionClick,
   onTagClick,
+  onMessageClick,
   activeTags = []
 }: ConnectionCardProps) => {
+  /**
+   * Handles card click events, opening LinkedIn profile in new tab
+   */
   const handleClick = () => {
-    if (isNewConnection && onNewConnectionClick) {
-      onNewConnectionClick(connection);
-    } else if (onSelect) {
-      onSelect(connection.id);
+    // If connection has LinkedIn URL or profile ID, open LinkedIn profile in new tab
+    if (connection.linkedin_url) {
+      // Check if it's already a full URL or just a profile ID
+      const linkedinUrl = connection.linkedin_url.startsWith('http') 
+        ? connection.linkedin_url 
+        : `https://linkedin.com/in/${connection.linkedin_url}`;
+      window.open(linkedinUrl, '_blank', 'noopener,noreferrer');
+    } else if (connection.id) {
+      // Fallback: try to construct LinkedIn URL from connection ID
+      const linkedinUrl = `https://linkedin.com/in/${connection.id}`;
+      window.open(linkedinUrl, '_blank', 'noopener,noreferrer');
+    } else {
+      // Final fallback: use existing callback logic
+      if (isNewConnection && onNewConnectionClick) {
+        onNewConnectionClick(connection);
+      } else if (onSelect) {
+        onSelect(connection.id);
+      }
     }
   };
 
+  /**
+   * Handles tag click events, preventing event bubbling and triggering tag callback
+   * 
+   * @param tag - The tag that was clicked
+   * @param e - The mouse event
+   */
   const handleTagClick = (tag: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (onTagClick) {
       onTagClick(tag);
     }
   };
+
+  /**
+   * Handles message count click events, preventing event bubbling and triggering message callback
+   * 
+   * @param e - The mouse event
+   */
+  const handleMessageClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onMessageClick) {
+      onMessageClick(connection);
+    }
+  };
+
+  /**
+   * Maps connection status to human-readable display configuration
+   * 
+   * @param status - The connection status to map
+   * @returns Display configuration object with label and color classes, or null if invalid
+   */
+  const getStatusDisplay = (status?: string) => {
+    switch (status) {
+      case 'possible':
+        return { label: 'New Connection', color: 'bg-green-600/20 text-green-300 border-green-500/30' };
+      case 'incoming':
+        return { label: 'Pending', color: 'bg-yellow-600/20 text-yellow-300 border-yellow-500/30' };
+      case 'outgoing':
+        return { label: 'Sent', color: 'bg-blue-600/20 text-blue-300 border-blue-500/30' };
+      case 'allies':
+        return { label: 'Connected', color: 'bg-purple-600/20 text-purple-300 border-purple-500/30' };
+      default:
+        return null;
+    }
+  };
+
+  const statusDisplay = getStatusDisplay(connection.status);
 
   return (
     <div
@@ -76,6 +127,15 @@ const ConnectionCard = ({
               {connection.first_name} {connection.last_name}
             </h3>
             <div className="flex items-center space-x-2 flex-shrink-0">
+              {/* Connection Status Badge */}
+              {statusDisplay && (
+                <Badge 
+                  variant="outline" 
+                  className={`text-xs px-2 py-1 border ${statusDisplay.color}`}
+                >
+                  {statusDisplay.label}
+                </Badge>
+              )}
               {/* Demo Data Badge */}
               {connection.isFakeData && (
                 <div className="bg-yellow-600/90 text-yellow-100 text-xs px-2 py-1 rounded-full font-medium shadow-lg">
@@ -83,9 +143,25 @@ const ConnectionCard = ({
                 </div>
               )}
               {connection.messages !== undefined && (
-                <div className="flex items-center text-slate-300 text-sm">
+                <div 
+                  className={`flex items-center text-sm transition-all duration-200 ${
+                    onMessageClick && connection.messages > 0
+                      ? 'text-slate-300 hover:text-blue-300 cursor-pointer hover:bg-blue-600/10 px-2 py-1 rounded'
+                      : connection.messages === 0
+                      ? 'text-slate-500'
+                      : 'text-slate-300'
+                  }`}
+                  onClick={onMessageClick && connection.messages > 0 ? handleMessageClick : undefined}
+                  title={
+                    connection.messages === 0 
+                      ? 'No messages yet' 
+                      : onMessageClick 
+                      ? 'Click to view message history' 
+                      : undefined
+                  }
+                >
                   <MessageSquare className="h-3 w-3 mr-1" />
-                  {connection.messages}
+                  {connection.messages === 0 ? 'No messages' : connection.messages}
                 </div>
               )}
               {isNewConnection && connection.linkedin_url && (

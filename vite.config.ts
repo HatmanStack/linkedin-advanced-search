@@ -16,5 +16,11 @@ export default defineConfig({
   },
   optimizeDeps: {
     include: ['amazon-cognito-identity-js']
-  }
+  },
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: ['./src/__tests__/setup.ts'],
+    css: true,
+  },
 })

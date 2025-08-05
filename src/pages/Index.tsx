@@ -55,7 +55,7 @@ const Index = () => {
                   <Button onClick={handleGetStarted} className="bg-blue-600 hover:bg-blue-700 text-white">
                     Dashboard
                   </Button>
-                  <Button onClick={handleSignOut} variant="outline" className="border-white/20 text-white hover:bg-white/10">
+                  <Button onClick={handleSignOut} variant="outline" className="bg-slate-700 border-white/20 text-white hover:bg-white/10">
                     Sign Out
                   </Button>
                 </>

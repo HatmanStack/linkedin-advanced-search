@@ -40,7 +40,7 @@ export class SearchController {
       companyLocation,
       username: searchName ? '[REDACTED]' : 'not provided'
     });
-
+    
     const state = SearchStateManager.buildInitialState({
       companyName,
       companyRole,

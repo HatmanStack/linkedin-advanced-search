@@ -1,20 +1,27 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { MessageSquare, Users, Settings, UserPlus, FileText, LogOut } from 'lucide-react';
+import { MessageSquare, Users, Settings, UserPlus, FileText, LogOut, Loader2, AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useHealAndRestore } from '@/contexts/HealAndRestoreContext'; // Added
 import { useToast } from '@/hooks/use-toast';
 import { useSearchResults } from '@/hooks';
 import type { SearchFormData } from '@/utils/validation';
-import ConnectionsList from '@/components/ConnectionsList';
 import ConversationTopicPanel from '@/components/ConversationTopicPanel';
 import NewConnectionSearch from '@/components/NewConnectionSearch';
 import PostCreator from '@/components/PostCreator';
 import SavedPostsList from '@/components/SavedPostsList';
 import PostAIAssistant from '@/components/PostAIAssistant';
 import { useLinkedInCredentials } from '@/contexts/LinkedInCredentialsContext';
+import StatusPicker, { StatusValue, ConnectionCounts } from '@/components/StatusPicker';
+import VirtualConnectionList from '@/components/VirtualConnectionList';
+import MessageModal from '@/components/MessageModal';
+import ConnectionFiltersComponent from '@/components/ConnectionFilters';
+import { dbConnector, Connection, Message, ApiError } from '@/services/dbConnector';
+import { connectionCache } from '@/utils/connectionCache';
+import { ConnectionListSkeleton } from '@/components/ConnectionCardSkeleton';
+import { NoConnectionsState } from '@/components/ui/empty-state';
 
 // Sample data for demonstration with new parameters
 const sampleConnections = [
@@ -81,45 +88,6 @@ const sampleConnections = [
 ];
 
 // Sample data for demonstration
-const sampleNewConnections = [
-  {
-    id: '4',
-    first_name: 'David',
-    last_name: 'Thompson',
-    position: 'Marketing Director',
-    company: 'GrowthLabs',
-    location: 'New York, NY',
-    headline: 'Scaling B2B SaaS companies through data-driven marketing',
-    common_interests: ['Marketing', 'SaaS', 'Analytics'],
-    linkedin_url: 'david-thompson-marketing',
-    isFakeData: true
-  },
-  {
-    id: '5',
-    first_name: 'Lisa',
-    last_name: 'Wang',
-    position: 'DevOps Engineer',
-    company: 'CloudTech',
-    location: 'San Francisco, CA',
-    headline: 'Building scalable infrastructure for modern applications',
-    common_interests: ['DevOps', 'Cloud Computing', 'Kubernetes'],
-    linkedin_url: 'lisa-wang-devops',
-    isFakeData: true
-  },
-  {
-    id: '6',
-    first_name: 'Alex',
-    last_name: 'Rivera',
-    position: 'Data Scientist',
-    company: 'InsightAI',
-    location: 'Austin, TX',
-    headline: 'Turning data into actionable insights',
-    common_interests: ['Data Science', 'Machine Learning', 'Python'],
-    linkedin_url: 'alex-rivera-data',
-    isFakeData: true
-  }
-];
-
 const Dashboard = () => {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
@@ -136,6 +104,23 @@ const Dashboard = () => {
   const [isResearching, setIsResearching] = useState(false);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
+  
+  // Connection management state
+  const [connections, setConnections] = useState<Connection[]>([]);
+  const [connectionsLoading, setConnectionsLoading] = useState(false);
+  const [connectionsError, setConnectionsError] = useState<string | null>(null);
+  const [selectedStatus, setSelectedStatus] = useState<StatusValue>('all');
+  const [connectionCounts, setConnectionCounts] = useState<ConnectionCounts>({
+    incoming: 0,
+    outgoing: 0,
+    allies: 0,
+    total: 0
+  });
+  
+  // Message modal state
+  const [messageModalOpen, setMessageModalOpen] = useState(false);
+  const [selectedConnectionForMessages, setSelectedConnectionForMessages] = useState<Connection | null>(null);
+  const [messageHistory, setMessageHistory] = useState<Message[]>([]);
 
   // Use existing search functionality
   const {
@@ -158,6 +143,184 @@ const Dashboard = () => {
   useEffect(() => {
     startListening();
   }, [startListening]);
+
+  // Initialize connections data on component mount
+  useEffect(() => {
+    if (user) {
+      fetchConnections();
+    }
+  }, [user]);
+
+  // Connection management functions
+  const fetchConnections = useCallback(async () => {
+    if (!user || connectionsLoading) return;
+
+    setConnectionsLoading(true);
+    setConnectionsError(null);
+
+    try {
+      // Fetch all connections from DynamoDB
+      const fetchedConnections = await dbConnector.getConnectionsByStatus();
+      
+      // Update connections state
+      setConnections(fetchedConnections);
+      
+      // Update connection cache
+      connectionCache.setMultiple(fetchedConnections);
+      
+      // Calculate connection counts
+      const counts = calculateConnectionCounts(fetchedConnections);
+      setConnectionCounts(counts);
+
+      console.log('Connections fetched successfully:', fetchedConnections.length);
+    } catch (error) {
+      console.error('Error fetching connections:', error);
+      const errorMessage = error instanceof ApiError ? error.message : 'Failed to fetch connections';
+      setConnectionsError(errorMessage);
+      
+      toast({
+        title: "Failed to Load Connections",
+        description: errorMessage,
+        variant: "destructive"
+      });
+    } finally {
+      setConnectionsLoading(false);
+    }
+  }, [user, toast]);
+
+  const calculateConnectionCounts = useCallback((connections: Connection[]): ConnectionCounts => {
+    const counts = {
+      incoming: 0,
+      outgoing: 0,
+      allies: 0,
+      total: connections.length
+    };
+
+    connections.forEach(connection => {
+      switch (connection.status) {
+        case 'incoming':
+          counts.incoming++;
+          break;
+        case 'outgoing':
+          counts.outgoing++;
+          break;
+        case 'allies':
+          counts.allies++;
+          break;
+      }
+    });
+
+    return counts;
+  }, []);
+
+  const updateConnectionStatus = useCallback(async (connectionId: string, newStatus: 'possible' | 'incoming' | 'outgoing' | 'allies' | 'processed') => {
+    try {
+      // Optimistic update
+      setConnections(prev => prev.map(conn => 
+        conn.id === connectionId ? { ...conn, status: newStatus } : conn
+      ));
+
+      // Update cache
+      connectionCache.update(connectionId, { status: newStatus });
+
+      // Update database
+      await dbConnector.updateConnectionStatus(connectionId, newStatus);
+
+      // Recalculate counts
+      const updatedConnections = connections.map(conn => 
+        conn.id === connectionId ? { ...conn, status: newStatus } : conn
+      );
+      const counts = calculateConnectionCounts(updatedConnections);
+      setConnectionCounts(counts);
+
+      toast({
+        title: "Connection Updated",
+        description: "Connection status has been updated successfully.",
+        variant: "default"
+      });
+    } catch (error) {
+      console.error('Error updating connection status:', error);
+      
+      // Rollback optimistic update
+      setConnections(prev => prev.map(conn => 
+        conn.id === connectionId ? { ...conn, status: connections.find(c => c.id === connectionId)?.status || 'possible' } : conn
+      ));
+
+      const errorMessage = error instanceof ApiError ? error.message : 'Failed to update connection';
+      toast({
+        title: "Update Failed",
+        description: errorMessage,
+        variant: "destructive"
+      });
+    }
+  }, [connections, calculateConnectionCounts, toast]);
+
+  // Message modal functions
+  const handleMessageClick = useCallback(async (connection: Connection) => {
+    setSelectedConnectionForMessages(connection);
+    setMessageModalOpen(true);
+
+    try {
+      // Fetch message history from database
+      const messages = await dbConnector.getMessageHistory(connection.id);
+      setMessageHistory(messages);
+    } catch (error) {
+      console.error('Error fetching message history:', error);
+      const errorMessage = error instanceof ApiError ? error.message : 'Failed to load message history';
+      
+      toast({
+        title: "Failed to Load Messages",
+        description: errorMessage,
+        variant: "destructive"
+      });
+      
+      // Set empty message history on error
+      setMessageHistory([]);
+    }
+  }, [toast]);
+
+  const handleCloseMessageModal = useCallback(() => {
+    setMessageModalOpen(false);
+    setSelectedConnectionForMessages(null);
+    setMessageHistory([]);
+  }, []);
+
+  const handleSendMessage = useCallback(async (message: string): Promise<void> => {
+    // Placeholder for future API integration
+    console.log('Sending message:', message, 'to connection:', selectedConnectionForMessages?.id);
+    
+    toast({
+      title: "Message Sending Not Implemented",
+      description: "Message sending functionality will be available in a future update.",
+      variant: "default"
+    });
+    
+    // For now, just add the message to local state for demo purposes
+    if (selectedConnectionForMessages) {
+      const newMessage: Message = {
+        id: `msg-${Date.now()}`,
+        content: message,
+        timestamp: new Date().toISOString(),
+        sender: 'user'
+      };
+      
+      setMessageHistory(prev => [...prev, newMessage]);
+    }
+  }, [selectedConnectionForMessages, toast]);
+
+  // Filtered connections based on selected status and tab
+  const filteredConnections = useMemo(() => {
+    return connections.filter(connection => {
+      if (selectedStatus === 'all') {
+        return ['incoming', 'outgoing', 'allies'].includes(connection.status);
+      }
+      return connection.status === selectedStatus;
+    });
+  }, [connections, selectedStatus]);
+
+  const newConnections = useMemo(() => {
+    return connections.filter(connection => connection.status === 'possible');
+  }, [connections]);
 
   const loadSavedPosts = async () => {
     try {
@@ -498,14 +661,81 @@ const Dashboard = () => {
           <TabsContent value="connections" className="space-y-6">
             <div className="grid lg:grid-cols-3 gap-8">
               <div className="lg:col-span-2">
-                <ConnectionsList
-                  selectedConnections={selectedConnections}
-                  onSelectionChange={setSelectedConnections}
-                  onConnectionSelect={(connection) => toggleConnectionSelection(connection.connection_id)}
-                />
+                {/* Loading State */}
+                {connectionsLoading && (
+                  <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-lg p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h2 className="text-xl font-semibold text-white">Your Connections</h2>
+                      <div className="text-sm text-slate-400">Loading...</div>
+                    </div>
+                    <ConnectionListSkeleton count={5} />
+                  </div>
+                )}
+
+                {/* Error State */}
+                {connectionsError && !connectionsLoading && (
+                  <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-6">
+                    <div className="flex items-center space-x-3">
+                      <AlertCircle className="h-5 w-5 text-red-400 flex-shrink-0" />
+                      <div>
+                        <h3 className="text-red-300 font-medium">Failed to Load Connections</h3>
+                        <p className="text-red-400 text-sm mt-1">{connectionsError}</p>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="mt-3 border-red-500/30 text-red-300 hover:bg-red-500/10"
+                          onClick={fetchConnections}
+                        >
+                          Try Again
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Connections List with Virtual Scrolling */}
+                {!connectionsLoading && !connectionsError && (
+                  <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-lg p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h2 className="text-xl font-semibold text-white">Your Connections</h2>
+                      <div className="text-sm text-slate-400">
+                        {filteredConnections.length} of {connections.length} connections
+                      </div>
+                    </div>
+                    
+                    {filteredConnections.length === 0 ? (
+                      <NoConnectionsState
+                        type="filtered"
+                        onRefresh={fetchConnections}
+                        onClearFilters={() => setSelectedStatus('all')}
+                        className="py-16"
+                      />
+                    ) : (
+                      <VirtualConnectionList
+                        connections={filteredConnections}
+                        onSelect={toggleConnectionSelection}
+                        onMessageClick={handleMessageClick}
+                        selectedConnectionId={selectedConnections[0]} // Show first selected as highlighted
+                        className="min-h-[500px]"
+                        itemHeight={196} // Card height + 24px margin
+                        showFilters={true}
+                        sortBy="name"
+                        sortOrder="asc"
+                      />
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="space-y-6">
+                <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-lg p-6">
+                  <StatusPicker
+                    selectedStatus={selectedStatus}
+                    onStatusChange={setSelectedStatus}
+                    connectionCounts={connectionCounts}
+                  />
+                </div>
+                
                 <ConversationTopicPanel
                   topic={conversationTopic}
                   onTopicChange={setConversationTopic}
@@ -517,11 +747,15 @@ const Dashboard = () => {
           </TabsContent>
 
           <TabsContent value="new-connections" className="space-y-6">
+            {/* New Connection Search with Virtual Scrolling */}
             <NewConnectionSearch
-              searchResults={linkedinSearchResults}
+              searchResults={newConnections}
               onSearch={handleLinkedInSearch}
               isSearching={isSearchingLinkedIn || loading}
               userId={user?.id || ''}
+              connectionsLoading={connectionsLoading}
+              connectionsError={connectionsError}
+              onRefresh={fetchConnections}
             />
 
             {error && (
@@ -534,36 +768,46 @@ const Dashboard = () => {
           </TabsContent>
 
           <TabsContent value="new-post" className="space-y-6">
-            <div className="grid lg:grid-cols-3 gap-8">
-              <div className="lg:col-span-2">
+            <div className="grid lg:grid-cols-2 gap-8">
+              <div className="space-y-6">
                 <PostCreator
                   content={postContent}
                   onContentChange={setPostContent}
                   onSaveDraft={handleSaveDraft}
-                  onPublishPost={handlePublishPost}
-                  isSavingDraft={isSavingDraft}
+                  onPublish={handlePublishPost}
+                  isSaving={isSavingDraft}
                   isPublishing={isPublishing}
                 />
-
-                <SavedPostsList
-                  posts={savedPosts}
-                  onLoadPost={handleLoadDraft}
-                  onDeletePost={handleDeleteDraft}
-                />
-              </div>
-
-              <div className="space-y-6">
+                
                 <PostAIAssistant
                   onGenerateIdeas={handleGenerateIdeas}
                   onResearchTopics={handleResearchTopics}
-                  isGeneratingIdeas={isGeneratingIdeas}
+                  isGenerating={isGeneratingIdeas}
                   isResearching={isResearching}
+                />
+              </div>
+              
+              <div>
+                <SavedPostsList
+                  posts={savedPosts}
+                  onLoadDraft={handleLoadDraft}
+                  onDeleteDraft={handleDeleteDraft}
                 />
               </div>
             </div>
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Message Modal */}
+      {selectedConnectionForMessages && (
+        <MessageModal
+          isOpen={messageModalOpen}
+          connection={selectedConnectionForMessages}
+          onClose={handleCloseMessageModal}
+          onSendMessage={handleSendMessage}
+        />
+      )}
     </div>
   );
 };
