@@ -2,6 +2,7 @@ export const API_CONFIG = {
   BASE_URL: 'http://localhost:3001',
   ENDPOINTS: {
     SEARCH: '/',
+    MESSAGE_GENERATION: '/ai/generate-message',
   },
   TIMEOUT: 100000000,
 } as const;

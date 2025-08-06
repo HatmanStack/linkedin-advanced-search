@@ -104,7 +104,7 @@ export const MessageModal: React.FC<MessageModalProps> = ({
    */
   const handleSendMessage = async () => {
     const trimmedMessage = messageInput.trim();
-    
+
     // Validate message input
     if (!trimmedMessage) {
       toast({
@@ -137,7 +137,7 @@ export const MessageModal: React.FC<MessageModalProps> = ({
     try {
       await onSendMessage(trimmedMessage);
       setMessageInput(''); // Clear input on success
-      
+
       toast({
         title: "Message Sent",
         description: "Your message has been sent successfully.",
@@ -145,10 +145,10 @@ export const MessageModal: React.FC<MessageModalProps> = ({
       });
     } catch (error) {
       console.error('Error sending message:', error);
-      
+
       // Transform error for user-friendly display
       const errorInfo = transformErrorForUser(
-        error, 
+        error,
         ERROR_MESSAGES.SEND_MESSAGE,
         [
           {
@@ -158,7 +158,7 @@ export const MessageModal: React.FC<MessageModalProps> = ({
           }
         ]
       );
-      
+
       toast({
         title: "Send Failed",
         description: errorInfo.userMessage,
@@ -194,7 +194,7 @@ export const MessageModal: React.FC<MessageModalProps> = ({
             Messages with {connectionName}
           </DialogTitle>
           <DialogDescription>
-            {connection.position && connection.company 
+            {connection.position && connection.company
               ? `${connection.position} at ${connection.company}`
               : connection.position || connection.company || 'LinkedIn Connection'
             }
@@ -203,7 +203,7 @@ export const MessageModal: React.FC<MessageModalProps> = ({
 
         {/* Message History */}
         <div className="flex-1 min-h-0">
-          <LoadingOverlay 
+          <LoadingOverlay
             isLoading={isLoadingMessages}
             message="Loading message history..."
             className="h-[400px] w-full border rounded-md"
@@ -237,8 +237,8 @@ export const MessageModal: React.FC<MessageModalProps> = ({
                       key={message.id || `msg-${index}`}
                       className={cn(
                         "flex flex-col max-w-[80%]",
-                        message.sender === 'user' 
-                          ? "ml-auto items-end" 
+                        message.sender === 'user'
+                          ? "ml-auto items-end"
                           : "mr-auto items-start"
                       )}
                     >

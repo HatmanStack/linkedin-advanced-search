@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { MessageSquare, ExternalLink, User, Building, MapPin, Tag } from 'lucide-react';
 import type { Connection, ConnectionCardProps } from '@/types';
 
@@ -7,7 +8,8 @@ import type { Connection, ConnectionCardProps } from '@/types';
  * 
  * Displays a connection's information in a card format with interactive elements.
  * Supports both regular connections and new connection variants with different
- * styling and behavior patterns.
+ * styling and behavior patterns. Includes checkbox functionality for selecting
+ * allies connections for messaging workflows.
  * 
  * @param props - The component props
  * @param props.connection - Connection data to display
@@ -19,6 +21,10 @@ import type { Connection, ConnectionCardProps } from '@/types';
  * @param props.onMessageClick - Callback when message count is clicked
  * @param props.activeTags - Array of currently active/selected tags
  * @param props.className - Additional CSS classes
+ * @param props.showCheckbox - Whether to show checkbox for connection selection
+ * @param props.isCheckboxEnabled - Whether the checkbox is enabled (only for allies status)
+ * @param props.isChecked - Whether the checkbox is checked
+ * @param props.onCheckboxChange - Callback when checkbox state changes
  * 
  * @returns JSX element representing the connection card
  */
@@ -30,7 +36,11 @@ const ConnectionCard = ({
   onNewConnectionClick,
   onTagClick,
   onMessageClick,
-  activeTags = []
+  activeTags = [],
+  showCheckbox = false,
+  isCheckboxEnabled = false,
+  isChecked = false,
+  onCheckboxChange
 }: ConnectionCardProps) => {
   /**
    * Handles card click events, opening LinkedIn profile in new tab
@@ -83,6 +93,26 @@ const ConnectionCard = ({
   };
 
   /**
+   * Handles checkbox change events, preventing event bubbling and triggering checkbox callback
+   * 
+   * @param checked - The new checked state
+   */
+  const handleCheckboxChange = (checked: boolean) => {
+    if (onCheckboxChange) {
+      onCheckboxChange(connection.id, checked);
+    }
+  };
+
+  /**
+   * Handles checkbox click events to prevent event bubbling
+   * 
+   * @param e - The mouse event
+   */
+  const handleCheckboxClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+  };
+
+  /**
    * Maps connection status to human-readable display configuration
    * 
    * @param status - The connection status to map
@@ -107,7 +137,7 @@ const ConnectionCard = ({
 
   return (
     <div
-      className={`p-4 rounded-lg border cursor-pointer transition-all duration-200 relative ${
+      className={`p-4 my-3 rounded-lg border cursor-pointer transition-all duration-200 relative ${
         isSelected
           ? 'bg-blue-600/20 border-blue-500'
           : 'bg-white/5 border-white/10 hover:bg-white/10'
@@ -115,6 +145,19 @@ const ConnectionCard = ({
       onClick={handleClick}
     >
       <div className="flex items-start space-x-4">
+        {/* Checkbox for connection selection - only show for allies status */}
+        {showCheckbox && connection.status === 'allies' && (
+          <div className="flex items-center pt-1" onClick={handleCheckboxClick}>
+            <Checkbox
+              checked={isChecked}
+              onCheckedChange={handleCheckboxChange}
+              disabled={!isCheckboxEnabled}
+              className="data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
+              aria-label={`Select ${connection.first_name} ${connection.last_name} for messaging`}
+            />
+          </div>
+        )}
+        
         {/* Profile Picture Space */}
         <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white font-semibold flex-shrink-0">
           {connection.first_name[0]}{connection.last_name[0]}
@@ -200,7 +243,7 @@ const ConnectionCard = ({
           )}
           
           {/* Tags - Clickable for Sorting */}
-          {(connection.tags || connection.common_interests) && (
+          {(connection.tags?.length || connection.common_interests?.length) && (
             <div className="flex flex-wrap gap-2 mb-2">
               <Tag className="h-3 w-3 text-slate-400 mr-1 flex-shrink-0" />
               {(connection.tags || connection.common_interests || []).map((tag: string, index: number) => (

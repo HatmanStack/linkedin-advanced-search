@@ -12,13 +12,13 @@ interface PostCreatorProps {
   isPublishing: boolean;
 }
 
-const PostCreator = ({ 
-  content, 
-  onContentChange, 
-  onSaveDraft, 
-  onPublishPost, 
-  isSavingDraft, 
-  isPublishing 
+const PostCreator = ({
+  content,
+  onContentChange,
+  onSaveDraft,
+  onPublishPost,
+  isSavingDraft,
+  isPublishing
 }: PostCreatorProps) => {
   return (
     <Card className="bg-white/5 backdrop-blur-md border-white/10">
@@ -43,7 +43,7 @@ const PostCreator = ({
             {content.length}/3000 characters
           </span>
           <div className="space-x-2">
-            <Button 
+            <Button
               className="bg-slate-700 hover:bg-slate-600 text-white border-slate-600 hover:border-slate-500"
               onClick={onSaveDraft}
               disabled={isSavingDraft}
@@ -51,7 +51,7 @@ const PostCreator = ({
               <Save className="h-4 w-4 mr-2" />
               {isSavingDraft ? 'Saving...' : 'Save Draft'}
             </Button>
-            <Button 
+            <Button
               disabled={!content.trim() || isPublishing}
               className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
               onClick={onPublishPost}

@@ -1,12 +1,13 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { MessageSquare, Users, Settings, UserPlus, FileText, LogOut, Loader2, AlertCircle } from 'lucide-react';
+import { MessageSquare, Users, Settings, UserPlus, FileText, LogOut, Loader2, AlertCircle, Database } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useHealAndRestore } from '@/contexts/HealAndRestoreContext'; // Added
 import { useToast } from '@/hooks/use-toast';
 import { useSearchResults } from '@/hooks';
+import { useProfileInit } from '@/hooks/useProfileInit';
 import type { SearchFormData } from '@/utils/validation';
 import ConversationTopicPanel from '@/components/ConversationTopicPanel';
 import NewConnectionSearch from '@/components/NewConnectionSearch';
@@ -22,6 +23,7 @@ import { dbConnector, Connection, Message, ApiError } from '@/services/dbConnect
 import { connectionCache } from '@/utils/connectionCache';
 import { ConnectionListSkeleton } from '@/components/ConnectionCardSkeleton';
 import { NoConnectionsState } from '@/components/ui/empty-state';
+import { messageGenerationService, MessageGenerationError } from '@/services/messageGenerationService';
 
 // Sample data for demonstration with new parameters
 const sampleConnections = [
@@ -104,7 +106,7 @@ const Dashboard = () => {
   const [isResearching, setIsResearching] = useState(false);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
-  
+
   // Connection management state
   const [connections, setConnections] = useState<Connection[]>([]);
   const [connectionsLoading, setConnectionsLoading] = useState(false);
@@ -116,7 +118,7 @@ const Dashboard = () => {
     allies: 0,
     total: 0
   });
-  
+
   // Message modal state
   const [messageModalOpen, setMessageModalOpen] = useState(false);
   const [selectedConnectionForMessages, setSelectedConnectionForMessages] = useState<Connection | null>(null);
@@ -133,6 +135,14 @@ const Dashboard = () => {
     clearResults,
     clearVisitedLinks,
   } = useSearchResults();
+
+  // Profile initialization functionality
+  const { 
+    isInitializing, 
+    initializationMessage, 
+    initializationError, 
+    initializeProfile 
+  } = useProfileInit();
 
   // Load saved posts on component mount
   useEffect(() => {
@@ -161,13 +171,13 @@ const Dashboard = () => {
     try {
       // Fetch all connections from DynamoDB
       const fetchedConnections = await dbConnector.getConnectionsByStatus();
-      
+
       // Update connections state
       setConnections(fetchedConnections);
-      
+
       // Update connection cache
       connectionCache.setMultiple(fetchedConnections);
-      
+
       // Calculate connection counts
       const counts = calculateConnectionCounts(fetchedConnections);
       setConnectionCounts(counts);
@@ -177,7 +187,7 @@ const Dashboard = () => {
       console.error('Error fetching connections:', error);
       const errorMessage = error instanceof ApiError ? error.message : 'Failed to fetch connections';
       setConnectionsError(errorMessage);
-      
+
       toast({
         title: "Failed to Load Connections",
         description: errorMessage,
@@ -193,7 +203,7 @@ const Dashboard = () => {
       incoming: 0,
       outgoing: 0,
       allies: 0,
-      total: connections.length
+      total: 0
     };
 
     connections.forEach(connection => {
@@ -210,13 +220,16 @@ const Dashboard = () => {
       }
     });
 
+    // Total should only include incoming, outgoing, and allies (exclude possible)
+    counts.total = counts.incoming + counts.outgoing + counts.allies;
+
     return counts;
   }, []);
 
   const updateConnectionStatus = useCallback(async (connectionId: string, newStatus: 'possible' | 'incoming' | 'outgoing' | 'allies' | 'processed') => {
     try {
       // Optimistic update
-      setConnections(prev => prev.map(conn => 
+      setConnections(prev => prev.map(conn =>
         conn.id === connectionId ? { ...conn, status: newStatus } : conn
       ));
 
@@ -227,7 +240,7 @@ const Dashboard = () => {
       await dbConnector.updateConnectionStatus(connectionId, newStatus);
 
       // Recalculate counts
-      const updatedConnections = connections.map(conn => 
+      const updatedConnections = connections.map(conn =>
         conn.id === connectionId ? { ...conn, status: newStatus } : conn
       );
       const counts = calculateConnectionCounts(updatedConnections);
@@ -240,9 +253,9 @@ const Dashboard = () => {
       });
     } catch (error) {
       console.error('Error updating connection status:', error);
-      
+
       // Rollback optimistic update
-      setConnections(prev => prev.map(conn => 
+      setConnections(prev => prev.map(conn =>
         conn.id === connectionId ? { ...conn, status: connections.find(c => c.id === connectionId)?.status || 'possible' } : conn
       ));
 
@@ -267,13 +280,13 @@ const Dashboard = () => {
     } catch (error) {
       console.error('Error fetching message history:', error);
       const errorMessage = error instanceof ApiError ? error.message : 'Failed to load message history';
-      
+
       toast({
         title: "Failed to Load Messages",
         description: errorMessage,
         variant: "destructive"
       });
-      
+
       // Set empty message history on error
       setMessageHistory([]);
     }
@@ -288,13 +301,13 @@ const Dashboard = () => {
   const handleSendMessage = useCallback(async (message: string): Promise<void> => {
     // Placeholder for future API integration
     console.log('Sending message:', message, 'to connection:', selectedConnectionForMessages?.id);
-    
+
     toast({
       title: "Message Sending Not Implemented",
       description: "Message sending functionality will be available in a future update.",
       variant: "default"
     });
-    
+
     // For now, just add the message to local state for demo purposes
     if (selectedConnectionForMessages) {
       const newMessage: Message = {
@@ -303,7 +316,7 @@ const Dashboard = () => {
         timestamp: new Date().toISOString(),
         sender: 'user'
       };
-      
+
       setMessageHistory(prev => [...prev, newMessage]);
     }
   }, [selectedConnectionForMessages, toast]);
@@ -346,6 +359,22 @@ const Dashboard = () => {
         : [...prev, connectionId]
     );
   };
+
+  // Handle checkbox changes for connection selection
+  const handleConnectionCheckboxChange = useCallback((connectionId: string, checked: boolean) => {
+    setSelectedConnections(prev => {
+      if (checked) {
+        return prev.includes(connectionId) ? prev : [...prev, connectionId];
+      } else {
+        return prev.filter(id => id !== connectionId);
+      }
+    });
+  }, []);
+
+  // Calculate selected connections count for ConversationTopicPanel
+  const selectedConnectionsCount = useMemo(() => {
+    return selectedConnections.length;
+  }, [selectedConnections]);
 
   const handleLinkedInSearch = async (filters: { company: string; job: string; location: string; userId: string }) => {
     setIsSearchingLinkedIn(true);
@@ -597,6 +626,14 @@ const Dashboard = () => {
     });
   };
 
+  // Handle profile initialization with connection refresh
+  const handleInitializeProfile = async () => {
+    await initializeProfile(() => {
+      // Refresh connections list to show any new data after successful initialization
+      fetchConnections();
+    });
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
       {/* Navigation */}
@@ -659,6 +696,23 @@ const Dashboard = () => {
           </TabsList>
 
           <TabsContent value="connections" className="space-y-6">
+            {/* Profile Init Status Messages */}
+            {initializationMessage && (
+              <div className="bg-green-600/20 border border-green-500/30 rounded-lg p-3">
+                <p className="text-green-200 text-sm font-medium">
+                  <strong>✓ Success:</strong> {initializationMessage}
+                </p>
+              </div>
+            )}
+            
+            {initializationError && (
+              <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3">
+                <p className="text-red-300 text-sm font-medium">
+                  <strong>✗ Error:</strong> {initializationError}
+                </p>
+              </div>
+            )}
+
             <div className="grid lg:grid-cols-3 gap-8">
               <div className="lg:col-span-2">
                 {/* Loading State */}
@@ -698,11 +752,27 @@ const Dashboard = () => {
                   <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-lg p-6">
                     <div className="flex items-center justify-between mb-4">
                       <h2 className="text-xl font-semibold text-white">Your Connections</h2>
-                      <div className="text-sm text-slate-400">
-                        {filteredConnections.length} of {connections.length} connections
+                      <div className="flex items-center gap-4">
+                        <div className="text-sm text-slate-400">
+                          {filteredConnections.length} of {connectionCounts.total} connections
+                        </div>
+                        {/* Initialize Profile Database Button */}
+                        <Button 
+                          onClick={handleInitializeProfile}
+                          disabled={isInitializing}
+                          className="bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700 text-white"
+                        >
+                          <Database className="h-4 w-4 mr-2" />
+                          {isInitializing 
+                            ? 'Initializing...' 
+                            : connectionCounts.allies > 0 
+                              ? 'Refresh' 
+                              : 'Initialize Profile Database'
+                          }
+                        </Button>
                       </div>
                     </div>
-                    
+
                     {filteredConnections.length === 0 ? (
                       <NoConnectionsState
                         type="filtered"
@@ -717,10 +787,13 @@ const Dashboard = () => {
                         onMessageClick={handleMessageClick}
                         selectedConnectionId={selectedConnections[0]} // Show first selected as highlighted
                         className="min-h-[500px]"
-                        itemHeight={196} // Card height + 24px margin
+                        itemHeight={220} // Card height + 24px margin (mb-6)
                         showFilters={true}
                         sortBy="name"
                         sortOrder="asc"
+                        showCheckboxes={true}
+                        selectedConnections={selectedConnections}
+                        onCheckboxChange={handleConnectionCheckboxChange}
                       />
                     )}
                   </div>
@@ -735,12 +808,12 @@ const Dashboard = () => {
                     connectionCounts={connectionCounts}
                   />
                 </div>
-                
+
                 <ConversationTopicPanel
                   topic={conversationTopic}
                   onTopicChange={setConversationTopic}
                   onGenerateMessages={generateMessages}
-                  selectedConnectionsCount={selectedConnections.length}
+                  selectedConnectionsCount={selectedConnectionsCount}
                 />
               </div>
             </div>
@@ -778,7 +851,7 @@ const Dashboard = () => {
                   isSaving={isSavingDraft}
                   isPublishing={isPublishing}
                 />
-                
+
                 <PostAIAssistant
                   onGenerateIdeas={handleGenerateIdeas}
                   onResearchTopics={handleResearchTopics}
@@ -786,7 +859,7 @@ const Dashboard = () => {
                   isResearching={isResearching}
                 />
               </div>
-              
+
               <div>
                 <SavedPostsList
                   posts={savedPosts}

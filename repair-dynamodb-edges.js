@@ -319,6 +319,134 @@ class DynamoDBRepairTool {
   }
 
   /**
+   * Export all profiles to JSON file
+   */
+  async exportProfilesToJson(outputFile = 'profiles-export.json') {
+    this.log('INFO', 'Starting profile export', { outputFile });
+
+    const profiles = [];
+    let lastEvaluatedKey = null;
+
+    do {
+      try {
+        const params = {
+          TableName: CONFIG.tableName,
+          FilterExpression: 'begins_with(#pk, :pkPrefix)',
+          ExpressionAttributeNames: {
+            '#pk': 'PK'
+          },
+          ExpressionAttributeValues: {
+            ':pkPrefix': 'PROFILE#'
+          }
+        };
+
+        if (lastEvaluatedKey) {
+          params.ExclusiveStartKey = lastEvaluatedKey;
+        }
+
+        const result = await this.docClient.send(new ScanCommand(params));
+
+        if (result.Items) {
+          // Filter for actual profile items (PK starts with PROFILE#)
+          const profileItems = result.Items.filter(item =>
+            item.PK?.startsWith('PROFILE#')
+          );
+          profiles.push(...profileItems);
+          this.stats.scanned += result.Items.length;
+        }
+
+        lastEvaluatedKey = result.LastEvaluatedKey;
+        this.log('DEBUG', `Scanned batch: ${result.Items?.length || 0} items, found ${result.Items?.filter(item => item.PK?.startsWith('PROFILE#')).length || 0} profiles`);
+
+      } catch (error) {
+        this.log('ERROR', 'Profile export scan failed', { error: error.message });
+        throw error;
+      }
+    } while (lastEvaluatedKey);
+
+    this.log('INFO', `Profile scan completed: ${profiles.length} profiles found`);
+
+    // Save profiles to JSON file
+    try {
+      const exportData = {
+        exportTimestamp: new Date().toISOString(),
+        totalProfiles: profiles.length,
+        profiles: profiles
+      };
+
+      await fs.writeFile(outputFile, JSON.stringify(exportData, null, 2));
+      this.log('INFO', `Profiles exported successfully to ${outputFile}`);
+      
+      return {
+        success: true,
+        profileCount: profiles.length,
+        outputFile: outputFile
+      };
+
+    } catch (error) {
+      this.log('ERROR', 'Failed to save profiles to file', { error: error.message });
+      throw error;
+    }
+  }
+
+  /**
+   * Export user edges (connections) for a specific user to JSON file
+   */
+  async exportUserEdgesToJson(userId, outputFile = null) {
+    if (!userId) {
+      throw new Error('User ID is required for export-user-edges operation');
+    }
+
+    const defaultOutputFile = `user-edges-${userId}.json`;
+    const finalOutputFile = outputFile || defaultOutputFile;
+
+    this.log('INFO', 'Starting user edges export', { userId, outputFile: finalOutputFile });
+
+    try {
+      const params = {
+        TableName: CONFIG.tableName,
+        KeyConditionExpression: '#pk = :pk AND begins_with(#sk, :skPrefix)',
+        ExpressionAttributeNames: {
+          '#pk': 'PK',
+          '#sk': 'SK'
+        },
+        ExpressionAttributeValues: {
+          ':pk': `USER#${userId}`,
+          ':skPrefix': 'PROFILE#'
+        }
+      };
+
+      const result = await this.docClient.send(new QueryCommand(params));
+      const userEdges = result.Items || [];
+      
+      this.stats.scanned += userEdges.length;
+      this.log('INFO', `Query completed: ${userEdges.length} user edges found for user ${userId}`);
+
+      // Save user edges to JSON file
+      const exportData = {
+        exportTimestamp: new Date().toISOString(),
+        userId: userId,
+        totalEdges: userEdges.length,
+        edges: userEdges
+      };
+
+      await fs.writeFile(finalOutputFile, JSON.stringify(exportData, null, 2));
+      this.log('INFO', `User edges exported successfully to ${finalOutputFile}`);
+      
+      return {
+        success: true,
+        userId: userId,
+        edgeCount: userEdges.length,
+        outputFile: finalOutputFile
+      };
+
+    } catch (error) {
+      this.log('ERROR', 'User edges export failed', { userId, error: error.message });
+      throw error;
+    }
+  }
+
+  /**
    * Load and execute bulk updates from JSON file
    */
   async bulkUpdateFromFile(filePath, dryRun = false) {
@@ -421,13 +549,18 @@ DynamoDB Edge Repair Tool
 Usage:
   node repair-dynamodb-edges.js --operation=status-change --from=good_contact --to=possible [options]
   node repair-dynamodb-edges.js --operation=bulk-update --file=updates.json [options]
+  node repair-dynamodb-edges.js --operation=export-profiles [--output=filename.json] [options]
+  node repair-dynamodb-edges.js --operation=export-user-edges --user-id=USER_ID [--output=filename.json] [options]
 
 Operations:
-  status-change    Change status from one value to another
-  bulk-update      Execute multiple operations from JSON file
+  status-change      Change status from one value to another
+  bulk-update        Execute multiple operations from JSON file
+  export-profiles    Export all profiles to JSON file
+  export-user-edges  Export user edges (connections) for a specific user to JSON file
 
 Options:
-  --user-id=ID     Limit operations to specific user (optional)
+  --user-id=ID     Limit operations to specific user (required for export-user-edges)
+  --output=FILE    Output filename for export (default varies by operation)
   --dry-run        Preview changes without executing them
   --log-level=LEVEL Set logging level (DEBUG, INFO, WARN, ERROR)
 
@@ -443,6 +576,18 @@ Examples:
 
   # Execute bulk operations from file
   node repair-dynamodb-edges.js --operation=bulk-update --file=repairs.json
+
+  # Export all profiles to JSON
+  node repair-dynamodb-edges.js --operation=export-profiles
+
+  # Export profiles to custom filename
+  node repair-dynamodb-edges.js --operation=export-profiles --output=my-profiles.json
+
+  # Export user edges for a specific user
+  node repair-dynamodb-edges.js --operation=export-user-edges --user-id=user123
+
+  # Export user edges to custom filename
+  node repair-dynamodb-edges.js --operation=export-user-edges --user-id=user123 --output=my-user-edges.json
     `);
     process.exit(0);
   }
@@ -491,6 +636,21 @@ Examples:
         }
 
         results = await tool.bulkUpdateFromFile(options.file, isDryRun);
+        break;
+
+      case 'export-profiles':
+        const outputFile = options.output || 'profiles-export.json';
+        results = await tool.exportProfilesToJson(outputFile);
+        break;
+
+      case 'export-user-edges':
+        if (!options['user-id']) {
+          console.error('❌ export-user-edges operation requires --user-id parameter');
+          process.exit(1);
+        }
+
+        const userEdgesOutputFile = options.output || null;
+        results = await tool.exportUserEdgesToJson(options['user-id'], userEdgesOutputFile);
         break;
 
       default:

@@ -348,6 +348,18 @@ export interface ConnectionCardProps {
   
   /** Additional CSS classes */
   className?: string;
+  
+  /** Whether to show checkbox for connection selection */
+  showCheckbox?: boolean;
+  
+  /** Whether the checkbox is enabled (only for allies status) */
+  isCheckboxEnabled?: boolean;
+  
+  /** Whether the checkbox is checked */
+  isChecked?: boolean;
+  
+  /** Callback when checkbox state changes */
+  onCheckboxChange?: (connectionId: string, checked: boolean) => void;
 }
 
 /**
