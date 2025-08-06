@@ -23,6 +23,10 @@ interface VirtualConnectionListProps {
   initialFilters?: ConnectionFilters;
   sortBy?: 'name' | 'company' | 'date_added' | 'conversion_likelihood';
   sortOrder?: 'asc' | 'desc';
+  // Checkbox functionality props
+  showCheckboxes?: boolean;
+  selectedConnections?: string[];
+  onCheckboxChange?: (connectionId: string, checked: boolean) => void;
 }
 
 interface ListItemProps {
@@ -38,6 +42,10 @@ interface ListItemProps {
     onMessageClick?: (connection: Connection) => void;
     activeTags?: string[];
     selectedConnectionId?: string;
+    // Checkbox functionality
+    showCheckboxes?: boolean;
+    selectedConnections?: string[];
+    onCheckboxChange?: (connectionId: string, checked: boolean) => void;
   };
 }
 
@@ -51,7 +59,10 @@ const ListItem: React.FC<ListItemProps> = ({ index, style, data }) => {
     onRemove,
     onTagClick,
     activeTags,
-    selectedConnectionId
+    selectedConnectionId,
+    showCheckboxes,
+    selectedConnections,
+    onCheckboxChange
   } = data;
 
   const connection = connections[index];
@@ -62,26 +73,28 @@ const ListItem: React.FC<ListItemProps> = ({ index, style, data }) => {
 
   return (
     <div style={style} className="px-2">
-      <div className="mb-6">
-        {isNewConnection ? (
-          <NewConnectionCard
-            connection={connection}
-            onRemove={onRemove}
-            onSelect={onNewConnectionClick}
-          />
-        ) : (
-          <ConnectionCard
-            connection={connection}
-            isSelected={selectedConnectionId === connection.id}
-            isNewConnection={isNewConnection}
-            onSelect={onSelect}
-            onNewConnectionClick={onNewConnectionClick}
-            onTagClick={onTagClick}
-            onMessageClick={data.onMessageClick}
-            activeTags={activeTags}
-          />
-        )}
-      </div>
+      {isNewConnection ? (
+        <NewConnectionCard
+          connection={connection}
+          onRemove={onRemove}
+          onSelect={onNewConnectionClick}
+        />
+      ) : (
+        <ConnectionCard
+          connection={connection}
+          isSelected={selectedConnectionId === connection.id}
+          isNewConnection={isNewConnection}
+          onSelect={onSelect}
+          onNewConnectionClick={onNewConnectionClick}
+          onTagClick={onTagClick}
+          onMessageClick={data.onMessageClick}
+          activeTags={activeTags}
+          showCheckbox={showCheckboxes}
+          isCheckboxEnabled={connection.status === 'allies'}
+          isChecked={selectedConnections?.includes(connection.id) || false}
+          onCheckboxChange={onCheckboxChange}
+        />
+      )}
     </div>
   );
 };
@@ -102,7 +115,10 @@ const VirtualConnectionList: React.FC<VirtualConnectionListProps> = ({
   showFilters = true,
   initialFilters = {},
   sortBy = 'name',
-  sortOrder = 'asc'
+  sortOrder = 'asc',
+  showCheckboxes = false,
+  selectedConnections = [],
+  onCheckboxChange
 }) => {
   const [containerHeight, setContainerHeight] = useState(600); // Default height
   const [containerRef, setContainerRef] = useState<HTMLDivElement | null>(null);
@@ -152,7 +168,10 @@ const VirtualConnectionList: React.FC<VirtualConnectionListProps> = ({
     onTagClick,
     onMessageClick,
     activeTags,
-    selectedConnectionId
+    selectedConnectionId,
+    showCheckboxes,
+    selectedConnections,
+    onCheckboxChange
   }), [
     processedConnections,
     isNewConnection,
@@ -162,7 +181,10 @@ const VirtualConnectionList: React.FC<VirtualConnectionListProps> = ({
     onTagClick,
     onMessageClick,
     activeTags,
-    selectedConnectionId
+    selectedConnectionId,
+    showCheckboxes,
+    selectedConnections,
+    onCheckboxChange
   ]);
 
   return (

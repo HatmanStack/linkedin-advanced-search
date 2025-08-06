@@ -79,7 +79,7 @@ const EmptyState: React.FC<EmptyStateProps> = ({
         <Button
           variant={action.variant || 'outline'}
           onClick={action.onClick}
-          className="mt-6 border-slate-600 text-slate-300 hover:bg-slate-700"
+          className="mt-6 bg-slate-700 hover:bg-slate-600 text-white border-slate-600 hover:border-slate-500"
         >
           {action.label}
         </Button>

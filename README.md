@@ -113,6 +113,7 @@ All endpoints require JWT authentication.
 - [Session Summary](./SUMMARY.md) - Complete implementation summary
 - [Backend Implementation](./BACKEND_IMPLEMENTATION_SUMMARY.md) - Infrastructure details
 - [DynamoDB Schema](./DYNAMODB_SCHEMA.md) - Database design
+- [LinkedIn Interaction Configuration](./LINKEDIN_INTERACTION_CONFIG.md) - Configuration guide
 - [Environment Variables](./.env.example) - Configuration template
 
 ## 🔧 Development

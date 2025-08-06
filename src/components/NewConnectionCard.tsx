@@ -204,7 +204,7 @@ const NewConnectionCard: React.FC<NewConnectionCardProps> = ({
 
   return (
     <div
-      className={`p-4 rounded-lg border cursor-pointer transition-all duration-200 relative ${isRemoving
+      className={`p-4 my-3 rounded-lg border cursor-pointer transition-all duration-200 relative ${isRemoving
         ? 'bg-gray-600/20 border-gray-500 opacity-50'
         : 'bg-white/5 border-white/10 hover:bg-white/10'
         }`}
