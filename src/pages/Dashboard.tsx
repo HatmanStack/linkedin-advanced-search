@@ -24,6 +24,9 @@ import { connectionCache } from '@/utils/connectionCache';
 import { ConnectionListSkeleton } from '@/components/ConnectionCardSkeleton';
 import { NoConnectionsState } from '@/components/ui/empty-state';
 import { messageGenerationService, MessageGenerationError } from '@/services/messageGenerationService';
+import { useErrorHandler } from '@/hooks/useErrorHandler';
+import { useProgressTracker } from '@/hooks/useProgressTracker';
+import ProgressIndicator from '@/components/ProgressIndicator';
 
 // Sample data for demonstration with new parameters
 const sampleConnections = [
@@ -124,6 +127,17 @@ const Dashboard = () => {
   const [selectedConnectionForMessages, setSelectedConnectionForMessages] = useState<Connection | null>(null);
   const [messageHistory, setMessageHistory] = useState<Message[]>([]);
 
+  // Error handling and progress tracking
+  const errorHandler = useErrorHandler();
+  const progressTracker = useProgressTracker();
+
+  // Message generation workflow state
+  const [isGeneratingMessages, setIsGeneratingMessages] = useState(false);
+  const [currentConnectionIndex, setCurrentConnectionIndex] = useState(0);
+  const [generatedMessages, setGeneratedMessages] = useState<Map<string, string>>(new Map());
+  const [generationError, setGenerationError] = useState<string | null>(null);
+  const [workflowState, setWorkflowState] = useState<'idle' | 'generating' | 'awaiting_approval' | 'stopping' | 'completed' | 'error'>('idle');
+
   // Use existing search functionality
   const {
     results,
@@ -144,6 +158,15 @@ const Dashboard = () => {
     initializeProfile 
   } = useProfileInit();
 
+  // Reset workflow state function - defined early to avoid temporal dead zone
+  const resetWorkflowState = useCallback(() => {
+    setIsGeneratingMessages(false);
+    setCurrentConnectionIndex(0);
+    setGeneratedMessages(new Map());
+    setGenerationError(null);
+    setWorkflowState('idle');
+  }, []);
+
   // Load saved posts on component mount
   useEffect(() => {
     loadSavedPosts();
@@ -160,6 +183,11 @@ const Dashboard = () => {
       fetchConnections();
     }
   }, [user]);
+
+  // Handle workflow state transitions
+  useEffect(() => {
+    console.log('Workflow state changed to:', workflowState);
+  }, [workflowState]);
 
   // Connection management functions
   const fetchConnections = useCallback(async () => {
@@ -320,6 +348,214 @@ const Dashboard = () => {
       setMessageHistory(prev => [...prev, newMessage]);
     }
   }, [selectedConnectionForMessages, toast]);
+
+  // Message generation workflow functions
+  const processSelectedConnections = useCallback(async () => {
+    if (selectedConnections.length === 0 || !conversationTopic.trim()) {
+      errorHandler.showWarningFeedback(
+        'Please select connections and enter a conversation topic.',
+        'Missing Requirements'
+      );
+      return;
+    }
+
+    console.log('Starting message generation workflow for', selectedConnections.length, 'connections');
+    
+    // Initialize progress tracking
+    progressTracker.initializeProgress(selectedConnections.length);
+    progressTracker.setLoadingMessage('Preparing message generation...', 0, true);
+    
+    setWorkflowState('generating');
+    setIsGeneratingMessages(true);
+    setCurrentConnectionIndex(0);
+    setGenerationError(null);
+    errorHandler.clearError();
+
+    const selectedConnectionsData = connections.filter(conn => 
+      selectedConnections.includes(conn.id) && conn.status === 'allies'
+    );
+
+    console.log('Processing connections:', selectedConnectionsData.map(c => `${c.first_name} ${c.last_name}`));
+
+    for (let i = 0; i < selectedConnectionsData.length; i++) {
+      // Check if user requested to stop
+      if (workflowState === 'stopping') {
+        console.log('Workflow stopped by user');
+        progressTracker.resetProgress();
+        break;
+      }
+
+      setCurrentConnectionIndex(i);
+      const connection = selectedConnectionsData[i];
+      const connectionName = `${connection.first_name} ${connection.last_name}`;
+      
+      // Update progress
+      progressTracker.updateProgress(i, connectionName, 'generating');
+      progressTracker.setLoadingMessage(`Generating message for ${connectionName}...`, 
+        Math.round((i / selectedConnectionsData.length) * 100), true);
+      
+      console.log(`Processing connection ${i + 1}/${selectedConnectionsData.length}:`, connectionName);
+
+      let retryCount = 0;
+      let shouldContinue = true;
+
+      while (shouldContinue) {
+        try {
+          // Generate message for current connection
+          const generatedMessage = await generateMessageForConnection(connection);
+          console.log('Generated message for', connection.first_name, ':', generatedMessage.substring(0, 100) + '...');
+          
+          // Cache the generated message
+          setGeneratedMessages(prev => new Map(prev).set(connection.id, generatedMessage));
+
+          // Set workflow to awaiting approval and open modal
+          progressTracker.updateProgress(i, connectionName, 'waiting_approval');
+          setWorkflowState('awaiting_approval');
+          setSelectedConnectionForMessages(connection);
+          setMessageModalOpen(true);
+
+          // Wait for user approval before continuing
+          await waitForUserApproval();
+          break; // Success, move to next connection
+
+        } catch (error) {
+          console.error('Error generating message for connection:', connection.id, error);
+          
+          // Use comprehensive error handling
+          const recoveryAction = await errorHandler.handleError(
+            error, 
+            connection.id, 
+            connectionName, 
+            retryCount
+          );
+
+          switch (recoveryAction) {
+            case 'retry':
+              retryCount++;
+              progressTracker.setLoadingMessage(`Retrying message generation for ${connectionName}... (Attempt ${retryCount + 1})`, 
+                Math.round((i / selectedConnectionsData.length) * 100), true);
+              continue; // Retry the same connection
+            
+            case 'skip':
+              errorHandler.showInfoFeedback(`Skipped ${connectionName} due to error.`, 'Connection Skipped');
+              shouldContinue = false; // Move to next connection
+              break;
+            
+            case 'stop':
+              progressTracker.resetProgress();
+              setWorkflowState('error');
+              setIsGeneratingMessages(false);
+              return; // Stop entire process
+          }
+        }
+      }
+    }
+
+    // Workflow completed successfully
+    console.log('Message generation workflow completed');
+    progressTracker.updateProgress(selectedConnectionsData.length, undefined, 'completed');
+    
+    errorHandler.showSuccessFeedback(
+      `Successfully generated messages for ${selectedConnectionsData.length} connections.`,
+      'Generation Complete'
+    );
+    
+    setWorkflowState('completed');
+    
+    // Reset after a short delay to show completion
+    setTimeout(() => {
+      resetWorkflowState();
+      progressTracker.resetProgress();
+    }, 2000);
+    
+  }, [selectedConnections, conversationTopic, connections, workflowState, errorHandler, progressTracker]);
+
+  const generateMessageForConnection = useCallback(async (connection: Connection): Promise<string> => {
+    try {
+      // Fetch message history for context
+      const messageHistory = await dbConnector.getMessageHistory(connection.id);
+      
+      // Prepare generation request
+      const request = {
+        connectionId: connection.id,
+        connectionProfile: {
+          firstName: connection.first_name,
+          lastName: connection.last_name,
+          position: connection.position || '',
+          company: connection.company || '',
+          headline: connection.headline || '',
+          tags: connection.tags || []
+        },
+        conversationTopic: conversationTopic.trim(),
+        messageHistory: messageHistory,
+        userProfile: user
+      };
+
+      // Call message generation service
+      const generatedMessage = await messageGenerationService.generateMessage(request);
+      return generatedMessage;
+
+    } catch (error) {
+      console.error('Error in generateMessageForConnection:', error);
+      throw error;
+    }
+  }, [conversationTopic, user]);
+
+  const waitForUserApproval = useCallback((): Promise<void> => {
+    return new Promise((resolve) => {
+      // This will be resolved when user approves or skips in the modal
+      const checkApproval = () => {
+        if (workflowState !== 'awaiting_approval') {
+          resolve();
+        } else {
+          setTimeout(checkApproval, 100);
+        }
+      };
+      checkApproval();
+    });
+  }, [workflowState]);
+
+  const handleStopGeneration = useCallback(() => {
+    setWorkflowState('stopping');
+    setIsGeneratingMessages(false);
+    
+    // Reset progress tracking
+    progressTracker.resetProgress();
+    
+    // Close modal if open
+    if (messageModalOpen) {
+      setMessageModalOpen(false);
+      setSelectedConnectionForMessages(null);
+    }
+
+    resetWorkflowState();
+
+    errorHandler.showInfoFeedback('Message generation has been stopped.', 'Generation Stopped');
+  }, [messageModalOpen, progressTracker, errorHandler]);
+
+  const handleGenerateMessages = useCallback(() => {
+    if (selectedConnections.length === 0 || !conversationTopic.trim()) {
+      toast({
+        title: "Missing Requirements",
+        description: "Please select connections and enter a conversation topic.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    processSelectedConnections();
+  }, [selectedConnections, conversationTopic, processSelectedConnections, toast]);
+
+  // Get current connection name for display
+  const currentConnectionName = useMemo(() => {
+    if (!isGeneratingMessages || currentConnectionIndex >= selectedConnections.length) {
+      return undefined;
+    }
+
+    const currentConnectionId = selectedConnections[currentConnectionIndex];
+    const connection = connections.find(conn => conn.id === currentConnectionId);
+    return connection ? `${connection.first_name} ${connection.last_name}` : undefined;
+  }, [isGeneratingMessages, currentConnectionIndex, selectedConnections, connections]);
 
   // Filtered connections based on selected status and tab
   const filteredConnections = useMemo(() => {
@@ -812,8 +1048,19 @@ const Dashboard = () => {
                 <ConversationTopicPanel
                   topic={conversationTopic}
                   onTopicChange={setConversationTopic}
-                  onGenerateMessages={generateMessages}
+                  onGenerateMessages={handleGenerateMessages}
                   selectedConnectionsCount={selectedConnectionsCount}
+                  isGenerating={isGeneratingMessages}
+                  onStopGeneration={handleStopGeneration}
+                  currentConnectionName={currentConnectionName}
+                />
+
+                {/* Progress Indicator for Message Generation */}
+                <ProgressIndicator
+                  progressState={progressTracker.progressState}
+                  loadingState={progressTracker.loadingState}
+                  onCancel={handleStopGeneration}
+                  className="mt-4"
                 />
               </div>
             </div>
@@ -879,6 +1126,19 @@ const Dashboard = () => {
           connection={selectedConnectionForMessages}
           onClose={handleCloseMessageModal}
           onSendMessage={handleSendMessage}
+          prePopulatedMessage={generatedMessages.get(selectedConnectionForMessages.id)}
+          isGeneratedContent={workflowState === 'awaiting_approval'}
+          showGenerationControls={workflowState === 'awaiting_approval'}
+          onApproveAndNext={() => {
+            setWorkflowState('generating');
+            setMessageModalOpen(false);
+            setSelectedConnectionForMessages(null);
+          }}
+          onSkipConnection={() => {
+            setWorkflowState('generating');
+            setMessageModalOpen(false);
+            setSelectedConnectionForMessages(null);
+          }}
         />
       )}
     </div>

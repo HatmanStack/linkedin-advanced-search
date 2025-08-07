@@ -296,7 +296,8 @@ describe('MessageModal Component', () => {
       );
 
       // Check that timestamps are formatted (exact format may vary by locale)
-      expect(screen.getByText(/Jan 1/)).toBeInTheDocument();
+      const timestamps = screen.getAllByText(/Jan 1/);
+      expect(timestamps.length).toBeGreaterThan(0);
     });
 
     it('should handle invalid timestamps gracefully', () => {
@@ -701,7 +702,7 @@ describe('MessageModal Component', () => {
   });
 
   describe('Input Validation', () => {
-    it('should show toast for empty message', async () => {
+    it('should not allow sending empty message (button disabled)', async () => {
       const user = userEvent.setup();
       
       render(
@@ -717,14 +718,12 @@ describe('MessageModal Component', () => {
       await user.type(input, '   '); // Only whitespace
       
       const sendButton = screen.getByTestId('send-icon').closest('button');
-      await user.click(sendButton!);
-
-      expect(mockToast).toHaveBeenCalledWith({
-        title: "Empty Message",
-        description: "Please enter a message before sending.",
-        variant: "default",
-      });
-
+      
+      // Button should be disabled for empty/whitespace input
+      expect(sendButton).toBeDisabled();
+      
+      // Toast should not be called since button is disabled
+      expect(mockToast).not.toHaveBeenCalled();
       expect(mockOnSendMessage).not.toHaveBeenCalled();
     });
 

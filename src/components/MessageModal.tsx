@@ -10,7 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Send, MessageSquare, Loader2, AlertCircle } from 'lucide-react';
+import { Send, MessageSquare, Loader2, AlertCircle, Sparkles, Check, SkipForward } from 'lucide-react';
 import { ApiError } from '@/services/dbConnector';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -44,12 +44,26 @@ export const MessageModal: React.FC<MessageModalProps> = ({
   onSendMessage,
   isLoadingMessages = false,
   messagesError = null,
-  onRetryLoadMessages
+  onRetryLoadMessages,
+  prePopulatedMessage,
+  isGeneratedContent = false,
+  showGenerationControls = false,
+  onApproveAndNext,
+  onSkipConnection
 }) => {
   const [messageInput, setMessageInput] = useState('');
   const [isSending, setIsSending] = useState(false);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+
+  // Handle pre-populated message content
+  useEffect(() => {
+    if (prePopulatedMessage && isOpen) {
+      setMessageInput(prePopulatedMessage);
+    } else if (!prePopulatedMessage && isOpen) {
+      setMessageInput('');
+    }
+  }, [prePopulatedMessage, isOpen]);
 
   /**
    * Formats a timestamp string for display in the message history
@@ -60,6 +74,10 @@ export const MessageModal: React.FC<MessageModalProps> = ({
   const formatTimestamp = (timestamp: string): string => {
     try {
       const date = new Date(timestamp);
+      // Check if the date is valid
+      if (isNaN(date.getTime())) {
+        return 'Unknown time';
+      }
       return date.toLocaleString('en-US', {
         month: 'short',
         day: 'numeric',
@@ -81,22 +99,37 @@ export const MessageModal: React.FC<MessageModalProps> = ({
     }
   }, [connection.message_history]);
 
-  // Handle escape key press
+  // Handle generation workflow shortcuts (Escape is handled by Dialog's onOpenChange)
   useEffect(() => {
-    const handleEscapeKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && isOpen) {
-        onClose();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!isOpen) return;
+
+      // Generation workflow keyboard shortcuts
+      if (showGenerationControls) {
+        if (event.key === 'Enter' && !event.shiftKey && event.ctrlKey) {
+          // Ctrl+Enter to approve and next
+          event.preventDefault();
+          if (onApproveAndNext) {
+            onApproveAndNext();
+          }
+        } else if (event.key === 's' && event.ctrlKey) {
+          // Ctrl+S to skip
+          event.preventDefault();
+          if (onSkipConnection) {
+            onSkipConnection();
+          }
+        }
       }
     };
 
     if (isOpen) {
-      document.addEventListener('keydown', handleEscapeKey);
+      document.addEventListener('keydown', handleKeyDown);
     }
 
     return () => {
-      document.removeEventListener('keydown', handleEscapeKey);
+      document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isOpen, onClose]);
+  }, [isOpen, showGenerationControls, onApproveAndNext, onSkipConnection]);
 
   /**
    * Handles sending a new message with validation, error handling, and user feedback
@@ -171,14 +204,20 @@ export const MessageModal: React.FC<MessageModalProps> = ({
 
   /**
    * Handles keyboard events in the message input field
-   * Sends message on Enter key press (without Shift modifier)
+   * Sends message on Enter key press (without Shift modifier) for normal mode
+   * In generation mode, Enter approves and moves to next connection
    * 
    * @param event - The keyboard event
    */
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
-      handleSendMessage();
+      
+      if (showGenerationControls && onApproveAndNext) {
+        onApproveAndNext();
+      } else {
+        handleSendMessage();
+      }
     }
   };
 
@@ -186,18 +225,37 @@ export const MessageModal: React.FC<MessageModalProps> = ({
   const connectionName = `${connection.first_name} ${connection.last_name}`.trim() || 'Unknown Contact';
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+    <Dialog open={isOpen} onOpenChange={(open) => {
+      if (!open) {
+        if (showGenerationControls && onSkipConnection) {
+          onSkipConnection();
+        } else {
+          onClose();
+        }
+      }
+    }}>
       <DialogContent className="sm:max-w-[600px] max-h-[80vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <MessageSquare className="h-5 w-5" />
             Messages with {connectionName}
+            {isGeneratedContent && (
+              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                <Sparkles className="h-3 w-3 mr-1" />
+                AI Generated
+              </span>
+            )}
           </DialogTitle>
           <DialogDescription>
             {connection.position && connection.company
               ? `${connection.position} at ${connection.company}`
               : connection.position || connection.company || 'LinkedIn Connection'
             }
+            {isGeneratedContent && (
+              <div className="mt-2 text-sm text-blue-600 dark:text-blue-400">
+                This message was generated by AI based on your conversation topic. You can edit it before sending.
+              </div>
+            )}
           </DialogDescription>
         </DialogHeader>
 
@@ -267,31 +325,86 @@ export const MessageModal: React.FC<MessageModalProps> = ({
 
         {/* Message Input */}
         <DialogFooter className="flex-col space-y-2 sm:flex-row sm:space-y-0">
+          {isGeneratedContent && (
+            <div className="w-full mb-2 p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-md">
+              <div className="flex items-center gap-2 text-sm text-blue-700 dark:text-blue-300">
+                <Sparkles className="h-4 w-4" />
+                <span className="font-medium">AI-Generated Message</span>
+              </div>
+              <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                This message was created based on your conversation topic and connection profile. Feel free to edit it before sending.
+              </p>
+            </div>
+          )}
+          
           <div className="flex w-full gap-2">
             <Input
-              placeholder="Type your message..."
+              placeholder={isGeneratedContent ? "Edit the AI-generated message..." : "Type your message..."}
               value={messageInput}
               onChange={(e) => setMessageInput(e.target.value)}
               onKeyDown={handleKeyDown}
               disabled={isSending}
-              className="flex-1"
+              className={cn(
+                "flex-1",
+                isGeneratedContent && "border-blue-300 dark:border-blue-700 bg-blue-50/50 dark:bg-blue-950/20"
+              )}
               maxLength={1000}
             />
-            <Button
-              onClick={handleSendMessage}
-              disabled={isSending || !messageInput.trim()}
-              size="icon"
-              className="shrink-0"
-            >
-              {isSending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Send className="h-4 w-4" />
-              )}
-            </Button>
+            
+            {showGenerationControls ? (
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => {
+                    if (onSkipConnection) {
+                      onSkipConnection();
+                    }
+                  }}
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0"
+                  disabled={isSending}
+                >
+                  <SkipForward className="h-4 w-4 mr-1" />
+                  Skip
+                </Button>
+                <Button
+                  onClick={() => {
+                    if (onApproveAndNext) {
+                      onApproveAndNext();
+                    }
+                  }}
+                  size="sm"
+                  className="shrink-0 bg-green-600 hover:bg-green-700"
+                  disabled={isSending}
+                >
+                  <Check className="h-4 w-4 mr-1" />
+                  Approve & Next
+                </Button>
+              </div>
+            ) : (
+              <Button
+                onClick={handleSendMessage}
+                disabled={isSending || !messageInput.trim()}
+                size="icon"
+                className="shrink-0"
+                aria-label="Send message"
+              >
+                {isSending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4" />
+                )}
+              </Button>
+            )}
           </div>
+          
           <div className="flex justify-between w-full text-xs text-muted-foreground">
-            <span>Press Enter to send, Shift+Enter for new line</span>
+            <span>
+              {showGenerationControls 
+                ? "Enter to approve, Ctrl+S to skip, Esc to skip"
+                : "Press Enter to send, Shift+Enter for new line"
+              }
+            </span>
             <span>{messageInput.length}/1000</span>
           </div>
         </DialogFooter>
