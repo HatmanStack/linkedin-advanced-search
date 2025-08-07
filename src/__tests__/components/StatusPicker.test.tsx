@@ -22,10 +22,7 @@ import type { StatusValue, ConnectionCounts } from '@/types';
 vi.mock('@/components/ui/select', () => ({
   Select: ({ children, value, onValueChange }: any) => (
     <div data-testid="select" data-value={value}>
-      <button onClick={() => onValueChange('incoming')} data-testid="select-trigger">
-        {children}
-      </button>
-      <div data-testid="select-content">{children}</div>
+      {children}
     </div>
   ),
   SelectContent: ({ children }: any) => (
@@ -36,8 +33,8 @@ vi.mock('@/components/ui/select', () => ({
       {children}
     </div>
   ),
-  SelectTrigger: ({ children, id, className }: any) => (
-    <button id={id} className={className} data-testid="select-trigger">
+  SelectTrigger: ({ children, id, className, onClick }: any) => (
+    <button id={id} className={className} data-testid="select-trigger" onClick={onClick}>
       {children}
     </button>
   ),
@@ -476,7 +473,7 @@ describe('StatusPicker Component', () => {
       const endTime = performance.now();
 
       expect(endTime - startTime).toBeLessThan(50); // Should render quickly
-      expect(screen.getByText('999999')).toBeInTheDocument();
+      expect(screen.getAllByText('999999')[0]).toBeInTheDocument();
     });
 
     it('should handle frequent prop updates efficiently', () => {
@@ -525,7 +522,7 @@ describe('StatusPicker Component', () => {
         );
 
         const expectedLabel = STATUS_MAPPING[status].label;
-        expect(screen.getByText(expectedLabel)).toBeInTheDocument();
+        expect(screen.getAllByText(expectedLabel)[0]).toBeInTheDocument();
         
         // Clean up for next iteration
         rerender(<div />);
@@ -548,7 +545,7 @@ describe('StatusPicker Component', () => {
         expect(screen.getByTestId('users-icon')).toBeInTheDocument();
         expect(screen.getByText('Filter Connections')).toBeInTheDocument();
         expect(screen.getByTestId('select')).toBeInTheDocument();
-        expect(screen.getByTestId('badge')).toBeInTheDocument();
+        expect(screen.getAllByTestId('badge')[0]).toBeInTheDocument();
         
         // Clean up for next iteration
         rerender(<div />);

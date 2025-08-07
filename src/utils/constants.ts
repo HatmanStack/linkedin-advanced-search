@@ -1,5 +1,5 @@
 export const API_CONFIG = {
-  BASE_URL: 'http://localhost:3001',
+  BASE_URL: import.meta.env.VITE_API_GATEWAY_URL || 'https://2c6mr2rri0.execute-api.us-west-2.amazonaws.com/prod',
   ENDPOINTS: {
     SEARCH: '/',
     MESSAGE_GENERATION: '/ai/generate-message',

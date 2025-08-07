@@ -78,6 +78,7 @@ const MESSAGE_GENERATION_CONFIG = {
   BASE_URL: import.meta.env.VITE_API_GATEWAY_URL || API_CONFIG.BASE_URL,
   ENDPOINT: API_CONFIG.ENDPOINTS.MESSAGE_GENERATION,
   TIMEOUT: 30000, // 30 seconds for AI generation
+  MOCK_MODE: import.meta.env.VITE_MOCK_MODE === 'true' || process.env.NODE_ENV === 'development', // Use mock responses in development
 } as const;
 
 // =============================================================================
@@ -199,6 +200,11 @@ class MessageGenerationService {
       // Validate required fields
       this.validateRequest(request);
 
+      // Use mock response in development mode
+      if (MESSAGE_GENERATION_CONFIG.MOCK_MODE) {
+        return this.generateMockResponse(request);
+      }
+
       // Prepare the API request payload
       const payload = this.formatRequestPayload(request);
 
@@ -273,6 +279,39 @@ class MessageGenerationService {
     }
 
     return results;
+  }
+
+  /**
+   * Generate mock response for development and testing
+   */
+  private async generateMockResponse(request: MessageGenerationRequest): Promise<string> {
+    // Simulate API delay
+    await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
+
+    const { connectionProfile, conversationTopic } = request;
+    const { firstName, lastName, position, company } = connectionProfile;
+
+    // Generate realistic mock message based on the conversation topic
+    const mockMessages = [
+      `Hi ${firstName}, I noticed your work at ${company} as ${position}. I'd love to discuss ${conversationTopic} with you - it's something I'm passionate about and I think we could have a great conversation about it.`,
+      `Hello ${firstName}, Your experience at ${company} caught my attention. I'm really interested in ${conversationTopic} and would appreciate your insights on this topic. Would you be open to connecting?`,
+      `Hi ${firstName}, I came across your profile and was impressed by your role as ${position} at ${company}. I'm currently exploring ${conversationTopic} and would love to hear your perspective on it.`,
+      `Hello ${firstName}, I hope you're doing well! I noticed we might have some common interests around ${conversationTopic}. Given your background at ${company}, I'd love to connect and learn from your experience.`,
+    ];
+
+    // Randomly select a mock message
+    const selectedMessage = mockMessages[Math.floor(Math.random() * mockMessages.length)];
+
+    // Occasionally simulate an error for testing
+    if (Math.random() < 0.1) { // 10% chance of error
+      throw new MessageGenerationError({
+        message: 'Mock API error for testing',
+        status: 500,
+        code: 'MOCK_ERROR',
+      });
+    }
+
+    return selectedMessage;
   }
 
   /**
@@ -412,9 +451,6 @@ export const messageGenerationService = new MessageGenerationService();
 
 // Export the service class for testing
 export { MessageGenerationService };
-
-// Export error class
-export { MessageGenerationError };
 
 // Export interfaces
 export type {

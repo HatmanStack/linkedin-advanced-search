@@ -427,6 +427,21 @@ export interface MessageModalProps {
   /** Error message if message loading failed */
   messagesError?: string | null;
   
+  /** Pre-populated message content for generation workflow */
+  prePopulatedMessage?: string;
+  
+  /** Whether the content is AI-generated */
+  isGeneratedContent?: boolean;
+  
+  /** Callback for approving message and moving to next connection */
+  onApproveAndNext?: () => void;
+  
+  /** Callback for skipping current connection */
+  onSkipConnection?: () => void;
+  
+  /** Whether to show generation workflow controls */
+  showGenerationControls?: boolean;
+  
   /** Callback to retry loading messages */
   onRetryLoadMessages?: () => void;
   

@@ -131,6 +131,7 @@ vi.mock('lucide-react', () => ({
   X: () => <div data-testid="x-icon" />,
   Loader2: () => <div data-testid="loader-icon" />,
   CheckCircle: () => <div data-testid="check-circle-icon" />,
+  UserPlus: () => <div data-testid="userplus-icon" />,
 }));
 
 describe('NewConnectionCard Component', () => {
