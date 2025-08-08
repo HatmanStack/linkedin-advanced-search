@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { apiService } from '@/services/apiService';
 import { useLinkedInCredentials } from '@/contexts/LinkedInCredentialsContext';
 import { useToast } from '@/hooks/use-toast';
+import { connectionChangeTracker } from '../utils/connectionChangeTracker';
 
 interface UseProfileInitReturn {
   isInitializing: boolean;
@@ -59,6 +60,8 @@ export const useProfileInit = (): UseProfileInitReturn => {
           title: "Success",
           description: "Profile database has been initialized successfully.",
         });
+        // Flag connections as changed so dashboard can refresh once
+        connectionChangeTracker.markChanged('init');
         // Call success callback if provided
         onSuccess?.();
       } else if (response.data?.healing) {

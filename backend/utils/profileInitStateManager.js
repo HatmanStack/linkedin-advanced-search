@@ -11,7 +11,7 @@ export class ProfileInitStateManager {
     recursionCount = 0,
     healPhase = null,
     healReason = null,
-    currentProcessingList = 'all',
+    currentProcessingList = null,
     currentBatch = 0,
     currentIndex = 0,
     completedBatches = [],
@@ -111,7 +111,12 @@ export class ProfileInitStateManager {
 
     // Validate connection list type - updated for new connection types
     const validConnectionTypes = ['allies', 'incoming', 'outgoing'];
-    if (state.currentProcessingList && !validConnectionTypes.includes(state.currentProcessingList)) {
+    if (
+      state.currentProcessingList !== undefined &&
+      state.currentProcessingList !== null &&
+      state.currentProcessingList !== '' &&
+      !validConnectionTypes.includes(state.currentProcessingList)
+    ) {
       throw new Error(`Invalid currentProcessingList: ${state.currentProcessingList}. Must be one of: ${validConnectionTypes.join(', ')}`);
     }
   }

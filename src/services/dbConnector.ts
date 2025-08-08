@@ -247,6 +247,43 @@ class DBConnector {
   }
 
   /**
+   * Get application user settings (e.g., encrypted linkedin_credentials)
+   * The backend identifies the user from the JWT and returns settings.
+   */
+  async getUserSettings(): Promise<{ linkedin_credentials?: string | null }>
+  {
+    try {
+      const response = await this.makeEdgeRequest<{ settings?: { linkedin_credentials?: string } }>(
+        'get_user_settings',
+        {}
+      );
+      return {
+        linkedin_credentials: response?.settings?.linkedin_credentials ?? null,
+      };
+    } catch (error) {
+      throw error instanceof ApiError
+        ? error
+        : new ApiError({ message: 'Failed to get user settings', status: 500 });
+    }
+  }
+
+  /**
+   * Update application user settings (e.g., set encrypted linkedin_credentials)
+   * The backend updates the DynamoDB table using the caller's user identity.
+   */
+  async updateUserSettings(updates: { linkedin_credentials?: string }): Promise<void> {
+    try {
+      await this.makeEdgeRequest<{ success: boolean }>('update_user_settings', {
+        updates,
+      });
+    } catch (error) {
+      throw error instanceof ApiError
+        ? error
+        : new ApiError({ message: 'Failed to update user settings', status: 500 });
+    }
+  }
+
+  /**
    * Make authenticated request to edge processing endpoint with retry logic
    * Handles Lambda response format, implements exponential backoff, and provides comprehensive error handling
    * 

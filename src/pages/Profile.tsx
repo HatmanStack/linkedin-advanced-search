@@ -10,6 +10,8 @@ import { Separator } from "@/components/ui/separator";
 import { MessageSquare, ArrowLeft, User, Building, MapPin, Save, Plus, X, Key, Eye, EyeOff } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { useLinkedInCredentials } from '@/contexts/LinkedInCredentialsContext';
+import { apiService } from '@/services/apiService';
+import { encryptWithRsaOaep } from '@/utils/crypto';
 
 const Profile = () => {
   const navigate = useNavigate();
@@ -33,6 +35,8 @@ const Profile = () => {
 
   const [showPassword, setShowPassword] = useState(false);
   const [newInterest, setNewInterest] = useState('');
+  const [hasStoredCredentials, setHasStoredCredentials] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   const handleInputChange = (field: string, value: string) => {
     setProfile(prev => ({ ...prev, [field]: value }));
@@ -44,6 +48,40 @@ const Profile = () => {
       setLinkedinCredentials(contextCredentials);
     }
   }, [contextCredentials]);
+
+  useEffect(() => {
+    // On load, check if encrypted credentials already exist in DynamoDB via the API service
+    // We do not attempt to fetch or display plaintext; backend manages decryption when needed.
+    (async () => {
+      try {
+        const response = await apiService.getUserProfile();
+        if (response.success && response.data) {
+          const data: any = response.data;
+
+          // Populate profile fields from DynamoDB if present
+          const firstName = (data.first_name || '').trim();
+          const lastName = (data.last_name || '').trim();
+          const derivedName = [firstName, lastName].filter(Boolean).join(' ').trim();
+          setProfile(prev => ({
+            ...prev,
+            name: derivedName || prev.name,
+            title: (data.headline || data.current_position || prev.title || '').toString(),
+            company: (data.company || prev.company || '').toString(),
+            location: (data.location || prev.location || '').toString(),
+            bio: (data.summary || prev.bio || '').toString(),
+            interests: Array.isArray(data.interests) ? data.interests : prev.interests,
+            linkedinUrl: (data.profile_url || prev.linkedinUrl || '').toString(),
+          }));
+
+          if (data.linkedin_credentials) {
+            setHasStoredCredentials(true);
+          }
+        }
+      } catch (err) {
+        // Silent fail; do not block profile page if profile isn't initialized yet
+      }
+    })();
+  }, []);
 
   const handleLinkedinCredentialsChange = (field: string, value: string) => {
     setLinkedinCredentials(prev => ({ ...prev, [field]: value }));
@@ -66,12 +104,78 @@ const Profile = () => {
     }));
   };
 
-  const handleSave = () => {
-    setContextCredentials(linkedinCredentials);
-    toast({
-      title: "Profile updated!",
-      description: "Your profile information has been saved successfully.",
-    });
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      // Update in-memory session context only if needed elsewhere in the app during this session
+      setContextCredentials(linkedinCredentials);
+
+      // Transmit over HTTPS/TLS and let backend encrypt with KMS before storing in DynamoDB
+      // Never log or store plaintext locally beyond this session memory.
+      if (linkedinCredentials.email && linkedinCredentials.password) {
+        let payload: { linkedin_credentials: string } = { linkedin_credentials: '' };
+
+        // Optional client-side encryption if public key is provided; backend will still use KMS at rest.
+        const publicKeyPem = import.meta.env.VITE_LINKEDIN_CRED_PUBLIC_KEY as string | undefined;
+        if (publicKeyPem && publicKeyPem.includes('BEGIN PUBLIC KEY')) {
+          const json = JSON.stringify({
+            email: linkedinCredentials.email,
+            password: linkedinCredentials.password,
+          });
+          const ciphertextB64 = await encryptWithRsaOaep(json, publicKeyPem);
+          payload.linkedin_credentials = `rsa_oaep_sha256:b64:${ciphertextB64}`;
+        } else {
+          // Fallback: send JSON string and rely on backend to encrypt/de-identify and store securely with KMS
+          payload.linkedin_credentials = JSON.stringify({
+            email: linkedinCredentials.email,
+            password: linkedinCredentials.password,
+          });
+        }
+
+        const resp = await apiService.updateUserProfile(payload);
+        if (!resp.success) {
+          throw new Error(resp.error || 'Failed to save LinkedIn credentials');
+        }
+        setHasStoredCredentials(true);
+
+        // Clear password from local component state after saving to reduce exposure in memory
+        setLinkedinCredentials(prev => ({ ...prev, password: '' }));
+      }
+
+      // Save non-sensitive profile info
+      const [firstName, ...rest] = profile.name.trim().split(/\s+/);
+      const lastName = rest.join(' ').trim();
+      const profilePayload: any = {
+        first_name: firstName || undefined,
+        last_name: lastName || undefined,
+        headline: profile.title || undefined,
+        current_position: profile.title || undefined,
+        company: profile.company || undefined,
+        location: profile.location || undefined,
+        summary: profile.bio || undefined,
+        interests: Array.isArray(profile.interests) ? profile.interests : undefined,
+        profile_url: profile.linkedinUrl || undefined,
+      };
+
+      const profileResp = await apiService.updateUserProfile(profilePayload);
+      if (!profileResp.success) {
+        throw new Error(profileResp.error || 'Failed to save profile information');
+      }
+
+      toast({
+        title: "Profile updated!",
+        description: "Your profile information and credentials status have been saved securely.",
+      });
+      navigate('/dashboard', { replace: true });
+    } catch (error) {
+      toast({
+        title: 'Save failed',
+        description: error instanceof Error ? error.message : 'Unable to save your profile at this time.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -237,6 +341,13 @@ const Profile = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
+                {hasStoredCredentials && (
+                  <div className="bg-emerald-600/20 border border-emerald-600/30 rounded-lg p-3">
+                    <p className="text-emerald-200 text-sm">
+                      Credentials are securely stored. Enter new values below to replace them.
+                    </p>
+                  </div>
+                )}
                 <div>
                   <Label htmlFor="linkedinEmail" className="text-white">LinkedIn Email</Label>
                   <Input
@@ -276,15 +387,15 @@ const Profile = () => {
                 </div>
                 <div className="bg-yellow-600/20 border border-yellow-600/30 rounded-lg p-3">
                   <p className="text-yellow-200 text-sm">
-                    <strong>Security Note:</strong> Your credentials are stored locally and encrypted. We recommend using LinkedIn's official API for production use.
+                    <strong>Security Note:</strong> Credentials are transmitted over HTTPS and encrypted at rest in DynamoDB (via AWS KMS). Plaintext credentials are never stored.
                   </p>
                 </div>
               </CardContent>
             </Card>
 
-            <Button onClick={handleSave} className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white">
+            <Button onClick={handleSave} disabled={isSaving} className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white">
               <Save className="h-4 w-4 mr-2" />
-              Save Profile
+              {isSaving ? 'Saving…' : 'Save Profile'}
             </Button>
           </div>
 
@@ -340,9 +451,9 @@ const Profile = () => {
                 <div>
                   <h4 className="text-white font-medium mb-2">LinkedIn Status</h4>
                   <div className="flex items-center space-x-2">
-                    <div className={`w-2 h-2 rounded-full ${linkedinCredentials.email && linkedinCredentials.password ? 'bg-green-500' : 'bg-red-500'}`} />
+                    <div className={`w-2 h-2 rounded-full ${(hasStoredCredentials || (linkedinCredentials.email && linkedinCredentials.password)) ? 'bg-green-500' : 'bg-red-500'}`} />
                     <span className="text-slate-300 text-sm">
-                      {linkedinCredentials.email && linkedinCredentials.password ? 'Connected' : 'Not Connected'}
+                      {(hasStoredCredentials || (linkedinCredentials.email && linkedinCredentials.password)) ? 'Connected' : 'Not Connected'}
                     </span>
                   </div>
                 </div>

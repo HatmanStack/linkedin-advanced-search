@@ -4,6 +4,7 @@ import useApi from './useApi';
 import { apiService } from '../services/api';
 import type { SearchFormData } from '../utils/validation';
 import { STORAGE_KEYS } from '../utils/constants';
+import { connectionChangeTracker } from '../utils/connectionChangeTracker';
 
 interface UseSearchResultsReturn {
   results: string[];
@@ -40,6 +41,8 @@ function useSearchResults(): UseSearchResultsReturn {
   const searchLinkedIn = useCallback(
     async (searchFormData: SearchFormData) => {
       await executeSearch(searchFormData);
+      // Mark that connections may have changed due to a search
+      connectionChangeTracker.markChanged('search');
     },
     [executeSearch]
   );

@@ -109,7 +109,7 @@ export class HealingManager {
       healReason: stateData.healReason || 'Unknown error',
       
       // Processing state
-      currentProcessingList: stateData.currentProcessingList || 'all',
+      currentProcessingList: stateData.currentProcessingList || null,
       currentBatch: stateData.currentBatch || 0,
       currentIndex: stateData.currentIndex || 0,
       completedBatches: stateData.completedBatches || [],

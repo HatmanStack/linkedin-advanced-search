@@ -1,5 +1,6 @@
 import { CognitoUserPool, CognitoUser, CognitoUserSession } from 'amazon-cognito-identity-js';
 import { cognitoConfig } from '@/config/cognito';
+import { connectionChangeTracker } from '../utils/connectionChangeTracker';
 
 // API Configuration
 const API_BASE_URL = import.meta.env.VITE_API_GATEWAY_URL || 'http://localhost:3001/api';
@@ -294,6 +295,67 @@ class ApiService {
       method: 'POST',
       body: JSON.stringify({ connectionId, topicId }),
     });
+  }
+
+  // LinkedIn Interactions
+  async sendLinkedInMessage(params: {
+    recipientProfileId: string;
+    messageContent: string;
+    recipientName?: string;
+  }): Promise<ApiResponse<{ messageId: string; deliveryStatus: string }>> {
+    const response = await this.makeRequest<{ messageId: string; deliveryStatus: string }>(
+      '/linkedin-interactions/send-message',
+      {
+        method: 'POST',
+        body: JSON.stringify(params),
+      }
+    );
+
+    if (response.success) {
+      // Mark that DynamoDB edges/messages changed
+      connectionChangeTracker.markChanged('interaction');
+    }
+
+    return response;
+  }
+
+  async addLinkedInConnection(params: {
+    profileId: string;
+    connectionMessage?: string;
+    profileName?: string;
+  }): Promise<ApiResponse<{ connectionRequestId: string; status: string }>> {
+    const response = await this.makeRequest<{ connectionRequestId: string; status: string }>(
+      '/linkedin-interactions/add-connection',
+      {
+        method: 'POST',
+        body: JSON.stringify(params),
+      }
+    );
+
+    if (response.success) {
+      connectionChangeTracker.markChanged('interaction');
+    }
+
+    return response;
+  }
+
+  async createLinkedInPost(params: {
+    content: string;
+    mediaAttachments?: Array<{ type: 'image' | 'video' | 'document'; url: string; filename: string }>;
+  }): Promise<ApiResponse<{ postId: string; postUrl: string; publishStatus: string }>> {
+    const response = await this.makeRequest<{ postId: string; postUrl: string; publishStatus: string }>(
+      '/linkedin-interactions/create-post',
+      {
+        method: 'POST',
+        body: JSON.stringify(params),
+      }
+    );
+
+    if (response.success) {
+      connectionChangeTracker.markChanged('interaction');
+    }
+
+    return response;
   }
 
   // Heal and Restore Operations

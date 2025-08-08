@@ -212,7 +212,7 @@ export class ProfileInitService {
         };
       }
 
-      // Process each connection type (all, pending, sent, invitations)
+      // Process each connection type
       const connectionTypes = ['allies', 'outgoing', 'incoming'];
       const results = {
         processed: 0,
@@ -382,7 +382,7 @@ export class ProfileInitService {
 
       if (connectionType === 'incoming' || connectionType === 'outgoing') {
         // Handle invitation collection
-        const invitationsData = await this._getSentInvitesList();
+        const invitationsData = await this._getSentInvitesList(state);
 
         if (connectionType === 'incoming') {
           connections = invitationsData.received;
@@ -398,7 +398,7 @@ export class ProfileInitService {
         };
       } else {
         // Handle regular connections (allies)
-        connections = await this._getConnectionList(connectionType, masterIndex);
+        connections = await this._getConnectionList(connectionType, masterIndex, state);
       }
 
       if (!connections || connections.length === 0) {
@@ -1079,7 +1079,7 @@ export class ProfileInitService {
    * @param {Object} masterIndex - Master index for file management
    * @returns {Promise<Array>} Array of connection profile IDs
    */
-  async _getConnectionList(connectionType, masterIndex) {
+  async _getConnectionList(connectionType, masterIndex, state) {
     const timeout = 30000; // 30 second timeout for actions
 
     try {
@@ -1196,12 +1196,11 @@ export class ProfileInitService {
         logger.info(`Resumed ${connectionType} collection: ${allLinks.size} total links (${currentVisibleLinks.size} newly visible)`);
       }
 
-      // Continue expanding and collecting until no more "Show more" buttons
+      // Continue expanding and collecting until no more content (button or scroll)
       while (expansionAttempts < maxExpansionAttempts) {
         try {
-          // Look for "Show more" or expansion button
-          const expandButton = await page.evaluate(() => {
-            // Try multiple selectors for the expansion button
+          // Determine next expansion action: button click or scroll
+          const expandAction = await page.evaluate(() => {
             const selectors = [
               'div._6ce2ab68 > button > span',
               'button[aria-label*="Show more"]',
@@ -1212,27 +1211,41 @@ export class ProfileInitService {
 
             for (const selector of selectors) {
               const button = document.querySelector(selector);
-              if (button && button.offsetParent !== null) { // Check if visible
-                return true;
+              if (button && button.offsetParent !== null) {
+                return 'button';
               }
+            }
+
+            // If no button, check whether we can scroll further
+            const currentHeight = document.body.scrollHeight;
+            const viewportHeight = window.innerHeight;
+            const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+            if (scrollTop + viewportHeight < currentHeight - 100) {
+              return 'scroll';
             }
             return false;
           });
 
-          if (!expandButton) {
-            logger.info(`No more expansion buttons found after ${expansionAttempts} attempts`);
+          if (!expandAction) {
+            logger.info(`No more content available after ${expansionAttempts} attempts`);
             break;
           }
 
-          // Click the expansion button
-          logger.debug(`Clicking expansion button (attempt ${expansionAttempts + 1})`);
-          await this.puppeteer.Locator.race([
-            page.locator('div._6ce2ab68 > button > span'),
-            page.locator('::-p-xpath(//*[@id="workspace"]/div/div/main/section/div/div[2]/div/div[40]/button/span)'),
-            page.locator(':scope >>> div._6ce2ab68 > button > span')
-          ]).setTimeout(timeout).click({
-            offset: { x: 212, y: 19.5 }
-          });
+          if (expandAction === 'button') {
+            // Click the expansion button
+            logger.debug(`Clicking expansion button (attempt ${expansionAttempts + 1})`);
+            await this.puppeteer.Locator.race([
+              page.locator('div._6ce2ab68 > button > span'),
+              page.locator('::-p-xpath(//*[@id="workspace"]/div/div/main/section/div/div[2]/div/div[40]/button/span)'),
+              page.locator(':scope >>> div._6ce2ab68 > button > span')
+            ]).setTimeout(timeout).click({
+              offset: { x: 212, y: 19.5 }
+            });
+          } else {
+            // Fallback to scrolling to load more
+            logger.debug(`Scrolling to load more connections (attempt ${expansionAttempts + 1})`);
+            await page.evaluate(() => { window.scrollTo(0, document.body.scrollHeight); });
+          }
 
           // Wait for new content to load
           await RandomHelpers.randomDelay(2000, 4000);
@@ -1564,7 +1577,7 @@ export class ProfileInitService {
    * Collect sent invites from LinkedIn invitation manager
    * @returns {Promise<Object>} Object containing received and sent invitations with status labels
    */
-  async _getSentInvitesList() {
+  async _getSentInvitesList(state) {
     const timeout = 30000; // 30 second timeout for actions
 
     try {
@@ -1626,7 +1639,7 @@ export class ProfileInitService {
 
       // Collect received invitations (default tab)
       logger.info('Collecting received invitations');
-      const receivedInvitations = await this._collectInvitationLinksWithRobustSaving(page, 'incoming', tempMasterIndex);
+      const receivedInvitations = await this._collectInvitationLinksWithRobustSaving(page, 'incoming', tempMasterIndex, state);
 
       // Navigate to sent invitations tab
       logger.info('Navigating to sent invitations tab');
@@ -1643,7 +1656,7 @@ export class ProfileInitService {
 
       // Collect sent invitations
       logger.info('Collecting sent invitations');
-      const sentInvitations = await this._collectInvitationLinksWithRobustSaving(page, 'outgoing', tempMasterIndex);
+      const sentInvitations = await this._collectInvitationLinksWithRobustSaving(page, 'outgoing', tempMasterIndex, state);
 
       const result = {
         received: receivedInvitations,
@@ -1674,45 +1687,47 @@ export class ProfileInitService {
    * @param {Object} masterIndex - Master index for file management
    * @returns {Promise<Array>} Array of invitation objects with profile IDs and status
    */
-  async _collectInvitationLinksWithRobustSaving(page, status, masterIndex) {
+  async _collectInvitationLinksWithRobustSaving(page, status, masterIndex, state) {
+    return await this._collectInvitationLinksInternal(page, status, masterIndex, true, state);
+  }
+
+  /**
+   * Internal shared implementation for invitation link collection
+   * @param {Object} page
+   * @param {string} status
+   * @param {Object|null} masterIndex
+   * @param {boolean} saveDuringExpansion - whether to persist partial results
+   */
+  async _collectInvitationLinksInternal(page, status, masterIndex = null, saveDuringExpansion = false, state = null) {
     try {
-      logger.info(`Collecting ${status.toLowerCase()} invitation links with robust file saving`);
+      logger.info(`Collecting ${status.toLowerCase()} invitation links${saveDuringExpansion ? ' with robust file saving' : ''}`);
 
       const allLinks = new Set();
       let expansionAttempts = 0;
-      const maxExpansionAttempts = 50; // Prevent infinite expansion
+      const maxExpansionAttempts = 50;
       let currentFileIndex = 0;
       let currentFileLinks = [];
 
-      // Initial collection of visible invitation links
+      // Initial collection
       await this._collectVisibleInvitationLinks(page, allLinks);
       logger.info(`Initial ${status.toLowerCase()} collection: ${allLinks.size} links found`);
 
-      // Save initial collection
-      const initialInvitations = this._convertLinksToInvitations(Array.from(allLinks), status);
-      await this._saveInvitationsToFile(initialInvitations, status, currentFileIndex, masterIndex);
-      currentFileLinks = initialInvitations;
+      if (saveDuringExpansion && masterIndex) {
+        const initialInvitations = this._convertLinksToInvitations(Array.from(allLinks), status);
+        await this._saveInvitationsToFile(initialInvitations, status, currentFileIndex, masterIndex);
+        currentFileLinks = initialInvitations;
+      }
 
-      // Continue expanding and collecting until no more content
       while (expansionAttempts < maxExpansionAttempts) {
         try {
-          // Check if there's more content to load (scroll or button)
           const hasMoreContent = await page.evaluate(() => {
-            // Check for "Show more" button
             const showMoreButton = document.querySelector('button[aria-label*="Show more"], .scaffold-finite-scroll__load-button button, button:has-text("Show more")');
-            if (showMoreButton && showMoreButton.offsetParent !== null) {
-              return 'button';
-            }
+            if (showMoreButton && showMoreButton.offsetParent !== null) return 'button';
 
-            // Check if we can scroll for more content
             const currentHeight = document.body.scrollHeight;
             const viewportHeight = window.innerHeight;
             const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-
-            if (scrollTop + viewportHeight < currentHeight - 100) {
-              return 'scroll';
-            }
-
+            if (scrollTop + viewportHeight < currentHeight - 100) return 'scroll';
             return false;
           });
 
@@ -1722,83 +1737,53 @@ export class ProfileInitService {
           }
 
           const previousSize = allLinks.size;
-
           if (hasMoreContent === 'button') {
-            // Click show more button
             logger.debug(`Clicking show more button for ${status.toLowerCase()} invitations (attempt ${expansionAttempts + 1})`);
             await page.click('button[aria-label*="Show more"], .scaffold-finite-scroll__load-button button');
-          } else if (hasMoreContent === 'scroll') {
-            // Scroll to load more content
+          } else {
             logger.debug(`Scrolling to load more ${status.toLowerCase()} invitations (attempt ${expansionAttempts + 1})`);
-            await page.evaluate(() => {
-              window.scrollTo(0, document.body.scrollHeight);
-            });
+            await page.evaluate(() => { window.scrollTo(0, document.body.scrollHeight); });
           }
 
-          // Wait for new content to load
           await RandomHelpers.randomDelay(2000, 4000);
-
-          // Collect newly loaded links
           await this._collectVisibleInvitationLinks(page, allLinks);
           const newLinksFound = allLinks.size - previousSize;
-
           logger.debug(`${status} expansion ${expansionAttempts + 1}: Found ${newLinksFound} new links (total: ${allLinks.size})`);
-
-          // If no new links were found, we might have reached the end
           if (newLinksFound === 0) {
             logger.info(`No new ${status.toLowerCase()} links found after expansion ${expansionAttempts + 1}, stopping`);
             break;
           }
 
-          // Convert all links to invitations
-          const allInvitations = this._convertLinksToInvitations(Array.from(allLinks), status);
-
-          // Check if we need to create a new file (exceeding 100 invitations)
-          if (allInvitations.length > (currentFileIndex + 1) * this.batchSize) {
-            // Save current file and create new one
+          if (saveDuringExpansion && masterIndex) {
+            const allInvitations = this._convertLinksToInvitations(Array.from(allLinks), status);
+            if (allInvitations.length > (currentFileIndex + 1) * this.batchSize) {
+              await this._saveInvitationsToFile(currentFileLinks, status, currentFileIndex, masterIndex);
+              currentFileIndex++;
+              currentFileLinks = allInvitations.slice(currentFileIndex * this.batchSize);
+              logger.info(`Created new file ${currentFileIndex} for ${status} invitations (${allInvitations.length} total invitations)`);
+            } else {
+              currentFileLinks = allInvitations.slice(currentFileIndex * this.batchSize);
+            }
             await this._saveInvitationsToFile(currentFileLinks, status, currentFileIndex, masterIndex);
-
-            currentFileIndex++;
-            currentFileLinks = allInvitations.slice(currentFileIndex * this.batchSize);
-
-            logger.info(`Created new file ${currentFileIndex} for ${status} invitations (${allInvitations.length} total invitations)`);
-          } else {
-            // Update current file with new invitations
-            currentFileLinks = allInvitations.slice(currentFileIndex * this.batchSize);
           }
 
-          // Save after every expansion
-          await this._saveInvitationsToFile(currentFileLinks, status, currentFileIndex, masterIndex);
-
           expansionAttempts++;
-
         } catch (expansionError) {
           logger.warn(`Error during ${status.toLowerCase()} expansion attempt ${expansionAttempts + 1}:`, expansionError.message);
-
-          // Try to collect any remaining visible links before breaking
           await this._collectVisibleInvitationLinks(page, allLinks);
-
-          // Save whatever we have collected
-          const finalInvitations = this._convertLinksToInvitations(Array.from(allLinks), status);
-          await this._saveInvitationsToFile(finalInvitations.slice(currentFileIndex * this.batchSize), status, currentFileIndex, masterIndex);
+          if (saveDuringExpansion && masterIndex) {
+            const finalInvitations = this._convertLinksToInvitations(Array.from(allLinks), status);
+            await this._saveInvitationsToFile(finalInvitations.slice(currentFileIndex * this.batchSize), status, currentFileIndex, masterIndex);
+          }
           break;
         }
       }
 
       logger.info(`${status} invitation link collection completed: ${allLinks.size} unique links found after ${expansionAttempts} expansions`);
-
-      // Convert Set to Array and create invitation objects with status
       const invitations = this._convertLinksToInvitations(Array.from(allLinks), status);
-
-      // Remove duplicates based on profileId
-      const uniqueInvitations = invitations.filter((invitation, index, self) =>
-        index === self.findIndex(inv => inv.profileId === invitation.profileId)
-      );
-
+      const uniqueInvitations = invitations.filter((invitation, index, self) => index === self.findIndex(inv => inv.profileId === invitation.profileId));
       logger.info(`Extracted ${uniqueInvitations.length} unique ${status.toLowerCase()} invitation profile IDs from ${allLinks.size} links`);
-
       return uniqueInvitations;
-
     } catch (error) {
       logger.error(`Failed to collect ${status.toLowerCase()} invitation links:`, error);
       throw error;
@@ -1812,114 +1797,7 @@ export class ProfileInitService {
    * @returns {Promise<Array>} Array of invitation objects with profile IDs and status
    */
   async _collectInvitationLinks(page, status) {
-    try {
-      logger.info(`Collecting ${status.toLowerCase()} invitation links`);
-
-      const allLinks = new Set();
-      let expansionAttempts = 0;
-      const maxExpansionAttempts = 50; // Prevent infinite expansion
-
-      // Initial collection of visible invitation links
-      await this._collectVisibleInvitationLinks(page, allLinks);
-      logger.info(`Initial ${status.toLowerCase()} collection: ${allLinks.size} links found`);
-
-      // Continue expanding and collecting until no more content
-      while (expansionAttempts < maxExpansionAttempts) {
-        try {
-          // Check if there's more content to load (scroll or button)
-          const hasMoreContent = await page.evaluate(() => {
-            // Check for "Show more" button
-            const showMoreButton = document.querySelector('button[aria-label*="Show more"], .scaffold-finite-scroll__load-button button, button:has-text("Show more")');
-            if (showMoreButton && showMoreButton.offsetParent !== null) {
-              return 'button';
-            }
-
-            // Check if we can scroll for more content
-            const currentHeight = document.body.scrollHeight;
-            const viewportHeight = window.innerHeight;
-            const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-
-            if (scrollTop + viewportHeight < currentHeight - 100) {
-              return 'scroll';
-            }
-
-            return false;
-          });
-
-          if (!hasMoreContent) {
-            logger.info(`No more content to load for ${status.toLowerCase()} invitations after ${expansionAttempts} attempts`);
-            break;
-          }
-
-          const previousSize = allLinks.size;
-
-          if (hasMoreContent === 'button') {
-            // Click show more button
-            logger.debug(`Clicking show more button for ${status.toLowerCase()} invitations (attempt ${expansionAttempts + 1})`);
-            await page.click('button[aria-label*="Show more"], .scaffold-finite-scroll__load-button button');
-          } else if (hasMoreContent === 'scroll') {
-            // Scroll to load more content
-            logger.debug(`Scrolling to load more ${status.toLowerCase()} invitations (attempt ${expansionAttempts + 1})`);
-            await page.evaluate(() => {
-              window.scrollTo(0, document.body.scrollHeight);
-            });
-          }
-
-          // Wait for new content to load
-          await RandomHelpers.randomDelay(2000, 4000);
-
-          // Collect newly loaded links
-          await this._collectVisibleInvitationLinks(page, allLinks);
-          const newLinksFound = allLinks.size - previousSize;
-
-          logger.debug(`${status} expansion ${expansionAttempts + 1}: Found ${newLinksFound} new links (total: ${allLinks.size})`);
-
-          // If no new links were found, we might have reached the end
-          if (newLinksFound === 0) {
-            logger.info(`No new ${status.toLowerCase()} links found after expansion ${expansionAttempts + 1}, stopping`);
-            break;
-          }
-
-          expansionAttempts++;
-
-        } catch (expansionError) {
-          logger.warn(`Error during ${status.toLowerCase()} expansion attempt ${expansionAttempts + 1}:`, expansionError.message);
-
-          // Try to collect any remaining visible links before breaking
-          await this._collectVisibleInvitationLinks(page, allLinks);
-          break;
-        }
-      }
-
-      logger.info(`${status} invitation link collection completed: ${allLinks.size} unique links found after ${expansionAttempts} expansions`);
-
-      // Convert Set to Array and create invitation objects with status
-      const invitations = Array.from(allLinks).map(link => {
-        const match = link.match(/\/in\/([^\/\?]+)/);
-        if (match && match[1]) {
-          const profileId = match[1].replace(/\/$/, '').split('?')[0];
-          return {
-            profileId: profileId,
-            status: status,
-            originalUrl: link
-          };
-        }
-        return null;
-      }).filter(invitation => invitation && invitation.profileId && invitation.profileId !== 'undefined' && invitation.profileId.length > 0);
-
-      // Remove duplicates based on profileId
-      const uniqueInvitations = invitations.filter((invitation, index, self) =>
-        index === self.findIndex(inv => inv.profileId === invitation.profileId)
-      );
-
-      logger.info(`Extracted ${uniqueInvitations.length} unique ${status.toLowerCase()} invitation profile IDs from ${allLinks.size} links`);
-
-      return uniqueInvitations;
-
-    } catch (error) {
-      logger.error(`Failed to collect ${status.toLowerCase()} invitation links:`, error);
-      throw error;
-    }
+    return await this._collectInvitationLinksInternal(page, status, null, false);
   }
 
   /**
