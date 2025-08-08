@@ -82,10 +82,10 @@ class ProfileInitTestRunner {
 
     // Check if source files exist
     const sourceFiles = [
-      'backend/controllers/profileInitController.js',
-      'backend/services/profileInitService.js',
-      'backend/utils/profileInitStateManager.js',
-      'backend/utils/profileInitMonitor.js'
+        'puppeteer-backend/controllers/profileInitController.js',
+  'puppeteer-backend/services/profileInitService.js',
+  'puppeteer-backend/utils/profileInitStateManager.js',
+  'puppeteer-backend/utils/profileInitMonitor.js'
     ];
 
     const missingSourceFiles = [];

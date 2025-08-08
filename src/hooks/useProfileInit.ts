@@ -1,6 +1,5 @@
 import { useState, useCallback } from 'react';
-import { apiService } from '@/services/apiService';
-import { useLinkedInCredentials } from '@/contexts/LinkedInCredentialsContext';
+import { puppeteerApiService } from '@/services/puppeteerApiService';
 import { useToast } from '@/hooks/use-toast';
 import { connectionChangeTracker } from '../utils/connectionChangeTracker';
 
@@ -17,21 +16,10 @@ export const useProfileInit = (): UseProfileInitReturn => {
   const [initializationMessage, setInitializationMessage] = useState<string>('');
   const [initializationError, setInitializationError] = useState<string>('');
   
-  const { credentials } = useLinkedInCredentials();
   const { toast } = useToast();
 
   const initializeProfile = useCallback(async (onSuccess?: () => void) => {
-    // Check if LinkedIn credentials are available
-    if (!credentials.email || !credentials.password) {
-      const errorMessage = 'LinkedIn credentials are required. Please set them in your profile settings.';
-      setInitializationError(errorMessage);
-      toast({
-        title: "Credentials Required",
-        description: "Please set your LinkedIn credentials in profile settings before initializing the database.",
-        variant: "destructive",
-      });
-      return;
-    }
+    // We no longer require plaintext here; ciphertext is attached by the API service
 
     setIsInitializing(true);
     setInitializationError('');
@@ -40,13 +28,11 @@ export const useProfileInit = (): UseProfileInitReturn => {
     try {
       // Prepare the request payload following the same structure as search
       // Note: JWT token is automatically handled by apiService via Authorization header
-      const requestPayload = {
-        searchName: credentials.email,
-        searchPassword: credentials.password,
-      };
+      // Payload can be empty; puppeteerApiService will attach ciphertext credentials
+      const requestPayload = {} as any;
 
       // Make API call using the apiService
-      const response = await apiService.initializeProfileDatabase(requestPayload);
+      const response = await puppeteerApiService.initializeProfileDatabase(requestPayload);
 
       if (!response.success) {
         throw new Error(response.error || 'Failed to initialize profile database');
@@ -94,7 +80,7 @@ export const useProfileInit = (): UseProfileInitReturn => {
     } finally {
       setIsInitializing(false);
     }
-  }, [credentials, toast]);
+  }, [toast]);
 
   const clearMessages = useCallback(() => {
     setInitializationMessage('');

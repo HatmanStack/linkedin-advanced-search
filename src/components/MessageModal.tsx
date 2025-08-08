@@ -11,7 +11,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Send, MessageSquare, Loader2, AlertCircle, Sparkles, Check, SkipForward } from 'lucide-react';
-import { ApiError } from '@/services/dbConnector';
+import { ApiError } from '@/services/lambdaApiService';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { transformErrorForUser, getToastVariant, ERROR_MESSAGES } from '@/utils/errorHandling';

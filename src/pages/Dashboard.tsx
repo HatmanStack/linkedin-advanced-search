@@ -19,7 +19,7 @@ import StatusPicker, { StatusValue, ConnectionCounts } from '@/components/Status
 import VirtualConnectionList from '@/components/VirtualConnectionList';
 import MessageModal from '@/components/MessageModal';
 import ConnectionFiltersComponent from '@/components/ConnectionFilters';
-import { dbConnector, Connection, Message, ApiError } from '@/services/dbConnector';
+import { lambdaApiService as dbConnector, Connection, Message, ApiError } from '@/services/lambdaApiService';
 import { connectionCache } from '@/utils/connectionCache';
 import { connectionChangeTracker } from '../utils/connectionChangeTracker';
 import { ConnectionListSkeleton } from '@/components/ConnectionCardSkeleton';
@@ -38,7 +38,7 @@ const Dashboard = () => {
   const { user, signOut } = useAuth();
   const { startListening } = useHealAndRestore(); // Added
   const { toast } = useToast();
-  const { credentials: linkedinUserCredentials } = useLinkedInCredentials(); // Added
+  const { ciphertext: linkedInCredsCiphertext } = useLinkedInCredentials(); // Ciphertext only
   const [conversationTopic, setConversationTopic] = useState('');
   const [selectedConnections, setSelectedConnections] = useState<string[]>([]);
   const [postContent, setPostContent] = useState('');
@@ -121,8 +121,16 @@ const Dashboard = () => {
   useEffect(() => {
     if (!user) return;
 
+    // Namespace the cache per user and load from storage once on mount/session switch
+    connectionCache.setNamespace(user.id);
+    connectionCache.loadFromStorage();
+
     const cached = connectionCache.getAll();
-    const shouldRefetch = cached.length === 0 || connectionChangeTracker.hasChanged();
+    const hasChanged = connectionChangeTracker.hasChanged();
+    const sessionInitKey = `connectionsInit:${user.id}`;
+    const hasInitializedThisSession = sessionStorage.getItem(sessionInitKey) === 'true';
+
+    const shouldRefetch = hasChanged || (!hasInitializedThisSession && cached.length === 0);
 
     if (shouldRefetch) {
       (async () => {
@@ -145,12 +153,15 @@ const Dashboard = () => {
           });
           counts.total = counts.incoming + counts.outgoing + counts.allies;
           setConnectionCounts(counts);
+          // Clear change flag after successful refresh
+          connectionChangeTracker.clearChanged();
+          // Mark initialized for this session so subsequent navigations don't refetch unnecessarily
+          sessionStorage.setItem(sessionInitKey, 'true');
         } catch (err: any) {
           const errorMessage = err instanceof ApiError ? err.message : 'Failed to fetch connections';
           setConnectionsError(errorMessage);
         } finally {
           setConnectionsLoading(false);
-          connectionChangeTracker.clearChanged();
         }
       })();
     } else {
@@ -168,6 +179,10 @@ const Dashboard = () => {
       });
       counts.total = counts.incoming + counts.outgoing + counts.allies;
       setConnectionCounts(counts);
+      // Ensure session initialized flag is set when data already exists in cache
+      if (!hasInitializedThisSession) {
+        sessionStorage.setItem(sessionInitKey, 'true');
+      }
     }
   }, [user]);
 
@@ -196,6 +211,9 @@ const Dashboard = () => {
       // Calculate connection counts
       const counts = calculateConnectionCounts(fetchedConnections);
       setConnectionCounts(counts);
+
+      // Clear change flag after successful refresh of cache
+      connectionChangeTracker.clearChanged();
 
       console.log('Connections fetched successfully:', fetchedConnections.length);
     } catch (error) {
@@ -606,11 +624,12 @@ const Dashboard = () => {
         companyName: filters.company,
         companyRole: filters.job,
         companyLocation: filters.location,
-        searchName: linkedinUserCredentials.email, // Use credentials from context
-        searchPassword: linkedinUserCredentials.password, // Use credentials from context
+        // We do not include plaintext; puppeteerApiService will attach ciphertext automatically
+        searchName: '',
+        searchPassword: '',
         userId: filters.userId, // Include userId from filters
       };
-      console.log('Search data with credentials:', searchData);
+      console.log('Search data (ciphertext will be attached automatically):', { ...searchData, hasCiphertext: !!linkedInCredsCiphertext });
       // Use the existing search functionality
       await searchLinkedIn(searchData);
 

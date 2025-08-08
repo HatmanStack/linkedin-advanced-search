@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { apiService, UserProfile } from '@/services/apiService';
+import { puppeteerApiService, UserProfile } from '@/services/puppeteerApiService';
 import { useAuth } from '@/contexts/AuthContext';
 
 export const useProfile = () => {
@@ -19,7 +19,7 @@ export const useProfile = () => {
       setLoading(true);
       setError(null);
       
-      const response = await apiService.getUserProfile();
+      const response = await puppeteerApiService.getUserProfile();
       
       if (response.success && response.data) {
         setProfile(response.data);
@@ -41,7 +41,7 @@ export const useProfile = () => {
 
   const updateProfile = useCallback(async (updates: Partial<UserProfile>): Promise<boolean> => {
     try {
-      const response = await apiService.updateUserProfile(updates);
+      const response = await puppeteerApiService.updateUserProfile(updates);
       
       if (response.success && response.data) {
         setProfile(response.data);

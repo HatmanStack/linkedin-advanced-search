@@ -36,6 +36,8 @@ export class ConnectionCache {
   private cache = new Map<string, Connection>();
   private readonly maxSize: number;
   private stats: CacheStats;
+  private namespace: string | null = null;
+  private readonly storageKeyBase = 'connectionCache:';
 
   constructor(maxSize: number = 1000) {
     this.maxSize = maxSize;
@@ -46,6 +48,48 @@ export class ConnectionCache {
       size: 0,
       maxSize
     };
+  }
+
+  /**
+   * Set a namespace (typically the current user id) for persistent storage
+   * When set, the cache will automatically save to localStorage on mutations.
+   */
+  setNamespace(namespace: string | null): void {
+    this.namespace = namespace && namespace.trim().length > 0 ? namespace : null;
+  }
+
+  /**
+   * Load cache contents from localStorage for the current namespace
+   * Overwrites any in-memory contents.
+   */
+  loadFromStorage(): void {
+    if (!this.namespace) return;
+    try {
+      const key = `${this.storageKeyBase}${this.namespace}`;
+      const raw = localStorage.getItem(key);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as Connection[];
+      if (!Array.isArray(parsed)) return;
+      this.cache.clear();
+      for (const connection of parsed) {
+        if (connection && (connection as any).id) {
+          this.cache.set((connection as any).id, connection);
+        }
+      }
+      this.stats.size = this.cache.size;
+    } catch {}
+  }
+
+  /**
+   * Persist current cache contents to localStorage for the current namespace
+   */
+  private saveToStorage(): void {
+    if (!this.namespace) return;
+    try {
+      const key = `${this.storageKeyBase}${this.namespace}`;
+      const serialized = JSON.stringify(this.getAll());
+      localStorage.setItem(key, serialized);
+    } catch {}
   }
 
   /**
@@ -76,6 +120,7 @@ export class ConnectionCache {
     if (this.cache.has(id)) {
       this.cache.delete(id);
       this.cache.set(id, connection);
+      this.saveToStorage();
       return;
     }
 
@@ -90,6 +135,7 @@ export class ConnectionCache {
 
     this.cache.set(id, connection);
     this.stats.size = this.cache.size;
+    this.saveToStorage();
   }
 
   /**
@@ -106,6 +152,7 @@ export class ConnectionCache {
     const deleted = this.cache.delete(id);
     if (deleted) {
       this.stats.size = this.cache.size;
+      this.saveToStorage();
     }
     return deleted;
   }
@@ -119,6 +166,7 @@ export class ConnectionCache {
     this.stats.hits = 0;
     this.stats.misses = 0;
     this.stats.evictions = 0;
+    this.saveToStorage();
   }
 
   /**
@@ -148,6 +196,7 @@ export class ConnectionCache {
     for (const connection of connections) {
       this.set(connection.id, connection);
     }
+    this.saveToStorage();
   }
 
   /**
@@ -168,7 +217,7 @@ export class ConnectionCache {
       this.delete(id);
       invalidated++;
     }
-
+    this.saveToStorage();
     return invalidated;
   }
 
@@ -181,6 +230,7 @@ export class ConnectionCache {
     if (existing) {
       const updated = { ...existing, ...updates };
       this.set(id, updated);
+      this.saveToStorage();
       return true;
     }
     return false;
@@ -281,6 +331,7 @@ export class ConnectionCache {
     // Load up to maxSize connections
     const connectionsToLoad = sortedConnections.slice(0, this.maxSize);
     this.setMultiple(connectionsToLoad);
+    this.saveToStorage();
   }
 }
 

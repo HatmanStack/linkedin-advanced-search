@@ -1,5 +1,5 @@
 import { CognitoAuthService } from './cognitoService';
-import { API_CONFIG } from '../utils/constants';
+import { API_CONFIG } from '@/config/appConfig';
 import type { Connection, Message, UserProfile } from '../types/index';
 
 // =============================================================================

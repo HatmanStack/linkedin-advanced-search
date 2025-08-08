@@ -1,4 +1,4 @@
-import { ApiError } from '@/services/dbConnector';
+import { ApiError } from '@/services/lambdaApiService';
 
 /**
  * Error handling utilities for the connection management system

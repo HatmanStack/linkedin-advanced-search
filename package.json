@@ -18,7 +18,7 @@
     "test:integration:performance": "vitest run src/__tests__/integration/performance-stress.test.tsx",
     "test:integration:accessibility": "vitest run src/__tests__/integration/accessibility-compliance.test.tsx",
     "test:integration:linkedin": "vitest run src/__tests__/integration/linkedin-interaction-integration.test.tsx",
-    "test:integration:api": "vitest run src/__tests__/integration/api-backend-integration.test.tsx",
+    "test:integration:api": "vitest run src/__tests__/integration/api-puppeteer-backend-integration.test.tsx",
     "test:all": "npm run test && npm run test:integration:comprehensive"
   },
   "dependencies": {

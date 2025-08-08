@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { ConnectionDataContextService } from '../connectionDataContextService';
 import type { Connection, Message } from '../../types/index';
-import type { UserProfile } from '../apiService';
+import type { UserProfile } from '../puppeteerApiService';
 
 describe('ConnectionDataContextService - Task 11 Core Functionality', () => {
   let service: ConnectionDataContextService;

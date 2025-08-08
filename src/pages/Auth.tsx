@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MessageSquare, ArrowLeft, Eye, EyeOff, Mail } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { isCognitoConfigured } from '@/config/cognito';
+import { isCognitoConfigured } from '@/config/appConfig';
 
 const Auth = () => {
   const navigate = useNavigate();

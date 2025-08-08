@@ -1,5 +1,5 @@
 import type { Connection, Message } from '../types/index';
-import type { UserProfile } from './apiService';
+import type { UserProfile } from './puppeteerApiService';
 import type { MessageGenerationRequest } from './messageGenerationService';
 
 // =============================================================================

@@ -4,14 +4,14 @@
  */
 
 import { jest } from '@jest/globals';
-import { ProfileInitController } from '../backend/controllers/profileInitController.js';
-import { ProfileInitService } from '../backend/services/profileInitService.js';
-import { ProfileInitStateManager } from '../backend/utils/profileInitStateManager.js';
-import { HealingManager } from '../backend/utils/healingManager.js';
-import { profileInitMonitor } from '../backend/utils/profileInitMonitor.js';
+import { ProfileInitController } from '../puppeteer-backend/controllers/profileInitController.js';
+import { ProfileInitService } from '../puppeteer-backend/services/profileInitService.js';
+import { ProfileInitStateManager } from '../puppeteer-backend/utils/profileInitStateManager.js';
+import { HealingManager } from '../puppeteer-backend/utils/healingManager.js';
+import { profileInitMonitor } from '../puppeteer-backend/utils/profileInitMonitor.js';
 
 // Mock dependencies
-jest.mock('../backend/utils/logger.js', () => ({
+jest.mock('../puppeteer-backend/utils/logger.js', () => ({
   logger: {
     info: jest.fn(),
     warn: jest.fn(),
@@ -20,14 +20,14 @@ jest.mock('../backend/utils/logger.js', () => ({
   }
 }));
 
-jest.mock('../backend/services/puppeteerService.js');
-jest.mock('../backend/services/linkedinService.js');
-jest.mock('../backend/services/linkedinContactService.js');
-jest.mock('../backend/services/dynamoDBService.js');
-jest.mock('../backend/services/profileInitService.js');
-jest.mock('../backend/utils/healingManager.js');
-jest.mock('../backend/utils/profileInitStateManager.js');
-jest.mock('../backend/utils/profileInitMonitor.js');
+jest.mock('../puppeteer-backend/services/puppeteerService.js');
+jest.mock('../puppeteer-backend/services/linkedinService.js');
+jest.mock('../puppeteer-backend/services/linkedinContactService.js');
+jest.mock('../puppeteer-backend/services/dynamoDBService.js');
+jest.mock('../puppeteer-backend/services/profileInitService.js');
+jest.mock('../puppeteer-backend/utils/healingManager.js');
+jest.mock('../puppeteer-backend/utils/profileInitStateManager.js');
+jest.mock('../puppeteer-backend/utils/profileInitMonitor.js');
 
 describe('Profile Initialization Heal-and-Restore Tests', () => {
   let controller;

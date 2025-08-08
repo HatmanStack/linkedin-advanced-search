@@ -1,4 +1,5 @@
 # Logs
+.env
 logs
 *.log
 npm-debug.log*
@@ -47,7 +48,7 @@ PINE*.md
 lambda-deployments
 .crush
 CRUSH.md
-
+puppeteer-backend/.keys/*
 
 REPAIR*.md
 TASK*.md

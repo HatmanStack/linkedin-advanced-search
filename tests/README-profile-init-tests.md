@@ -65,10 +65,10 @@ Tests heal-and-restore mechanism:
    ```
 
 2. **Ensure source files exist**:
-   - `backend/controllers/profileInitController.js`
-   - `backend/services/profileInitService.js`
-   - `backend/utils/profileInitStateManager.js`
-   - `backend/utils/profileInitMonitor.js`
+   - `puppeteer-backend/controllers/profileInitController.js`
+- `puppeteer-backend/services/profileInitService.js`
+- `puppeteer-backend/utils/profileInitStateManager.js`
+- `puppeteer-backend/utils/profileInitMonitor.js`
 
 ### Run All Tests
 

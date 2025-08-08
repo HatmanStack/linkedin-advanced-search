@@ -4,15 +4,15 @@
  */
 
 import { jest } from '@jest/globals';
-import { ProfileInitService } from '../backend/services/profileInitService.js';
-import { ProfileInitStateManager } from '../backend/utils/profileInitStateManager.js';
-import { profileInitMonitor } from '../backend/utils/profileInitMonitor.js';
-import RandomHelpers from '../backend/utils/randomHelpers.js';
+import { ProfileInitService } from '../puppeteer-backend/services/profileInitService.js';
+import { ProfileInitStateManager } from '../puppeteer-backend/utils/profileInitStateManager.js';
+import { profileInitMonitor } from '../puppeteer-backend/utils/profileInitMonitor.js';
+import RandomHelpers from '../puppeteer-backend/utils/randomHelpers.js';
 import fs from 'fs/promises';
 import path from 'path';
 
 // Mock dependencies
-jest.mock('../backend/utils/logger.js', () => ({
+jest.mock('../puppeteer-backend/utils/logger.js', () => ({
   logger: {
     info: jest.fn(),
     warn: jest.fn(),
@@ -21,9 +21,9 @@ jest.mock('../backend/utils/logger.js', () => ({
   }
 }));
 
-jest.mock('../backend/utils/profileInitStateManager.js');
-jest.mock('../backend/utils/profileInitMonitor.js');
-jest.mock('../backend/utils/randomHelpers.js');
+jest.mock('../puppeteer-backend/utils/profileInitStateManager.js');
+jest.mock('../puppeteer-backend/utils/profileInitMonitor.js');
+jest.mock('../puppeteer-backend/utils/randomHelpers.js');
 jest.mock('fs/promises');
 jest.mock('path');
 

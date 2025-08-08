@@ -9,7 +9,7 @@ import { useLinkedInCredentials } from '@/contexts/LinkedInCredentialsContext';
 import { useToast } from '@/hooks/use-toast';
 import { useSearchResults } from '@/hooks';
 import { useProfileInit } from '@/hooks/useProfileInit';
-import { dbConnector } from '@/services/dbConnector';
+import { lambdaApiService as dbConnector } from '@/services/lambdaApiService';
 
 // Mock all the hooks and services
 vi.mock('@/contexts/AuthContext');
@@ -18,7 +18,13 @@ vi.mock('@/contexts/LinkedInCredentialsContext');
 vi.mock('@/hooks/use-toast');
 vi.mock('@/hooks');
 vi.mock('@/hooks/useProfileInit');
-vi.mock('@/services/dbConnector');
+vi.mock('@/services/lambdaApiService', () => ({
+  lambdaApiService: {
+    getConnectionsByStatus: vi.fn(),
+    updateConnectionStatus: vi.fn(),
+    getMessageHistory: vi.fn(),
+  }
+}));
 
 // Mock react-router-dom
 vi.mock('react-router-dom', async () => {

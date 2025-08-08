@@ -3,7 +3,7 @@
  * Verifies method signature, parameters, and return types
  */
 
-import DynamoDBService from '../backend/services/dynamoDBService.js';
+import DynamoDBService from '../puppeteer-backend/services/dynamoDBService.js';
 
 // Mock axios to avoid actual API calls
 const mockAxios = {
@@ -54,7 +54,7 @@ async function runUnitTests() {
     // Test 2: Method documentation and JSDoc
     console.log('\n📋 Test 2: Method documentation verification');
     const sourceCode = await import('fs').then(fs => 
-        fs.promises.readFile('backend/services/dynamoDBService.js', 'utf8')
+        fs.promises.readFile('puppeteer-backend/services/dynamoDBService.js', 'utf8')
     );
     
     if (sourceCode.includes('Check if an edge relationship exists')) {

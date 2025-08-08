@@ -1,34 +1,60 @@
 // src/contexts/LinkedInCredentialsContext.tsx
-import { createContext, useState, useContext, ReactNode, useMemo } from 'react';
+import { createContext, useState, useContext, ReactNode, useMemo, useEffect } from 'react';
+import { lambdaApiService } from '@/services/lambdaApiService';
+import { useAuth } from '@/contexts/AuthContext';
 
-interface LinkedInCredentials {
-  email: string;
-  password: string;
-}
+type LinkedInCredentialsCiphertext = string | null; // rsa_oaep_sha256:b64:<...>
 
 interface LinkedInCredentialsContextType {
-  credentials: LinkedInCredentials;
-  setCredentials: (credentials: LinkedInCredentials) => void;
+  ciphertext: LinkedInCredentialsCiphertext;
+  setCiphertext: (ciphertext: LinkedInCredentialsCiphertext) => void;
 }
 
 const LinkedInCredentialsContext = createContext<LinkedInCredentialsContextType | undefined>(undefined);
 
 export const LinkedInCredentialsProvider = ({ children }: { children: ReactNode }) => {
-  const [credentials, setCredentialsState] = useState<LinkedInCredentials>({
-    email: '',
-    password: '',
-  });
+  const [ciphertext, setCiphertextState] = useState<LinkedInCredentialsCiphertext>(null);
+  const { user } = useAuth();
+
+  // On mount, attempt to hydrate from sessionStorage, then from user profile
+  useEffect(() => {
+    try {
+      const stored = sessionStorage.getItem('li_credentials_ciphertext');
+      if (stored && stored.startsWith('rsa_oaep_sha256:b64:')) {
+        setCiphertextState(stored);
+      }
+    } catch {}
+
+    // Hydrate from profile when user is available (post-login) and we don't already have ciphertext
+    (async () => {
+      if (!user) return;
+      try {
+        const profile = await lambdaApiService.getUserProfile();
+        const cred = profile.success ? profile.data?.linkedin_credentials : null;
+        if (typeof cred === 'string' && cred.startsWith('rsa_oaep_sha256:b64:')) {
+          setCiphertextState(cred);
+          try {
+            sessionStorage.setItem('li_credentials_ciphertext', cred);
+          } catch {}
+        }
+      } catch {}
+    })();
+  }, [user]);
 
   // Memoize the context value to prevent unnecessary re-renders
   const contextValue = useMemo(() => ({
-    credentials,
-    setCredentials: (newCredentials: LinkedInCredentials) => {
-      // In a real production app, consider encrypting before storing if you were to use localStorage.
-      // However, storing raw passwords client-side, even encrypted, is highly discouraged.
-      // This example keeps credentials in-memory for the session.
-      setCredentialsState(newCredentials);
+    ciphertext,
+    setCiphertext: (value: LinkedInCredentialsCiphertext) => {
+      setCiphertextState(value);
+      try {
+        if (value && value.startsWith('rsa_oaep_sha256:b64:')) {
+          sessionStorage.setItem('li_credentials_ciphertext', value);
+        } else {
+          sessionStorage.removeItem('li_credentials_ciphertext');
+        }
+      } catch {}
     }
-  }), [credentials]);
+  }), [ciphertext]);
 
   return (
     <LinkedInCredentialsContext.Provider value={contextValue}>
