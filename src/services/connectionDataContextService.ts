@@ -319,8 +319,7 @@ export class ConnectionDataContextService {
 // Create singleton instance
 export const connectionDataContextService = new ConnectionDataContextService();
 
-// Export the service class for testing
-export { ConnectionDataContextService };
+// The service class is already exported above with `export class ConnectionDataContextService`
 
 // Export interfaces
 export type {

@@ -376,70 +376,7 @@ class MessageGenerationService {
     };
   }
 
-  /**
-   * Handle API errors with user-friendly messages
-   */
-  private handleApiError(error: any): never {
-    if (error instanceof MessageGenerationError) {
-      throw error;
-    }
-
-    // Map common HTTP status codes to user-friendly messages
-    if (error.status) {
-      switch (error.status) {
-        case 400:
-          throw new MessageGenerationError({
-            message: 'Invalid request data. Please check your input and try again.',
-            status: 400,
-            code: 'BAD_REQUEST',
-          });
-        case 401:
-          throw new MessageGenerationError({
-            message: 'Authentication failed. Please log in again.',
-            status: 401,
-            code: 'UNAUTHORIZED',
-          });
-        case 403:
-          throw new MessageGenerationError({
-            message: 'You do not have permission to generate messages.',
-            status: 403,
-            code: 'FORBIDDEN',
-          });
-        case 429:
-          throw new MessageGenerationError({
-            message: 'Too many requests. Please wait a moment and try again.',
-            status: 429,
-            code: 'RATE_LIMITED',
-          });
-        case 500:
-          throw new MessageGenerationError({
-            message: 'Server error occurred. Please try again later.',
-            status: 500,
-            code: 'SERVER_ERROR',
-          });
-        default:
-          throw new MessageGenerationError({
-            message: `Request failed with status ${error.status}`,
-            status: error.status,
-            code: 'HTTP_ERROR',
-          });
-      }
-    }
-
-    // Handle network errors
-    if (error.name === 'AbortError') {
-      throw new MessageGenerationError({
-        message: 'Request timeout. Please try again.',
-        code: 'TIMEOUT',
-      });
-    }
-
-    // Generic error fallback
-    throw new MessageGenerationError({
-      message: error.message || 'An unexpected error occurred',
-      code: 'UNKNOWN_ERROR',
-    });
-  }
+  // Removed unused handleApiError to reduce complexity
 }
 
 // =============================================================================

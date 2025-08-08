@@ -5,7 +5,7 @@ import RandomHelpers from '../utils/randomHelpers.js';
 import HumanBehaviorManager from '../utils/humanBehaviorManager.js';
 import LinkedInErrorHandler from '../utils/linkedinErrorHandler.js';
 import ConfigManager from '../utils/configManager.js';
-import ConfigManager from '../utils/configManager.js';
+
 
 /**
  * Browser Session Manager - Singleton class for managing persistent LinkedIn browser sessions
@@ -229,9 +229,11 @@ class BrowserSessionManager {
     }
     
     return false;
+  }
+
 }
 
-export default LinkedInInteractionService;
+
 
 /**
  * LinkedIn Interaction Service - Main service class for LinkedIn automation
@@ -360,6 +362,66 @@ export class LinkedInInteractionService {
    */
   async delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Find the first element matching any selector in order
+   * @param {string[]} selectors - CSS selectors to try in order
+   * @param {number} waitTimeout - per-selector timeout in ms
+   * @returns {Promise<{ element: any, selector: string }>} found element and selector or nulls
+   */
+  async findElementBySelectors(selectors, waitTimeout = 3000) {
+    const session = await this.getBrowserSession();
+    for (const selector of selectors) {
+      try {
+        const element = await session.waitForSelector(selector, { timeout: waitTimeout });
+        if (element) {
+          return { element, selector };
+        }
+      } catch (_) {
+        // try next selector
+      }
+    }
+    return { element: null, selector: null };
+  }
+
+  /**
+   * Wait until any of the provided selectors appears
+   * @param {string[]} selectors
+   * @param {number} waitTimeout
+   * @returns {Promise<{ element: any, selector: string }>} found element and selector or nulls
+   */
+  async waitForAnySelector(selectors, waitTimeout = 5000) {
+    return await this.findElementBySelectors(selectors, waitTimeout);
+  }
+
+  /**
+   * Perform a human-like click on an element (scroll into view, move mouse, think, click)
+   * @param {any} page
+   * @param {any} element
+   */
+  async clickElementHumanly(page, element) {
+    await this.scrollElementIntoView(page, element);
+    await this.humanBehavior.simulateHumanMouseMovement(page, element);
+    await RandomHelpers.humanLikeDelay('think');
+    await element.click();
+  }
+
+  /**
+   * Clear existing content in a focused input and type text with human-like behavior
+   * @param {any} page
+   * @param {any} element
+   * @param {string} text
+   */
+  async clearAndTypeText(page, element, text) {
+    await element.click();
+    await RandomHelpers.randomDelay(500, 1000);
+    await page.keyboard.down('Control');
+    await page.keyboard.press('KeyA');
+    await page.keyboard.up('Control');
+    await page.keyboard.press('Delete');
+    await RandomHelpers.humanLikeDelay('type');
+    await this.typeWithHumanPattern(text, element);
   }
 
   /**
@@ -694,13 +756,6 @@ export class LinkedInInteractionService {
       };
     }, context);
   }
-        userId
-      });
-      
-      // Re-throw with more context
-      throw new Error(`Message sending failed: ${error.message}`);
-    }
-  }
 
   /**
    * Navigate to LinkedIn messaging interface for a specific profile
@@ -735,37 +790,11 @@ export class LinkedInInteractionService {
         '.pv-s-profile-actions button[aria-label*="Message"]',
         '.pvs-profile-actions__action button[aria-label*="Message"]'
       ];
-      
-      let messageButton = null;
-      let foundSelector = null;
-      
-      // Try to find message button with multiple selectors
-      for (const selector of messageButtonSelectors) {
-        try {
-          messageButton = await session.waitForSelector(selector, { timeout: 3000 });
-          if (messageButton) {
-            foundSelector = selector;
-            logger.debug(`Found message button with selector: ${selector}`);
-            break;
-          }
-        } catch (error) {
-          // Continue to next selector
-        }
-      }
+      const { element: messageButton, selector: foundSelector } = await this.findElementBySelectors(messageButtonSelectors, 3000);
       
       if (messageButton) {
         // Scroll button into view if needed
-        await this.scrollElementIntoView(page, messageButton);
-        
-        // Simulate human mouse movement to button
-        await this.humanBehavior.simulateHumanMouseMovement(page, messageButton);
-        
-        // Add thinking delay before clicking
-        await RandomHelpers.humanLikeDelay('think');
-        
-        // Click the message button
-        logger.info('Clicking message button');
-        await messageButton.click();
+        await this.clickElementHumanly(page, messageButton);
         
         // Wait for messaging interface to load
         await this.waitForMessagingInterface();
@@ -824,20 +853,8 @@ export class LinkedInInteractionService {
         '.msg-conversation-card',
         '.messaging-composer'
       ];
-      
-      let messagingElement = null;
-      for (const selector of messagingSelectors) {
-        try {
-          messagingElement = await session.waitForSelector(selector, { timeout: 5000 });
-          if (messagingElement) {
-            logger.debug(`Messaging interface loaded, found element: ${selector}`);
-            break;
-          }
-        } catch (error) {
-          // Continue to next selector
-        }
-      }
-      
+      const { element: messagingElement } = await this.waitForAnySelector(messagingSelectors, 5000);
+
       if (!messagingElement) {
         throw new Error('Messaging interface did not load properly');
       }
@@ -848,15 +865,6 @@ export class LinkedInInteractionService {
     } catch (error) {
       logger.error('Failed to wait for messaging interface:', error);
       throw error;
-    }
-  }
-      
-      // Add another human-like delay
-      await RandomHelpers.randomDelay(1000, 2000);
-      
-    } catch (error) {
-      logger.error(`Failed to navigate to messaging interface for ${profileId}:`, error);
-      throw new Error(`Messaging navigation failed: ${error.message}`);
     }
   }
 
@@ -894,59 +902,16 @@ export class LinkedInInteractionService {
         '.msg-form__msg-content-container [contenteditable="true"]',
         '.messaging-composer [contenteditable="true"]'
       ];
-      
-      let messageInput = null;
-      let foundSelector = null;
-      
-      // Try to find message input with multiple selectors
-      for (const selector of messageInputSelectors) {
-        try {
-          messageInput = await session.waitForSelector(selector, { timeout: 5000 });
-          if (messageInput) {
-            foundSelector = selector;
-            logger.debug(`Found message input with selector: ${selector}`);
-            
-            // Verify input is visible and editable
-            const isVisible = await messageInput.isVisible();
-            const isEditable = await messageInput.isEditable();
-            
-            if (isVisible && isEditable) {
-              break;
-            } else {
-              logger.debug(`Message input found but not usable: visible=${isVisible}, editable=${isEditable}`);
-              messageInput = null;
-            }
-          }
-        } catch (error) {
-          // Continue to next selector
-        }
-      }
+      const { element: messageInput, selector: foundSelector } = await this.waitForAnySelector(messageInputSelectors, 5000);
       
       if (!messageInput) {
         throw new Error('Message input field not found in messaging interface');
       }
       
-      // Scroll input into view if needed
+      // Scroll and type message with reusable helper
       await this.scrollElementIntoView(page, messageInput);
-      
-      // Simulate human mouse movement to input
       await this.humanBehavior.simulateHumanMouseMovement(page, messageInput);
-      
-      // Clear any existing content and focus on input
-      await messageInput.click();
-      await RandomHelpers.randomDelay(500, 1000);
-      
-      // Clear existing content
-      await page.keyboard.down('Control');
-      await page.keyboard.press('KeyA');
-      await page.keyboard.up('Control');
-      await page.keyboard.press('Delete');
-      
-      // Add delay before typing
-      await RandomHelpers.humanLikeDelay('type');
-      
-      // Type message with human-like typing pattern
-      await this.typeWithHumanPattern(messageContent);
+      await this.clearAndTypeText(page, messageInput, messageContent);
       
       // Add delay before sending
       await RandomHelpers.randomDelay(1000, 2000);
@@ -961,44 +926,15 @@ export class LinkedInInteractionService {
         '.messaging-composer button[aria-label*="Send"]',
         '.msg-form__footer button[aria-label*="Send"]'
       ];
-      
-      let sendButton = null;
-      let sendSelector = null;
-      
-      for (const selector of sendButtonSelectors) {
-        try {
-          sendButton = await session.waitForSelector(selector, { timeout: 3000 });
-          if (sendButton) {
-            sendSelector = selector;
-            logger.debug(`Found send button with selector: ${selector}`);
-            
-            // Verify button is clickable
-            const isEnabled = await sendButton.isEnabled();
-            if (isEnabled) {
-              break;
-            } else {
-              sendButton = null;
-            }
-          }
-        } catch (error) {
-          // Continue to next selector
-        }
-      }
+      const { element: sendButton, selector: sendSelector } = await this.findElementBySelectors(sendButtonSelectors, 3000);
       
       if (!sendButton) {
         // Try using Enter key as fallback
         logger.info('Send button not found, trying Enter key');
         await page.keyboard.press('Enter');
       } else {
-        // Simulate human mouse movement to send button
-        await this.humanBehavior.simulateHumanMouseMovement(page, sendButton);
-        
-        // Add thinking delay before clicking
-        await RandomHelpers.humanLikeDelay('think');
-        
-        // Click send button
-        logger.info('Clicking send button');
-        await sendButton.click();
+        // Human-like click
+        await this.clickElementHumanly(page, sendButton);
       }
       
       // Wait for message to be sent
@@ -1078,59 +1014,7 @@ export class LinkedInInteractionService {
       // Don't throw error as message might have been sent successfully
     }
   }
-      
-      // Look for send button
-      const sendButtonSelectors = [
-        '[data-test-id="send-button"]',
-        'button[aria-label*="Send"]',
-        'button[aria-label*="send"]',
-        '.msg-form__send-button',
-        'button[type="submit"]',
-        'button:has-text("Send")'
-      ];
-      
-      let sendButton = null;
-      for (const selector of sendButtonSelectors) {
-        try {
-          sendButton = await session.waitForSelector(selector, { timeout: 2000 });
-          if (sendButton) {
-            logger.debug(`Found send button with selector: ${selector}`);
-            break;
-          }
-        } catch (error) {
-          // Continue to next selector
-        }
-      }
-      
-      if (!sendButton) {
-        // Try using Enter key as fallback
-        logger.info('Send button not found, trying Enter key');
-        await page.keyboard.press('Enter');
-      } else {
-        // Click send button
-        logger.info('Clicking send button');
-        await sendButton.click();
-      }
-      
-      // Wait for message to be sent (look for confirmation or UI changes)
-      await RandomHelpers.randomDelay(2000, 3000);
-      
-      // Generate message ID for tracking
-      const messageId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      
-      logger.info('Message sent successfully', { messageId });
-      
-      return {
-        messageId,
-        sentAt: new Date().toISOString(),
-        status: 'sent'
-      };
-      
-    } catch (error) {
-      logger.error('Failed to compose and send message:', error);
-      throw new Error(`Message composition failed: ${error.message}`);
-    }
-  }
+
 
   /**
    * Type text with human-like patterns including variable speed and pauses
@@ -1236,22 +1120,7 @@ export class LinkedInInteractionService {
       };
     }, context);
   }
-      logger.error(`Failed to send LinkedIn connection request to ${profileId}:`, error);
-      
-      // Record error for session management
-      await this.sessionManager.recordError(error);
-      
-      // Record failed action for human behavior tracking
-      this.humanBehavior.recordAction('connection_failed', {
-        profileId,
-        error: error.message,
-        userId
-      });
-      
-      // Re-throw with more context
-      throw new Error(`Connection request failed: ${error.message}`);
-    }
-  }
+
 
   /**
    * Create and publish a LinkedIn post
@@ -1319,14 +1188,7 @@ export class LinkedInInteractionService {
       };
     }, context);
   }
-        error: error.message,
-        userId
-      });
-      
-      // Re-throw with more context
-      throw new Error(`Post creation failed: ${error.message}`);
-    }
-  }
+  
 
   /**
    * Navigate to LinkedIn post creation interface
@@ -1473,29 +1335,6 @@ export class LinkedInInteractionService {
     } catch (error) {
       logger.error('Failed to wait for post creation interface:', error);
       throw error;
-    }
-  }
-      
-      // Add thinking delay before clicking
-      await RandomHelpers.humanLikeDelay('think');
-      
-      // Click the start post button
-      logger.info('Clicking start post button');
-      await startPostButton.click();
-      
-      // Record the click action
-      this.humanBehavior.recordAction('click', {
-        element: 'start_post_button',
-        action: 'open_post_creator'
-      });
-      
-      // Wait for post creation modal/interface to load
-      await this.waitForLinkedInLoad();
-      await RandomHelpers.humanLikeDelay('navigate');
-      
-    } catch (error) {
-      logger.error('Failed to navigate to post creator:', error);
-      throw new Error(`Post creator navigation failed: ${error.message}`);
     }
   }
 
@@ -1803,62 +1642,7 @@ export class LinkedInInteractionService {
       throw new Error(`Connection request failed: ${error.message}`);
     }
   }
-        '[data-test-id="send-connection-button"]',
-        'button[data-control-name*="connect"]',
-        'button:has-text("Send")',
-        'button:has-text("Connect")',
-        'button[type="submit"]'
-      ];
-      
-      let sendButton = null;
-      for (const selector of sendButtonSelectors) {
-        try {
-          sendButton = await session.waitForSelector(selector, { timeout: 3000 });
-          if (sendButton) {
-            logger.debug(`Found send button with selector: ${selector}`);
-            break;
-          }
-        } catch (error) {
-          // Continue to next selector
-        }
-      }
-      
-      if (!sendButton) {
-        throw new Error('Send connection button not found');
-      }
-      
-      // Simulate human mouse movement to button
-      await this.humanBehavior.simulateHumanMouseMovement(page, sendButton);
-      
-      // Click send button
-      logger.info('Clicking send connection button');
-      await sendButton.click();
-      
-      // Record the click action
-      this.humanBehavior.recordAction('click', {
-        element: 'send_connection_button',
-        action: 'send_connection_request'
-      });
-      
-      // Wait for confirmation or modal to close
-      await RandomHelpers.humanLikeDelay('navigate');
-      
-      // Generate connection request ID for tracking
-      const connectionRequestId = `conn_req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      
-      logger.info('Connection request sent successfully', { connectionRequestId });
-      
-      return {
-        connectionRequestId,
-        sentAt: new Date().toISOString(),
-        status: 'sent'
-      };
-      
-    } catch (error) {
-      logger.error('Failed to send connection request:', error);
-      throw new Error(`Connection request sending failed: ${error.message}`);
-    }
-  }
+  
 
   /**
    * Check the current connection status with a profile
@@ -1956,33 +1740,7 @@ export class LinkedInInteractionService {
         'button[data-control-name="connect"]',
         '.pv-top-card-v2-ctas button[aria-label*="Connect"]'
       ];
-      
-      let connectButton = null;
-      let foundSelector = null;
-      
-      // Try to find connect button with multiple selectors
-      for (const selector of connectButtonSelectors) {
-        try {
-          connectButton = await session.waitForSelector(selector, { timeout: 3000 });
-          if (connectButton) {
-            foundSelector = selector;
-            logger.debug(`Found connect button with selector: ${selector}`);
-            
-            // Verify button is actually clickable and visible
-            const isVisible = await connectButton.isVisible();
-            const isEnabled = await connectButton.isEnabled();
-            
-            if (isVisible && isEnabled) {
-              break;
-            } else {
-              logger.debug(`Connect button found but not clickable: visible=${isVisible}, enabled=${isEnabled}`);
-              connectButton = null;
-            }
-          }
-        } catch (error) {
-          // Continue to next selector
-        }
-      }
+      const { element: connectButton, selector: foundSelector } = await this.findElementBySelectors(connectButtonSelectors, 3000);
       
       if (!connectButton) {
         // Check if already connected
@@ -1992,33 +1750,16 @@ export class LinkedInInteractionService {
           'button[aria-label*="Pending"]',
           '.pv-s-profile-actions button[aria-label*="Message"]'
         ];
-        
-        for (const selector of alreadyConnectedSelectors) {
-          try {
-            const element = await session.waitForSelector(selector, { timeout: 1000 });
-            if (element) {
-              throw new Error('Profile is already connected or connection is pending');
-            }
-          } catch (error) {
-            // Continue checking
-          }
+        const { element: statusElement } = await this.findElementBySelectors(alreadyConnectedSelectors, 1000);
+        if (statusElement) {
+          throw new Error('Profile is already connected or connection is pending');
         }
         
         throw new Error('Connect button not found on profile page');
       }
       
       // Scroll button into view if needed with human-like scrolling
-      await this.scrollElementIntoView(page, connectButton);
-      
-      // Simulate human mouse movement to button
-      await this.humanBehavior.simulateHumanMouseMovement(page, connectButton);
-      
-      // Add thinking delay before clicking
-      await RandomHelpers.humanLikeDelay('think');
-      
-      // Click the connect button
-      logger.info('Clicking connect button');
-      await connectButton.click();
+      await this.clickElementHumanly(page, connectButton);
       
       // Wait for connection modal or confirmation
       await this.waitForConnectionModal();
@@ -2105,26 +1846,7 @@ export class LinkedInInteractionService {
       // Don't throw error here as connection might have been successful
     }
   }
-      
-      // Click the connect button
-      logger.info('Clicking connect button');
-      await connectButton.click();
-      
-      // Record the click action
-      this.humanBehavior.recordAction('click', {
-        element: 'connect_button',
-        action: 'connection_request'
-      });
-      
-      // Wait for connection modal or next step to load
-      await this.waitForLinkedInLoad();
-      await RandomHelpers.humanLikeDelay('navigate');
-      
-    } catch (error) {
-      logger.error('Failed to find and click connect button:', error);
-      throw new Error(`Connect button interaction failed: ${error.message}`);
-    }
-  }
+  
 
   /**
    * Add a personalized message to the connection request
@@ -2155,19 +1877,7 @@ export class LinkedInInteractionService {
         'button:has-text("Add a note")',
         'a:has-text("Add a note")'
       ];
-      
-      let addNoteButton = null;
-      for (const selector of addNoteSelectors) {
-        try {
-          addNoteButton = await session.waitForSelector(selector, { timeout: 2000 });
-          if (addNoteButton) {
-            logger.debug(`Found add note button with selector: ${selector}`);
-            break;
-          }
-        } catch (error) {
-          // Continue to next selector
-        }
-      }
+      const { element: addNoteButton } = await this.findElementBySelectors(addNoteSelectors, 2000);
       
       if (addNoteButton) {
         // Simulate human mouse movement to button
@@ -2186,50 +1896,25 @@ export class LinkedInInteractionService {
         await RandomHelpers.humanLikeDelay('navigate');
       }
       
-      // Look for message input field
-      const messageInputSelectors = [
-        '[data-test-id="connection-message-input"]',
-        'textarea[name="message"]',
-        'textarea[placeholder*="message"]',
-        'textarea[placeholder*="note"]',
-        '.connection-message-input',
-        'textarea[aria-label*="message"]'
-      ];
-      
-      let messageInput = null;
-      for (const selector of messageInputSelectors) {
-        try {
-          messageInput = await session.waitForSelector(selector, { timeout: 3000 });
-          if (messageInput) {
-            logger.debug(`Found message input with selector: ${selector}`);
-            break;
-          }
-        } catch (error) {
-          // Continue to next selector
-        }
-      }
+        // Look for message input field
+        const messageInputSelectors = [
+          '[data-test-id="connection-message-input"]',
+          'textarea[name="message"]',
+          'textarea[placeholder*="message"]',
+          'textarea[placeholder*="note"]',
+          '.connection-message-input',
+          'textarea[aria-label*="message"]'
+        ];
+        const { element: messageInput } = await this.findElementBySelectors(messageInputSelectors, 3000);
       
       if (!messageInput) {
         logger.warn('Connection message input field not found, proceeding without message');
         return;
       }
       
-      // Simulate human mouse movement to input field
+      // Simulate human mouse movement, clear and type
       await this.humanBehavior.simulateHumanMouseMovement(page, messageInput);
-      
-      // Clear any existing content and focus on input
-      await messageInput.click();
-      await RandomHelpers.humanLikeDelay('click');
-      
-      // Clear existing content with human-like selection
-      await page.keyboard.down('Control');
-      await page.keyboard.press('KeyA');
-      await page.keyboard.up('Control');
-      await RandomHelpers.humanLikeDelay('type');
-      await page.keyboard.press('Delete');
-      
-      // Type connection message with human-like typing pattern
-      await this.typeWithHumanPattern(connectionMessage, messageInput);
+      await this.clearAndTypeText(page, messageInput, connectionMessage);
       
       // Add delay after typing
       await RandomHelpers.randomDelay(1000, 2000);
@@ -2247,68 +1932,7 @@ export class LinkedInInteractionService {
    * Send the connection request after all setup is complete
    * @returns {Promise<Object>} Connection result with ID
    */
-  async sendConnectionRequest() {
-    logger.info('Sending connection request');
-    
-    try {
-      const session = await this.getBrowserSession();
-      const page = session.getPage();
-      
-      // Add human-like delay before sending
-      await RandomHelpers.randomDelay(1000, 2000);
-      
-      // Look for send/connect button in modal
-      const sendButtonSelectors = [
-        'button[aria-label*="Send"]',
-        'button[aria-label*="send"]',
-        '[data-test-id="send-invite-button"]',
-        '.send-invite-button',
-        'button:has-text("Send")',
-        'button[data-control-name*="send"]',
-        'button[type="submit"]'
-      ];
-      
-      let sendButton = null;
-      for (const selector of sendButtonSelectors) {
-        try {
-          sendButton = await session.waitForSelector(selector, { timeout: 2000 });
-          if (sendButton) {
-            logger.debug(`Found send button with selector: ${selector}`);
-            break;
-          }
-        } catch (error) {
-          // Continue to next selector
-        }
-      }
-      
-      if (!sendButton) {
-        throw new Error('Send connection request button not found');
-      }
-      
-      // Click send button
-      logger.info('Clicking send connection request button');
-      await sendButton.click();
-      
-      // Wait for confirmation or next step
-      await this.waitForLinkedInLoad();
-      await RandomHelpers.randomDelay(2000, 3000);
-      
-      // Generate connection request ID for tracking
-      const connectionRequestId = `conn_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      
-      logger.info('Connection request sent successfully', { connectionRequestId });
-      
-      return {
-        connectionRequestId,
-        sentAt: new Date().toISOString(),
-        status: 'sent'
-      };
-      
-    } catch (error) {
-      logger.error('Failed to send connection request:', error);
-      throw new Error(`Connection request sending failed: ${error.message}`);
-    }
-  }
+  // Duplicate method removed (consolidated above)
 
   /**
    * Create and publish a LinkedIn post
@@ -2317,134 +1941,9 @@ export class LinkedInInteractionService {
    * @param {string} userId - ID of authenticated user
    * @returns {Promise<Object>} Post result
    */
-  async createPost(content, mediaAttachments, userId) {
-    logger.info(`Creating LinkedIn post by user ${userId}`, {
-      contentLength: content.length,
-      hasMediaAttachments: !!mediaAttachments && mediaAttachments.length > 0,
-      userId
-    });
+  // Duplicate createPost removed to avoid redundancy
 
-    try {
-      // Get or initialize browser session
-      const session = await this.getBrowserSession();
-      
-      // Check LinkedIn authentication status
-      await this.handleLinkedInErrors();
-      
-      // Navigate to LinkedIn post creation interface
-      await this.navigateToPostCreator();
-      
-      // Input post content with realistic typing patterns
-      await this.inputPostContent(content);
-      
-      // Handle media attachments if provided
-      if (mediaAttachments && mediaAttachments.length > 0) {
-        await this.attachMediaToPost(mediaAttachments);
-      }
-      
-      // Publish the post and wait for confirmation
-      const postResult = await this.publishPost();
-      
-      // Update session activity
-      this.sessionManager.lastActivity = new Date();
-      
-      logger.info(`Successfully created LinkedIn post`, {
-        postId: postResult.postId,
-        postUrl: postResult.postUrl,
-        userId
-      });
-
-      return {
-        postId: postResult.postId || `post_${Date.now()}_${userId}`,
-        postUrl: postResult.postUrl || `https://linkedin.com/posts/activity-${Date.now()}`,
-        publishStatus: 'published',
-        publishedAt: new Date().toISOString(),
-        contentLength: content.length,
-        userId
-      };
-
-    } catch (error) {
-      logger.error(`Failed to create LinkedIn post:`, error);
-      
-      // Record error for session management
-      await this.sessionManager.recordError(error);
-      
-      // Re-throw with more context
-      throw new Error(`Post creation failed: ${error.message}`);
-    }
-  }
-
-  /**
-   * Navigate to LinkedIn's post creation interface
-   * @returns {Promise<void>}
-   */
-  async navigateToPostCreator() {
-    logger.info('Navigating to LinkedIn post creation interface');
-    
-    try {
-      const session = await this.getBrowserSession();
-      const page = session.getPage();
-      
-      // Navigate to LinkedIn feed/home page first
-      const feedUrl = 'https://www.linkedin.com/feed/';
-      logger.info(`Navigating to LinkedIn feed: ${feedUrl}`);
-      await session.goto(feedUrl);
-      
-      // Wait for feed page to load
-      await this.waitForLinkedInLoad();
-      
-      // Add human-like delay before interaction
-      await RandomHelpers.randomDelay(
-        config.linkedinInteractions?.humanDelayMin || 1000,
-        config.linkedinInteractions?.humanDelayMax || 3000
-      );
-      
-      // Look for "Start a post" button or input field
-      const postCreatorSelectors = [
-        '[data-test-id="share-box-open"]',
-        'button[aria-label*="Start a post"]',
-        'button[aria-label*="start a post"]',
-        '.share-box-feed-entry__trigger',
-        '.share-creation-state__text-editor',
-        'button:has-text("Start a post")',
-        '[data-control-name="share_via_mention_entity"]',
-        '.feed-shared-update-v2__start-conversation'
-      ];
-      
-      let postCreatorButton = null;
-      for (const selector of postCreatorSelectors) {
-        try {
-          postCreatorButton = await session.waitForSelector(selector, { timeout: 3000 });
-          if (postCreatorButton) {
-            logger.debug(`Found post creator button with selector: ${selector}`);
-            break;
-          }
-        } catch (error) {
-          // Continue to next selector
-        }
-      }
-      
-      if (!postCreatorButton) {
-        throw new Error('Post creation button not found on LinkedIn feed');
-      }
-      
-      // Scroll button into view if needed
-      await postCreatorButton.scrollIntoViewIfNeeded();
-      await RandomHelpers.randomDelay(500, 1000);
-      
-      // Click the post creation button
-      logger.info('Clicking post creation button');
-      await postCreatorButton.click();
-      
-      // Wait for post creation modal/interface to load
-      await this.waitForLinkedInLoad();
-      await RandomHelpers.randomDelay(1000, 2000);
-      
-    } catch (error) {
-      logger.error('Failed to navigate to post creator:', error);
-      throw new Error(`Post creator navigation failed: ${error.message}`);
-    }
-  }
+  // Duplicate navigateToPostCreator removed
 
   /**
    * Input post content with realistic typing patterns and delays
@@ -2473,36 +1972,14 @@ export class LinkedInInteractionService {
         '[aria-label*="Text editor"]',
         '.mentions-texteditor__content'
       ];
-      
-      let contentInput = null;
-      for (const selector of contentInputSelectors) {
-        try {
-          contentInput = await session.waitForSelector(selector, { timeout: 3000 });
-          if (contentInput) {
-            logger.debug(`Found content input with selector: ${selector}`);
-            break;
-          }
-        } catch (error) {
-          // Continue to next selector
-        }
-      }
+      const { element: contentInput } = await this.findElementBySelectors(contentInputSelectors, 3000);
       
       if (!contentInput) {
         throw new Error('Post content input field not found');
       }
       
-      // Clear any existing content and focus on input
-      await contentInput.click();
-      await RandomHelpers.randomDelay(500, 1000);
-      
-      // Clear existing content
-      await page.keyboard.down('Control');
-      await page.keyboard.press('KeyA');
-      await page.keyboard.up('Control');
-      await page.keyboard.press('Delete');
-      
-      // Type post content with human-like typing pattern
-      await this.typeWithHumanPattern(content);
+      // Clear existing content and type
+      await this.clearAndTypeText(page, contentInput, content);
       
       // Add delay after typing
       await RandomHelpers.randomDelay(1000, 2000);
@@ -2541,19 +2018,7 @@ export class LinkedInInteractionService {
         'button[data-control-name*="media"]',
         '.media-upload-button'
       ];
-      
-      let mediaButton = null;
-      for (const selector of mediaButtonSelectors) {
-        try {
-          mediaButton = await session.waitForSelector(selector, { timeout: 2000 });
-          if (mediaButton) {
-            logger.debug(`Found media button with selector: ${selector}`);
-            break;
-          }
-        } catch (error) {
-          // Continue to next selector
-        }
-      }
+      const { element: mediaButton } = await this.findElementBySelectors(mediaButtonSelectors, 2000);
       
       if (!mediaButton) {
         logger.warn('Media attachment button not found, skipping media upload');
@@ -2562,7 +2027,7 @@ export class LinkedInInteractionService {
       
       // Click media button
       logger.info('Clicking media attachment button');
-      await mediaButton.click();
+      await this.clickElementHumanly(page, mediaButton);
       await RandomHelpers.randomDelay(1000, 2000);
       
       // For now, this is a placeholder implementation
@@ -2608,19 +2073,7 @@ export class LinkedInInteractionService {
         'button:has-text("Post")',
         'button[type="submit"]'
       ];
-      
-      let publishButton = null;
-      for (const selector of publishButtonSelectors) {
-        try {
-          publishButton = await session.waitForSelector(selector, { timeout: 3000 });
-          if (publishButton) {
-            logger.debug(`Found publish button with selector: ${selector}`);
-            break;
-          }
-        } catch (error) {
-          // Continue to next selector
-        }
-      }
+      const { element: publishButton } = await this.findElementBySelectors(publishButtonSelectors, 3000);
       
       if (!publishButton) {
         throw new Error('Publish button not found');
@@ -2634,7 +2087,7 @@ export class LinkedInInteractionService {
       
       // Click publish button
       logger.info('Clicking publish button');
-      await publishButton.click();
+      await this.clickElementHumanly(page, publishButton);
       
       // Wait for post to be published (look for confirmation or redirect)
       await RandomHelpers.randomDelay(3000, 5000);
@@ -3358,3 +2811,4 @@ export class LinkedInInteractionService {
       logger.debug('Failed to take error screenshot:', error.message);
     }
   }
+}

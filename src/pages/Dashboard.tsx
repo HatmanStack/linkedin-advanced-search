@@ -21,76 +21,16 @@ import MessageModal from '@/components/MessageModal';
 import ConnectionFiltersComponent from '@/components/ConnectionFilters';
 import { dbConnector, Connection, Message, ApiError } from '@/services/dbConnector';
 import { connectionCache } from '@/utils/connectionCache';
+import { connectionChangeTracker } from '../utils/connectionChangeTracker';
 import { ConnectionListSkeleton } from '@/components/ConnectionCardSkeleton';
 import { NoConnectionsState } from '@/components/ui/empty-state';
 import { messageGenerationService, MessageGenerationError } from '@/services/messageGenerationService';
+import { connectionDataContextService } from '@/services/connectionDataContextService';
 import { useErrorHandler } from '@/hooks/useErrorHandler';
 import { useProgressTracker } from '@/hooks/useProgressTracker';
 import ProgressIndicator from '@/components/ProgressIndicator';
 
-// Sample data for demonstration with new parameters
-const sampleConnections = [
-  {
-    id: '1',
-    first_name: 'Sarah',
-    last_name: 'Chen',
-    position: 'Product Manager',
-    company: 'TechCorp',
-    headline: 'Building the future of AI-powered products',
-    recent_activity: 'Recently shared insights about AI in product development',
-    common_interests: ['AI', 'Product Management', 'Startups'],
-    messages: 12,
-    date_added: '2024-01-15'
-  },
-  {
-    id: '2',
-    first_name: 'Michael',
-    last_name: 'Rodriguez',
-    position: 'Software Engineer',
-    company: 'DataFlow Inc',
-    headline: 'Full-stack developer passionate about clean code',
-    recent_activity: 'Just completed a machine learning certification',
-    common_interests: ['Machine Learning', 'React', 'Open Source'],
-    messages: 8,
-    date_added: '2024-02-03'
-  },
-  {
-    id: '3',
-    first_name: 'Emily',
-    last_name: 'Johnson',
-    position: 'UX Designer',
-    company: 'DesignLabs',
-    headline: 'Creating user-centered experiences that matter',
-    recent_activity: 'Published an article about accessibility in design',
-    common_interests: ['UX Design', 'Accessibility', 'Design Systems'],
-    messages: 25,
-    date_added: '2023-11-22'
-  },
-  {
-    id: '4',
-    first_name: 'James',
-    last_name: 'Wilson',
-    position: 'Data Scientist',
-    company: 'Analytics Pro',
-    headline: 'Turning data into actionable insights',
-    recent_activity: 'Presented at Data Science Conference 2024',
-    common_interests: ['Data Science', 'Python', 'Statistics'],
-    messages: 3,
-    date_added: '2024-03-10'
-  },
-  {
-    id: '5',
-    first_name: 'Lisa',
-    last_name: 'Park',
-    position: 'Marketing Director',
-    company: 'GrowthHub',
-    headline: 'Scaling B2B companies through strategic marketing',
-    recent_activity: 'Launched successful product campaign',
-    common_interests: ['Marketing', 'Growth Hacking', 'B2B'],
-    messages: 17,
-    date_added: '2024-01-28'
-  }
-];
+// Removed unused demo sampleConnections to reduce noise
 
 // Sample data for demonstration
 const Dashboard = () => {
@@ -179,8 +119,55 @@ const Dashboard = () => {
 
   // Initialize connections data on component mount
   useEffect(() => {
-    if (user) {
-      fetchConnections();
+    if (!user) return;
+
+    const cached = connectionCache.getAll();
+    const shouldRefetch = cached.length === 0 || connectionChangeTracker.hasChanged();
+
+    if (shouldRefetch) {
+      (async () => {
+        setConnectionsLoading(true);
+        setConnectionsError(null);
+        try {
+          const fetchedConnections = await dbConnector.getConnectionsByStatus();
+          setConnections(fetchedConnections);
+          connectionCache.setMultiple(fetchedConnections);
+          const counts = {
+            incoming: 0,
+            outgoing: 0,
+            allies: 0,
+            total: 0
+          } as ConnectionCounts;
+          fetchedConnections.forEach((conn: Connection) => {
+            if (conn.status === 'incoming') counts.incoming++;
+            else if (conn.status === 'outgoing') counts.outgoing++;
+            else if (conn.status === 'allies') counts.allies++;
+          });
+          counts.total = counts.incoming + counts.outgoing + counts.allies;
+          setConnectionCounts(counts);
+        } catch (err: any) {
+          const errorMessage = err instanceof ApiError ? err.message : 'Failed to fetch connections';
+          setConnectionsError(errorMessage);
+        } finally {
+          setConnectionsLoading(false);
+          connectionChangeTracker.clearChanged();
+        }
+      })();
+    } else {
+      setConnections(cached);
+      const counts = {
+        incoming: 0,
+        outgoing: 0,
+        allies: 0,
+        total: 0
+      } as ConnectionCounts;
+      cached.forEach((conn: Connection) => {
+        if (conn.status === 'incoming') counts.incoming++;
+        else if (conn.status === 'outgoing') counts.outgoing++;
+        else if (conn.status === 'allies') counts.allies++;
+      });
+      counts.total = counts.incoming + counts.outgoing + counts.allies;
+      setConnectionCounts(counts);
     }
   }, [user]);
 
@@ -266,6 +253,9 @@ const Dashboard = () => {
 
       // Update database
       await dbConnector.updateConnectionStatus(connectionId, newStatus);
+
+      // Mark change so next dashboard mount can conditionally refresh
+      connectionChangeTracker.markChanged('interaction');
 
       // Recalculate counts
       const updatedConnections = connections.map(conn =>
@@ -475,21 +465,16 @@ const Dashboard = () => {
       // Fetch message history for context
       const messageHistory = await dbConnector.getMessageHistory(connection.id);
       
-      // Prepare generation request
-      const request = {
-        connectionId: connection.id,
-        connectionProfile: {
-          firstName: connection.first_name,
-          lastName: connection.last_name,
-          position: connection.position || '',
-          company: connection.company || '',
-          headline: connection.headline || '',
-          tags: connection.tags || []
-        },
-        conversationTopic: conversationTopic.trim(),
-        messageHistory: messageHistory,
-        userProfile: user
-      };
+      // Build request using shared context service for DRYness
+      const cleanedTopic = connectionDataContextService.prepareConversationTopic(conversationTopic);
+      const connectionWithHistory = { ...connection, message_history: messageHistory } as Connection;
+      const context = connectionDataContextService.prepareMessageGenerationContext(
+        connectionWithHistory,
+        cleanedTopic,
+        user,
+        { includeMessageHistory: true }
+      );
+      const request = connectionDataContextService.createMessageGenerationRequest(context);
 
       // Call message generation service
       const generatedMessage = await messageGenerationService.generateMessage(request);
@@ -848,19 +833,7 @@ const Dashboard = () => {
     }
   };
 
-  const generateMessages = () => {
-    if (selectedConnections.length === 0 || !conversationTopic) {
-      return;
-    }
-    navigate('/messages', {
-      state: {
-        selectedConnections: selectedConnections.map(id =>
-          sampleConnections.find(c => c.id === id)
-        ),
-        topic: conversationTopic
-      }
-    });
-  };
+  // Removed unused generateMessages navigation helper
 
   // Handle profile initialization with connection refresh
   const handleInitializeProfile = async () => {
