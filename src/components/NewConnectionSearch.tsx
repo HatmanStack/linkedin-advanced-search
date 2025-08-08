@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { UserPlus, Building, User, Search, Filter, X, Loader2, AlertCircle } from 'lucide-react';
 import VirtualConnectionList from './VirtualConnectionList';
 import { useToast } from "@/hooks/use-toast";
-import { dbConnector, ApiError } from '@/services/dbConnector';
+import { lambdaApiService as dbConnector, ApiError } from '@/services/lambdaApiService';
 import { connectionCache } from '@/utils/connectionCache';
 
 interface NewConnection {

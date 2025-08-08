@@ -3,8 +3,8 @@
  * Tests the edge existence checking functionality
  */
 
-import DynamoDBService from '../backend/services/dynamoDBService.js';
-import { logger } from '../backend/utils/logger.js';
+import DynamoDBService from '../puppeteer-backend/services/dynamoDBService.js';
+import { logger } from '../puppeteer-backend/utils/logger.js';
 
 // Mock JWT token for testing
 const TEST_JWT_TOKEN = 'test-jwt-token';

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { apiService, Draft } from '@/services/apiService';
+import { puppeteerApiService, Draft } from '@/services/puppeteerApiService';
 import { useAuth } from '@/contexts/AuthContext';
 
 export const useDrafts = () => {
@@ -19,7 +19,7 @@ export const useDrafts = () => {
       setLoading(true);
       setError(null);
       
-      const response = await apiService.getDrafts();
+      const response = await puppeteerApiService.getDrafts();
       
       if (response.success && response.data) {
         setDrafts(response.data);
@@ -43,7 +43,7 @@ export const useDrafts = () => {
     draftData: Omit<Draft, 'draft_id' | 'user_id' | 'created_at' | 'updated_at'>
   ): Promise<boolean> => {
     try {
-      const response = await apiService.createDraft(draftData);
+      const response = await puppeteerApiService.createDraft(draftData);
       
       if (response.success && response.data) {
         setDrafts(prev => [...prev, response.data!]);

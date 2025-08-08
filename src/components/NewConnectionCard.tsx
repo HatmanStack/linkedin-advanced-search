@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { User, Building, MapPin, Tag, X, Loader2, CheckCircle, UserPlus } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
-import { dbConnector, ApiError } from "@/services/dbConnector";
+import { lambdaApiService as dbConnector, ApiError } from "@/services/lambdaApiService";
 import { transformErrorForUser, getToastVariant, ERROR_MESSAGES } from "@/utils/errorHandling";
 import type { Connection, NewConnectionCardProps } from '@/types';
 

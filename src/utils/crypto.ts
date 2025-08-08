@@ -3,9 +3,24 @@
  * Uses Web Crypto API to perform RSA-OAEP encryption with SHA-256.
  */
 
-/** Convert a base64 string to an ArrayBuffer */
+/** Normalize base64 to standard charset and correct padding */
+function normalizeBase64(input: string): string {
+  const cleaned = input
+    .replace(/[\r\n\s]/g, '')
+    .replace(/-/g, '+')
+    .replace(/_/g, '/');
+  const paddingNeeded = cleaned.length % 4;
+  return paddingNeeded ? cleaned + '='.repeat(4 - paddingNeeded) : cleaned;
+}
+
+/** Convert a base64 string to an ArrayBuffer (robust to url-safe and missing padding) */
 function base64ToArrayBuffer(base64: string): ArrayBuffer {
-  const binaryString = atob(base64);
+  const normalized = normalizeBase64(base64);
+  const binaryString = typeof atob === 'function'
+    ? atob(normalized)
+    : (typeof Buffer !== 'undefined'
+        ? Buffer.from(normalized, 'base64').toString('binary')
+        : (() => { throw new Error('No base64 decoder available'); })());
   const bytes = new Uint8Array(binaryString.length);
   for (let i = 0; i < binaryString.length; i++) {
     bytes[i] = binaryString.charCodeAt(i);
@@ -20,21 +35,22 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
   for (let i = 0; i < bytes.byteLength; i++) {
     binary += String.fromCharCode(bytes[i]);
   }
-  return btoa(binary);
+  if (typeof btoa === 'function') {
+    return btoa(binary);
+  }
+  if (typeof Buffer !== 'undefined') {
+    return Buffer.from(binary, 'binary').toString('base64');
+  }
+  throw new Error('No base64 encoder available');
 }
 
 /** Import an RSA public key from a PEM string for RSA-OAEP with SHA-256 */
 export async function importRsaPublicKey(pem: string): Promise<CryptoKey> {
-  const pemHeader = '-----BEGIN PUBLIC KEY-----';
-  const pemFooter = '-----END PUBLIC KEY-----';
   const pemContents = pem
-    .replace(/\r/g, '')
-    .replace(/\n/g, '\n')
-    .replace(' ', '')
-    .trim()
-    .replace(pemHeader, '')
-    .replace(pemFooter, '')
-    .replace(/\s+/g, '');
+    .replace(/-----BEGIN PUBLIC KEY-----/g, '')
+    .replace(/-----END PUBLIC KEY-----/g, '')
+    .replace(/[\r\n\s]/g, '')
+    .trim();
 
   const derBuffer = base64ToArrayBuffer(pemContents);
   return crypto.subtle.importKey(

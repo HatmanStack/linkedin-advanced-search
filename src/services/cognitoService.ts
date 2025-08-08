@@ -5,7 +5,7 @@ import {
   CognitoUserAttribute,
   CognitoUserSession,
 } from 'amazon-cognito-identity-js';
-import { cognitoConfig } from '../config/cognito';
+import { cognitoConfig } from '../config/appConfig';
 
 // Initialize Cognito User Pool
 const userPool = new CognitoUserPool({

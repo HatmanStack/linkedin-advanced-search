@@ -37,11 +37,11 @@ export default {
   
   // Coverage configuration
   collectCoverageFrom: [
-    'backend/**/*.js',
-    '!backend/node_modules/**',
-    '!backend/screenshots/**',
-    '!backend/logs/**',
-    '!backend/data/**'
+    'puppeteer-backend/**/*.js',
+    '!puppeteer-backend/node_modules/**',
+    '!puppeteer-backend/screenshots/**',
+    '!puppeteer-backend/logs/**',
+    '!puppeteer-backend/data/**'
   ],
   
   // Setup files

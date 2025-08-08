@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useConnections } from '@/hooks/useConnections';
 import { useProfileInit } from '@/hooks/useProfileInit';
-import { Connection } from '@/services/apiService';
+import { Connection } from '@/services/puppeteerApiService';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";

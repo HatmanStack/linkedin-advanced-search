@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { CognitoAuthService, type CognitoUserData } from '@/services/cognitoService';
-import { isCognitoConfigured } from '@/config/cognito';
+import { isCognitoConfigured } from '@/config/appConfig';
 import { generateUniqueUserId, validateUserForDatabase, securityUtils } from '@/utils/userUtils';
-import { apiService } from '@/services/api';
+import { puppeteerApiService } from '@/services/puppeteerApiService';
 
 export interface User {
   id: string;
@@ -215,7 +215,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     // Clear JWT token from session storage
-    apiService.clearAuthToken();
+          // Note: clearAuthToken functionality moved to puppeteerApiService
+      // For now, we'll clear session storage directly
+      sessionStorage.removeItem('jwt_token');
 
     if (isCognitoConfigured) {
       // Use AWS Cognito

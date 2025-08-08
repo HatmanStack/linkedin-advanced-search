@@ -10,13 +10,13 @@ import { Separator } from "@/components/ui/separator";
 import { MessageSquare, ArrowLeft, User, Building, MapPin, Save, Plus, X, Key, Eye, EyeOff } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { useLinkedInCredentials } from '@/contexts/LinkedInCredentialsContext';
-import { apiService } from '@/services/apiService';
+import { lambdaApiService } from '@/services/lambdaApiService';
 import { encryptWithRsaOaep } from '@/utils/crypto';
 
 const Profile = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { credentials: contextCredentials, setCredentials: setContextCredentials } = useLinkedInCredentials();
+  const { ciphertext, setCiphertext } = useLinkedInCredentials();
   
   const [profile, setProfile] = useState({
     name: 'Tom, Dick, And Harry',
@@ -43,18 +43,18 @@ const Profile = () => {
   };
 
   useEffect(() => {
-    // Initialize local state from context if credentials exist
-    if (contextCredentials.email || contextCredentials.password) {
-      setLinkedinCredentials(contextCredentials);
+    // If we already have ciphertext in context, just show the stored banner
+    if (ciphertext) {
+      setHasStoredCredentials(true);
     }
-  }, [contextCredentials]);
+  }, [ciphertext]);
 
   useEffect(() => {
     // On load, check if encrypted credentials already exist in DynamoDB via the API service
     // We do not attempt to fetch or display plaintext; backend manages decryption when needed.
     (async () => {
       try {
-        const response = await apiService.getUserProfile();
+        const response = await lambdaApiService.getUserProfile();
         if (response.success && response.data) {
           const data: any = response.data;
 
@@ -107,8 +107,7 @@ const Profile = () => {
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      // Update in-memory session context only if needed elsewhere in the app during this session
-      setContextCredentials(linkedinCredentials);
+      // We avoid storing plaintext in context; we only set ciphertext below
 
       // Transmit over HTTPS/TLS and let backend encrypt with KMS before storing in DynamoDB
       // Never log or store plaintext locally beyond this session memory.
@@ -116,7 +115,7 @@ const Profile = () => {
         let payload: { linkedin_credentials: string } = { linkedin_credentials: '' };
 
         // Optional client-side encryption if public key is provided; backend will still use KMS at rest.
-        const publicKeyPem = import.meta.env.VITE_LINKEDIN_CRED_PUBLIC_KEY as string | undefined;
+        const publicKeyPem = import.meta.env.VITE_PUPPETEER_PUBLIC_KEY as string | undefined;
         if (publicKeyPem && publicKeyPem.includes('BEGIN PUBLIC KEY')) {
           const json = JSON.stringify({
             email: linkedinCredentials.email,
@@ -124,15 +123,18 @@ const Profile = () => {
           });
           const ciphertextB64 = await encryptWithRsaOaep(json, publicKeyPem);
           payload.linkedin_credentials = `rsa_oaep_sha256:b64:${ciphertextB64}`;
+          // Update context with ciphertext for app-wide usage
+          setCiphertext(payload.linkedin_credentials);
         } else {
           // Fallback: send JSON string and rely on backend to encrypt/de-identify and store securely with KMS
           payload.linkedin_credentials = JSON.stringify({
             email: linkedinCredentials.email,
             password: linkedinCredentials.password,
           });
+          // Do NOT store plaintext in context
         }
 
-        const resp = await apiService.updateUserProfile(payload);
+        const resp = await lambdaApiService.updateUserProfile(payload);
         if (!resp.success) {
           throw new Error(resp.error || 'Failed to save LinkedIn credentials');
         }
@@ -157,7 +159,7 @@ const Profile = () => {
         profile_url: profile.linkedinUrl || undefined,
       };
 
-      const profileResp = await apiService.updateUserProfile(profilePayload);
+      const profileResp = await lambdaApiService.updateUserProfile(profilePayload);
       if (!profileResp.success) {
         throw new Error(profileResp.error || 'Failed to save profile information');
       }

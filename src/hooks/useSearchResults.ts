@@ -1,9 +1,9 @@
 import { useCallback } from 'react';
 import useLocalStorage from './useLocalStorage';
 import useApi from './useApi';
-import { apiService } from '../services/api';
+import { puppeteerApiService } from '../services/puppeteerApiService';
 import type { SearchFormData } from '../utils/validation';
-import { STORAGE_KEYS } from '../utils/constants';
+import { STORAGE_KEYS } from '@/config/appConfig';
 import { connectionChangeTracker } from '../utils/connectionChangeTracker';
 
 interface UseSearchResultsReturn {
@@ -35,7 +35,7 @@ function useSearchResults(): UseSearchResultsReturn {
     loading,
     error,
     execute: executeSearch,
-  } = useApi((searchData: SearchFormData) => apiService.searchLinkedIn(searchData));
+  } = useApi((searchData: SearchFormData) => puppeteerApiService.searchLinkedIn(searchData));
 
   // Update results when search completes
   const searchLinkedIn = useCallback(

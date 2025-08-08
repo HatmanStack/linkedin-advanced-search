@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { apiService, Connection } from '@/services/apiService';
+import { puppeteerApiService, Connection } from '@/services/puppeteerApiService';
 import { useAuth } from '@/contexts/AuthContext';
 
 export const useConnections = (filters?: {
@@ -23,7 +23,7 @@ export const useConnections = (filters?: {
       setLoading(true);
       setError(null);
       
-      const response = await apiService.getConnections(filters);
+      const response = await puppeteerApiService.getConnections(filters);
       
       if (response.success && response.data) {
         setConnections(response.data.connections || []);
@@ -47,7 +47,7 @@ export const useConnections = (filters?: {
     connectionData: Omit<Connection, 'connection_id' | 'user_id' | 'created_at' | 'updated_at'>
   ): Promise<boolean> => {
     try {
-      const response = await apiService.createConnection(connectionData);
+      const response = await puppeteerApiService.createConnection(connectionData);
       
       if (response.success && response.data) {
         setConnections(prev => [...prev, response.data!]);
@@ -67,7 +67,7 @@ export const useConnections = (filters?: {
     updates: Partial<Connection>
   ): Promise<boolean> => {
     try {
-      const response = await apiService.updateConnection(connectionId, updates);
+      const response = await puppeteerApiService.updateConnection(connectionId, updates);
       
       if (response.success && response.data) {
         setConnections(prev => 

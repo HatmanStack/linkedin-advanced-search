@@ -4,7 +4,7 @@ import { vi } from 'vitest';
 // Mock environment variables
 Object.defineProperty(import.meta, 'env', {
   value: {
-    VITE_API_GATEWAY_URL: 'http://localhost:3001',
+    VITE_API_GATEWAY_URL: 'http://localhost:3001', // Local puppeteer backend
     MODE: 'test',
   },
   writable: true,

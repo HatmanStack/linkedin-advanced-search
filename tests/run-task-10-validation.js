@@ -123,7 +123,7 @@ class Task10ValidationRunner {
       const implementationFiles = [
         'src/components/ConnectionsList.tsx',
         'src/hooks/useProfileInit.ts',
-        'src/services/apiService.ts'
+        'src/services/puppeteerApiService.ts'
       ];
       
       for (const file of implementationFiles) {
@@ -148,7 +148,7 @@ class Task10ValidationRunner {
             }
           }
           
-          if (file.includes('apiService.ts')) {
+          if (file.includes('puppeteerApiService.ts')) {
             if (content.includes('initializeProfileDatabase')) {
               console.log('✅ API service has profile init method');
             } else {
@@ -292,10 +292,10 @@ class Task10ValidationRunner {
     
     try {
       const implementationFiles = [
-        { path: 'backend/controllers/profileInitController.js', type: 'Controller' },
-        { path: 'backend/services/profileInitService.js', type: 'Service' },
-        { path: 'backend/routes/profileInitRoutes.js', type: 'Routes' },
-        { path: 'backend/src/server.js', type: 'Server Configuration' },
+            { path: 'puppeteer-backend/controllers/profileInitController.js', type: 'Controller' },
+    { path: 'puppeteer-backend/services/profileInitService.js', type: 'Service' },
+    { path: 'puppeteer-backend/routes/profileInitRoutes.js', type: 'Routes' },
+    { path: 'puppeteer-backend/src/server.js', type: 'Server Configuration' },
         { path: 'src/components/ConnectionsList.tsx', type: 'Frontend Component' },
         { path: 'src/hooks/useProfileInit.ts', type: 'Frontend Hook' }
       ];
@@ -385,7 +385,7 @@ class Task10ValidationRunner {
     
     try {
       // Check for batch processing implementation
-      const serviceFile = 'backend/services/profileInitService.js';
+      const serviceFile = 'puppeteer-backend/services/profileInitService.js';
       const serviceContent = await fs.readFile(serviceFile, 'utf-8');
       
       const performanceChecks = [

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { apiService, Message } from '@/services/apiService';
+import { puppeteerApiService, Message } from '@/services/puppeteerApiService';
 import { useAuth } from '@/contexts/AuthContext';
 
 export const useMessages = (connectionId?: string) => {
@@ -19,7 +19,7 @@ export const useMessages = (connectionId?: string) => {
       setLoading(true);
       setError(null);
       
-      const response = await apiService.getMessages({ connectionId });
+      const response = await puppeteerApiService.getMessages({ connectionId });
       
       if (response.success && response.data) {
         setMessages(response.data.messages || []);
@@ -43,7 +43,7 @@ export const useMessages = (connectionId?: string) => {
     messageData: Omit<Message, 'message_id' | 'user_id' | 'created_at' | 'updated_at'>
   ): Promise<boolean> => {
     try {
-      const response = await apiService.createMessage(messageData);
+      const response = await puppeteerApiService.createMessage(messageData);
       
       if (response.success && response.data) {
         setMessages(prev => [...prev, response.data!]);

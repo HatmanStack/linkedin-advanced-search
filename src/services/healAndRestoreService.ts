@@ -1,4 +1,4 @@
-import { apiService } from './apiService';
+import { puppeteerApiService } from './puppeteerApiService';
 
 export interface HealAndRestoreSession {
   sessionId: string;
@@ -17,6 +17,7 @@ class HealAndRestoreService {
   private listeners: ((notification: HealAndRestoreNotification) => void)[] = [];
   private isPolling = false;
   private isListening = false;
+  private ignoredSessionIds: Set<string> = new Set();
 
 
   // Check if auto-approve is enabled for this session
@@ -36,10 +37,25 @@ class HealAndRestoreService {
   // Send authorization to backend
   async authorizeHealAndRestore(sessionId: string, autoApprove: boolean = false): Promise<boolean> {
     try {
-      const response = await apiService.authorizeHealAndRestore(sessionId, autoApprove);
+      const response = await puppeteerApiService.authorizeHealAndRestore(sessionId, autoApprove);
+      // If we previously ignored this session due to cancel, remove from ignore set on authorize
+      this.ignoredSessionIds.delete(sessionId);
       return response.success;
     } catch (error) {
       console.error('Failed to authorize heal and restore:', error);
+      return false;
+    }
+  }
+
+  // Send cancel to backend and locally ignore this session so it won't re-trigger the modal
+  async cancelHealAndRestore(sessionId: string): Promise<boolean> {
+    try {
+      this.ignoredSessionIds.add(sessionId);
+      const response = await puppeteerApiService.cancelHealAndRestore(sessionId);
+      return response.success;
+    } catch (error) {
+      console.error('Failed to cancel heal and restore:', error);
+      // Even if backend fails, keep ignoring this session locally to prevent UI loop
       return false;
     }
   }
@@ -84,7 +100,7 @@ class HealAndRestoreService {
     this.isPolling = true;
     const poll = async () => {
       try {
-        const response = await apiService.checkHealAndRestoreStatus();
+        const response = await puppeteerApiService.checkHealAndRestoreStatus();
         if (response.success && response.data?.pendingSession) {
           const notification: HealAndRestoreNotification = {
             sessionId: response.data.pendingSession.sessionId,
@@ -97,8 +113,10 @@ class HealAndRestoreService {
             // Automatically authorize
             await this.authorizeHealAndRestore(notification.sessionId, true);
           } else {
-            // Notify listeners to show modal
-            this.notifyListeners(notification);
+            // If this session was cancelled/ignored locally, do not notify again
+            if (!this.ignoredSessionIds.has(notification.sessionId)) {
+              this.notifyListeners(notification);
+            }
           }
         }
       } catch (error) {
