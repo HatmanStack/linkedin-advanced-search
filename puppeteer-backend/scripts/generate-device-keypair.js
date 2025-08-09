@@ -18,7 +18,7 @@ import sodium from 'libsodium-wrappers-sumo';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-function getAppConfigDir(appName = 'claude-linkedin') {
+function getAppConfigDir(appName = process.env.APP_NAME ) {
   const platform = process.platform;
   if (platform === 'win32') {
     const base = process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming');
