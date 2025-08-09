@@ -6,7 +6,7 @@ import RandomHelpers from '../utils/randomHelpers.js';
 import DynamoDBService from './dynamoDBService.js';
 import fs from 'fs/promises';
 import path from 'path';
-import { decryptRsaOaepB64Tag } from '../utils/crypto.js';
+import { decryptSealboxB64Tag } from '../utils/crypto.js';
 
 
 export class LinkedInService {
@@ -27,9 +27,9 @@ export class LinkedInService {
       this.sessionTag = sessionTag || 'default';
 
       // Just-in-time decryption if plaintext not provided
-      if ((!username || !password) && typeof credentialsCiphertext === 'string' && credentialsCiphertext.startsWith('rsa_oaep_sha256:b64:')) {
+      if ((!username || !password) && typeof credentialsCiphertext === 'string' && credentialsCiphertext.startsWith('sealbox_x25519:b64:')) {
         try {
-          const decrypted = decryptRsaOaepB64Tag(credentialsCiphertext);
+          const decrypted = await decryptSealboxB64Tag(credentialsCiphertext);
           if (decrypted) {
             const obj = JSON.parse(decrypted);
             username = obj?.email || username;

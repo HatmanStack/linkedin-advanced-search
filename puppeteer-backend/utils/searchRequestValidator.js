@@ -15,7 +15,9 @@ export class SearchRequestValidator {
 
     // Allow either plaintext credentials OR ciphertext/structured credentials to be present
     const hasPlaintext = !!(searchName && searchPassword);
-    const hasCiphertext = typeof linkedinCredentialsCiphertext === 'string' && linkedinCredentialsCiphertext.startsWith('rsa_oaep_sha256:b64:');
+    const hasCiphertext = typeof linkedinCredentialsCiphertext === 'string' && (
+      linkedinCredentialsCiphertext.startsWith('sealbox_x25519:b64:')
+    );
     const hasStructured = !!(linkedinCredentials && linkedinCredentials.email && linkedinCredentials.password);
 
     if (!hasPlaintext && !hasCiphertext && !hasStructured) {

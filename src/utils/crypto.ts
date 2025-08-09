@@ -1,7 +1,10 @@
 /**
  * Crypto utilities for client-side encryption.
- * Uses Web Crypto API to perform RSA-OAEP encryption with SHA-256.
+ * Preferred: Curve25519 sealed box (libsodium) tagged as `sealbox_x25519:b64:<...>`
+ * Legacy: RSA-OAEP(SHA-256) tagged as `rsa_oaep_sha256:b64:<...>`
  */
+
+import sodium from 'libsodium-wrappers-sumo';
 
 /** Normalize base64 to standard charset and correct padding */
 function normalizeBase64(input: string): string {
@@ -74,4 +77,17 @@ export async function encryptWithRsaOaep(plaintext: string, publicKeyPem: string
   return arrayBufferToBase64(encrypted);
 }
 
+/** Encrypt a UTF-8 string with Curve25519 sealed box and return base64 ciphertext */
+export async function encryptWithSealboxB64(plaintext: string, publicKeyB64: string): Promise<string> {
+  await sodium.ready;
+  const messageBytes = new TextEncoder().encode(plaintext);
+  const pkBytes = new Uint8Array(base64ToArrayBuffer(publicKeyB64));
+  if (pkBytes.length !== sodium.crypto_box_PUBLICKEYBYTES) {
+    throw new Error('Invalid public key length for sealed box');
+  }
+  const sealed = sodium.crypto_box_seal(messageBytes, pkBytes);
+  // Convert to base64
+  const sealedB64 = arrayBufferToBase64(sealed.buffer.slice(sealed.byteOffset, sealed.byteOffset + sealed.byteLength));
+  return sealedB64;
+}
 

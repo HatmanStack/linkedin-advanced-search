@@ -3,7 +3,7 @@ import { createContext, useState, useContext, ReactNode, useMemo, useEffect } fr
 import { lambdaApiService } from '@/services/lambdaApiService';
 import { useAuth } from '@/contexts/AuthContext';
 
-type LinkedInCredentialsCiphertext = string | null; // rsa_oaep_sha256:b64:<...>
+type LinkedInCredentialsCiphertext = string | null; // sealbox_x25519:b64:<...>
 
 interface LinkedInCredentialsContextType {
   ciphertext: LinkedInCredentialsCiphertext;
@@ -20,7 +20,7 @@ export const LinkedInCredentialsProvider = ({ children }: { children: ReactNode 
   useEffect(() => {
     try {
       const stored = sessionStorage.getItem('li_credentials_ciphertext');
-      if (stored && stored.startsWith('rsa_oaep_sha256:b64:')) {
+      if (stored && (stored.startsWith('sealbox_x25519:b64:'))) {
         setCiphertextState(stored);
       }
     } catch {}
@@ -31,7 +31,7 @@ export const LinkedInCredentialsProvider = ({ children }: { children: ReactNode 
       try {
         const profile = await lambdaApiService.getUserProfile();
         const cred = profile.success ? profile.data?.linkedin_credentials : null;
-        if (typeof cred === 'string' && cred.startsWith('rsa_oaep_sha256:b64:')) {
+        if (typeof cred === 'string' && cred.startsWith('sealbox_x25519:b64:')) {
           setCiphertextState(cred);
           try {
             sessionStorage.setItem('li_credentials_ciphertext', cred);
@@ -47,7 +47,7 @@ export const LinkedInCredentialsProvider = ({ children }: { children: ReactNode 
     setCiphertext: (value: LinkedInCredentialsCiphertext) => {
       setCiphertextState(value);
       try {
-        if (value && value.startsWith('rsa_oaep_sha256:b64:')) {
+        if (value && value.startsWith('sealbox_x25519:b64:')) {
           sessionStorage.setItem('li_credentials_ciphertext', value);
         } else {
           sessionStorage.removeItem('li_credentials_ciphertext');

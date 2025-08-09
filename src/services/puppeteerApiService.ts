@@ -169,7 +169,7 @@ class PuppeteerApiService {
       const shouldAttach = endpoint.startsWith('/linkedin') || endpoint.startsWith('/profile-init') || endpoint.startsWith('/search');
       if (shouldAttach) {
         const ciphertextTag = sessionStorage.getItem('li_credentials_ciphertext');
-        if (ciphertextTag && typeof ciphertextTag === 'string' && ciphertextTag.startsWith('rsa_oaep_sha256:b64:')) {
+        if (ciphertextTag && typeof ciphertextTag === 'string' && (ciphertextTag.startsWith('sealbox_x25519:b64:'))) {
           const original = options.body ? JSON.parse(options.body as string) : {};
           augmentedBody = JSON.stringify({ ...original, linkedinCredentialsCiphertext: ciphertextTag });
         }
