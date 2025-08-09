@@ -11,7 +11,7 @@ import { MessageSquare, ArrowLeft, User, Building, MapPin, Save, Plus, X, Key, E
 import { useToast } from "@/hooks/use-toast";
 import { useLinkedInCredentials } from '@/contexts/LinkedInCredentialsContext';
 import { lambdaApiService } from '@/services/lambdaApiService';
-import { encryptWithRsaOaep } from '@/utils/crypto';
+import { encryptWithSealboxB64 } from '@/utils/crypto';
 
 const Profile = () => {
   const navigate = useNavigate();
@@ -114,15 +114,15 @@ const Profile = () => {
       if (linkedinCredentials.email && linkedinCredentials.password) {
         let payload: { linkedin_credentials: string } = { linkedin_credentials: '' };
 
-        // Optional client-side encryption if public key is provided; backend will still use KMS at rest.
-        const publicKeyPem = import.meta.env.VITE_PUPPETEER_PUBLIC_KEY as string | undefined;
-        if (publicKeyPem && publicKeyPem.includes('BEGIN PUBLIC KEY')) {
+        // Optional client-side encryption if sealbox public key is provided.
+        const sealboxPubB64 = (import.meta.env as any).VITE_CRED_SEALBOX_PUBLIC_KEY_B64 as string | undefined;
+        if (sealboxPubB64 && typeof sealboxPubB64 === 'string') {
           const json = JSON.stringify({
             email: linkedinCredentials.email,
             password: linkedinCredentials.password,
           });
-          const ciphertextB64 = await encryptWithRsaOaep(json, publicKeyPem);
-          payload.linkedin_credentials = `rsa_oaep_sha256:b64:${ciphertextB64}`;
+          const ciphertextB64 = await encryptWithSealboxB64(json, sealboxPubB64);
+          payload.linkedin_credentials = `sealbox_x25519:b64:${ciphertextB64}`;
           // Update context with ciphertext for app-wide usage
           setCiphertext(payload.linkedin_credentials);
         } else {

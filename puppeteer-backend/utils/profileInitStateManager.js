@@ -91,7 +91,7 @@ export class ProfileInitStateManager {
    */
   static validateState(state) {
     const hasPlain = !!(state.searchName && state.searchPassword);
-    const hasCipher = typeof state.credentialsCiphertext === 'string' && state.credentialsCiphertext.startsWith('rsa_oaep_sha256:b64:');
+    const hasCipher = typeof state.credentialsCiphertext === 'string' && state.credentialsCiphertext.startsWith('sealbox_x25519:b64:');
     if (!hasPlain && !hasCipher) {
       throw new Error('Missing required credentials: provide searchName/searchPassword or credentialsCiphertext');
     }
