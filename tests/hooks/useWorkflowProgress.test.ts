@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
-import { useWorkflowProgress } from '../useWorkflowProgress';
-import type { Connection } from '../../types/index';
+import { useWorkflowProgress } from '@/hooks/useWorkflowProgress';
+import type { Connection } from '@/types';
 
 describe('useWorkflowProgress - Task 12 Core Functionality', () => {
   const mockConnections: Connection[] = [

@@ -2,6 +2,7 @@
  * Jest setup file for Profile Initialization tests
  * Configures global test environment and mocks
  */
+import { jest } from '@jest/globals';
 
 // Global test timeout
 jest.setTimeout(30000);

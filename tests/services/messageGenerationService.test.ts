@@ -4,11 +4,12 @@ import {
   MessageGenerationService,
   MessageGenerationError,
   type MessageGenerationRequest 
-} from '../../services/messageGenerationService';
-import { CognitoAuthService } from '../../services/cognitoService';
+} from '@/services/messageGenerationService';
+import { API_CONFIG } from '@/config/appConfig';
+import { CognitoAuthService } from '@/services/cognitoService';
 
 // Mock the CognitoAuthService
-vi.mock('../../services/cognitoService', () => ({
+vi.mock('@/services/cognitoService', () => ({
   CognitoAuthService: {
     getCurrentUserToken: vi.fn(),
   },
@@ -98,8 +99,9 @@ describe('MessageGenerationService', () => {
 
       // Assert
       expect(result).toBe(mockSuccessResponse.generatedMessage);
+      const expectedBaseUrl = (import.meta as any).env?.VITE_API_GATEWAY_URL || API_CONFIG.BASE_URL;
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:3001/ai/generate-message',
+        `${expectedBaseUrl}${API_CONFIG.ENDPOINTS.MESSAGE_GENERATION}`,
         expect.objectContaining({
           method: 'POST',
           headers: expect.objectContaining({
@@ -125,8 +127,9 @@ describe('MessageGenerationService', () => {
 
       // Assert
       expect(result).toBe(mockSuccessResponse.generatedMessage);
+      const expectedBaseUrl2 = (import.meta as any).env?.VITE_API_GATEWAY_URL || API_CONFIG.BASE_URL;
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:3001/ai/generate-message',
+        `${expectedBaseUrl2}${API_CONFIG.ENDPOINTS.MESSAGE_GENERATION}`,
         expect.objectContaining({
           headers: expect.not.objectContaining({
             'Authorization': expect.any(String),

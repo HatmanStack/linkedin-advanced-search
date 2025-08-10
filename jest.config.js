@@ -1,32 +1,16 @@
 export default {
-  // Use ES modules
-  preset: 'default',
-  extensionsToTreatAsEsm: ['.js'],
-  globals: {
-    'ts-jest': {
-      useESM: true
-    }
-  },
-  
-  // Module resolution
-  moduleNameMapping: {
+
+  // Map relative ESM imports without .js extension
+  moduleNameMapper: {
     '^(\\.{1,2}/.*)\\.js$': '$1'
   },
-  
-  // Transform configuration
-  transform: {
-    '^.+\\.js$': ['babel-jest', { presets: [['@babel/preset-env', { targets: { node: 'current' } }]] }]
-  },
-  
-  // Test environment
+
+  // Keep Node environment for backend/unit tests
   testEnvironment: 'node',
-  
-  // Test file patterns
-  testMatch: [
-    '**/tests/**/*.test.js',
-    '**/tests/test-*.js'
-  ],
-  
+
+  // Disable Jest discovery (backend tests have been ported to Vitest)
+  testMatch: ['<rootDir>/tests/__never__/*.never.js'],
+
   // Ignore patterns
   testPathIgnorePatterns: [
     '/node_modules/',
@@ -34,7 +18,7 @@ export default {
     '/lambda-processing/',
     '/dist/'
   ],
-  
+
   // Coverage configuration
   collectCoverageFrom: [
     'puppeteer-backend/**/*.js',
@@ -43,24 +27,24 @@ export default {
     '!puppeteer-backend/logs/**',
     '!puppeteer-backend/data/**'
   ],
-  
+
   // Setup files
   setupFilesAfterEnv: ['<rootDir>/tests/jest.setup.js'],
-  
+
   // Module directories
   moduleDirectories: ['node_modules', '<rootDir>'],
-  
+
   // Clear mocks between tests
   clearMocks: true,
-  
+
   // Verbose output
   verbose: true,
-  
+
   // Handle haste map collisions
   haste: {
     enableSymlinks: false
   },
-  
+
   // Timeout
   testTimeout: 30000
 };

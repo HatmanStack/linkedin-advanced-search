@@ -1,0 +1,95 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'RAG-CloudStack: Cognito User Pool with Google IdP (JWT for API Gateway)'
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: rag-cloudstack
+  CognitoDomainPrefix:
+    Type: String
+    Description: Unique Cognito domain prefix for hosted UI (e.g., myproject-dev)
+  GoogleClientId:
+    Type: String
+    Default: ''
+    Description: Google OAuth2 Client ID
+  GoogleClientSecret:
+    Type: String
+    Default: ''
+    NoEcho: true
+    Description: Google OAuth2 Client Secret
+  CallbackUrls:
+    Type: CommaDelimitedList
+    Default: 'http://localhost:5173'
+    Description: Allowed callback URLs (comma-separated)
+  LogoutUrls:
+    Type: CommaDelimitedList
+    Default: 'http://localhost:5173'
+    Description: Allowed logout URLs (comma-separated)
+
+Conditions:
+  HasGoogle: !And [!Not [!Equals [!Ref GoogleClientId, '']], !Not [!Equals [!Ref GoogleClientSecret, '']]]
+
+Resources:
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub '${ProjectName}-user-pool'
+      AutoVerifiedAttributes: [email]
+      Schema:
+        - AttributeDataType: String
+          Name: email
+          Required: true
+          Mutable: true
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+          RequireUppercase: true
+
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      UserPoolId: !Ref UserPool
+      ClientName: !Sub '${ProjectName}-web-client'
+      GenerateSecret: false
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthFlows: [code]
+      AllowedOAuthScopes: [email, openid, profile]
+      CallbackURLs: !Ref CallbackUrls
+      LogoutURLs: !Ref LogoutUrls
+      SupportedIdentityProviders: !If [HasGoogle, ['COGNITO', 'Google'], ['COGNITO']]
+
+  UserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      Domain: !Ref CognitoDomainPrefix
+      UserPoolId: !Ref UserPool
+
+  GoogleIdP:
+    Type: AWS::Cognito::UserPoolIdentityProvider
+    Condition: HasGoogle
+    Properties:
+      ProviderName: Google
+      ProviderType: Google
+      UserPoolId: !Ref UserPool
+      AttributeMapping:
+        email: email
+        given_name: given_name
+        family_name: family_name
+        name: name
+      ProviderDetails:
+        client_id: !Ref GoogleClientId
+        client_secret: !Ref GoogleClientSecret
+        authorize_scopes: 'openid email profile'
+
+Outputs:
+  UserPoolId:
+    Value: !Ref UserPool
+  UserPoolClientId:
+    Value: !Ref UserPoolClient
+  CognitoDomain:
+    Value: !Sub 'https://${CognitoDomainPrefix}.auth.${AWS::Region}.amazoncognito.com'
+
+
