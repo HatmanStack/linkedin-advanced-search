@@ -11,15 +11,10 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
-    "test:integration": "tsx src/__tests__/integration/run-integration-tests.ts",
-    "test:integration:comprehensive": "tsx src/__tests__/integration/comprehensive-integration-runner.ts",
-    "test:integration:dashboard": "vitest run src/__tests__/integration/dashboard-integration.test.tsx",
-    "test:integration:e2e": "vitest run src/__tests__/integration/connection-management-e2e.test.tsx",
-    "test:integration:performance": "vitest run src/__tests__/integration/performance-stress.test.tsx",
-    "test:integration:accessibility": "vitest run src/__tests__/integration/accessibility-compliance.test.tsx",
-    "test:integration:linkedin": "vitest run src/__tests__/integration/linkedin-interaction-integration.test.tsx",
-    "test:integration:api": "vitest run src/__tests__/integration/api-puppeteer-backend-integration.test.tsx",
-    "test:all": "npm run test && npm run test:integration:comprehensive"
+    "test:integration": "tsx tests/integration/run-integration-tests.ts",
+    "test:integration:comprehensive": "tsx tests/integration/comprehensive-integration-runner.ts",
+    "test:all": "npm run test && npm run test:integration:comprehensive",
+    "jest": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --config jest.config.js"
   },
   "dependencies": {
     "@aws-sdk/client-cognito-identity-provider": "^3.830.0",
