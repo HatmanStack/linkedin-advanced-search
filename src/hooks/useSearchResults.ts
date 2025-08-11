@@ -47,10 +47,7 @@ function useSearchResults(): UseSearchResultsReturn {
     [executeSearch]
   );
 
-  // Update local results when API returns data
-  if (searchData && searchData !== results) {
-    setResults(searchData);
-  }
+  // We no longer store backend search results locally; DynamoDB is the source of truth
 
   // Mark a profile as visited
   const markAsVisited = useCallback(

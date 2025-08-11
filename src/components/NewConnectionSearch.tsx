@@ -103,8 +103,8 @@ const NewConnectionSearch = ({
       // Update status from 'possible' to 'processed' using DBConnector
       await dbConnector.updateConnectionStatus(connectionId, 'processed');
 
-      // Update cache
-      connectionCache.update(connectionId, { status: 'processed' });
+      // Remove from cache so it disappears immediately
+      connectionCache.delete(connectionId);
 
       // Show success feedback
       toast({
@@ -113,10 +113,7 @@ const NewConnectionSearch = ({
         variant: "default",
       });
 
-      // The parent component should handle removing from UI via state management
-      if (onRefresh) {
-        onRefresh();
-      }
+      // No refetch needed; UI is updated via cache/state above
     } catch (error) {
       console.error('Error removing connection:', error);
       const errorMessage = error instanceof ApiError ? error.message : 'Failed to remove connection';

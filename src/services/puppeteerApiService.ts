@@ -183,21 +183,43 @@ class PuppeteerApiService {
         },
         body: augmentedBody,
       });
+      
+      // Gracefully handle empty/204 responses (no body)
+      const contentType = response.headers.get('content-type') || '';
+      const textBody = await response.text();
 
-      const data = await response.json();
-
+      // Non-OK still try to surface server message if any
       if (!response.ok) {
+        let parsedError: any = null;
+        try {
+          parsedError = textBody && contentType.includes('application/json') ? JSON.parse(textBody) : null;
+        } catch {}
         return {
           success: false,
-          error: data.error || `HTTP ${response.status}`,
+          error: (parsedError && (parsedError.error || parsedError.message)) || (textBody || `HTTP ${response.status}`),
         };
+      }
+
+      // OK responses: allow empty body or non-JSON bodies
+      if (!textBody) {
+        return { success: true } as ApiResponse<T>;
+      }
+
+      let parsed: any = textBody;
+      if (contentType.includes('application/json')) {
+        try {
+          parsed = JSON.parse(textBody);
+        } catch {
+          // If JSON parse fails, fall back to raw text
+          parsed = textBody;
+        }
       }
 
       return {
         success: true,
-        data: data.data || data,
-        message: data.message,
-      };
+        data: (parsed && parsed.data) ? parsed.data : parsed,
+        message: parsed?.message,
+      } as ApiResponse<T>;
     } catch (error) {
       return {
         success: false,
@@ -307,8 +329,8 @@ class PuppeteerApiService {
   }
 
   // LinkedIn Integration
-  async performLinkedInSearch(criteria: any): Promise<ApiResponse<any[]>> {
-    return this.makeRequest<any[]>('/search', {
+  async performLinkedInSearch(criteria: any): Promise<ApiResponse<any>> {
+    return this.makeRequest<any>('/search', {
       method: 'POST',
       body: JSON.stringify(criteria),
     });
@@ -413,21 +435,15 @@ class PuppeteerApiService {
   }
 
   // LinkedIn Search Operations
-  async searchLinkedIn(searchData: SearchFormData): Promise<string[]> {
-    const response = await this.makeRequest<SearchResponse>(
+  async searchLinkedIn(searchData: SearchFormData): Promise<any> {
+    const response = await this.makeRequest<any>(
       '/search',
       {
         method: 'POST',
         body: JSON.stringify(searchData),
       }
     );
-
-    // Handle the ApiResponse wrapper
-    if (response.success && response.data) {
-      return Array.isArray(response.data.response) ? response.data.response : [];
-    }
-    
-    return [];
+    return response;
   }
 }
 

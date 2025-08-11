@@ -266,8 +266,12 @@ const Dashboard = () => {
         conn.id === connectionId ? { ...conn, status: newStatus } : conn
       ));
 
-      // Update cache
-      connectionCache.update(connectionId, { status: newStatus });
+      // Update cache; if processed, remove it so lists reflect immediately
+      if (newStatus === 'processed') {
+        connectionCache.delete(connectionId);
+      } else {
+        connectionCache.update(connectionId, { status: newStatus });
+      }
 
       // Update database
       await dbConnector.updateConnectionStatus(connectionId, newStatus);
@@ -631,25 +635,12 @@ const Dashboard = () => {
       };
       console.log('Search data (ciphertext will be attached automatically):', { ...searchData, hasCiphertext: !!linkedInCredsCiphertext });
       // Use the existing search functionality
-      await searchLinkedIn(searchData);
+      const resp = await searchLinkedIn(searchData);
 
-      // Convert results to the new format if needed
-      if (results && results.length > 0) {
-        const convertedResults = results.map((result, index) => ({
-          id: `search-${index}`,
-          first_name: 'LinkedIn',
-          last_name: 'User',
-          position: filters.job || 'Professional',
-          company: filters.company || 'Company',
-          location: filters.location,
-          headline: result,
-          common_interests: [],
-          linkedin_url: result.includes('linkedin.com') ? result.split('/').pop() : undefined
-        }));
-        setLinkedinSearchResults(convertedResults);
+      // Only refresh when backend signals completion or healing explicitly
+      if (resp?.success || resp?.data?.status === 'healing' || resp?.status === 'healing') {
+        await fetchConnections();
       }
-
-      console.log('LinkedIn search results:', results);
     } catch (error) {
       console.error('Error searching LinkedIn:', error);
       toast({

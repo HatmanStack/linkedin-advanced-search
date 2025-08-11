@@ -1,8 +1,7 @@
 import { PuppeteerService } from './puppeteerService.js';
 import { logger } from '../utils/logger.js';
 import config from '../config/index.js';
-import RandomHelpers from '../utils/randomHelpers.js';
-import HumanBehaviorManager from '../utils/humanBehaviorManager.js';
+// Removed human-like delay/behavior helpers for simplicity
 import LinkedInErrorHandler from '../utils/linkedinErrorHandler.js';
 import ConfigManager from '../utils/configManager.js';
 
@@ -241,7 +240,7 @@ class BrowserSessionManager {
 export class LinkedInInteractionService {
   constructor() {
     this.sessionManager = BrowserSessionManager;
-    this.humanBehavior = new HumanBehaviorManager();
+    // Human behavior manager removed
     this.configManager = ConfigManager;
     
     // Get configuration values
@@ -263,63 +262,19 @@ export class LinkedInInteractionService {
    * @returns {Promise<any>} Operation result
    */
   async executeWithRetry(operation, context = {}, maxRetries = this.maxRetries) {
-    let lastError;
-    
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        context.attemptCount = attempt;
-        
-        // Log retry attempt
-        if (attempt > 1) {
-          logger.info(`Retry attempt ${attempt}/${maxRetries} for ${context.operation}`, {
-            context,
-            previousError: lastError?.message
-          });
-        }
-        
-        return await operation();
-        
-      } catch (error) {
-        lastError = error;
-        
-        // Categorize the error
-        const categorizedError = LinkedInErrorHandler.categorizeError(error, context);
-        
-        // Check if error is recoverable
-        const isRecoverable = LinkedInErrorHandler.isRecoverable(categorizedError, attempt);
-        
-        if (!isRecoverable || attempt === maxRetries) {
-          // Log final failure
-          logger.error(`Operation ${context.operation} failed after ${attempt} attempts`, {
-            context,
-            error: error.message,
-            errorCategory: categorizedError.category
-          });
-          throw error;
-        }
-        
-        // Calculate backoff delay
-        const delay = LinkedInErrorHandler.calculateBackoffDelay(attempt, categorizedError.category);
-        
-        // Log retry decision
-        logger.warn(`Operation ${context.operation} failed, retrying in ${delay}ms`, {
-          attempt,
-          maxRetries,
-          errorCategory: categorizedError.category,
-          error: error.message
-        });
-        
-        // Handle browser crashes with recovery
-        if (categorizedError.category === 'BROWSER') {
-          await this.handleBrowserRecovery(error, context);
-        }
-        
-        // Wait before retry
-        await this.delay(delay);
-      }
+    // Disable retries for interactive flows; execute once
+    try {
+      context.attemptCount = 1;
+      return await operation();
+    } catch (error) {
+      const categorizedError = LinkedInErrorHandler.categorizeError(error, context);
+      logger.error(`Operation ${context.operation || 'unknown'} failed without retry`, {
+        context,
+        error: error.message,
+        errorCategory: categorizedError.category
+      });
+      throw error;
     }
-    
-    throw lastError;
   }
 
   /**
@@ -401,9 +356,6 @@ export class LinkedInInteractionService {
    * @param {any} element
    */
   async clickElementHumanly(page, element) {
-    await this.scrollElementIntoView(page, element);
-    await this.humanBehavior.simulateHumanMouseMovement(page, element);
-    await RandomHelpers.humanLikeDelay('think');
     await element.click();
   }
 
@@ -415,12 +367,10 @@ export class LinkedInInteractionService {
    */
   async clearAndTypeText(page, element, text) {
     await element.click();
-    await RandomHelpers.randomDelay(500, 1000);
     await page.keyboard.down('Control');
     await page.keyboard.press('KeyA');
     await page.keyboard.up('Control');
     await page.keyboard.press('Delete');
-    await RandomHelpers.humanLikeDelay('type');
     await this.typeWithHumanPattern(text, element);
   }
 
@@ -467,8 +417,8 @@ export class LinkedInInteractionService {
    */
   async getSessionStatus() {
     const sessionHealth = await this.sessionManager.getHealthStatus();
-    const activityStats = this.humanBehavior.getActivityStats();
-    const suspiciousActivity = this.humanBehavior.detectSuspiciousActivity();
+    const activityStats = { totalActions: 0, actionsLastHour: 0, actionsLastMinute: 0, averageActionInterval: 0, actionsByType: {} };
+    const suspiciousActivity = { isSuspicious: false, patterns: [] };
     
     return {
       ...sessionHealth,
@@ -484,7 +434,7 @@ export class LinkedInInteractionService {
    * @returns {Promise<Object>} Suspicious activity analysis and actions taken
    */
   async checkSuspiciousActivity() {
-    const suspiciousActivity = this.humanBehavior.detectSuspiciousActivity();
+    const suspiciousActivity = { isSuspicious: false, patterns: [], recommendation: '' };
     
     if (suspiciousActivity.isSuspicious) {
       logger.warn('Suspicious activity detected, applying enhanced cooling-off period', {
@@ -492,16 +442,7 @@ export class LinkedInInteractionService {
         recommendation: suspiciousActivity.recommendation
       });
       
-      // Apply enhanced cooling-off period for suspicious activity
-      const enhancedCooldown = {
-        actionsPerMinute: Math.floor(config.linkedinInteractions?.actionsPerMinute * 0.5) || 4,
-        actionsPerHour: Math.floor(config.linkedinInteractions?.actionsPerHour * 0.7) || 70
-      };
-      
-      await this.humanBehavior.checkAndApplyCooldown(enhancedCooldown);
-      
-      // Reset consecutive actions counter to start fresh
-      this.humanBehavior.consecutiveActions = 0;
+      // Cooling off disabled
     }
     
     return suspiciousActivity;
@@ -525,8 +466,7 @@ export class LinkedInInteractionService {
       const session = await this.getBrowserSession();
       const page = session.getPage();
       
-      // Check for cooling-off period before navigation
-      await this.humanBehavior.checkAndApplyCooldown();
+      
       
       // Construct profile URL - handle both profile IDs and full URLs
       let profileUrl;
@@ -543,12 +483,16 @@ export class LinkedInInteractionService {
       // Navigate with timeout and error handling
       const navigationTimeout = this.configManager.get('navigationTimeout', 30000);
       await session.goto(profileUrl, { 
-        waitUntil: 'networkidle',
+        waitUntil: 'domcontentloaded',
         timeout: navigationTimeout 
       });
       
       // Wait for profile page to load completely
       await this.waitForLinkedInLoad();
+      // Extra stabilization wait using a lightweight heuristic
+      try {
+        await this.waitForPageStability?.();
+      } catch (_) {}
       
       // Verify we're on a profile page
       const isProfilePage = await this.verifyProfilePage(page);
@@ -556,15 +500,9 @@ export class LinkedInInteractionService {
         throw new Error('Navigation did not result in a valid LinkedIn profile page');
       }
       
-      // Add human-like navigation delay
-      await RandomHelpers.humanLikeDelay('navigate');
       
-      // Record the navigation action
-      this.humanBehavior.recordAction('navigation', {
-        profileId,
-        url: profileUrl,
-        timestamp: new Date().toISOString()
-      });
+      
+      
       
       logger.info(`Successfully navigated to profile: ${profileId}`);
       return true;
@@ -573,10 +511,7 @@ export class LinkedInInteractionService {
       logger.error(`Failed to navigate to profile ${profileId}:`, error);
       await this.sessionManager.recordError(error);
       
-      // Take screenshot for debugging if enabled
-      if (this.configManager.get('screenshotOnError')) {
-        await this.takeErrorScreenshot('navigate_profile_failed');
-      }
+      // Screenshot capture removed
       
       return false;
     }
@@ -645,52 +580,38 @@ export class LinkedInInteractionService {
       logger.debug('LinkedIn page load wait completed with timeout');
     }
   }
+  
+  async waitForPageStability(maxWaitMs = 8000, sampleIntervalMs = 300) {
+    try {
+      const session = await this.getBrowserSession();
+      const page = session.getPage();
+      let last = null;
+      let stable = 0;
+      const start = Date.now();
+      while (Date.now() - start < maxWaitMs) {
+        const metrics = await page.evaluate(() => ({
+          ready: document.readyState,
+          links: document.querySelectorAll('a').length,
+          imgs: document.images.length,
+        }));
+        if (last && metrics.ready !== 'loading' && metrics.links === last.links && metrics.imgs === last.imgs) {
+          stable += 1;
+          if (stable >= 3) return true;
+        } else {
+          stable = 0;
+        }
+        last = metrics;
+        await page.waitForTimeout(sampleIntervalMs);
+      }
+    } catch (_) {}
+    return false;
+  }
 
   /**
    * Handle LinkedIn-specific errors and authentication issues
    * @returns {Promise<void>}
    */
-  async handleLinkedInErrors() {
-    try {
-      const session = await this.getBrowserSession();
-      const page = session.getPage();
-      const currentUrl = await page.url();
-      
-      // Check for LinkedIn login page
-      if (currentUrl.includes('linkedin.com/login') || currentUrl.includes('linkedin.com/uas/login')) {
-        logger.warn('LinkedIn login required - session not authenticated');
-        this.sessionManager.setAuthenticationStatus(false);
-        throw new Error('LinkedIn authentication required');
-      }
-      
-      // Check for rate limiting or security challenges
-      if (currentUrl.includes('challenge') || currentUrl.includes('security')) {
-        logger.warn('LinkedIn security challenge detected');
-        throw new Error('LinkedIn security challenge detected - manual intervention required');
-      }
-      
-      // Check for blocked or restricted access
-      const blockedSelectors = [
-        '[data-test-id="blocked-message"]',
-        '.blocked-page',
-        '.restricted-access'
-      ];
-      
-      for (const selector of blockedSelectors) {
-        const element = await session.waitForSelector(selector, { timeout: 1000 });
-        if (element) {
-          logger.warn('LinkedIn access blocked or restricted');
-          throw new Error('LinkedIn access blocked - account may be restricted');
-        }
-      }
-      
-    } catch (error) {
-      if (error.message.includes('LinkedIn')) {
-        throw error; // Re-throw LinkedIn-specific errors
-      }
-      // Ignore other errors (like selector timeouts)
-    }
-  }
+  // handleLinkedInErrors removed
 
   /**
    * Send a direct message to a LinkedIn connection
@@ -708,16 +629,13 @@ export class LinkedInInteractionService {
     };
 
     logger.info(`Sending LinkedIn message to profile ${recipientProfileId} by user ${userId}`, context);
-
-    return await this.executeWithRetry(async () => {
       // Check for suspicious activity before starting
       await this.checkSuspiciousActivity();
       
       // Get or initialize browser session
       const session = await this.getBrowserSession();
       
-      // Check LinkedIn authentication status
-      await this.handleLinkedInErrors();
+      
       
       // Navigate to recipient's profile
       const navigationSuccess = await this.navigateToProfile(recipientProfileId);
@@ -734,12 +652,7 @@ export class LinkedInInteractionService {
       // Update session activity
       this.sessionManager.lastActivity = new Date();
       
-      // Record the successful message sending
-      this.humanBehavior.recordAction('message_sent', {
-        recipientProfileId,
-        messageLength: messageContent.length,
-        userId
-      });
+      
       
       logger.info(`Successfully sent LinkedIn message`, {
         recipientProfileId,
@@ -754,7 +667,7 @@ export class LinkedInInteractionService {
         recipientProfileId,
         userId
       };
-    }, context);
+    
   }
 
   /**
@@ -776,8 +689,7 @@ export class LinkedInInteractionService {
       const page = session.getPage();
       
       // Add human-like delay before interaction
-      const humanConfig = this.configManager.getHumanBehaviorConfig();
-      await RandomHelpers.randomDelay(humanConfig.delayMin, humanConfig.delayMax);
+      
       
       // Look for message button on profile page
       const messageButtonSelectors = [
@@ -826,10 +738,7 @@ export class LinkedInInteractionService {
     } catch (error) {
       logger.error(`Failed to navigate to messaging interface for ${profileId}:`, error);
       
-      // Take screenshot for debugging if enabled
-      if (this.configManager.get('screenshotOnError')) {
-        await this.takeErrorScreenshot('navigate_messaging_failed');
-      }
+      // Screenshot capture removed
       
       throw new Error(`Messaging navigation failed: ${error.message}`);
     }
@@ -860,7 +769,7 @@ export class LinkedInInteractionService {
       }
       
       // Additional wait for interface to be fully interactive
-      await RandomHelpers.randomDelay(1000, 2000);
+      
       
     } catch (error) {
       logger.error('Failed to wait for messaging interface:', error);
@@ -908,8 +817,7 @@ export class LinkedInInteractionService {
         throw new Error('Message input field not found in messaging interface');
       }
       
-      // Scroll and type message with reusable helper
-      await this.scrollElementIntoView(page, messageInput);
+      // Type message with reusable helper
       await this.humanBehavior.simulateHumanMouseMovement(page, messageInput);
       await this.clearAndTypeText(page, messageInput, messageContent);
       
@@ -963,10 +871,7 @@ export class LinkedInInteractionService {
     } catch (error) {
       logger.error('Failed to compose and send message:', error);
       
-      // Take screenshot for debugging if enabled
-      if (this.configManager.get('screenshotOnError')) {
-        await this.takeErrorScreenshot('compose_send_message_failed');
-      }
+      // Screenshot capture removed
       
       throw new Error(`Message composition failed: ${error.message}`);
     }
@@ -1005,7 +910,7 @@ export class LinkedInInteractionService {
       
       if (!sentConfirmed) {
         // Fallback: wait for input to be cleared or send button to be disabled
-        await RandomHelpers.randomDelay(2000, 3000);
+        
         logger.debug('Message sent confirmation not found, assuming sent based on timing');
       }
       
@@ -1025,23 +930,11 @@ export class LinkedInInteractionService {
   async typeWithHumanPattern(text, element = null) {
     const session = await this.getBrowserSession();
     const page = session.getPage();
-    
-    // Check for cooling-off period before typing
-    await this.humanBehavior.checkAndApplyCooldown();
-    
-    // Simulate reading the content before typing (if it's a response)
-    if (text.length > 50) {
-      await this.humanBehavior.simulateReading(text.substring(0, 100));
+    if (element) {
+      await element.type(text);
+    } else {
+      await page.keyboard.type(text);
     }
-    
-    // Use the human behavior manager for realistic typing
-    await this.humanBehavior.simulateHumanTyping(page, text, element);
-    
-    // Record the typing action
-    this.humanBehavior.recordAction('typing', {
-      textLength: text.length,
-      hasElement: !!element
-    });
   }
 
   /**
@@ -1051,75 +944,7 @@ export class LinkedInInteractionService {
    * @param {string} userId - ID of authenticated user
    * @returns {Promise<Object>} Connection result
    */
-  async addConnection(profileId, connectionMessage, userId) {
-    const context = {
-      operation: 'addConnection',
-      profileId,
-      hasConnectionMessage: !!connectionMessage,
-      userId
-    };
-
-    logger.info(`Sending LinkedIn connection request to profile ${profileId} by user ${userId}`, context);
-
-    return await this.executeWithRetry(async () => {
-      // Check for suspicious activity before starting
-      await this.checkSuspiciousActivity();
-      
-      // Get or initialize browser session
-      const session = await this.getBrowserSession();
-      
-      // Check LinkedIn authentication status
-      await this.handleLinkedInErrors();
-      
-      // Navigate to recipient's profile
-      const navigationSuccess = await this.navigateToProfile(profileId);
-      if (!navigationSuccess) {
-        throw new Error(`Failed to navigate to profile: ${profileId}`);
-      }
-
-      // Check if already connected
-      const connectionStatus = await this.checkConnectionStatus();
-      if (connectionStatus === 'connected') {
-        throw new Error('Profile is already connected');
-      }
-
-      // Find and click connect button
-      await this.findAndClickConnectButton();
-      
-      // Add connection message if provided
-      if (connectionMessage && connectionMessage.trim()) {
-        await this.addConnectionMessage(connectionMessage);
-      }
-      
-      // Send the connection request
-      const connectionResult = await this.sendConnectionRequest();
-      
-      // Update session activity
-      this.sessionManager.lastActivity = new Date();
-      
-      // Record the successful connection request
-      this.humanBehavior.recordAction('connection_sent', {
-        profileId,
-        hasMessage: !!connectionMessage,
-        userId
-      });
-      
-      logger.info(`Successfully sent LinkedIn connection request`, {
-        profileId,
-        connectionRequestId: connectionResult.connectionRequestId,
-        userId
-      });
-
-      return {
-        connectionRequestId: connectionResult.connectionRequestId || `conn_${Date.now()}_${profileId}`,
-        status: 'sent',
-        sentAt: new Date().toISOString(),
-        profileId,
-        userId,
-        hasMessage: !!connectionMessage
-      };
-    }, context);
-  }
+  // addConnection removed in favor of executeConnectionWorkflow
 
 
   /**
@@ -1138,16 +963,13 @@ export class LinkedInInteractionService {
     };
 
     logger.info(`Creating LinkedIn post by user ${userId}`, context);
-
-    return await this.executeWithRetry(async () => {
       // Check for suspicious activity before starting
       await this.checkSuspiciousActivity();
       
       // Get or initialize browser session
       const session = await this.getBrowserSession();
       
-      // Check LinkedIn authentication status
-      await this.handleLinkedInErrors();
+      
       
       // Navigate to post creation interface
       await this.navigateToPostCreator();
@@ -1186,7 +1008,7 @@ export class LinkedInInteractionService {
         publishedAt: new Date().toISOString(),
         userId
       };
-    }, context);
+    
   }
   
 
@@ -1206,8 +1028,7 @@ export class LinkedInInteractionService {
       const session = await this.getBrowserSession();
       const page = session.getPage();
       
-      // Check for cooling-off period before navigation
-      await this.humanBehavior.checkAndApplyCooldown();
+      
       
       // Navigate to LinkedIn home/feed page first
       const navigationTimeout = this.configManager.get('navigationTimeout', 30000);
@@ -1219,7 +1040,7 @@ export class LinkedInInteractionService {
       await this.waitForLinkedInLoad();
       
       // Add human-like navigation delay
-      await RandomHelpers.humanLikeDelay('navigate');
+      
       
       // Look for "Start a post" button or similar
       const startPostSelectors = [
@@ -1255,14 +1076,12 @@ export class LinkedInInteractionService {
         throw new Error('Start post button not found on LinkedIn feed');
       }
       
-      // Scroll button into view if needed
-      await this.scrollElementIntoView(page, startPostButton);
+      // Move to button
       
-      // Simulate human mouse movement to button
-      await this.humanBehavior.simulateHumanMouseMovement(page, startPostButton);
+      
       
       // Add thinking delay before clicking
-      await RandomHelpers.humanLikeDelay('think');
+      
       
       // Click the start post button
       logger.info('Clicking start post button');
@@ -1271,22 +1090,14 @@ export class LinkedInInteractionService {
       // Wait for post creation interface to load
       await this.waitForPostCreationInterface();
       
-      // Record the post creation navigation action
-      this.humanBehavior.recordAction('post_creation_navigation', {
-        method: 'start_post_button',
-        selector: foundSelector,
-        timestamp: new Date().toISOString()
-      });
+      // Telemetry removed
       
       logger.info('Successfully navigated to post creation interface');
       
     } catch (error) {
       logger.error('Failed to navigate to post creation interface:', error);
       
-      // Take screenshot for debugging if enabled
-      if (this.configManager.get('screenshotOnError')) {
-        await this.takeErrorScreenshot('navigate_post_creator_failed');
-      }
+      // Screenshot capture removed
       
       throw new Error(`Post creator navigation failed: ${error.message}`);
     }
@@ -1330,7 +1141,7 @@ export class LinkedInInteractionService {
       }
       
       // Additional wait for interface to be fully interactive
-      await RandomHelpers.randomDelay(1500, 2500);
+      
       
     } catch (error) {
       logger.error('Failed to wait for post creation interface:', error);
@@ -1387,20 +1198,20 @@ export class LinkedInInteractionService {
       
       // Clear any existing content and focus on input
       await contentInput.click();
-      await RandomHelpers.humanLikeDelay('click');
+      
       
       // Clear existing content
       await page.keyboard.down('Control');
       await page.keyboard.press('KeyA');
       await page.keyboard.up('Control');
-      await RandomHelpers.humanLikeDelay('type');
+      
       await page.keyboard.press('Delete');
       
       // Type post content with human-like typing pattern
       await this.typeWithHumanPattern(content, contentInput);
       
       // Add delay after typing
-      await RandomHelpers.humanLikeDelay('think');
+      
       
       logger.info('Post content composed successfully');
       
@@ -1470,11 +1281,11 @@ export class LinkedInInteractionService {
         
         // Simulate human mouse movement to media button
         await this.humanBehavior.simulateHumanMouseMovement(page, mediaButton);
-        await RandomHelpers.humanLikeDelay('click');
+        
         
         // Click media upload button
         await mediaButton.click();
-        await RandomHelpers.humanLikeDelay('upload');
+        
         
         // Handle file upload (if file path provided)
         if (attachment.filePath) {
@@ -1486,7 +1297,7 @@ export class LinkedInInteractionService {
               logger.debug(`Uploaded file: ${attachment.filePath}`);
               
               // Wait for upload to process
-              await RandomHelpers.humanLikeDelay('upload_process');
+              
             }
           } catch (uploadError) {
             logger.warn(`Failed to upload file ${attachment.filePath}:`, uploadError.message);
@@ -1495,7 +1306,7 @@ export class LinkedInInteractionService {
         
         // Add delay between attachments
         if (i < mediaAttachments.length - 1) {
-          await RandomHelpers.humanLikeDelay('between_uploads');
+          
         }
       }
       
@@ -1533,7 +1344,7 @@ export class LinkedInInteractionService {
       const page = session.getPage();
       
       // Add human-like delay before sending
-      await RandomHelpers.humanLikeDelay('think');
+      
       
       // Look for send/connect button in the modal
       const sendButtonSelectors = [
@@ -1576,14 +1387,14 @@ export class LinkedInInteractionService {
       
       // Simulate human mouse movement to send button
       await this.humanBehavior.simulateHumanMouseMovement(page, sendButton);
-      await RandomHelpers.humanLikeDelay('click');
+      
       
       // Click send button
       await sendButton.click();
       logger.info('Connection request send button clicked');
       
       // Wait for request to be processed
-      await RandomHelpers.humanLikeDelay('request_process');
+      
       
       // Look for confirmation indicators
       const confirmationSelectors = [
@@ -1654,7 +1465,7 @@ export class LinkedInInteractionService {
       const page = session.getPage();
       
       // Add human-like delay before checking
-      await RandomHelpers.randomDelay(500, 1000);
+      
       
       // Look for indicators of existing connection
       const connectedSelectors = [
@@ -1724,26 +1535,53 @@ export class LinkedInInteractionService {
       // Check for cooling-off period before interaction
       await this.humanBehavior.checkAndApplyCooldown();
       
-      // Add human-like delay before interaction
-      await RandomHelpers.humanLikeDelay('think');
-      
-      // Look for connect button with various selectors
+      logger.info('Looking for and clicking connect button');
+      // Look for a plain "Connect" button first (text-based and aria-based selectors)
       const connectButtonSelectors = [
         'button[aria-label*="Connect"]',
         'button[aria-label*="connect"]',
         '[data-test-id="connect-button"]',
         '.connect-button',
-        'button:has-text("Connect")',
         'button[data-control-name*="connect"]',
         '.pv-s-profile-actions button[aria-label*="Connect"]',
         '.pvs-profile-actions__action button[aria-label*="Connect"]',
         'button[data-control-name="connect"]',
         '.pv-top-card-v2-ctas button[aria-label*="Connect"]'
       ];
-      const { element: connectButton, selector: foundSelector } = await this.findElementBySelectors(connectButtonSelectors, 3000);
-      
+      let { element: connectButton, selector: foundSelector } = await this.findElementBySelectors(connectButtonSelectors, 2500);
+
+      // Fallback: find by visible text "Connect" using XPath
       if (!connectButton) {
-        // Check if already connected
+        try {
+          const [byText] = await page.$x("//button//*[normalize-space(text())='Connect']/ancestor::button | //button[normalize-space(text())='Connect']");
+          if (byText) {
+            connectButton = byText;
+            foundSelector = 'xpath://button[.=\'Connect\']';
+          }
+        } catch (_) {}
+      }
+
+      if (connectButton) {
+        // Scroll button into view and click humanly
+        await this.clickElementHumanly(page, connectButton);
+        await this.waitForConnectionModal();
+        logger.info('Successfully clicked direct Connect button');
+        return;
+      }
+
+      // If direct button not found, open the More actions menu and click Connect inside it
+      logger.info('Direct Connect button not found, trying More actions menu');
+      const moreButtonSelectors = [
+        'button[aria-label*="More actions"]',
+        'button[aria-label*="More"]',
+        '[id*="profile-overflow-action"]',
+        '#ember-profile-overflow-action',
+        '.pv-top-card-v2-ctas button[aria-label*="More"]'
+      ];
+      const { element: moreButton } = await this.findElementBySelectors(moreButtonSelectors, 2500);
+
+      if (!moreButton) {
+        // Before bailing, check if already connected/pending
         const alreadyConnectedSelectors = [
           'button[aria-label*="Message"]',
           'button[aria-label*="Following"]',
@@ -1754,31 +1592,58 @@ export class LinkedInInteractionService {
         if (statusElement) {
           throw new Error('Profile is already connected or connection is pending');
         }
-        
-        throw new Error('Connect button not found on profile page');
+        throw new Error('Connect button not found and More actions menu unavailable');
       }
-      
-      // Scroll button into view if needed with human-like scrolling
-      await this.clickElementHumanly(page, connectButton);
-      
-      // Wait for connection modal or confirmation
+
+      // Click More actions
+      await this.clickElementHumanly(page, moreButton);
+
+      // Wait for dropdown/menu to appear
+      const menuSelectors = [
+        '.artdeco-dropdown__content',
+        'div[role="menu"]',
+        '.pv-top-card-v2-ctas__dropdown'
+      ];
+      const { element: menuEl } = await this.findElementBySelectors(menuSelectors, 2500);
+      if (!menuEl) {
+        logger.warn('More actions menu did not appear; attempting to continue');
+      }
+
+      // Find Connect item inside the menu by text
+      let menuConnect = null;
+      try {
+        const candidates = await page.$$('div[role="menu"] * , .artdeco-dropdown__content *');
+        for (const el of candidates) {
+          try {
+            const text = (await page.evaluate(node => node.innerText || node.textContent || '', el)).trim();
+            if (text && /^(connect)$/i.test(text)) {
+              menuConnect = el;
+              break;
+            }
+          } catch (_) {}
+        }
+      } catch (_) {}
+
+      // XPath fallback for Connect in menu
+      if (!menuConnect) {
+        try {
+          const [byMenuText] = await page.$x("//*[contains(@class,'artdeco-dropdown__content') or @role='menu']//*[normalize-space(text())='Connect']");
+          if (byMenuText) menuConnect = byMenuText;
+        } catch (_) {}
+      }
+
+      if (!menuConnect) {
+        throw new Error('Connect option not found in More actions menu');
+      }
+
+      await this.clickElementHumanly(page, menuConnect);
       await this.waitForConnectionModal();
-      
-      // Record the connect button click action
-      this.humanBehavior.recordAction('connect_button_click', {
-        selector: foundSelector,
-        timestamp: new Date().toISOString()
-      });
-      
-      logger.info('Successfully clicked connect button');
+      logger.info('Successfully clicked Connect via More actions menu');
       
     } catch (error) {
       logger.error('Failed to find and click connect button:', error);
       
-      // Take screenshot for debugging if enabled
-      if (this.configManager.get('screenshotOnError')) {
-        await this.takeErrorScreenshot('connect_button_failed');
-      }
+      // Screenshot capture removed
       
       throw new Error(`Connect button interaction failed: ${error.message}`);
     }
@@ -1839,7 +1704,7 @@ export class LinkedInInteractionService {
       }
       
       // Additional wait for modal to be fully loaded
-      await RandomHelpers.randomDelay(1000, 2000);
+      
       
     } catch (error) {
       logger.debug('Connection modal wait completed with potential issues:', error.message);
@@ -1866,7 +1731,7 @@ export class LinkedInInteractionService {
       await this.waitForLinkedInLoad();
       
       // Add thinking delay before looking for elements
-      await RandomHelpers.humanLikeDelay('think');
+      
       
       // Look for "Add a note" button or link
       const addNoteSelectors = [
@@ -1893,7 +1758,7 @@ export class LinkedInInteractionService {
           action: 'expand_message_field'
         });
         
-        await RandomHelpers.humanLikeDelay('navigate');
+        
       }
       
         // Look for message input field
@@ -1917,7 +1782,7 @@ export class LinkedInInteractionService {
       await this.clearAndTypeText(page, messageInput, connectionMessage);
       
       // Add delay after typing
-      await RandomHelpers.randomDelay(1000, 2000);
+      
       
       logger.info('Connection message added successfully');
       
@@ -1982,7 +1847,7 @@ export class LinkedInInteractionService {
       await this.clearAndTypeText(page, contentInput, content);
       
       // Add delay after typing
-      await RandomHelpers.randomDelay(1000, 2000);
+      
       
       logger.info('Post content input completed successfully');
       
@@ -2007,7 +1872,7 @@ export class LinkedInInteractionService {
       const page = session.getPage();
       
       // Add human-like delay before media interaction
-      await RandomHelpers.randomDelay(1000, 2000);
+      
       
       // Look for media attachment button
       const mediaButtonSelectors = [
@@ -2040,7 +1905,7 @@ export class LinkedInInteractionService {
       logger.warn('Media attachment functionality is placeholder - files not actually uploaded');
       
       // Simulate upload delay
-      await RandomHelpers.randomDelay(2000, 4000);
+      
       
     } catch (error) {
       logger.error('Failed to attach media to post:', error);
@@ -2061,7 +1926,7 @@ export class LinkedInInteractionService {
       const page = session.getPage();
       
       // Add human-like delay before publishing
-      await RandomHelpers.randomDelay(2000, 3000);
+      
       
       // Look for publish/post button
       const publishButtonSelectors = [
@@ -2090,7 +1955,7 @@ export class LinkedInInteractionService {
       await this.clickElementHumanly(page, publishButton);
       
       // Wait for post to be published (look for confirmation or redirect)
-      await RandomHelpers.randomDelay(3000, 5000);
+      
       
       // Try to extract post URL from current page or notifications
       let postUrl = null;
@@ -2204,26 +2069,7 @@ export class LinkedInInteractionService {
    * @param {Object} element - Element to scroll into view
    * @returns {Promise<void>}
    */
-  async scrollElementIntoView(page, element) {
-    try {
-      const elementBounds = await element.boundingBox();
-      if (elementBounds) {
-        const viewport = await page.viewport();
-        const isInView = elementBounds.y >= 0 && elementBounds.y <= viewport.height;
-        
-        if (!isInView) {
-          const scrollDistance = elementBounds.y - viewport.height / 2;
-          await this.humanBehavior.simulateHumanScrolling(page, scrollDistance);
-          
-          // Wait for scroll to complete
-          await RandomHelpers.randomDelay(500, 1000);
-        }
-      }
-    } catch (error) {
-      logger.debug('Failed to scroll element into view:', error.message);
-      // Don't throw error, element might still be accessible
-    }
-  }
+  // scrollElementIntoView removed
 
   /**
    * Complete LinkedIn messaging workflow
@@ -2242,14 +2088,12 @@ export class LinkedInInteractionService {
     };
 
     logger.info('Executing complete LinkedIn messaging workflow', context);
-
-    return await this.executeWithRetry(async () => {
       // Step 1: Check for suspicious activity and apply cooling-off
       await this.checkSuspiciousActivity();
       
       // Step 2: Ensure browser session is healthy
       const session = await this.getBrowserSession();
-      await this.handleLinkedInErrors();
+      
       
       // Step 3: Navigate to recipient's profile
       logger.info('Step 1/4: Navigating to profile');
@@ -2297,7 +2141,6 @@ export class LinkedInInteractionService {
       logger.info('LinkedIn messaging workflow completed successfully', result);
       return result;
       
-    }, context);
   }
 
   /**
@@ -2318,14 +2161,12 @@ export class LinkedInInteractionService {
     };
 
     logger.info('Executing complete LinkedIn connection workflow', context);
-
-    return await this.executeWithRetry(async () => {
       // Step 1: Check for suspicious activity and apply cooling-off
       await this.checkSuspiciousActivity();
       
       // Step 2: Ensure browser session is healthy
       const session = await this.getBrowserSession();
-      await this.handleLinkedInErrors();
+      
       
       // Step 3: Navigate to target profile
       logger.info('Step 1/5: Navigating to profile');
@@ -2336,13 +2177,13 @@ export class LinkedInInteractionService {
 
       // Step 4: Check current connection status
       logger.info('Step 2/5: Checking connection status');
-      const connectionStatus = await this.checkConnectionStatus();
-      if (connectionStatus.isConnected) {
-        throw new Error('Profile is already connected');
-      }
-      if (connectionStatus.isPending) {
-        throw new Error('Connection request is already pending');
-      }
+      //nst connectionStatus = await this.checkConnectionStatus();
+      //if (connectionStatus.isConnected || connectionStatus === 'connected') {
+        //row new Error('Profile is already connected');
+      //}
+      //if (connectionStatus.isPending || connectionStatus === 'pending') {
+        //row new Error('Connection request is already pending');
+      //}
       
       // Step 5: Find and click connect button
       logger.info('Step 3/5: Clicking connect button');
@@ -2389,7 +2230,6 @@ export class LinkedInInteractionService {
       logger.info('LinkedIn connection workflow completed successfully', result);
       return result;
       
-    }, context);
   }
 
   /**
@@ -2411,7 +2251,7 @@ export class LinkedInInteractionService {
 
     logger.info('Executing complete LinkedIn post creation workflow', context);
 
-    return await this.executeWithRetry(async () => {
+    // No retries: run once
       // Step 1: Check for suspicious activity and apply cooling-off
       await this.checkSuspiciousActivity();
       
@@ -2435,7 +2275,7 @@ export class LinkedInInteractionService {
       
       // Step 6: Review post before publishing (human-like behavior)
       logger.info('Step 4/5: Reviewing post content');
-      await RandomHelpers.humanLikeDelay('review_content');
+      
       
       // Step 7: Publish the post
       logger.info('Step 5/5: Publishing post');
@@ -2471,154 +2311,9 @@ export class LinkedInInteractionService {
       logger.info('LinkedIn post creation workflow completed successfully', result);
       return result;
       
-    }, context);
   }
 
-  /**
-   * Batch workflow execution for multiple operations
-   * Implements requirement for bulk operations with rate limiting
-   * @param {Array} operations - Array of operation objects
-   * @param {Object} batchOptions - Batch execution options
-   * @returns {Promise<Object>} Batch execution results
-   */
-  async executeBatchWorkflow(operations, batchOptions = {}) {
-    const context = {
-      operation: 'executeBatchWorkflow',
-      operationCount: operations.length,
-      batchOptions
-    };
-
-    logger.info('Executing batch LinkedIn workflow', context);
-
-    const results = {
-      batchId: `batch_${Date.now()}`,
-      totalOperations: operations.length,
-      successful: [],
-      failed: [],
-      skipped: [],
-      startedAt: new Date().toISOString(),
-      completedAt: null,
-      summary: {
-        successCount: 0,
-        failureCount: 0,
-        skipCount: 0
-      }
-    };
-
-    try {
-      // Apply enhanced cooling-off for batch operations
-      const batchCooldown = {
-        actionsPerMinute: Math.floor((config.linkedinInteractions?.actionsPerMinute || 8) * 0.6),
-        actionsPerHour: Math.floor((config.linkedinInteractions?.actionsPerHour || 100) * 0.8)
-      };
-      
-      await this.humanBehavior.checkAndApplyCooldown(batchCooldown);
-
-      // Process each operation with appropriate delays
-      for (let i = 0; i < operations.length; i++) {
-        const operation = operations[i];
-        const operationContext = {
-          ...context,
-          currentOperation: i + 1,
-          operationType: operation.type,
-          operationId: operation.id || `op_${i + 1}`
-        };
-
-        logger.info(`Processing batch operation ${i + 1}/${operations.length}`, operationContext);
-
-        try {
-          let result;
-          
-          // Execute appropriate workflow based on operation type
-          switch (operation.type) {
-            case 'message':
-              result = await this.executeMessagingWorkflow(
-                operation.recipientProfileId,
-                operation.messageContent,
-                operation.options
-              );
-              break;
-              
-            case 'connection':
-              result = await this.executeConnectionWorkflow(
-                operation.profileId,
-                operation.connectionMessage,
-                operation.options
-              );
-              break;
-              
-            case 'post':
-              result = await this.executePostCreationWorkflow(
-                operation.content,
-                operation.mediaAttachments,
-                operation.options
-              );
-              break;
-              
-            default:
-              throw new Error(`Unsupported operation type: ${operation.type}`);
-          }
-
-          results.successful.push({
-            operationId: operationContext.operationId,
-            type: operation.type,
-            result,
-            completedAt: new Date().toISOString()
-          });
-          
-          results.summary.successCount++;
-          
-          // Apply inter-operation delay for human-like behavior
-          if (i < operations.length - 1) {
-            const delayMs = RandomHelpers.randomBetween(
-              batchOptions.minDelayBetweenOperations || 30000,  // 30 seconds minimum
-              batchOptions.maxDelayBetweenOperations || 120000   // 2 minutes maximum
-            );
-            
-            logger.info(`Applying inter-operation delay: ${delayMs}ms`);
-            await this.delay(delayMs);
-          }
-
-        } catch (error) {
-          logger.error(`Batch operation ${i + 1} failed:`, error);
-          
-          results.failed.push({
-            operationId: operationContext.operationId,
-            type: operation.type,
-            error: error.message,
-            failedAt: new Date().toISOString()
-          });
-          
-          results.summary.failureCount++;
-          
-          // Check if we should continue or abort batch
-          if (batchOptions.stopOnError) {
-            logger.warn('Stopping batch execution due to error and stopOnError=true');
-            break;
-          }
-        }
-      }
-
-      results.completedAt = new Date().toISOString();
-      
-      // Record batch completion
-      this.humanBehavior.recordAction('batch_workflow_completed', {
-        batchId: results.batchId,
-        totalOperations: results.totalOperations,
-        successCount: results.summary.successCount,
-        failureCount: results.summary.failureCount,
-        batchDuration: Date.now() - new Date(results.startedAt).getTime()
-      });
-      
-      logger.info('Batch LinkedIn workflow completed', results.summary);
-      return results;
-
-    } catch (error) {
-      logger.error('Batch workflow execution failed:', error);
-      results.completedAt = new Date().toISOString();
-      throw error;
-    }
-  }
+  // Batch workflow removed: single-operation flows only
   /**
    * Validate workflow parameters before execution
    * @param {string} workflowType - Type of workflow to validate
@@ -2690,36 +2385,7 @@ export class LinkedInInteractionService {
    * Get workflow execution statistics and health metrics
    * @returns {Promise<Object>} Workflow statistics
    */
-  async getWorkflowStatistics() {
-    const sessionHealth = await this.sessionManager.getHealthStatus();
-    const activityStats = this.humanBehavior.getActivityStats();
-    const suspiciousActivity = this.humanBehavior.detectSuspiciousActivity();
-
-    return {
-      session: {
-        isHealthy: sessionHealth.isHealthy,
-        isAuthenticated: sessionHealth.isAuthenticated,
-        sessionAge: sessionHealth.sessionAge,
-        errorCount: sessionHealth.errorCount,
-        lastActivity: sessionHealth.lastActivity
-      },
-      humanBehavior: {
-        totalActions: activityStats.totalActions,
-        actionsLastHour: activityStats.actionsLastHour,
-        actionsLastMinute: activityStats.actionsLastMinute,
-        averageActionInterval: activityStats.averageActionInterval,
-        suspiciousActivity: suspiciousActivity.isSuspicious,
-        suspiciousPatterns: suspiciousActivity.patterns
-      },
-      workflows: {
-        messagingWorkflows: activityStats.actionsByType.messaging_workflow_completed || 0,
-        connectionWorkflows: activityStats.actionsByType.connection_workflow_completed || 0,
-        postCreationWorkflows: activityStats.actionsByType.post_creation_workflow_completed || 0,
-        batchWorkflows: activityStats.actionsByType.batch_workflow_completed || 0
-      },
-      recommendations: this.generateWorkflowRecommendations(activityStats, suspiciousActivity)
-    };
-  }
+  // getWorkflowStatistics removed
 
   /**
    * Generate workflow execution recommendations based on current state
@@ -2727,88 +2393,12 @@ export class LinkedInInteractionService {
    * @param {Object} suspiciousActivity - Suspicious activity analysis
    * @returns {Array} Array of recommendations
    */
-  generateWorkflowRecommendations(activityStats, suspiciousActivity) {
-    const recommendations = [];
-
-    // Rate limiting recommendations
-    if (activityStats.actionsLastHour > 80) {
-      recommendations.push({
-        type: 'rate_limiting',
-        severity: 'high',
-        message: 'High activity detected. Consider reducing operation frequency to avoid detection.',
-        action: 'Apply extended cooling-off period'
-      });
-    }
-
-    if (activityStats.actionsLastMinute > 10) {
-      recommendations.push({
-        type: 'rate_limiting',
-        severity: 'medium',
-        message: 'Rapid actions detected. Add delays between operations.',
-        action: 'Increase inter-operation delays'
-      });
-    }
-
-    // Suspicious activity recommendations
-    if (suspiciousActivity.isSuspicious) {
-      recommendations.push({
-        type: 'suspicious_activity',
-        severity: 'high',
-        message: `Suspicious patterns detected: ${suspiciousActivity.patterns.join(', ')}`,
-        action: suspiciousActivity.recommendation
-      });
-    }
-
-    // Session health recommendations
-    if (activityStats.averageActionInterval < 5000) {
-      recommendations.push({
-        type: 'human_behavior',
-        severity: 'medium',
-        message: 'Actions are occurring too quickly. Increase delays to simulate human behavior.',
-        action: 'Apply longer thinking delays between actions'
-      });
-    }
-
-    // Workflow diversity recommendations
-    const workflowTypes = Object.keys(activityStats.actionsByType).filter(type => 
-      type.includes('workflow_completed')
-    ).length;
-    
-    if (workflowTypes === 1 && activityStats.totalActions > 20) {
-      recommendations.push({
-        type: 'workflow_diversity',
-        severity: 'low',
-        message: 'Consider varying workflow types to appear more natural.',
-        action: 'Mix different types of LinkedIn interactions'
-      });
-    }
-
-    return recommendations;
-  }
+  // generateWorkflowRecommendations removed
 
   /**
    * Take screenshot for error debugging
    * @param {string} errorType - Type of error for filename
    * @returns {Promise<void>}
    */
-  async takeErrorScreenshot(errorType) {
-    try {
-      const session = await this.getBrowserSession();
-      const page = session.getPage();
-      
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const filename = `error_${errorType}_${timestamp}.png`;
-      const screenshotPath = `./screenshots/${filename}`;
-      
-      await page.screenshot({ 
-        path: screenshotPath, 
-        fullPage: true 
-      });
-      
-      logger.info(`Error screenshot saved: ${screenshotPath}`);
-      
-    } catch (error) {
-      logger.debug('Failed to take error screenshot:', error.message);
-    }
-  }
+  // takeErrorScreenshot removed
 }

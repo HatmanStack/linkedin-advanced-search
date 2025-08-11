@@ -11,20 +11,43 @@ export class PuppeteerService {
 
   async initialize() {
     try {
-      logger.info('Initializing Puppeteer browser...');
+      const resolvedHeadless = !!config.puppeteer.headless;
+      const displayEnv = process.env.DISPLAY || '';
+      const sessionType = process.env.XDG_SESSION_TYPE || '';
+      logger.info(
+        `Initializing Puppeteer browser... HEADLESS env=${process.env.HEADLESS} resolved headless=${resolvedHeadless} DISPLAY=${displayEnv || 'unset'} session=${sessionType || 'unknown'}`
+      );
       
+      const launchArgs = [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--no-first-run',
+        '--no-zygote',
+        '--disable-gpu',
+      ];
+
+      // Non-headless UI niceties
+      if (!resolvedHeadless) {
+        launchArgs.push('--start-maximized', '--window-size=1400,900');
+        if ((process.platform === 'linux') && sessionType.toLowerCase() === 'wayland') {
+          launchArgs.push('--ozone-platform=wayland', '--enable-features=UseOzonePlatform');
+        }
+      }
+
+      // If user asked for UI but no DISPLAY is available, warn and keep headless to avoid crash
+      const effectiveHeadless = !resolvedHeadless && !displayEnv ? 'new' : (resolvedHeadless ? 'new' : false);
+      if (!resolvedHeadless && !displayEnv) {
+        logger.warn('HEADLESS=false requested but DISPLAY is not set. Browser UI cannot be shown in this environment. Running headless instead.');
+      }
+
       this.browser = await puppeteer.launch({
-        headless: config.puppeteer.headless,
+        // In Puppeteer v20+, headless can be a string 'new'.
+        headless: effectiveHeadless,
         slowMo: config.puppeteer.slowMo,
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-accelerated-2d-canvas',
-          '--no-first-run',
-          '--no-zygote',
-          '--disable-gpu'
-        ]
+        defaultViewport: null,
+        args: launchArgs,
       });
 
       this.page = await this.browser.newPage();

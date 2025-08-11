@@ -56,7 +56,9 @@ export class SearchController {
     });
 
     if (!state.healPhase) {
+      // Fresh run: clear link and good-contact caches to avoid stale data
       await FileHelpers.writeJSON(config.paths.linksFile, []);
+      await FileHelpers.writeJSON(config.paths.goodConnectionsFile, []);
     }
     
     try {
