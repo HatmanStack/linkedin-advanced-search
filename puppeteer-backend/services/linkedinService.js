@@ -64,11 +64,20 @@ export class LinkedInService {
       if (recursion) {
         logger.info('Recursion triggered Consider disabling 2FA')
       }
-      // Wait for navigation and potential 2FA or captcha
-      logger.info('Waiting for potential 2FA or captcha...');
-
-      //await new Promise(resolve => setTimeout(resolve, config.timeouts.navigation));
-      logger.info('Continuing after waiting for 2FA or captcha...');
+      // Post-login: do a short readiness probe instead of long navigation waits
+      const page = this.puppeteer.getPage();
+      const shortCapMs = Math.min(8000, (config.timeouts?.navigation || 15000));
+      const start = Date.now();
+      try {
+        await Promise.race([
+          page.waitForFunction(() => document.readyState === 'complete', { timeout: shortCapMs }),
+          page.waitForSelector('#global-nav', { timeout: shortCapMs / 2 })
+        ]);
+      } catch (_) {
+        // Proceed even if not observed; LinkedIn is SPA-like after login
+      }
+      const spent = Date.now() - start;
+      logger.debug(`Post-login readiness probe took ${spent}ms`);
 
       logger.info('Login process completed');
       return true;

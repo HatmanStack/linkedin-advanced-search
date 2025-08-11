@@ -1,6 +1,7 @@
 import { logger } from '../utils/logger.js';
 import config from '../config/index.js';
 import { LinkedInInteractionService } from '../services/linkedinInteractionService.js';
+import LinkedInService from '../services/linkedinService.js';
 import LinkedInErrorHandler from '../utils/linkedinErrorHandler.js';
 import LinkedInAuditLogger from '../utils/linkedinAuditLogger.js';
 import { v4 as uuidv4 } from 'uuid';
@@ -94,6 +95,31 @@ export class LinkedInInteractionController {
       
       // Initialize LinkedIn interaction service
       const linkedinService = new LinkedInInteractionService();
+
+      // Ensure we are logged in if no active authenticated session
+      try {
+        const sessionActive = await linkedinService.isSessionActive();
+        if (!sessionActive) {
+          const puppeteerService = await linkedinService.initializeBrowserSession();
+          const credentialsCiphertext = req.body?.linkedinCredentialsCiphertext;
+          const loginHelper = new LinkedInService(puppeteerService);
+          await loginHelper.login(
+            null,
+            null,
+            null,
+            credentialsCiphertext,
+            'interaction-controller'
+          );
+        }
+      } catch (loginErr) {
+        const error = new Error('Login required but failed to authenticate to LinkedIn');
+        const { response, httpStatus } = LinkedInErrorHandler.createErrorResponse(
+          error,
+          { operation: 'sendMessage', userId, reason: 'login_failed' },
+          requestId
+        );
+        return res.status(httpStatus).json(response);
+      }
       
       // Send message via service layer
       logger.info('Attempting to send LinkedIn message', {
@@ -165,6 +191,7 @@ export class LinkedInInteractionController {
    */
   async addConnection(req, res) {
     const requestId = uuidv4();
+    logger.info('Add connection request received', { requestId });
     
     logger.info('LinkedIn add connection request received', {
       requestId,
@@ -173,8 +200,8 @@ export class LinkedInInteractionController {
     });
 
     try {
-      // Extract and validate request parameters
-      const { profileId, connectionMessage, profileName } = req.body;
+      // Extract and validate request parameters (minimal subset)
+      const { profileId } = req.body || {};
       
       // Validate required parameters
       if (!profileId) {
@@ -186,6 +213,7 @@ export class LinkedInInteractionController {
         );
         return res.status(httpStatus).json(response);
       }
+      logger.info('Add connection request received asdfsadfsadf1', { requestId, profileId });
 
       // Validate profile ID format (basic validation)
       if (typeof profileId !== 'string' || profileId.trim().length === 0) {
@@ -199,16 +227,9 @@ export class LinkedInInteractionController {
       }
 
       // Validate connection message length if provided
-      if (connectionMessage && connectionMessage.length > 300) {
-        const error = new Error('Connection message too long: must be 300 characters or less');
-        const { response, httpStatus } = LinkedInErrorHandler.createErrorResponse(
-          error, 
-          { operation: 'addConnection', validation: 'message_length' }, 
-          requestId
-        );
-        return res.status(httpStatus).json(response);
-      }
-
+      // Do not process optional connection message in this controller; keep action focused
+      logger.info('Add connection request received', { requestId, profileId });
+      
       // Extract user ID from JWT token
       const userId = this._extractUserIdFromToken(req.jwtToken);
       if (!userId) {
@@ -220,24 +241,39 @@ export class LinkedInInteractionController {
         );
         return res.status(httpStatus).json(response);
       }
-      
+      logger.info('Add connection request received  2', { requestId, profileId });
       // Initialize LinkedIn interaction service
       const linkedinService = new LinkedInInteractionService();
-      
-      // Send connection request via service layer
-      logger.info('Attempting to send LinkedIn connection request', {
-        requestId,
-        profileId,
-        hasConnectionMessage: !!connectionMessage,
-        userId,
-        profileName
-      });
 
-      const result = await linkedinService.addConnection(
-        profileId, 
-        connectionMessage || '', 
-        userId
-      );
+      // Ensure we are logged in if no active authenticated session
+      try {
+        const sessionActive = await linkedinService.isSessionActive();
+        if (!sessionActive) {
+          const puppeteerService = await linkedinService.initializeBrowserSession();
+          const credentialsCiphertext = req.body?.linkedinCredentialsCiphertext;
+          const loginHelper = new LinkedInService(puppeteerService);
+          await loginHelper.login(
+            null,
+            null,
+            null,
+            credentialsCiphertext,
+            'interaction-controller'
+          );
+        }
+      } catch (loginErr) {
+        const error = new Error('Login required but failed to authenticate to LinkedIn');
+        const { response, httpStatus } = LinkedInErrorHandler.createErrorResponse(
+          error,
+          { operation: 'addConnection', userId, reason: 'login_failed' },
+          requestId
+        );
+        return res.status(httpStatus).json(response);
+      }
+
+      // Send connection request via service layer (single workflow)
+      logger.info('Attempting to send LinkedIn connection request', { requestId, profileId, userId });
+
+      const result = await linkedinService.executeConnectionWorkflow(profileId, '', {});
 
       // Return success response
       res.json({
@@ -247,7 +283,7 @@ export class LinkedInInteractionController {
           status: result.status || 'sent',
           profileId,
           sentAt: new Date().toISOString(),
-          hasMessage: !!connectionMessage
+          hasMessage: false
         },
         timestamp: new Date().toISOString(),
         userId,

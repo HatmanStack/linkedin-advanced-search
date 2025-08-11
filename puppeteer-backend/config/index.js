@@ -11,6 +11,15 @@ dotenv.config({ path: path.join(__dirname, '../.env') });
 // 2) Fallback/combined root .env (project/.env) if present
 dotenv.config({ path: path.join(__dirname, '../../.env') });
 
+// Helper to parse boolean-like env values
+const parseBoolean = (value, defaultValue = false) => {
+  if (value === undefined || value === null) return defaultValue;
+  const normalized = String(value).trim().toLowerCase();
+  if (["1", "true", "yes", "y", "on"].includes(normalized)) return true;
+  if (["0", "false", "no", "n", "off"].includes(normalized)) return false;
+  return defaultValue;
+};
+
 export const config = {
   // Server
   port: parseInt(process.env.PORT) || 3001,
@@ -40,7 +49,8 @@ export const config = {
 
   // Puppeteer
   puppeteer: {
-    headless: process.env.HEADLESS === 'true',
+    // Accept a variety of truthy/falsey strings; default to true if not specified
+    headless: parseBoolean(process.env.HEADLESS, true),
     slowMo: parseInt(process.env.SLOW_MO) || 50,
     viewport: {
       width: parseInt(process.env.VIEWPORT_WIDTH) || 1200,

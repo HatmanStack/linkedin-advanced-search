@@ -123,6 +123,7 @@ const VirtualConnectionList: React.FC<VirtualConnectionListProps> = ({
   const [containerHeight, setContainerHeight] = useState(600); // Default height
   const [containerRef, setContainerRef] = useState<HTMLDivElement | null>(null);
   const [filters, setFilters] = useState<ConnectionFilters>(initialFilters);
+  const [removedIds, setRemovedIds] = useState<Set<string>>(new Set());
 
   // Handle window resize events for responsive behavior
   const handleResize = useCallback(() => {
@@ -150,13 +151,27 @@ const VirtualConnectionList: React.FC<VirtualConnectionListProps> = ({
   // Apply filters and sorting to connections
   const processedConnections = useMemo(() => {
     let filtered = filterConnections(connections, filters);
+    // Exclude any items that were locally removed
+    if (removedIds.size > 0) {
+      filtered = filtered.filter((c: Connection) => !removedIds.has(c.id));
+    }
     return sortConnections(filtered, sortBy, sortOrder);
-  }, [connections, filters, sortBy, sortOrder]);
+  }, [connections, filters, sortBy, sortOrder, removedIds]);
 
   // Handle filter changes
   const handleFiltersChange = useCallback((newFilters: ConnectionFilters) => {
     setFilters(newFilters);
   }, []);
+
+  // Wrap onRemove to also update local removedIds so the list re-renders immediately
+  const handleRemoveInternal = useCallback((connectionId: string) => {
+    setRemovedIds(prev => {
+      const next = new Set(prev);
+      next.add(connectionId);
+      return next;
+    });
+    if (onRemove) onRemove(connectionId);
+  }, [onRemove]);
 
   // Memoize the data object to prevent unnecessary re-renders
   const itemData = useMemo(() => ({
@@ -164,7 +179,7 @@ const VirtualConnectionList: React.FC<VirtualConnectionListProps> = ({
     isNewConnection,
     onSelect,
     onNewConnectionClick,
-    onRemove,
+    onRemove: handleRemoveInternal,
     onTagClick,
     onMessageClick,
     activeTags,
@@ -177,7 +192,7 @@ const VirtualConnectionList: React.FC<VirtualConnectionListProps> = ({
     isNewConnection,
     onSelect,
     onNewConnectionClick,
-    onRemove,
+    handleRemoveInternal,
     onTagClick,
     onMessageClick,
     activeTags,

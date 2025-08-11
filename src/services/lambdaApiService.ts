@@ -1,33 +1,19 @@
-import axios, { AxiosInstance, AxiosResponse, AxiosError } from 'axios';
+import axios, { type AxiosInstance, type AxiosResponse, type AxiosError } from 'axios';
 import { CognitoAuthService } from './cognitoService';
-import { logError } from '@/utils/errorHandling';
+import { logError } from '../utils/errorHandling';
 import type {
   Connection,
   Message,
   ConnectionStatus,
-  ApiResponse,
-  GetConnectionsResponse,
-  GetMessagesResponse,
-  UpdateMetadataResponse,
   ApiErrorInfo,
-  UserErrorInfo,
-  ErrorSeverity,
-  AsyncOperation,
-} from '@/types';
-import { 
-  validateConnection, 
-  validateMessage, 
-  sanitizeConnectionData, 
-  sanitizeMessageData 
-} from '@/types/validators';
-import { 
-  isConnection, 
-  isMessage, 
-  isConnectionStatus,
-  isGetConnectionsResponse,
-  isGetMessagesResponse,
-  isUpdateMetadataResponse 
-} from '@/types/guards';
+} from '../types';
+import {
+  validateConnection,
+  validateMessage,
+  sanitizeConnectionData,
+  sanitizeMessageData,
+} from '../types/validators';
+import { isConnection, isMessage } from '../types/guards';
 
 export class ApiError extends Error {
   status?: number;
@@ -113,15 +99,24 @@ export interface EdgeApiResponse<T = any> {
  * ```
  */
 class LambdaApiService {
-  private apiClient: AxiosInstance;
+  protected apiClient: AxiosInstance;
   private authToken: string | null = null;
   private readonly maxRetries: number = 3;
   private readonly retryDelay: number = 1000; // Base delay in milliseconds
 
   constructor() {
     // Initialize axios client with API Gateway base URL
+    const apiBaseUrl =
+      (import.meta.env as any).VITE_API_GATEWAY_URL ||  '';
+
+    if (!apiBaseUrl) {
+      console.warn(
+        'LambdaApiService: No API base URL configured. Set VITE_API_GATEWAY_URL (preferred) or VITE_API_GATEWAY_BASE_URL to avoid defaulting to the current origin (e.g., localhost during dev).'
+      );
+    }
+
     this.apiClient = axios.create({
-      baseURL: import.meta.env.VITE_API_GATEWAY_BASE_URL,
+      baseURL: apiBaseUrl || undefined,
       timeout: 30000, // 30 second timeout
       headers: {
         'Content-Type': 'application/json',
@@ -411,7 +406,11 @@ class LambdaApiService {
    * @param newStatus The new status to set
    * @returns Promise<void>
    */
-  async updateConnectionStatus(connectionId: string, newStatus: ConnectionStatus | 'processed'): Promise<void> {
+  async updateConnectionStatus(
+    connectionId: string,
+    newStatus: ConnectionStatus | 'processed',
+    options?: { linkedinurl?: string; linkedinUrl?: string }
+  ): Promise<void> {
     const context = `update connection status to ${newStatus}`;
     
     try {
@@ -439,7 +438,8 @@ class LambdaApiService {
       }
 
       await this.makeEdgeRequest<{ success: boolean; updated: Record<string, any> }>('update_metadata', {
-        profileId: connectionId,
+        // Edge Lambda expects lowercase 'linkedinurl'. Default to connectionId when not provided.
+        linkedinurl: options?.linkedinurl ?? options?.linkedinUrl ?? connectionId,
         updates: {
           status: newStatus,
           updatedAt: new Date().toISOString(),
@@ -636,7 +636,7 @@ export interface UserProfile {
 }
 
 class ExtendedLambdaApiService extends LambdaApiService {
-  async getUserProfile(): Promise<ApiResponse<UserProfile>> {
+  async getUserProfile(): Promise<{ success: boolean; data?: UserProfile; error?: string }> {
     try {
       const response = await this.apiClient.get('/profiles');
       const data = (response.data?.data ?? response.data) as UserProfile;
@@ -648,7 +648,7 @@ class ExtendedLambdaApiService extends LambdaApiService {
     }
   }
 
-  async updateUserProfile(profile: Partial<UserProfile>): Promise<ApiResponse<UserProfile>> {
+  async updateUserProfile(profile: Partial<UserProfile>): Promise<{ success: boolean; data?: UserProfile; error?: string }> {
     try {
       // API requires operation-based POST body; fields must be at top-level
       const response = await this.apiClient.post('/profiles', {
@@ -664,7 +664,7 @@ class ExtendedLambdaApiService extends LambdaApiService {
     }
   }
 
-  async createUserProfile(profile: Omit<UserProfile, 'user_id' | 'created_at' | 'updated_at'>): Promise<ApiResponse<UserProfile>> {
+  async createUserProfile(profile: Omit<UserProfile, 'user_id' | 'created_at' | 'updated_at'>): Promise<{ success: boolean; data?: UserProfile; error?: string }> {
     try {
       // Reuse update operation for upsert semantics; body fields must be top-level
       const response = await this.apiClient.post('/profiles', {

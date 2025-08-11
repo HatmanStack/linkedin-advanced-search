@@ -1,7 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -13,9 +12,11 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { User, Building, MapPin, Tag, X, Loader2, CheckCircle, UserPlus } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
-import { lambdaApiService as dbConnector, ApiError } from "@/services/lambdaApiService";
+import { lambdaApiService as dbConnector } from "@/services/lambdaApiService";
+import { puppeteerApiService } from "@/services/puppeteerApiService";
 import { transformErrorForUser, getToastVariant, ERROR_MESSAGES } from "@/utils/errorHandling";
 import type { Connection, NewConnectionCardProps } from '@/types';
 
@@ -42,30 +43,29 @@ const NewConnectionCard: React.FC<NewConnectionCardProps> = ({
   const [isRemoving, setIsRemoving] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [dontShowAgain, setDontShowAgain] = useState(false);
+  const [skipRemoveConfirm, setSkipRemoveConfirm] = useState(false);
   const { toast } = useToast();
 
-  /**
-   * Handles card click events, opening LinkedIn profile in new tab
-   */
+  // Preference storage key
+  const REMOVE_CONFIRM_PREF_KEY = 'hideRemoveConfirm';
+
+  useEffect(() => {
+    try {
+      const pref = localStorage.getItem(REMOVE_CONFIRM_PREF_KEY) === 'true';
+      setDontShowAgain(pref);
+      setSkipRemoveConfirm(pref);
+    } catch (e) {
+      // ignore storage errors
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connection?.id]);
+
+  // Only select the card explicitly; do not auto-navigate to LinkedIn here
   const handleCardClick = () => {
     if (isRemoving) return;
-
-    // If connection has LinkedIn URL or profile ID, open LinkedIn profile in new tab
-    if (connection.linkedin_url) {
-      // Check if it's already a full URL or just a profile ID
-      const linkedinUrl = connection.linkedin_url.startsWith('http')
-        ? connection.linkedin_url
-        : `https://linkedin.com/in/${connection.linkedin_url}`;
-      window.open(linkedinUrl, '_blank', 'noopener,noreferrer');
-    } else if (connection.id) {
-      // Fallback: try to construct LinkedIn URL from connection ID
-      const linkedinUrl = `https://linkedin.com/in/${connection.id}`;
-      window.open(linkedinUrl, '_blank', 'noopener,noreferrer');
-    } else {
-      // Final fallback: trigger onSelect callback
-      if (onSelect) {
-        onSelect(connection);
-      }
+    if (onSelect) {
+      onSelect(connection);
     }
   };
 
@@ -76,7 +76,12 @@ const NewConnectionCard: React.FC<NewConnectionCardProps> = ({
    */
   const handleRemoveClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setIsDialogOpen(true);
+    if (skipRemoveConfirm) {
+      // Directly remove without showing modal
+      void handleConfirmRemove();
+    } else {
+      setIsDialogOpen(true);
+    }
   };
 
   /**
@@ -89,7 +94,18 @@ const NewConnectionCard: React.FC<NewConnectionCardProps> = ({
 
     try {
       // Update status from 'possible' to 'processed' using DBConnector
-      await dbConnector.updateConnectionStatus(connection.id, 'processed');
+      // linkedin_url is a LinkedIn profile id (no http)
+      const linkedinUrlValue = connection.linkedin_url || connection.id;
+
+      await dbConnector.updateConnectionStatus(connection.id, 'processed', {
+        linkedinurl: linkedinUrlValue,
+      });
+
+      // Update local cache to remove processed connections from lists
+      try {
+        const { connectionCache } = await import('@/utils/connectionCache');
+        connectionCache.delete(connection.id);
+      } catch {}
 
       // Show success feedback with animation
       toast({
@@ -138,8 +154,20 @@ const NewConnectionCard: React.FC<NewConnectionCardProps> = ({
     }
   };
 
-  const handleCancelRemove = () => {
+  const handleCancelRemove = (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
     setIsDialogOpen(false);
+  };
+
+  const handleDontShowAgainChange = (checked: boolean | 'indeterminate') => {
+    const value = checked === true;
+    setDontShowAgain(value);
+    setSkipRemoveConfirm(value);
+    try {
+      localStorage.setItem(REMOVE_CONFIRM_PREF_KEY, String(value));
+    } catch (e) {
+      // ignore storage errors
+    }
   };
 
   /**
@@ -149,11 +177,23 @@ const NewConnectionCard: React.FC<NewConnectionCardProps> = ({
    */
   const handleConnectClick = async (e: React.MouseEvent) => {
     e.stopPropagation();
+    // Skip if already pending/outgoing
+    if (connection.status === 'outgoing') {
+      toast({ title: 'Already pending', description: 'Connection request was already sent.', variant: 'default' });
+      return;
+    }
     setIsConnecting(true);
 
     try {
-      // Update status from 'possible' to 'outgoing' using DBConnector
-      await dbConnector.updateConnectionStatus(connection.id, 'outgoing');
+      // Call puppeteer backend to send the LinkedIn connection request
+      const profileId = connection.linkedin_url || connection.id;
+      const resp = await puppeteerApiService.addLinkedInConnection({
+        profileId,
+        profileName: `${connection.first_name} ${connection.last_name}`,
+      });
+      if (!resp.success) {
+        throw new Error(resp.error || 'Failed to send connection request');
+      }
 
       // Show success feedback
       toast({
@@ -167,10 +207,7 @@ const NewConnectionCard: React.FC<NewConnectionCardProps> = ({
         variant: "default",
       });
 
-      // Notify parent component to remove from UI (since it's no longer a 'possible' connection)
-      if (onRemove) {
-        onRemove(connection.id);
-      }
+      // Do not update/remove locally here; wait for backend edge update
     } catch (error) {
       console.error('Error connecting:', error);
 
@@ -265,7 +302,7 @@ const NewConnectionCard: React.FC<NewConnectionCardProps> = ({
                       )}
                     </Button>
                   </AlertDialogTrigger>
-                  <AlertDialogContent>
+                  <AlertDialogContent onClick={(e: React.MouseEvent) => e.stopPropagation()}>
                     <AlertDialogHeader>
                       <AlertDialogTitle>Remove Connection</AlertDialogTitle>
                       <AlertDialogDescription>
@@ -273,10 +310,21 @@ const NewConnectionCard: React.FC<NewConnectionCardProps> = ({
                         This action will mark them as processed and they won't appear in this list again.
                       </AlertDialogDescription>
                     </AlertDialogHeader>
+                    <div className="flex items-center space-x-2 mt-2">
+                      <Checkbox
+                        id="dont-show-remove"
+                        checked={dontShowAgain}
+                        onCheckedChange={handleDontShowAgainChange}
+                        onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                      />
+                      <label htmlFor="dont-show-remove" className="text-sm text-slate-300" onClick={(e: React.MouseEvent) => e.stopPropagation()}>
+                        Don’t show this message again when removing a connection
+                      </label>
+                    </div>
                     <AlertDialogFooter>
-                      <AlertDialogCancel onClick={handleCancelRemove}>Cancel</AlertDialogCancel>
+                      <AlertDialogCancel onClick={(e: React.MouseEvent) => handleCancelRemove(e)}>Cancel</AlertDialogCancel>
                       <AlertDialogAction
-                        onClick={handleConfirmRemove}
+                        onClick={(e: React.MouseEvent) => { e.stopPropagation(); void handleConfirmRemove(); }}
                         className="bg-red-600 hover:bg-red-700"
                       >
                         Remove
