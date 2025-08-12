@@ -173,59 +173,20 @@ def create_bad_contact_profile(user_id: str, body: Dict[str, Any]) -> Dict[str, 
             'education': updates.get('education', []),
             'skills': updates.get('skills', []),
             'fulltext': updates.get('fulltext', ''),
-            'status': 'processed'  # Bad contact status
+            # Use evaluated flag (boolean) instead of status string for profile-level metadata
+            'evaluated': True
         }
         
         table.put_item(Item=profile_metadata)
         
-        # Create edges for bad contact (status: processed)
-        status = 'processed'
+        # Do NOT create edges here anymore; puppeteer-backend owns edge creation
         
-        # Create user-to-profile edge
-        user_profile_edge = {
-            'PK': f'USER#{user_id}',
-            'SK': f'PROFILE#{profile_id_b64}',
-            'status': status,
-            'addedAt': updates.get('addedAt', current_time),
-            'processedAt': updates.get('processedAt', current_time),
-            'updatedAt': current_time,
-            'messages': updates.get('messages', []),
-            'GSI1PK': f'USER#{user_id}',
-            'GSI1SK': f'STATUS#{status}#PROFILE#{profile_id_b64}'
-        }
-        
-        # Add any additional edge data from updates
-        for key, value in updates.items():
-            if key not in ['addedAt', 'processedAt', 'messages', 'name', 'headline', 'summary', 
-                          'profilePictureUrl', 'currentCompany', 'currentTitle', 'currentLocation',
-                          'employmentType', 'workExperience', 'education', 'skills', 'fulltext']:
-                user_profile_edge[key] = value
-        
-        table.put_item(Item=user_profile_edge)
-        
-        # Create profile-to-user edge
-        profile_user_edge = {
-            'PK': f'PROFILE#{profile_id_b64}',
-            'SK': f'USER#{user_id}',
-            'addedAt': updates.get('addedAt', current_time),
-            'status': status,
-            'attempts': 1,
-            'lastAttempt': current_time,
-            'updatedAt': current_time
-        }
-        
-        table.put_item(Item=profile_user_edge)
-        
-        logger.info(f"Created bad contact profile and edges: {profile_id_b64} for user: {user_id}")
+        logger.info(f"Created/updated bad contact profile metadata (evaluated=True): {profile_id_b64} for user: {user_id}")
         
         return create_response(201, {
-            'message': 'Bad contact profile and edges created successfully',
+            'message': 'Bad contact profile metadata updated successfully',
             'profileId': profile_id_b64,
-            'status': 'processed',
-            'edges_created': {
-                'user_to_profile': f'USER#{user_id} -> PROFILE#{profile_id_b64}',
-                'profile_to_user': f'PROFILE#{profile_id_b64} -> USER#{user_id}'
-            }
+            'evaluated': True
         })
         
     except ClientError as e:

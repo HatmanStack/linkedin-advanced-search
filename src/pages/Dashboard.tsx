@@ -33,6 +33,8 @@ import ProgressIndicator from '@/components/ProgressIndicator';
 // Removed unused demo sampleConnections to reduce noise
 
 // Sample data for demonstration
+// Prevent duplicate initial fetches under React StrictMode double-mount
+let initialConnectionsFetchInFlight: Promise<Connection[]> | null = null;
 const Dashboard = () => {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
@@ -137,7 +139,12 @@ const Dashboard = () => {
         setConnectionsLoading(true);
         setConnectionsError(null);
         try {
-          const fetchedConnections = await dbConnector.getConnectionsByStatus();
+          // Use a module-level in-flight promise to avoid duplicate calls in StrictMode
+          if (!initialConnectionsFetchInFlight) {
+            initialConnectionsFetchInFlight = dbConnector.getConnectionsByStatus();
+          }
+          const fetchedConnections = await initialConnectionsFetchInFlight;
+
           setConnections(fetchedConnections);
           connectionCache.setMultiple(fetchedConnections);
           const counts = {
@@ -162,6 +169,7 @@ const Dashboard = () => {
           setConnectionsError(errorMessage);
         } finally {
           setConnectionsLoading(false);
+          initialConnectionsFetchInFlight = null;
         }
       })();
     } else {

@@ -61,10 +61,26 @@ const NewConnectionCard: React.FC<NewConnectionCardProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connection?.id]);
 
-  // Only select the card explicitly; do not auto-navigate to LinkedIn here
-  const handleCardClick = () => {
-    if (isRemoving) return;
-    if (onSelect) {
+  // Build a LinkedIn profile URL from either a full URL, profile id, or fallback to id
+  const buildLinkedInProfileUrl = (): string | null => {
+    const raw = connection.linkedin_url || connection.id;
+    if (!raw) return null;
+    const hasProtocol = /^https?:\/\//i.test(raw);
+    return hasProtocol ? raw : `https://www.linkedin.com/in/${raw}`;
+  };
+
+  // Navigate to LinkedIn profile on card click (except when removing or clicking buttons)
+  const handleCardClick = (e: React.MouseEvent) => {
+    if (isRemoving || isConnecting) return;
+
+    const url = buildLinkedInProfileUrl();
+    // Only navigate if the original event target wasn't a button inside our controls area
+    const target = e.target as HTMLElement | null;
+    if (target && target.closest('button')) return;
+
+    if (url) {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } else if (onSelect) {
       onSelect(connection);
     }
   };
@@ -285,23 +301,21 @@ const NewConnectionCard: React.FC<NewConnectionCardProps> = ({
                   )}
                 </Button>
 
-                {/* Remove Button */}
+                {/* Remove Button - controlled modal open to avoid unwanted popup when preference is set */}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0 text-red-400 hover:text-red-300 hover:bg-red-500/20"
+                  onClick={handleRemoveClick}
+                  disabled={isRemoving}
+                >
+                  {isRemoving ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <X className="h-4 w-4" />
+                  )}
+                </Button>
                 <AlertDialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                  <AlertDialogTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 w-8 p-0 text-red-400 hover:text-red-300 hover:bg-red-500/20"
-                      onClick={handleRemoveClick}
-                      disabled={isRemoving}
-                    >
-                      {isRemoving ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <X className="h-4 w-4" />
-                      )}
-                    </Button>
-                  </AlertDialogTrigger>
                   <AlertDialogContent onClick={(e: React.MouseEvent) => e.stopPropagation()}>
                     <AlertDialogHeader>
                       <AlertDialogTitle>Remove Connection</AlertDialogTitle>
@@ -317,7 +331,11 @@ const NewConnectionCard: React.FC<NewConnectionCardProps> = ({
                         onCheckedChange={handleDontShowAgainChange}
                         onClick={(e: React.MouseEvent) => e.stopPropagation()}
                       />
-                      <label htmlFor="dont-show-remove" className="text-sm text-slate-300" onClick={(e: React.MouseEvent) => e.stopPropagation()}>
+                      <label
+                        htmlFor="dont-show-remove"
+                        className="text-sm font-medium text-slate-900 dark:text-slate-100"
+                        onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                      >
                         Don’t show this message again when removing a connection
                       </label>
                     </div>

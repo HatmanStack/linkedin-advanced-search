@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { MessageSquare, ArrowLeft, Eye, EyeOff, Mail } from 'lucide-react';
+import { MessageSquare, ArrowLeft, Eye, EyeOff, Mail, Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { isCognitoConfigured } from '@/config/appConfig';
@@ -16,6 +16,7 @@ const Auth = () => {
   const { toast } = useToast();
   
   const [isLoading, setIsLoading] = useState(false);
+  const [isPreloading, setIsPreloading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showVerification, setShowVerification] = useState(false);
   const [verificationEmail, setVerificationEmail] = useState('');
@@ -38,6 +39,8 @@ const Auth = () => {
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
+    // Simple: set loading immediately; no extra yielding
+    if (isPreloading) setIsPreloading(false);
     setIsLoading(true);
     
     try {
@@ -56,7 +59,7 @@ const Auth = () => {
         });
         navigate('/dashboard');
       }
-    } catch (error) {
+    } catch (_err) {
       toast({
         title: "Sign In Failed",
         description: "An unexpected error occurred",
@@ -103,7 +106,7 @@ const Auth = () => {
           navigate('/dashboard');
         }
       }
-    } catch (error) {
+    } catch (_err) {
       toast({
         title: "Sign Up Failed",
         description: "An unexpected error occurred",
@@ -138,7 +141,7 @@ const Auth = () => {
         setVerificationData({ code: '' });
         // Switch to sign in tab
       }
-    } catch (error) {
+    } catch (_err) {
       toast({
         title: "Verification Failed",
         description: "An unexpected error occurred",
@@ -169,7 +172,7 @@ const Auth = () => {
           description: "A new verification code has been sent to your email."
         });
       }
-    } catch (error) {
+    } catch (_err) {
       toast({
         title: "Resend Failed",
         description: "An unexpected error occurred",
@@ -329,6 +332,7 @@ const Auth = () => {
                         className="bg-white/5 border-white/20 text-white placeholder-slate-400"
                         placeholder="your-email@example.com"
                         required
+                        disabled={isLoading}
                       />
                     </div>
                     <div>
@@ -342,6 +346,7 @@ const Auth = () => {
                           className="bg-white/5 border-white/20 text-white placeholder-slate-400 pr-10"
                           placeholder="••••••••"
                           required
+                          disabled={isLoading}
                         />
                         <Button
                           type="button"
@@ -349,6 +354,7 @@ const Auth = () => {
                           size="sm"
                           className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
                           onClick={() => setShowPassword(!showPassword)}
+                          disabled={isLoading}
                         >
                           {showPassword ? (
                             <EyeOff className="h-4 w-4 text-slate-400" />
@@ -362,8 +368,11 @@ const Auth = () => {
                       type="submit" 
                       className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
                       disabled={isLoading}
+                      aria-busy={isLoading || isPreloading}
+                      onMouseDown={() => setIsPreloading(true)}
                     >
-                      {isLoading ? 'Signing In...' : 'Sign In'}
+                      {(isPreloading || isLoading) && <Loader2 className="h-4 w-4 animate-spin" />}
+                      {(isPreloading || isLoading) ? 'Signing In...' : 'Sign In'}
                     </Button>
                   </form>
                 </CardContent>
