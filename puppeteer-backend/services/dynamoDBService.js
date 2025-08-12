@@ -61,20 +61,27 @@ class DynamoDBService {
 
             const profile = response.data.profile;
             const updatedAt = profile.updatedAt;
-            logger.info(`UpdatedAt from DynamoDBService: ${updatedAt}`);
+            const evaluated = profile.evaluated;
+            logger.info(`Profile flags from DynamoDBService: evaluated=${evaluated}, updatedAt=${updatedAt}`);
 
-            // If no update timestamp, consider it as not recently updated
-            if (!updatedAt) {
-                return true;
+            // Evaluate using new evaluated flag and last-updated staleness
+            const isStale = (() => {
+                if (!updatedAt) return true; // no timestamp = stale
+                const oneMonthAgo = new Date();
+                oneMonthAgo.setDate(oneMonthAgo.getDate() - 30);
+                const profileUpdateDate = new Date(updatedAt);
+                return profileUpdateDate < oneMonthAgo;
+            })();
+
+            if (typeof evaluated === 'boolean') {
+                // evaluated === false => not yet evaluated, process
+                if (evaluated === false) return true;
+                // evaluated === true => process only if stale
+                return isStale;
             }
 
-            // Check if updated within the last month (30 days)
-            const oneMonthAgo = new Date();
-            oneMonthAgo.setDate(oneMonthAgo.getDate() - 30);
-            const profileUpdateDate = new Date(updatedAt);
-
-            // Return true if NOT updated in the last month, false if it WAS updated recently
-            return profileUpdateDate < oneMonthAgo;
+            // No evaluated flag present: fall back to staleness logic
+            return isStale;
 
         } catch (error) {
             logger.info(`Caught error in getProfileDetails:`, error.message);

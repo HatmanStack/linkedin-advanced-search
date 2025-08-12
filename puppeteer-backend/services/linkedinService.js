@@ -1,11 +1,11 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import config from '../config/index.js';
 import { logger } from '../utils/logger.js';
-import sharp from 'sharp';
+// sharp import removed; this service no longer saves screenshots directly
 import RandomHelpers from '../utils/randomHelpers.js';
 import DynamoDBService from './dynamoDBService.js';
-import fs from 'fs/promises';
-import path from 'path';
+import { ensureEdge, markBadContact } from '../utils/edgeManager.js';
+// fs and path imports removed; temp directories are now managed by LinkedInContactService
 import { decryptSealboxB64Tag } from '../utils/crypto.js';
 
 
@@ -79,6 +79,24 @@ export class LinkedInService {
       const spent = Date.now() - start;
       logger.debug(`Post-login readiness probe took ${spent}ms`);
 
+      // After login, wait for a common homepage selector to allow time for security challenges (2FA, checkpoint, captcha)
+      // We intentionally use a long/infinite timeout controlled by config.timeouts.login (0 means no timeout)
+      const homepageSelector = [
+        '#global-nav',
+        'aside.scaffold-layout__sidebar .profile-card',
+        '.feed-identity-module',
+        'div.scaffold-layout__sidebar .profile-card'
+      ].join(', ');
+      const loginWaitMs = (config.timeouts?.login ?? 0); // 0 -> no timeout
+      try {
+        await page.waitForSelector(homepageSelector, { visible: true, timeout: loginWaitMs });
+        logger.info('Homepage element detected after login; security challenge (if any) likely resolved.');
+      } catch (e) {
+        // If a finite timeout was configured and elapsed, surface the error
+        logger.error('Homepage selector did not appear within the configured login timeout.', e);
+        throw e;
+      }
+
       logger.info('Login process completed');
       return true;
     } catch (error) {
@@ -102,7 +120,7 @@ export class LinkedInService {
       let searchBoxFound = false;
       for (const selector of searchSelectors) {
         try {
-          await this.puppeteer.getPage().waitForSelector(selector, { timeout: 5000 });
+          await this.puppeteer.getPage().waitForSelector(selector, { timeout: 10000 });
           const searchSuccess = await this.puppeteer.safeType(selector, companyName);
           if (searchSuccess) {
             searchBoxFound = true;
@@ -119,7 +137,7 @@ export class LinkedInService {
       // Press Enter
       await this.puppeteer.getPage().keyboard.press('ArrowDown');
       await this.puppeteer.getPage().keyboard.press('Enter');
-      await RandomHelpers.randomDelay(3000, 5000);
+      
 
       // Click on company result
       const companyLinkSelector = `a[aria-label*="${companyName}"], div.search-nec__hero-kcard-v2-content a`;
@@ -145,7 +163,7 @@ export class LinkedInService {
       for (const selector of jobsTabSelectors) {
         logger.info(`Trying selector for Jobs tab: ${selector}`);
         try {
-          await this.puppeteer.getPage().waitForSelector(selector, { timeout: 5000 });
+          await this.puppeteer.getPage().waitForSelector(selector, { timeout: 10000 });
           const success = await this.puppeteer.safeClick(selector);
           if (success) {
             logger.info(`Clicked Jobs tab with selector: ${selector}`);
@@ -161,7 +179,7 @@ export class LinkedInService {
       }
       logger.info('Clicked Jobs tab successfully.');
 
-      await RandomHelpers.randomDelay(2000, 4000);
+      
       logger.info('Waited after clicking Jobs tab.');
 
       // Click "Show all jobs"
@@ -307,7 +325,8 @@ export class LinkedInService {
       // Build URL conditionally based on available parameters
       let urlParts = ['https://www.linkedin.com/search/results/people/?'];
       let queryParams = [];
-
+      queryParams.push(`currentCompany=%5B162479%5D`);
+      
       if (extractedCompanyNumber) {
         queryParams.push(`currentCompany=%5B"${extractedCompanyNumber}"%5D`);
       }
@@ -438,41 +457,12 @@ export class LinkedInService {
       logger.debug(`Contact ${profileId} final score: ${score}, Good contact: ${isGoodContact}`);
 
       if (isGoodContact) {
-        // Create temp directory and take activity screenshot
-        await this.puppeteer.getPage().setViewport({
-          width: 1200,
-          height: 1200,
-          deviceScaleFactor: 1,
-        });
-        const screenshotsRoot = path.resolve(process.cwd(), 'screenshots');
-
-        const tempDir = await fs.mkdtemp(path.join(screenshotsRoot, 'linkedin-screenshots'));
-
-        const screenshotPath = path.join(tempDir, `${profileId}-Reactions-holder.png`);
-
-        await this.puppeteer.getPage().screenshot({
-          path: screenshotPath,
-          fullPage: true
-        });
-
-        logger.debug(`Activity screenshot saved: ${screenshotPath}`);
-
-        const croppedPath = path.join(tempDir, `${profileId}-Reactions.png`);
-        const image = sharp(screenshotPath);
-        const metadata = await image.metadata();
-        await image
-          .extract({ left: 300, top: 0, width: 575, height: metadata.height })
-          .toFile(croppedPath);
-        logger.info('Cropped screenshot from left 300, width 550.');
-
-        // Delete the original screenshot after cropping
-        await fs.unlink(screenshotPath);
-        await this.dynamoDBService.createGoodContactEdges(profileId, "possible");
-        return { isGoodContact: true, tempDir };
+        await ensureEdge(this.dynamoDBService, profileId, 'possible');
+        return { isGoodContact: true };
 
       }
-      await this.dynamoDBService.createGoodContactEdges(profileId, "processed");
-      await this.dynamoDBService.createBadContactProfile(profileId);
+      await ensureEdge(this.dynamoDBService, profileId, 'processed');
+      await markBadContact(this.dynamoDBService, profileId);
 
       return { isGoodContact: false };
     } catch (error) {

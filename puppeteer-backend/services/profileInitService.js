@@ -5,6 +5,7 @@ import RandomHelpers from '../utils/randomHelpers.js';
 import fs from 'fs/promises';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
+import { ensureEdge } from '../utils/edgeManager.js';
 
 export class ProfileInitService {
   constructor(puppeteerService, linkedInService, linkedInContactService, dynamoDBService) {
@@ -826,14 +827,14 @@ export class ProfileInitService {
       let databaseResult = null;
 
       try {
-        // Capture profile screenshot using LinkedInContactService patterns
+        // Capture screenshots for required pages per status
         logger.debug(`Capturing screenshot for connection: ${connectionProfileId}`, {
           requestId,
           profileId: connectionProfileId,
           tempDir
         });
 
-        screenshotResult = await this.captureProfileScreenshot(connectionProfileId, tempDir);
+        screenshotResult = await this.captureProfileScreenshot(connectionProfileId, tempDir, connectionType);
 
         if (screenshotResult && screenshotResult.success) {
           logger.debug(`Screenshot captured successfully for ${connectionProfileId}`, {
@@ -855,7 +856,8 @@ export class ProfileInitService {
           profileId: connectionProfileId
         });
 
-        databaseResult = await this.dynamoDBService.createGoodContactEdges(connectionProfileId, connectionType);
+        // Use central edge manager to create edge for this connection
+        databaseResult = await ensureEdge(this.dynamoDBService, connectionProfileId, connectionType);
 
         const processingDuration = Date.now() - startTime;
         logger.debug(`Successfully processed connection: ${connectionProfileId}`, {
@@ -961,12 +963,12 @@ export class ProfileInitService {
    * @param {string} tempDir - Temporary directory for screenshots
    * @returns {Promise<Object>} Screenshot capture result
    */
-  async captureProfileScreenshot(profileId, tempDir) {
+  async captureProfileScreenshot(profileId, tempDir, status = 'allies') {
     try {
       logger.info(`Capturing profile screenshot for: ${profileId}`);
 
       // Use existing LinkedInContactService method
-      const result = await this.linkedInContactService.takeScreenShotAndUploadToS3(profileId, tempDir);
+      const result = await this.linkedInContactService.takeScreenShotAndUploadToS3(profileId, tempDir, status);
 
       logger.info(`Profile screenshot captured successfully for: ${profileId}`);
       return result;
@@ -1082,50 +1084,23 @@ export class ProfileInitService {
    * @returns {Promise<Array>} Array of connection profile IDs
    */
   async _getConnectionList(connectionType, masterIndex, state) {
-    const timeout = 30000; // 30 second timeout for actions
-
     try {
       logger.info(`Getting ${connectionType} connection list from LinkedIn`);
 
-      const page = this.puppeteer.getPage();
+      // Navigate directly to the connections page
+      const connectionsUrl = 'https://www.linkedin.com/mynetwork/invite-connect/connections/';
+      await this.puppeteer.goto(connectionsUrl);
+      await RandomHelpers.randomDelay(1500, 2500);
 
-      // Navigate to connections by clicking the network icon in global nav
-      logger.info('Clicking network icon in global navigation');
-      const targetPage = page;
-      let frame = targetPage.mainFrame();
-      frame = frame.childFrames()[0];
-
-      await this.puppeteer.Locator.race([
-        frame.locator('#global-nav li:nth-of-type(2) svg'),
-        frame.locator('::-p-xpath(//*[@id="global-nav"]/div/nav/ul/li[2]/a/div/div/li-icon/svg)'),
-        frame.locator(':scope >>> #global-nav li:nth-of-type(2) svg')
-      ]).setTimeout(timeout).click({
-        offset: { x: 13, y: 23 }
+      // Use puppeteerService.extractLinks to gather all profile IDs with autoscroll
+      const profileIds = await this.puppeteer.extractLinks(null, {
+        autoScroll: true,
+        maxScrolls: 10,
+        timeoutMs: 15000
       });
-
-      // Wait for navigation and page load
-      await RandomHelpers.randomDelay(2000, 3000);
-
-      // Click on "Connections" tab
-      logger.info('Clicking on Connections tab');
-      await this.puppeteer.Locator.race([
-        targetPage.locator('div > div > section li:nth-of-type(1) span.c916d854 > span'),
-        targetPage.locator('::-p-xpath(//*[@id="workspace"]/div/div/section/div/div/section[1]/div/nav/ul/li[1]/button/span[2]/span)'),
-        targetPage.locator(':scope >>> div > div > section li:nth-of-type(1) span.c916d854 > span'),
-        targetPage.locator('::-p-text(Connections)')
-      ]).setTimeout(timeout).click({
-        offset: { x: 82, y: 0 }
-      });
-
-      // Wait for connections list to load
-      await RandomHelpers.randomDelay(3000, 5000);
-
-      // Collect all connection links with expansion and robust file saving
-      const profileIds = await this._collectConnectionLinksWithExpansion(page, timeout, connectionType, masterIndex, state);
 
       logger.info(`Extracted ${profileIds.length} ${connectionType} connection profile IDs`);
 
-      // Log first few profile IDs for debugging (without exposing sensitive data)
       if (profileIds.length > 0) {
         const sampleIds = profileIds.slice(0, 3).map(id => id.substring(0, 5) + '...');
         logger.debug(`Sample profile IDs: ${sampleIds.join(', ')}`);
@@ -1139,188 +1114,7 @@ export class ProfileInitService {
     }
   }
 
-  /**
-   * Collect connection links with expansion functionality and robust file saving
-   * @param {Object} page - Puppeteer page object
-   * @param {number} timeout - Timeout for actions
-   * @param {string} connectionType - Type of connections (allies, incoming, outgoing)
-   * @param {Object} masterIndex - Master index for file management
-   * @param {Object} state - Current processing state for healing support
-   * @returns {Promise<Array>} Array of unique profile IDs
-   */
-  async _collectConnectionLinksWithExpansion(page, timeout, connectionType, masterIndex, state) {
-    try {
-      logger.info(`Starting ${connectionType} connection link collection with expansion and file saving`);
-
-      const allLinks = new Set();
-      let expansionAttempts = 0;
-      const maxExpansionAttempts = 50; // Prevent infinite expansion
-      let currentFileIndex = 0;
-      let currentFileLinks = [];
-
-      // Check if we're resuming from a healing state
-      const resumeParams = ProfileInitStateManager.getListCreationResumeParams(state);
-      if (resumeParams && resumeParams.connectionType === connectionType) {
-        logger.info(`Resuming ${connectionType} collection from healing state`, {
-          expansionAttempt: resumeParams.expansionAttempt,
-          currentFileIndex: resumeParams.currentFileIndex,
-          lastSavedFile: resumeParams.lastSavedFile?.fileName
-        });
-        
-        expansionAttempts = resumeParams.expansionAttempt;
-        currentFileIndex = resumeParams.currentFileIndex;
-        
-        // Load existing links from saved files if available
-        if (resumeParams.lastSavedFile) {
-          try {
-            const existingLinks = await this._loadExistingLinksFromFiles(connectionType, masterIndex);
-            existingLinks.forEach(link => allLinks.add(link));
-            logger.info(`Loaded ${allLinks.size} existing ${connectionType} links from saved files`);
-          } catch (loadError) {
-            logger.warn(`Failed to load existing ${connectionType} links, starting fresh:`, loadError.message);
-          }
-        }
-      }
-
-      // Initial collection of visible links (or continue from where we left off)
-      if (allLinks.size === 0) {
-        await this._collectVisibleLinks(page, allLinks);
-        logger.info(`Initial ${connectionType} collection: ${allLinks.size} links found`);
-
-        // Save initial collection
-        await this._saveLinksToFile(Array.from(allLinks), connectionType, currentFileIndex, masterIndex);
-        currentFileLinks = Array.from(allLinks);
-      } else {
-        // We're resuming, collect current visible links and merge
-        const currentVisibleLinks = new Set();
-        await this._collectVisibleLinks(page, currentVisibleLinks);
-        currentVisibleLinks.forEach(link => allLinks.add(link));
-        logger.info(`Resumed ${connectionType} collection: ${allLinks.size} total links (${currentVisibleLinks.size} newly visible)`);
-      }
-
-      // Continue expanding and collecting until no more content (button or scroll)
-      while (expansionAttempts < maxExpansionAttempts) {
-        try {
-          // Determine next expansion action: button click or scroll
-          const expandAction = await page.evaluate(() => {
-            const selectors = [
-              'div._6ce2ab68 > button > span',
-              'button[aria-label*="Show more"]',
-              'button[data-test-id="show-more-connections"]',
-              'button:has-text("Show more")',
-              '.scaffold-finite-scroll__load-button button'
-            ];
-
-            for (const selector of selectors) {
-              const button = document.querySelector(selector);
-              if (button && button.offsetParent !== null) {
-                return 'button';
-              }
-            }
-
-            // If no button, check whether we can scroll further
-            const currentHeight = document.body.scrollHeight;
-            const viewportHeight = window.innerHeight;
-            const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-            if (scrollTop + viewportHeight < currentHeight - 100) {
-              return 'scroll';
-            }
-            return false;
-          });
-
-          if (!expandAction) {
-            logger.info(`No more content available after ${expansionAttempts} attempts`);
-            break;
-          }
-
-          if (expandAction === 'button') {
-            // Click the expansion button
-            logger.debug(`Clicking expansion button (attempt ${expansionAttempts + 1})`);
-            await this.puppeteer.Locator.race([
-              page.locator('div._6ce2ab68 > button > span'),
-              page.locator('::-p-xpath(//*[@id="workspace"]/div/div/main/section/div/div[2]/div/div[40]/button/span)'),
-              page.locator(':scope >>> div._6ce2ab68 > button > span')
-            ]).setTimeout(timeout).click({
-              offset: { x: 212, y: 19.5 }
-            });
-          } else {
-            // Fallback to scrolling to load more
-            logger.debug(`Scrolling to load more connections (attempt ${expansionAttempts + 1})`);
-            await page.evaluate(() => { window.scrollTo(0, document.body.scrollHeight); });
-          }
-
-          // Wait for new content to load
-          await RandomHelpers.randomDelay(2000, 4000);
-
-          // Collect newly loaded links
-          const previousSize = allLinks.size;
-          await this._collectVisibleLinks(page, allLinks);
-          const newLinksFound = allLinks.size - previousSize;
-
-          logger.debug(`Expansion ${expansionAttempts + 1}: Found ${newLinksFound} new links (total: ${allLinks.size})`);
-
-          // If no new links were found, we might have reached the end
-          if (newLinksFound === 0) {
-            logger.info(`No new links found after expansion ${expansionAttempts + 1}, stopping`);
-            break;
-          }
-
-          // Check if we need to create a new file (exceeding 100 links)
-          const allLinksArray = Array.from(allLinks);
-          if (allLinksArray.length > (currentFileIndex + 1) * this.batchSize) {
-            // Save current file and create new one
-            await this._saveLinksToFile(currentFileLinks, connectionType, currentFileIndex, masterIndex);
-
-            currentFileIndex++;
-            currentFileLinks = allLinksArray.slice(currentFileIndex * this.batchSize);
-
-            logger.info(`Created new file ${currentFileIndex} for ${connectionType} connections (${allLinksArray.length} total links)`);
-          } else {
-            // Update current file with new links
-            currentFileLinks = allLinksArray.slice(currentFileIndex * this.batchSize);
-          }
-
-          // Save after every expansion
-          await this._saveLinksToFile(currentFileLinks, connectionType, currentFileIndex, masterIndex);
-
-          expansionAttempts++;
-
-        } catch (expansionError) {
-          logger.warn(`Error during expansion attempt ${expansionAttempts + 1}:`, expansionError.message);
-
-          // Try to collect any remaining visible links before breaking
-          await this._collectVisibleLinks(page, allLinks);
-
-          // Save whatever we have collected
-          const finalLinks = Array.from(allLinks);
-          await this._saveLinksToFile(finalLinks.slice(currentFileIndex * this.batchSize), connectionType, currentFileIndex, masterIndex);
-          break;
-        }
-      }
-
-      logger.info(`${connectionType} connection link collection completed: ${allLinks.size} unique links found after ${expansionAttempts} expansions`);
-
-      // Convert Set to Array and extract profile IDs
-      const profileIds = Array.from(allLinks).map(link => {
-        const match = link.match(/\/in\/([^\/\?]+)/);
-        if (match && match[1]) {
-          return match[1].replace(/\/$/, '').split('?')[0];
-        }
-        return null;
-      }).filter(id => id && id !== 'undefined' && id.length > 0);
-
-      // Remove duplicates using Set
-      const uniqueProfileIds = Array.from(new Set(profileIds));
-
-      logger.info(`Extracted ${uniqueProfileIds.length} unique profile IDs from ${allLinks.size} links`);
-
-      return uniqueProfileIds;
-
-    } catch (error) {
-      logger.error(`Failed to collect ${connectionType} connection links with expansion:`, error);
-      throw error;
-    }
-  }
+  // Removed custom link collection in favor of puppeteerService.extractLinks
 
   /**
    * Load existing links from saved files for healing recovery
@@ -1580,85 +1374,31 @@ export class ProfileInitService {
    * @returns {Promise<Object>} Object containing received and sent invitations with status labels
    */
   async _getSentInvitesList(state) {
-    const timeout = 30000; // 30 second timeout for actions
-
     try {
-      logger.info('Getting sent invites list from LinkedIn');
+      logger.info('Getting sent and received invites from LinkedIn');
 
-      const page = this.puppeteer.getPage();
-
-      // Navigate to LinkedIn feed first
-      logger.info('Navigating to LinkedIn feed');
-      await this.puppeteer.goto('https://www.linkedin.com/feed/');
-      await RandomHelpers.randomDelay(3000, 5000);
-
-      // Navigate to invitations by clicking the network icon in global nav
-      logger.info('Clicking network icon in global navigation for invitations');
-      const targetPage = page;
-      let frame = targetPage.mainFrame();
-      frame = frame.childFrames()[1];
-
-      const promises = [];
-      const startWaitingForEvents = () => {
-        promises.push(frame.waitForNavigation());
-      };
-
-      await this.puppeteer.Locator.race([
-        frame.locator('#global-nav li:nth-of-type(2) svg'),
-        frame.locator('::-p-xpath(//*[@id="global-nav"]/div/nav/ul/li[2]/a/div/div/li-icon/svg)'),
-        frame.locator(':scope >>> #global-nav li:nth-of-type(2) svg')
-      ]).setTimeout(timeout).on('action', () => startWaitingForEvents()).click({
-        offset: { x: 8, y: 11 }
+      // Received invitations (default invitation manager)
+      const receivedUrl = 'https://www.linkedin.com/mynetwork/invitation-manager/';
+      await this.puppeteer.goto(receivedUrl);
+      await RandomHelpers.randomDelay(1500, 2500);
+      const receivedIds = await this.puppeteer.extractLinks(null, {
+        autoScroll: true,
+        maxScrolls: 10,
+        timeoutMs: 15000
       });
 
-      await Promise.all(promises);
-
-      // Click on the invitations section
-      logger.info('Clicking on invitations section');
-      await this.puppeteer.Locator.race([
-        targetPage.locator('main > div > div > div > div > div:nth-of-type(1) button > span'),
-        targetPage.locator('::-p-xpath(//*[@id="workspace"]/div/div/main/div/div/div/div/div[1]/section/div/div/div/div[1]/button/span)'),
-        targetPage.locator(':scope >>> main > div > div > div > div > div:nth-of-type(1) button > span')
-      ]).setTimeout(timeout).click({
-        delay: 383.90000000037253,
-        offset: { x: 34, y: 3 }
+      // Sent invitations
+      const sentUrl = 'https://www.linkedin.com/mynetwork/invitation-manager/sent/';
+      await this.puppeteer.goto(sentUrl);
+      await RandomHelpers.randomDelay(1500, 2500);
+      const sentIds = await this.puppeteer.extractLinks(null, {
+        autoScroll: true,
+        maxScrolls: 10,
+        timeoutMs: 15000
       });
 
-      // Wait for invitations page to load
-      await RandomHelpers.randomDelay(3000, 5000);
-
-      // Create a temporary master index for invitation collection
-      const tempMasterIndex = {
-        files: {
-          incomingConnections: [],
-          outgoingConnections: []
-        },
-        metadata: {
-          totalIncoming: 0,
-          totalOutgoing: 0
-        }
-      };
-
-      // Collect received invitations (default tab)
-      logger.info('Collecting received invitations');
-      const receivedInvitations = await this._collectInvitationLinksWithRobustSaving(page, 'incoming', tempMasterIndex, state);
-
-      // Navigate to sent invitations tab
-      logger.info('Navigating to sent invitations tab');
-      await this.puppeteer.Locator.race([
-        targetPage.locator('span:nth-of-type(12)'),
-        targetPage.locator('::-p-xpath(//*[@data-testid="loader"]/span[12])'),
-        targetPage.locator(':scope >>> span:nth-of-type(12)')
-      ]).setTimeout(timeout).click({
-        offset: { x: 16, y: 10 }
-      });
-
-      // Wait for sent invitations to load
-      await RandomHelpers.randomDelay(3000, 5000);
-
-      // Collect sent invitations
-      logger.info('Collecting sent invitations');
-      const sentInvitations = await this._collectInvitationLinksWithRobustSaving(page, 'outgoing', tempMasterIndex, state);
+      const receivedInvitations = receivedIds.map(id => ({ profileId: id, status: 'incoming' }));
+      const sentInvitations = sentIds.map(id => ({ profileId: id, status: 'outgoing' }));
 
       const result = {
         received: receivedInvitations,
@@ -1668,7 +1408,7 @@ export class ProfileInitService {
         totalInvitations: receivedInvitations.length + sentInvitations.length
       };
 
-      logger.info(`Collected invitations summary:`, {
+      logger.info('Collected invitations summary:', {
         received: result.totalReceived,
         sent: result.totalSent,
         total: result.totalInvitations
@@ -1681,335 +1421,7 @@ export class ProfileInitService {
       throw error;
     }
   }
-
-  /**
-   * Collect invitation links with robust file saving after every expansion
-   * @param {Object} page - Puppeteer page object
-   * @param {string} status - Status label ('incoming' or 'outgoing')
-   * @param {Object} masterIndex - Master index for file management
-   * @returns {Promise<Array>} Array of invitation objects with profile IDs and status
-   */
-  async _collectInvitationLinksWithRobustSaving(page, status, masterIndex, state) {
-    return await this._collectInvitationLinksInternal(page, status, masterIndex, true, state);
-  }
-
-  /**
-   * Internal shared implementation for invitation link collection
-   * @param {Object} page
-   * @param {string} status
-   * @param {Object|null} masterIndex
-   * @param {boolean} saveDuringExpansion - whether to persist partial results
-   */
-  async _collectInvitationLinksInternal(page, status, masterIndex = null, saveDuringExpansion = false, state = null) {
-    try {
-      logger.info(`Collecting ${status.toLowerCase()} invitation links${saveDuringExpansion ? ' with robust file saving' : ''}`);
-
-      const allLinks = new Set();
-      let expansionAttempts = 0;
-      const maxExpansionAttempts = 50;
-      let currentFileIndex = 0;
-      let currentFileLinks = [];
-
-      // Initial collection
-      await this._collectVisibleInvitationLinks(page, allLinks);
-      logger.info(`Initial ${status.toLowerCase()} collection: ${allLinks.size} links found`);
-
-      if (saveDuringExpansion && masterIndex) {
-        const initialInvitations = this._convertLinksToInvitations(Array.from(allLinks), status);
-        await this._saveInvitationsToFile(initialInvitations, status, currentFileIndex, masterIndex);
-        currentFileLinks = initialInvitations;
-      }
-
-      while (expansionAttempts < maxExpansionAttempts) {
-        try {
-          const hasMoreContent = await page.evaluate(() => {
-            const showMoreButton = document.querySelector('button[aria-label*="Show more"], .scaffold-finite-scroll__load-button button, button:has-text("Show more")');
-            if (showMoreButton && showMoreButton.offsetParent !== null) return 'button';
-
-            const currentHeight = document.body.scrollHeight;
-            const viewportHeight = window.innerHeight;
-            const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-            if (scrollTop + viewportHeight < currentHeight - 100) return 'scroll';
-            return false;
-          });
-
-          if (!hasMoreContent) {
-            logger.info(`No more content to load for ${status.toLowerCase()} invitations after ${expansionAttempts} attempts`);
-            break;
-          }
-
-          const previousSize = allLinks.size;
-          if (hasMoreContent === 'button') {
-            logger.debug(`Clicking show more button for ${status.toLowerCase()} invitations (attempt ${expansionAttempts + 1})`);
-            await page.click('button[aria-label*="Show more"], .scaffold-finite-scroll__load-button button');
-          } else {
-            logger.debug(`Scrolling to load more ${status.toLowerCase()} invitations (attempt ${expansionAttempts + 1})`);
-            await page.evaluate(() => { window.scrollTo(0, document.body.scrollHeight); });
-          }
-
-          await RandomHelpers.randomDelay(2000, 4000);
-          await this._collectVisibleInvitationLinks(page, allLinks);
-          const newLinksFound = allLinks.size - previousSize;
-          logger.debug(`${status} expansion ${expansionAttempts + 1}: Found ${newLinksFound} new links (total: ${allLinks.size})`);
-          if (newLinksFound === 0) {
-            logger.info(`No new ${status.toLowerCase()} links found after expansion ${expansionAttempts + 1}, stopping`);
-            break;
-          }
-
-          if (saveDuringExpansion && masterIndex) {
-            const allInvitations = this._convertLinksToInvitations(Array.from(allLinks), status);
-            if (allInvitations.length > (currentFileIndex + 1) * this.batchSize) {
-              await this._saveInvitationsToFile(currentFileLinks, status, currentFileIndex, masterIndex);
-              currentFileIndex++;
-              currentFileLinks = allInvitations.slice(currentFileIndex * this.batchSize);
-              logger.info(`Created new file ${currentFileIndex} for ${status} invitations (${allInvitations.length} total invitations)`);
-            } else {
-              currentFileLinks = allInvitations.slice(currentFileIndex * this.batchSize);
-            }
-            await this._saveInvitationsToFile(currentFileLinks, status, currentFileIndex, masterIndex);
-          }
-
-          expansionAttempts++;
-        } catch (expansionError) {
-          logger.warn(`Error during ${status.toLowerCase()} expansion attempt ${expansionAttempts + 1}:`, expansionError.message);
-          await this._collectVisibleInvitationLinks(page, allLinks);
-          if (saveDuringExpansion && masterIndex) {
-            const finalInvitations = this._convertLinksToInvitations(Array.from(allLinks), status);
-            await this._saveInvitationsToFile(finalInvitations.slice(currentFileIndex * this.batchSize), status, currentFileIndex, masterIndex);
-          }
-          break;
-        }
-      }
-
-      logger.info(`${status} invitation link collection completed: ${allLinks.size} unique links found after ${expansionAttempts} expansions`);
-      const invitations = this._convertLinksToInvitations(Array.from(allLinks), status);
-      const uniqueInvitations = invitations.filter((invitation, index, self) => index === self.findIndex(inv => inv.profileId === invitation.profileId));
-      logger.info(`Extracted ${uniqueInvitations.length} unique ${status.toLowerCase()} invitation profile IDs from ${allLinks.size} links`);
-      return uniqueInvitations;
-    } catch (error) {
-      logger.error(`Failed to collect ${status.toLowerCase()} invitation links:`, error);
-      throw error;
-    }
-  }
-
-  /**
-   * Collect invitation links from the current page with expansion
-   * @param {Object} page - Puppeteer page object
-   * @param {string} status - Status label ('incoming' or 'outgoing')
-   * @returns {Promise<Array>} Array of invitation objects with profile IDs and status
-   */
-  async _collectInvitationLinks(page, status) {
-    return await this._collectInvitationLinksInternal(page, status, null, false);
-  }
-
-  /**
-   * Save invitations to file with proper file management and master index updates
-   * @param {Array} invitations - Array of invitation objects to save
-   * @param {string} status - Status label ('incoming' or 'outgoing')
-   * @param {number} fileIndex - Current file index
-   * @param {Object} masterIndex - Master index for tracking files
-   */
-  async _saveInvitationsToFile(invitations, status, fileIndex, masterIndex) {
-    try {
-      const timestamp = Date.now();
-      const fileName = `${status}-invitations-${fileIndex}-${timestamp}.json`;
-      const filePath = path.join('data', fileName);
-
-      const fileData = {
-        connectionType: status,
-        fileIndex: fileIndex,
-        capturedAt: new Date().toISOString(),
-        totalInvitations: invitations.length,
-        invitations: invitations,
-        metadata: {
-          batchSize: this.batchSize,
-          isComplete: invitations.length < this.batchSize
-        }
-      };
-
-      // Ensure data directory exists
-      await fs.mkdir('data', { recursive: true });
-
-      // Save the file
-      await fs.writeFile(filePath, JSON.stringify(fileData, null, 2));
-
-      // Update master index
-      const connectionKey = `${status}Connections`;
-      if (!masterIndex.files[connectionKey]) {
-        masterIndex.files[connectionKey] = [];
-      }
-
-      // Update or add file reference in master index
-      const existingFileIndex = masterIndex.files[connectionKey].findIndex(f =>
-        f.fileIndex === fileIndex || f.fileName === fileName
-      );
-
-      const fileReference = {
-        fileName: fileName,
-        filePath: filePath,
-        fileIndex: fileIndex,
-        totalInvitations: invitations.length,
-        capturedAt: new Date().toISOString(),
-        isComplete: invitations.length < this.batchSize
-      };
-
-      if (existingFileIndex >= 0) {
-        masterIndex.files[connectionKey][existingFileIndex] = fileReference;
-      } else {
-        masterIndex.files[connectionKey].push(fileReference);
-      }
-
-      // Update metadata totals
-      const totalKey = `total${status.charAt(0).toUpperCase() + status.slice(1)}`;
-      const currentTotal = masterIndex.files[connectionKey].reduce((sum, file) => sum + file.totalInvitations, 0);
-      masterIndex.metadata[totalKey] = currentTotal;
-
-      logger.info(`Saved ${invitations.length} ${status} invitations to ${fileName}`, {
-        fileIndex,
-        totalInvitations: invitations.length,
-        filePath,
-        isComplete: fileData.metadata.isComplete
-      });
-
-      return filePath;
-
-    } catch (error) {
-      logger.error(`Failed to save ${status} invitations to file:`, error);
-      throw error;
-    }
-  }
-
-  /**
-   * Convert links to invitation objects with status
-   * @param {Array} links - Array of profile links
-   * @param {string} status - Status label ('incoming' or 'outgoing')
-   * @returns {Array} Array of invitation objects
-   */
-  _convertLinksToInvitations(links, status) {
-    return links.map(link => {
-      const match = link.match(/\/in\/([^\/\?]+)/);
-      if (match && match[1]) {
-        const profileId = match[1].replace(/\/$/, '').split('?')[0];
-        return {
-          profileId: profileId,
-          status: status,
-          originalUrl: link
-        };
-      }
-      return null;
-    }).filter(invitation => invitation && invitation.profileId && invitation.profileId !== 'undefined' && invitation.profileId.length > 0);
-  }
-
-  /**
-   * Collect all visible invitation links on the current page
-   * @param {Object} page - Puppeteer page object
-   * @param {Set} allLinks - Set to store collected links
-   */
-  async _collectVisibleInvitationLinks(page, allLinks) {
-    try {
-      const newLinks = await page.evaluate(() => {
-        const links = new Set();
-
-        // Multiple selectors to find invitation profile links
-        const selectors = [
-          'a[href*="/in/"]',
-          '[data-test-id="invitation-card"] a[href*="/in/"]',
-          '[data-test-id="sent-invitation-card"] a[href*="/in/"]',
-          '.invitation-card a[href*="/in/"]',
-          '.sent-invitation-card a[href*="/in/"]',
-          '.invitation-card__profile-link',
-          '.sent-invitation-card__profile-link',
-          '.entity-result__title-text a[href*="/in/"]',
-          '.artdeco-entity-lockup__title a[href*="/in/"]',
-          '.invitation-card__content a[href*="/in/"]'
-        ];
-
-        for (const selector of selectors) {
-          const elements = document.querySelectorAll(selector);
-
-          for (const element of elements) {
-            const href = element.getAttribute('href');
-            if (href && href.includes('/in/')) {
-              // Clean up the URL
-              const cleanHref = href.split('?')[0].replace(/\/$/, '');
-              if (cleanHref.match(/\/in\/[^\/]+$/)) {
-                links.add(cleanHref);
-              }
-            }
-          }
-        }
-
-        return Array.from(links);
-      });
-
-      // Add new links to the main set
-      const initialSize = allLinks.size;
-      newLinks.forEach(link => allLinks.add(link));
-      const addedCount = allLinks.size - initialSize;
-
-      if (addedCount > 0) {
-        logger.debug(`Collected ${addedCount} new invitation links (${newLinks.length} found, ${allLinks.size} total unique)`);
-      }
-
-    } catch (error) {
-      logger.error('Failed to collect visible invitation links:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Scroll through the page to load all connections
-   * LinkedIn uses infinite scroll, so we need to scroll to load all content
-   */
-  async _scrollToLoadAllConnections() {
-    try {
-      logger.info('Scrolling to load all connections...');
-
-      let previousHeight = 0;
-      let currentHeight = 0;
-      let scrollAttempts = 0;
-      const maxScrollAttempts = 50; // Prevent infinite scrolling
-
-      do {
-        previousHeight = currentHeight;
-
-        // Scroll to bottom of page
-        await this.puppeteer.getPage().evaluate(() => {
-          window.scrollTo(0, document.body.scrollHeight);
-        });
-
-        // Wait for content to load
-        await RandomHelpers.randomDelay(2000, 4000);
-
-        // Get new height
-        currentHeight = await this.puppeteer.getPage().evaluate(() => {
-          return document.body.scrollHeight;
-        });
-
-        scrollAttempts++;
-        logger.debug(`Scroll attempt ${scrollAttempts}: height ${currentHeight}`);
-
-        // Check if we've reached the bottom or max attempts
-        if (currentHeight === previousHeight || scrollAttempts >= maxScrollAttempts) {
-          break;
-        }
-
-      } while (scrollAttempts < maxScrollAttempts);
-
-      logger.info(`Completed scrolling after ${scrollAttempts} attempts`);
-
-      // Scroll back to top for consistency
-      await this.puppeteer.getPage().evaluate(() => {
-        window.scrollTo(0, 0);
-      });
-
-      await RandomHelpers.randomDelay(1000, 2000);
-
-    } catch (error) {
-      logger.error('Failed to scroll and load connections:', error);
-      throw error;
-    }
-  }
+  // Removed custom invitation link collection and scrolling helpers in favor of puppeteerService.extractLinks
 
   /**
    * Categorize service-level errors for better handling and logging

@@ -17,33 +17,89 @@ export class LinkedInContactService {
     this.cloudFrontDomain = process.env.CLOUDFRONT_DOMAIN || "";
   }
 
-  async takeScreenShotAndUploadToS3(profileId, tempDir) {
+  /**
+   * Waits for dynamic content growth to stabilize, then scrolls to the top.
+   * This helps ensure data has populated and the page is positioned correctly
+   * before taking a screenshot.
+   */
+  async _waitForContentStableAndScrollTop() {
+    const page = this.puppeteer.getPage();
+    logger.debug('Waiting for content to stabilize before screenshot...');
+
+    try {
+      // Poll for stability by comparing scrollHeight and text length over time
+      const maxChecks = 10;
+      let previousHeight = 0;
+      let previousTextLength = 0;
+
+      for (let i = 0; i < maxChecks; i++) {
+        const { height, textLength } = await page.evaluate(() => ({
+          height: document.body.scrollHeight,
+          textLength: (document.body.innerText || '').length,
+        }));
+
+        const heightDelta = Math.abs(height - previousHeight);
+        const textDelta = Math.abs(textLength - previousTextLength);
+
+        // Consider stable if changes are minimal between samples
+        if (i > 0 && heightDelta < 50 && textDelta < 200) {
+          break;
+        }
+
+        previousHeight = height;
+        previousTextLength = textLength;
+        await page.waitForTimeout(500);
+      }
+    } catch (err) {
+      logger.debug(`Stability check skipped/failed: ${err.message}`);
+    }
+
+    // Ensure we are at the top before capturing
+    try {
+      await page.evaluate(() => {
+        window.scrollTo(0, 0);
+      });
+      await page.waitForTimeout(300);
+    } catch (err) {
+      logger.debug(`Scroll-to-top before screenshot failed: ${err.message}`);
+    }
+  }
+
+  async takeScreenShotAndUploadToS3(profileId, tempDir, status = 'allies', options = {}) {
     const s3UploadedObjects = [];
+    // Ensure a working temp directory; manage lifecycle locally
+    let workingTempDir = tempDir;
+    let createdTempDir = false;
     
     try {
-      logger.info(`Taking screenshots for profile: ${profileId}`);
+      logger.info(`Taking screenshots for profile: ${profileId} (status=${status})`);
+      if (!workingTempDir) {
+        const base = path.join(process.cwd(), 'screenshots');
+        try { await fs.mkdir(base, { recursive: true }); } catch {}
+        workingTempDir = await fs.mkdtemp(path.join(base, 'linkedin-screenshots-'));
+        createdTempDir = true;
+      }
+      // Capture the required set of screenshots based on status and optional selection
+      await this.captureRequiredScreenshots(profileId, workingTempDir, status, options);
       
-      const profileUrl = `https://www.linkedin.com/in/${profileId}/`;
-      
-      await this.puppeteer.goto(profileUrl);
-      await RandomHelpers.randomDelay(2000, 4000);
-      
-      await this._expandAllContent();
-      const screenshotPath = await this._captureSingleScreenshot(tempDir, profileId);
-      
-      // Collect all screenshots from temp directory
-      const allScreenshots = await fs.readdir(tempDir);
-      const screenshotPaths = allScreenshots.map(file => path.join(tempDir, file));
+      // Collect all PNG screenshots from temp directory
+      const allScreenshots = await fs.readdir(workingTempDir);
+      const screenshotPaths = allScreenshots
+        .filter(name => name.toLowerCase().endsWith('.png'))
+        .map(file => path.join(workingTempDir, file));
 
-      // Upload to S3
-      const uploadResults = await this._uploadToS3(screenshotPaths, profileId);
+      // Use a single timestamp for this profile ingestion session
+      const sessionTimestamp = new Date().toISOString().replace(/:/g, '-').replace(/\./g, '_');
+
+      // Upload to S3 using consistent timestamp across all screenshots
+      const uploadResults = await this._uploadToS3(screenshotPaths, profileId, sessionTimestamp);
       s3UploadedObjects.push(...uploadResults);
 
       logger.info(`Successfully captured ${s3UploadedObjects.length} screenshots`);
       
       return {
         success: true,
-        message: `Screenshots captured and uploaded (${s3UploadedObjects.length} parts)`,
+        message: `Screenshots captured and uploaded (${s3UploadedObjects.length} parts)` ,
         data: {
           cloudFrontUrls: s3UploadedObjects.map(obj => obj.cloudFrontUrl),
           s3ObjectUrls: s3UploadedObjects.map(obj => obj.s3ObjectUrl),
@@ -58,7 +114,146 @@ export class LinkedInContactService {
         message: `Failed to capture screenshots: ${error.message}`
       };
     } finally {
-      await this._cleanup(tempDir);
+      // Always clean up the working temp directory after upload is attempted
+      if (workingTempDir) await this._cleanup(workingTempDir);
+    }
+  }
+
+  /**
+   * Capture the required screenshots for a profile depending on the connection status.
+   * - allies: Reactions, Profile, Recent Activity, About This Profile, Message History
+   * - incoming/outgoing: Reactions, Profile, Recent Activity, About This Profile
+   * - possible: Reactions, Profile, Recent Activity
+   */
+  async captureRequiredScreenshots(profileId, tempDir, status, options = {}) {
+    const page = this.puppeteer.getPage();
+    // Determine default screens by status; options.screens can override
+    let defaultScreens;
+    if (status === 'incoming' || status === 'outgoing') {
+      defaultScreens = ['Reactions', 'Profile', 'Activity', 'Recent-Activity', 'About-This-Profile'];
+    } else if (status === 'possible') {
+      defaultScreens = ['Reactions', 'Profile', 'Recent-Activity'];
+    } else {
+      // allies or general: include messages
+      defaultScreens = ['Reactions', 'Profile', 'Activity', 'Recent-Activity', 'About-This-Profile', 'Messages'];
+    }
+    const desired = Array.isArray(options.screens) && options.screens.length > 0
+      ? new Set(options.screens)
+      : new Set(defaultScreens);
+
+    // 0) Reactions (do this first to reuse current page from analysis)
+    try {
+      if (desired && !desired.has('Reactions')) { throw new Error('skip'); }
+      const reactionsUrl = `https://www.linkedin.com/in/${profileId}/recent-activity/reactions/`;
+      const currentUrl = page.url();
+      if (!currentUrl.includes(`/in/${profileId}/recent-activity/reactions/`)) {
+        await this.puppeteer.goto(reactionsUrl);
+      }
+      await RandomHelpers.randomDelay(1200, 2000);
+      await this._autoScroll();
+      await this._captureSingleScreenshot(tempDir, profileId, 'Reactions');
+    } catch (err) {
+      if (err.message !== 'skip') logger.warn(`Reactions screenshot failed for ${profileId}: ${err.message}`);
+    }
+
+    // 1) Profile page
+    try {
+      if (desired && !desired.has('Profile')) { throw new Error('skip'); }
+      const profileUrl = `https://www.linkedin.com/in/${profileId}/`;
+      await this.puppeteer.goto(profileUrl);
+      await RandomHelpers.randomDelay(1500, 2500);
+      await this._expandAllContent();
+      await this._captureSingleScreenshot(tempDir, profileId, 'Profile');
+    } catch (err) {
+      if (err.message !== 'skip') logger.warn(`Profile page screenshot failed for ${profileId}: ${err.message}`);
+    }
+
+    // 2) Activity (Posts)
+    try {
+      if (desired && !desired.has('Activity')) { throw new Error('skip'); }
+      const activityPostsUrl = `https://www.linkedin.com/in/${profileId}/recent-activity/posts/`;
+      await this.puppeteer.goto(activityPostsUrl);
+      await RandomHelpers.randomDelay(1500, 2500);
+      await this._autoScroll();
+      await this._captureSingleScreenshot(tempDir, profileId, 'Activity');
+    } catch (err) {
+      if (err.message !== 'skip') logger.warn(`Activity (posts) screenshot failed for ${profileId}: ${err.message}`);
+    }
+
+    // 3) Recent activity (All)
+    try {
+      if (desired && !desired.has('Recent-Activity')) { throw new Error('skip'); }
+      const activityUrl = `https://www.linkedin.com/in/${profileId}/recent-activity/all/`;
+      await this.puppeteer.goto(activityUrl);
+      await RandomHelpers.randomDelay(1500, 2500);
+      await this._autoScroll();
+      await this._captureSingleScreenshot(tempDir, profileId, 'Recent-Activity');
+    } catch (err) {
+      if (err.message !== 'skip') logger.warn(`Recent activity (all) screenshot failed for ${profileId}: ${err.message}`);
+    }
+
+    // 4) About This Profile overlay
+    try {
+      if (desired && !desired.has('About-This-Profile')) { throw new Error('skip'); }
+      const aboutUrl = `https://www.linkedin.com/in/${profileId}/overlay/about-this-profile/`;
+      await this.puppeteer.goto(aboutUrl);
+      await RandomHelpers.randomDelay(1500, 2500);
+      // Wait briefly to allow overlay to render
+      await page.waitForTimeout(800);
+      await this._captureSingleScreenshot(tempDir, profileId, 'About-This-Profile');
+    } catch (err) {
+      if (err.message !== 'skip') logger.warn(`About This Profile screenshot failed for ${profileId}: ${err.message}`);
+    }
+
+    // 5) Message History (only for allies)
+    if (status !== 'incoming' && status !== 'outgoing') {
+      try {
+        if (desired && !desired.has('Messages')) { throw new Error('skip'); }
+        const profileUrl = `https://www.linkedin.com/in/${profileId}/`;
+        await this.puppeteer.goto(profileUrl);
+        await RandomHelpers.randomDelay(1500, 2500);
+
+        // Attempt to click the Message button and wait for the overlay
+        await page.evaluate(() => {
+          const isVisible = el => {
+            if (!el) return false;
+            const style = window.getComputedStyle(el);
+            const rect = el.getBoundingClientRect();
+            return style && style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+          };
+          const candidates = Array.from(document.querySelectorAll('a,button'));
+          for (const el of candidates) {
+            const text = (el.textContent || '').trim().toLowerCase();
+            const aria = (el.getAttribute('aria-label') || '').trim().toLowerCase();
+            if (isVisible(el) && (text === 'message' || aria.includes('message'))) {
+              el.click();
+              return true;
+            }
+          }
+          return false;
+        });
+
+        // Wait for any of the message overlay containers
+        const overlaySelectors = [
+          '.msg-overlay-conversation-bubble',
+          '[data-control-name="overlay.close_conversation_window"]',
+          '.msg-conversations-container',
+          '.msg-s-message-list',
+          'div[role="dialog"] .msg-s-message-list'
+        ];
+        const timeoutMs = 5000;
+        let found = false;
+        for (const sel of overlaySelectors) {
+          try { await page.waitForSelector(sel, { timeout: timeoutMs }); found = true; break; } catch(_) {}
+        }
+        if (!found) {
+          logger.debug('Message overlay not detected with standard selectors; proceeding with page screenshot');
+        }
+
+        await this._captureSingleScreenshot(tempDir, profileId, 'Messages');
+      } catch (err) {
+        if (err.message !== 'skip') logger.warn(`Message history screenshot failed for ${profileId}: ${err.message}`);
+      }
     }
   }
 
@@ -114,7 +309,7 @@ export class LinkedInContactService {
         let totalHeight = 0;
         const distance = 100;
         const delay = 100;
-        const maxScrolls = 200;
+        const maxScrolls = 20;
         let scrolls = 0;
 
         const timer = setInterval(() => {
@@ -135,28 +330,39 @@ export class LinkedInContactService {
 
   }
 
-  async _captureSingleScreenshot(tempDir, profileId) {
+  async _captureSingleScreenshot(tempDir, profileId, label = 'Profile') {
     logger.info('Starting single screenshot capture...');
     await this.puppeteer.getPage().setViewport({
       width: 1200,
       height: 1200,
       deviceScaleFactor: 1,
     });
-    const screenshotPath = path.join(tempDir, `screenshot-${uuidv4()}.png`);
+
+    // Wait for content to populate and ensure we are at the top
+    await this._waitForContentStableAndScrollTop();
+
+    // Keep a raw temp file name; final name includes unified timestamp during upload
+    const screenshotPath = path.join(tempDir, `raw-${uuidv4()}.png`);
     await new Promise(resolve => setTimeout(resolve, 1000));
     await this.puppeteer.screenshot(screenshotPath, { fullPage: true });
     logger.info('Captured single screenshot.');
 
     // Crop the screenshot to width 850, left 0, top 0, keep original height
     
-    const croppedPath = path.join(tempDir, `${profileId}-Profile.png`);
+    const sanitized = String(label).replace(/[^a-z0-9\-]/gi, '-');
+    // Keep filename without timestamp here; timestamp applied at upload
+    const croppedPath = path.join(tempDir, `${profileId}-${sanitized}.png`);
     
     const image = sharp(screenshotPath);
     const metadata = await image.metadata();
+    // Preserve original analyzeContact sizing for Reactions; keep existing for others
+    const isReactions = String(label).toLowerCase() === 'reactions';
+    const cropLeft = isReactions ? 300 : 0;
+    const cropWidth = isReactions ? 575 : 850;
     await image
-      .extract({ left: 0, top: 0, width: 850, height: metadata.height })
+      .extract({ left: cropLeft, top: 0, width: cropWidth, height: metadata.height })
       .toFile(croppedPath);
-    logger.info('Cropped screenshot to width 300px from left 0, top 0.');
+    logger.info(`Saved screenshot ${croppedPath}`);
 
     // Delete the original screenshot after cropping
     await fs.unlink(screenshotPath);
@@ -164,39 +370,43 @@ export class LinkedInContactService {
     return [croppedPath];
 }
 
-  async _uploadToS3(screenshotPaths, profileId) {
-    logger.info('Uploading screenshots to S3...');
-    
-    const uploadResults = [];
-    const timestamp = new Date().toISOString().replace(/:/g, '-').replace(/\./g, '_');
+  async _uploadToS3(screenshotPaths, profileId, sessionTimestamp) {
+    logger.info(`Uploading ${screenshotPaths.length} screenshots to S3...`);
 
-    for (let i = 0; i < screenshotPaths.length; i++) {
-      let fileName = path.basename(screenshotPaths[i]);
-      fileName = fileName.replace(/\.png$/i, ''); 
-      const screenshotBuffer = await fs.readFile(screenshotPaths[i]);
-      const s3Key = `linkedin-profiles/${profileId}/${fileName}-${timestamp}.png`;
-
+    const uploadOne = async (absPath, index) => {
+      let fileName = path.basename(absPath).replace(/\.png$/i, '');
+      if (!fileName.includes(sessionTimestamp)) {
+        const base = fileName.replace(/-\d{4}-\d{2}-\d{2}T.*/, '');
+        fileName = `${base}-${sessionTimestamp}`;
+      }
+      const s3Key = `linkedin-profiles/${profileId}/${fileName}.png`;
       try {
+        const screenshotBuffer = await fs.readFile(absPath);
         const command = new PutObjectCommand({
           Bucket: this.bucketName,
           Key: s3Key,
           Body: screenshotBuffer,
           ContentType: 'image/png',
         });
-
         const result = await this.s3Client.send(command);
-        
         if (result.$metadata.httpStatusCode === 200) {
-          const s3ObjectUrl = `https://${this.bucketName}.s3.${process.env.AWS_REGION || "us-west-2"}.amazonaws.com/${s3Key}`;
+          const s3ObjectUrl = `https://${this.bucketName}.s3.${process.env.AWS_REGION || 'us-west-2'}.amazonaws.com/${s3Key}`;
           const cloudFrontUrl = `https://${this.cloudFrontDomain}/${s3Key}`;
-          uploadResults.push({ s3ObjectUrl, cloudFrontUrl, s3Key });
-          logger.debug(`Uploaded screenshot ${i} to S3 and available via CloudFront`);
+          logger.debug(`Uploaded screenshot ${index} to S3: ${s3Key}`);
+          return { s3ObjectUrl, cloudFrontUrl, s3Key };
         }
-      } catch (error) {
-        logger.error(`Failed to upload screenshot ${i}:`, error);
+        throw new Error(`Unexpected status ${result.$metadata.httpStatusCode}`);
+      } catch (err) {
+        logger.error(`Failed to upload screenshot ${index} (${absPath}):`, err);
+        return null;
       }
-    }
+    };
 
+    const settled = await Promise.allSettled(screenshotPaths.map((p, idx) => uploadOne(p, idx)));
+    const uploadResults = settled
+      .map(r => (r.status === 'fulfilled' ? r.value : null))
+      .filter(Boolean);
+    logger.info(`Uploaded ${uploadResults.length}/${screenshotPaths.length} screenshots to S3.`);
     return uploadResults;
   }
 

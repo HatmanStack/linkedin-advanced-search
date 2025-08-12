@@ -191,21 +191,157 @@ export class PuppeteerService {
     }
   }
 
-  async extractLinks(selector = 'ul li a') {
+  async extractLinks(selector = null, options = {}) {
     if (!this.page) {
       throw new Error('Browser not initialized. Call initialize() first.');
     }
 
     try {
-      const links = await this.page.$$eval(selector, (anchors) => {
-        return anchors.map(anchor => {
-          const href = anchor.href;
-          const match = href.match(/\/in\/(.*?)\?mini/);
-          return match ? match[1] : null;
-        }).filter(Boolean);
+      // Backward-compat: if a selector was provided, try to wait for it first
+      const waitSelectors = [];
+      if (typeof selector === 'string' && selector.trim().length > 0) {
+        waitSelectors.push(selector.trim());
+      }
+
+      // Default selectors that usually exist on LinkedIn search/people pages
+      const defaultSelectors = [
+        'a[href*="/in/"]',
+        'a[href^="/in/"]',
+        '.reusable-search__result-container a[href]'
+      ];
+
+      const timeoutMs = Math.max(3000, Number(options.timeoutMs) || 10000);
+      const selectorsToTry = waitSelectors.length > 0 ? waitSelectors : defaultSelectors;
+
+      // Wait for at least one relevant anchor to appear
+      let anyFound = false;
+      for (const sel of selectorsToTry) {
+        try {
+          await this.page.waitForSelector(sel, { timeout: timeoutMs });
+          anyFound = true;
+          break;
+        } catch (_) {
+          // keep trying others
+        }
+      }
+
+      if (!anyFound) {
+        // As a last resort, give the DOM a brief moment and proceed
+        await new Promise(res => setTimeout(res, 1000));
+      }
+
+      // Optionally auto-scroll/load to trigger lazy-loaded results until saturation
+      if (options.autoScroll) {
+        const maxIterations = Math.max(1, Math.min(50, Number(options.maxScrolls) || 1000));
+        const stableLimit = Math.max(1, Math.min(5, Number(options.stableLimit) || 2));
+        let stableCount = 0;
+        let lastHeight = await this.page.evaluate(() => document.body.scrollHeight || 0);
+        let lastLinkCount = await this.page.evaluate(() => Array.from(document.querySelectorAll('a[href]')).length);
+
+        for (let i = 0; i < maxIterations; i++) {
+          try {
+            const didClickShowMore = await this.page.evaluate(() => {
+              function isVisible(el) {
+                if (!el) return false;
+                const style = window.getComputedStyle(el);
+                const rect = el.getBoundingClientRect();
+                return style && style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+              }
+
+              // Try common variants of the load-more button that LinkedIn uses
+              const candidates = [
+                'button[aria-label*="Show more"]',
+                '.scaffold-finite-scroll__load-button button',
+                'button.artdeco-button',
+              ];
+
+              for (const sel of candidates) {
+                const btn = document.querySelector(sel);
+                if (btn && isVisible(btn)) {
+                  const text = (btn.textContent || '').toLowerCase();
+                  const aria = (btn.getAttribute('aria-label') || '').toLowerCase();
+                  if (text.includes('show more') || aria.includes('show more')) {
+                    btn.click();
+                    return true;
+                  }
+                }
+              }
+              return false;
+            });
+
+            if (!didClickShowMore) {
+              await this.page.evaluate(() => {
+                window.scrollBy(0, Math.floor(window.innerHeight * 0.95));
+              });
+            }
+
+            await RandomHelpers.randomDelay(700, 1400);
+
+            const [newHeight, newLinkCount] = await this.page.evaluate(() => [
+              document.body.scrollHeight || 0,
+              Array.from(document.querySelectorAll('a[href]')).length,
+            ]);
+
+            const heightChanged = newHeight > lastHeight;
+            const linksGrew = newLinkCount > lastLinkCount;
+            if (!heightChanged && !linksGrew) {
+              stableCount += 1;
+            } else {
+              stableCount = 0;
+            }
+            lastHeight = Math.max(lastHeight, newHeight);
+            lastLinkCount = Math.max(lastLinkCount, newLinkCount);
+
+            if (stableCount >= stableLimit) {
+              break;
+            }
+          } catch (_) {
+            break;
+          }
+        }
+      }
+
+      const profileIds = await this.page.evaluate(() => {
+        const anchors = Array.from(document.querySelectorAll('a[href]'));
+        const ids = new Set();
+
+        for (const a of anchors) {
+          const rawHref = a.getAttribute('href') || '';
+          if (!rawHref) continue;
+
+          // Normalize to absolute URL for consistent parsing
+          let href = rawHref;
+          try {
+            if (href.startsWith('/')) {
+              href = new URL(href, window.location.origin).toString();
+            } else if (!/^https?:\/\//i.test(href)) {
+              // Skip non-http(s) links
+              continue;
+            }
+          } catch (_) {
+            continue;
+          }
+
+          // Quick filter to LinkedIn domains
+          if (!/linkedin\.com/i.test(href)) continue;
+
+          try {
+            href = decodeURIComponent(href);
+          } catch (_) {
+            // ignore decode errors
+          }
+
+          // Extract the first path segment after /in/
+          const match = href.match(/\/in\/([^\/?#]+)/i);
+          if (match && match[1]) {
+            ids.add(match[1]);
+          }
+        }
+
+        return Array.from(ids);
       });
-      
-      return [...new Set(links)]; // Remove duplicates
+
+      return profileIds;
     } catch (error) {
       logger.error('Failed to extract links:', error);
       return [];

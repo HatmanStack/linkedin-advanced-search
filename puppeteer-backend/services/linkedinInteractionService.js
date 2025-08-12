@@ -5,6 +5,22 @@ import config from '../config/index.js';
 import LinkedInErrorHandler from '../utils/linkedinErrorHandler.js';
 import ConfigManager from '../utils/configManager.js';
 
+// Lightweight fallback utilities to replace removed human-behavior helpers
+const RandomHelpers = {
+  /**
+   * Wait for a random duration between minMs and maxMs
+   */
+  async randomDelay(minMs = 300, maxMs = 800) {
+    try {
+      const span = Math.max(0, maxMs - minMs);
+      const delayMs = minMs + Math.floor(Math.random() * (span + 1));
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+    } catch (_) {
+      // No-op on failure
+    }
+  }
+};
+
 
 /**
  * Browser Session Manager - Singleton class for managing persistent LinkedIn browser sessions
@@ -35,7 +51,13 @@ class BrowserSessionManager {
    * Get or create the singleton browser session instance
    * @returns {Promise<PuppeteerService>} The browser session instance
    */
-  static async getInstance() {
+  /**
+   * Get or create the singleton browser session instance
+   * @param {Object} options
+   * @param {boolean} options.reinitializeIfUnhealthy - When true, an unhealthy session will be cleaned up and reinitialized
+   * @returns {Promise<PuppeteerService>} The browser session instance
+   */
+  static async getInstance(options = { reinitializeIfUnhealthy: false }) {
     try {
       // Check if existing instance is still valid
       if (this.instance && await this.isSessionHealthy()) {
@@ -44,7 +66,13 @@ class BrowserSessionManager {
         return this.instance;
       }
 
-      // Clean up any existing unhealthy session
+      // If caller does NOT want automatic recovery, just return current instance (may be unhealthy)
+      if (this.instance && options && options.reinitializeIfUnhealthy === false) {
+        logger.debug('Session reported unhealthy; skipping auto-recovery per options and returning existing instance');
+        return this.instance;
+      }
+
+      // Clean up any existing unhealthy session before reinitializing
       if (this.instance) {
         logger.info('Cleaning up unhealthy browser session');
         await this.cleanup();
@@ -194,7 +222,7 @@ class BrowserSessionManager {
   static async recover() {
     logger.info('Attempting session recovery');
     await this.cleanup();
-    return await this.getInstance();
+    return await this.getInstance({ reinitializeIfUnhealthy: true });
   }
 
   /**
@@ -242,6 +270,12 @@ export class LinkedInInteractionService {
     this.sessionManager = BrowserSessionManager;
     // Human behavior manager removed
     this.configManager = ConfigManager;
+    // Provide safe no-op fallbacks to avoid runtime errors where humanBehavior was used previously
+    this.humanBehavior = {
+      async checkAndApplyCooldown() { /* no-op */ },
+      async simulateHumanMouseMovement() { /* no-op */ },
+      recordAction() { /* no-op */ }
+    };
     
     // Get configuration values
     const errorConfig = this.configManager.getErrorHandlingConfig();
@@ -298,7 +332,7 @@ export class LinkedInInteractionService {
         
         // Cleanup and reinitialize browser session
         await BrowserSessionManager.cleanup();
-        await BrowserSessionManager.getInstance();
+        await BrowserSessionManager.getInstance({ reinitializeIfUnhealthy: true });
         
         logger.info('Browser session recovery completed');
       }
@@ -380,7 +414,7 @@ export class LinkedInInteractionService {
    */
   async initializeBrowserSession() {
     try {
-      return await this.sessionManager.getInstance();
+      return await this.sessionManager.getInstance({ reinitializeIfUnhealthy: true });
     } catch (error) {
       logger.error('Failed to initialize browser session:', error);
       throw new Error(`Browser session initialization failed: ${error.message}`);
@@ -392,7 +426,9 @@ export class LinkedInInteractionService {
    * @returns {Promise<PuppeteerService>} Browser session instance
    */
   async getBrowserSession() {
-    return await this.sessionManager.getInstance();
+    // Avoid triggering automatic browser reinitialization during normal operations like selector checks.
+    // We will explicitly reinitialize only via initializeBrowserSession() or recovery handlers.
+    return await this.sessionManager.getInstance({ reinitializeIfUnhealthy: false });
   }
 
   /**
@@ -611,7 +647,8 @@ export class LinkedInInteractionService {
    * Handle LinkedIn-specific errors and authentication issues
    * @returns {Promise<void>}
    */
-  // handleLinkedInErrors removed
+  // Previously removed; provide a safe no-op to avoid crashes where referenced
+  async handleLinkedInErrors() { /* no-op */ }
 
   /**
    * Send a direct message to a LinkedIn connection
