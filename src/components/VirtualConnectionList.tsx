@@ -78,6 +78,8 @@ const ListItem: React.FC<ListItemProps> = ({ index, style, data }) => {
           connection={connection}
           onRemove={onRemove}
           onSelect={onNewConnectionClick}
+          onTagClick={onTagClick}
+          activeTags={activeTags}
         />
       ) : (
         <ConnectionCard

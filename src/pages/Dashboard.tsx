@@ -11,20 +11,18 @@ import { useProfileInit } from '@/hooks/useProfileInit';
 import type { SearchFormData } from '@/utils/validation';
 import ConversationTopicPanel from '@/components/ConversationTopicPanel';
 import NewConnectionSearch from '@/components/NewConnectionSearch';
-import PostCreator from '@/components/PostCreator';
-import SavedPostsList from '@/components/SavedPostsList';
-import PostAIAssistant from '@/components/PostAIAssistant';
+import PostComposer from '@/components/PostComposer';
 import { useLinkedInCredentials } from '@/contexts/LinkedInCredentialsContext';
 import StatusPicker, { StatusValue, ConnectionCounts } from '@/components/StatusPicker';
 import VirtualConnectionList from '@/components/VirtualConnectionList';
 import MessageModal from '@/components/MessageModal';
-import ConnectionFiltersComponent from '@/components/ConnectionFilters';
+// import ConnectionFiltersComponent from '@/components/ConnectionFilters';
 import { lambdaApiService as dbConnector, Connection, Message, ApiError } from '@/services/lambdaApiService';
 import { connectionCache } from '@/utils/connectionCache';
 import { connectionChangeTracker } from '../utils/connectionChangeTracker';
 import { ConnectionListSkeleton } from '@/components/ConnectionCardSkeleton';
 import { NoConnectionsState } from '@/components/ui/empty-state';
-import { messageGenerationService, MessageGenerationError } from '@/services/messageGenerationService';
+import { messageGenerationService } from '@/services/messageGenerationService';
 import { connectionDataContextService } from '@/services/connectionDataContextService';
 import { useErrorHandler } from '@/hooks/useErrorHandler';
 import { useProgressTracker } from '@/hooks/useProgressTracker';
@@ -43,20 +41,14 @@ const Dashboard = () => {
   const { ciphertext: linkedInCredsCiphertext } = useLinkedInCredentials(); // Ciphertext only
   const [conversationTopic, setConversationTopic] = useState('');
   const [selectedConnections, setSelectedConnections] = useState<string[]>([]);
-  const [postContent, setPostContent] = useState('');
-  const [savedPosts, setSavedPosts] = useState<Array<{ id: string, title: string, content: string, created_at: string }>>([]);
-  const [linkedinSearchResults, setLinkedinSearchResults] = useState([]);
   const [isSearchingLinkedIn, setIsSearchingLinkedIn] = useState(false);
-  const [isGeneratingIdeas, setIsGeneratingIdeas] = useState(false);
-  const [isResearching, setIsResearching] = useState(false);
-  const [isSavingDraft, setIsSavingDraft] = useState(false);
-  const [isPublishing, setIsPublishing] = useState(false);
 
   // Connection management state
   const [connections, setConnections] = useState<Connection[]>([]);
   const [connectionsLoading, setConnectionsLoading] = useState(false);
   const [connectionsError, setConnectionsError] = useState<string | null>(null);
   const [selectedStatus, setSelectedStatus] = useState<StatusValue>('all');
+  const [activeTags, setActiveTags] = useState<string[]>([]);
   const [connectionCounts, setConnectionCounts] = useState<ConnectionCounts>({
     incoming: 0,
     outgoing: 0,
@@ -109,10 +101,7 @@ const Dashboard = () => {
     setWorkflowState('idle');
   }, []);
 
-  // Load saved posts on component mount
-  useEffect(() => {
-    loadSavedPosts();
-  }, []);
+  // (Post drafts are now handled by PostComposer context)
 
   // Start listening for heal and restore notifications
   useEffect(() => {
@@ -143,7 +132,8 @@ const Dashboard = () => {
           if (!initialConnectionsFetchInFlight) {
             initialConnectionsFetchInFlight = dbConnector.getConnectionsByStatus();
           }
-          const fetchedConnections = await initialConnectionsFetchInFlight;
+          const inFlight = initialConnectionsFetchInFlight as Promise<Connection[]>;
+          const fetchedConnections = await inFlight;
 
           setConnections(fetchedConnections);
           connectionCache.setMultiple(fetchedConnections);
@@ -224,9 +214,9 @@ const Dashboard = () => {
       connectionChangeTracker.clearChanged();
 
       console.log('Connections fetched successfully:', fetchedConnections.length);
-    } catch (error) {
-      console.error('Error fetching connections:', error);
-      const errorMessage = error instanceof ApiError ? error.message : 'Failed to fetch connections';
+    } catch (err: any) {
+      console.error('Error fetching connections:', err);
+      const errorMessage = err instanceof ApiError ? err.message : 'Failed to fetch connections';
       setConnectionsError(errorMessage);
 
       toast({
@@ -299,15 +289,15 @@ const Dashboard = () => {
         description: "Connection status has been updated successfully.",
         variant: "default"
       });
-    } catch (error) {
-      console.error('Error updating connection status:', error);
+    } catch (err: any) {
+      console.error('Error updating connection status:', err);
 
       // Rollback optimistic update
       setConnections(prev => prev.map(conn =>
         conn.id === connectionId ? { ...conn, status: connections.find(c => c.id === connectionId)?.status || 'possible' } : conn
       ));
 
-      const errorMessage = error instanceof ApiError ? error.message : 'Failed to update connection';
+      const errorMessage = err instanceof ApiError ? err.message : 'Failed to update connection';
       toast({
         title: "Update Failed",
         description: errorMessage,
@@ -325,9 +315,9 @@ const Dashboard = () => {
       // Fetch message history from database
       const messages = await dbConnector.getMessageHistory(connection.id);
       setMessageHistory(messages);
-    } catch (error) {
-      console.error('Error fetching message history:', error);
-      const errorMessage = error instanceof ApiError ? error.message : 'Failed to load message history';
+    } catch (err: any) {
+      console.error('Error fetching message history:', err);
+      const errorMessage = err instanceof ApiError ? err.message : 'Failed to load message history';
 
       toast({
         title: "Failed to Load Messages",
@@ -574,29 +564,33 @@ const Dashboard = () => {
 
   // Filtered connections based on selected status and tab
   const filteredConnections = useMemo(() => {
-    return connections.filter(connection => {
+    // status filter first
+    let list = connections.filter(connection => {
       if (selectedStatus === 'all') {
         return ['incoming', 'outgoing', 'ally'].includes(connection.status);
       }
       return connection.status === selectedStatus;
     });
-  }, [connections, selectedStatus]);
+
+    // if tags active, sort by number of matching tags desc, then name
+    if (activeTags.length > 0) {
+      list = [...list].sort((a, b) => {
+        const aTagsMatch = (a.tags || a.common_interests || []).filter((t: string) => activeTags.includes(t)).length;
+        const bTagsMatch = (b.tags || b.common_interests || []).filter((t: string) => activeTags.includes(t)).length;
+        if (aTagsMatch !== bTagsMatch) return bTagsMatch - aTagsMatch;
+        return `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`);
+      });
+    }
+    return list;
+  }, [connections, selectedStatus, activeTags]);
+
+  const handleTagClick = useCallback((tag: string) => {
+    setActiveTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
+  }, []);
 
   const newConnections = useMemo(() => {
     return connections.filter(connection => connection.status === 'possible');
   }, [connections]);
-
-  const loadSavedPosts = async () => {
-    try {
-      const response = await fetch('/api/posts/drafts');
-      if (response.ok) {
-        const posts = await response.json();
-        setSavedPosts(posts);
-      }
-    } catch (error) {
-      console.error('Error loading saved posts:', error);
-    }
-  };
 
   const handleSignOut = async () => {
     await signOut();
@@ -661,195 +655,7 @@ const Dashboard = () => {
     }
   };
 
-  const handleSaveDraft = async () => {
-    if (!postContent.trim()) {
-      toast({
-        title: "Empty Post",
-        description: "Please enter some content before saving.",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    setIsSavingDraft(true);
-    try {
-      const response = await fetch('/api/posts/drafts', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          content: postContent,
-          title: postContent.substring(0, 50) + (postContent.length > 50 ? '...' : '')
-        })
-      });
-
-      if (response.ok) {
-        const savedPost = await response.json();
-        setSavedPosts(prev => [savedPost, ...prev]);
-        toast({
-          title: "Draft Saved",
-          description: "Your post has been saved as a draft."
-        });
-      } else {
-        throw new Error('Failed to save draft');
-      }
-    } catch (error) {
-      console.error('Error saving draft:', error);
-      toast({
-        title: "Save Failed",
-        description: "Failed to save draft. Please try again.",
-        variant: "destructive"
-      });
-    } finally {
-      setIsSavingDraft(false);
-    }
-  };
-
-  const handleDeleteDraft = async (postId: string) => {
-    try {
-      const response = await fetch(`/api/posts/drafts/${postId}`, {
-        method: 'DELETE',
-      });
-
-      if (response.ok) {
-        setSavedPosts(prev => prev.filter(post => post.id !== postId));
-        toast({
-          title: "Draft Deleted",
-          description: "Draft has been deleted successfully."
-        });
-      } else {
-        throw new Error('Failed to delete draft');
-      }
-    } catch (error) {
-      console.error('Error deleting draft:', error);
-      toast({
-        title: "Delete Failed",
-        description: "Failed to delete draft. Please try again.",
-        variant: "destructive"
-      });
-    }
-  };
-
-  const handleLoadDraft = (post: any) => {
-    setPostContent(post.content);
-  };
-
-  const handlePublishPost = async () => {
-    if (!postContent.trim()) {
-      toast({
-        title: "Empty Post",
-        description: "Please enter some content before publishing.",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    setIsPublishing(true);
-    try {
-      const response = await fetch('/api/posts/publish', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          content: postContent,
-          user_credentials: user
-        })
-      });
-
-      if (response.ok) {
-        toast({
-          title: "Post Published",
-          description: "Your post has been published to LinkedIn successfully."
-        });
-        setPostContent('');
-      } else {
-        throw new Error('Failed to publish post');
-      }
-    } catch (error) {
-      console.error('Error publishing post:', error);
-      toast({
-        title: "Publish Failed",
-        description: "Failed to publish post. Please try again.",
-        variant: "destructive"
-      });
-    } finally {
-      setIsPublishing(false);
-    }
-  };
-
-  const handleGenerateIdeas = async () => {
-    setIsGeneratingIdeas(true);
-    try {
-      const response = await fetch('/api/posts/generate-ideas', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          user_profile: user
-        })
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setPostContent(data.idea || data.content || '');
-        toast({
-          title: "Ideas Generated",
-          description: "Post ideas have been generated and added to the text field."
-        });
-      } else {
-        throw new Error('Failed to generate ideas');
-      }
-    } catch (error) {
-      console.error('Error generating ideas:', error);
-      toast({
-        title: "Generation Failed",
-        description: "Failed to generate ideas. Please try again.",
-        variant: "destructive"
-      });
-    } finally {
-      setIsGeneratingIdeas(false);
-    }
-  };
-
-  const handleResearchTopics = async (query: string) => {
-    setIsResearching(true);
-    try {
-      const response = await fetch('/api/mcp/research', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          query: query
-        })
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.post) {
-          setPostContent(data.post);
-          toast({
-            title: "Research Complete",
-            description: "Research results have been added to the post content."
-          });
-        }
-      } else {
-        throw new Error('Failed to research topics');
-      }
-    } catch (error) {
-      console.error('Error researching topics:', error);
-      toast({
-        title: "Research Failed",
-        description: "Failed to research topics. Please try again.",
-        variant: "destructive"
-      });
-    } finally {
-      setIsResearching(false);
-    }
-  };
+  // Post creation handlers are now managed by PostComposer context
 
   // Removed unused generateMessages navigation helper
 
@@ -1012,6 +818,8 @@ const Dashboard = () => {
                         connections={filteredConnections}
                         onSelect={toggleConnectionSelection}
                         onMessageClick={handleMessageClick}
+                        onTagClick={handleTagClick}
+                        activeTags={activeTags}
                         selectedConnectionId={selectedConnections[0]} // Show first selected as highlighted
                         className="min-h-[500px]"
                         itemHeight={220} // Card height + 24px margin (mb-6)
@@ -1084,33 +892,7 @@ const Dashboard = () => {
           </TabsContent>
 
           <TabsContent value="new-post" className="space-y-6">
-            <div className="grid lg:grid-cols-2 gap-8">
-              <div className="space-y-6">
-                <PostCreator
-                  content={postContent}
-                  onContentChange={setPostContent}
-                  onSaveDraft={handleSaveDraft}
-                  onPublish={handlePublishPost}
-                  isSaving={isSavingDraft}
-                  isPublishing={isPublishing}
-                />
-
-                <PostAIAssistant
-                  onGenerateIdeas={handleGenerateIdeas}
-                  onResearchTopics={handleResearchTopics}
-                  isGenerating={isGeneratingIdeas}
-                  isResearching={isResearching}
-                />
-              </div>
-
-              <div>
-                <SavedPostsList
-                  posts={savedPosts}
-                  onLoadDraft={handleLoadDraft}
-                  onDeleteDraft={handleDeleteDraft}
-                />
-              </div>
-            </div>
+            <PostComposer />
           </TabsContent>
         </Tabs>
       </div>

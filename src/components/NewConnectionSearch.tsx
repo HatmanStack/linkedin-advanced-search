@@ -231,18 +231,18 @@ const NewConnectionSearch = ({
                   </div>
                 ) : (
                   <div className="p-6">
-                    <VirtualConnectionList
-                      connections={sortedConnections}
-                      isNewConnection={true}
-                      onRemove={handleRemoveConnection}
-                      onTagClick={handleTagClick}
-                      activeTags={activeTags}
-                      className="min-h-[80vh]"
-                      itemHeight={260} // Card height + margins for proper spacing
-                      showFilters={true}
-                      sortBy="conversion_likelihood"
-                      sortOrder="desc"
-                    />
+                      <VirtualConnectionList
+                        connections={sortedConnections}
+                        isNewConnection={true}
+                        onRemove={handleRemoveConnection}
+                        onTagClick={handleTagClick}
+                        activeTags={activeTags}
+                        className="min-h-[80vh]"
+                        itemHeight={260} // Card height + margins for proper spacing
+                        showFilters={true}
+                        sortBy="conversion_likelihood"
+                        sortOrder="desc"
+                      />
                   </div>
                 )}
               </>

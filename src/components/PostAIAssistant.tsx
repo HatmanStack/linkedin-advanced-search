@@ -1,7 +1,7 @@
-import { useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { useState, type ChangeEvent, type KeyboardEvent } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
+import { Button } from "./ui/button";
+import { Input } from "./ui/input";
 import { Sparkles, Search } from 'lucide-react';
 
 interface PostAIAssistantProps {
@@ -19,6 +19,7 @@ const PostAIAssistant = ({
 }: PostAIAssistantProps) => {
   const [showResearchInput, setShowResearchInput] = useState(false);
   const [researchQuery, setResearchQuery] = useState('');
+  const [ideaPrompt, setIdeaPrompt] = useState('');
 
   const handleResearchSubmit = () => {
     if (researchQuery.trim()) {
@@ -38,6 +39,13 @@ const PostAIAssistant = ({
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <textarea
+            placeholder="Optional idea prompt..."
+            value={ideaPrompt}
+            onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setIdeaPrompt(e.target.value)}
+            rows={3}
+            className="w-full bg-white/5 border border-white/20 text-white placeholder-slate-400 rounded-md px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-purple-500/40"
+          />
           <Button 
             className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white"
             onClick={onGenerateIdeas}
@@ -59,9 +67,9 @@ const PostAIAssistant = ({
               <Input
                 placeholder="Enter research topic..."
                 value={researchQuery}
-                onChange={(e) => setResearchQuery(e.target.value)}
+                onChange={(e: ChangeEvent<HTMLInputElement>) => setResearchQuery(e.target.value)}
                 className="bg-white/5 border-white/20 text-white placeholder-slate-400"
-                onKeyPress={(e) => e.key === 'Enter' && handleResearchSubmit()}
+                onKeyPress={(e: KeyboardEvent<HTMLInputElement>) => e.key === 'Enter' && handleResearchSubmit()}
               />
               <Button
                 onClick={handleResearchSubmit}
@@ -74,7 +82,7 @@ const PostAIAssistant = ({
             </div>
           )}
           
-          <p className="text-xs text-slate-400">MCP server integration coming soon</p>
+          
         </CardContent>
       </Card>
 

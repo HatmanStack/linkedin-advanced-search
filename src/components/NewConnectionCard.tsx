@@ -13,6 +13,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { User, Building, MapPin, Tag, X, Loader2, CheckCircle, UserPlus } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { lambdaApiService as dbConnector } from "@/services/lambdaApiService";
@@ -38,11 +39,16 @@ import type { Connection, NewConnectionCardProps } from '@/types';
 const NewConnectionCard: React.FC<NewConnectionCardProps> = ({
   connection,
   onRemove,
-  onSelect
+  onSelect,
+  onTagClick,
+  activeTags = []
 }) => {
   const [isRemoving, setIsRemoving] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isTagsOpen, setIsTagsOpen] = useState(false);
+  // Keep the tags "… more" button visible by limiting tags based on character budget
+  const [tagCharBudget, setTagCharBudget] = useState<number>(48);
   const [dontShowAgain, setDontShowAgain] = useState(false);
   const [skipRemoveConfirm, setSkipRemoveConfirm] = useState(false);
   const { toast } = useToast();
@@ -67,6 +73,19 @@ const NewConnectionCard: React.FC<NewConnectionCardProps> = ({
     if (!raw) return null;
     const hasProtocol = /^https?:\/\//i.test(raw);
     return hasProtocol ? raw : `https://www.linkedin.com/in/${raw}`;
+  };
+
+  /**
+   * Handles tag click events, preventing bubbling and delegating to parent
+   */
+  const handleTagClick = (tag: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onTagClick) onTagClick(tag);
+  };
+
+  const handleOpenTags = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsTagsOpen(true);
   };
 
   // Navigate to LinkedIn profile on card click (except when removing or clicking buttons)
@@ -182,6 +201,39 @@ const NewConnectionCard: React.FC<NewConnectionCardProps> = ({
     } catch (e) {
       // ignore storage errors
     }
+  };
+
+  // Adjust tag character budget responsively (match ConnectionCard behavior)
+  useEffect(() => {
+    const calculateBudget = () => {
+      const width = window.innerWidth;
+      let budget = 48;
+      if (width < 380) budget = 18;
+      else if (width < 640) budget = 26;
+      else if (width < 1024) budget = 34;
+      setTagCharBudget(budget);
+    };
+    calculateBudget();
+    window.addEventListener('resize', calculateBudget);
+    return () => window.removeEventListener('resize', calculateBudget);
+  }, []);
+
+  const getVisibleTagsByCharacterBudget = (allTags: string[]) => {
+    if (!allTags || allTags.length === 0) {
+      return { visible: [] as string[], hasMore: false };
+    }
+    const reservedForMore = 6; // approx chars for "+ more"
+    const effectiveBudget = Math.max(0, tagCharBudget - reservedForMore);
+    let used = 0;
+    const visible: string[] = [];
+    for (let i = 0; i < allTags.length; i++) {
+      const tag = allTags[i];
+      const cost = tag.length + 2; // crude width for padding/gap
+      if (used + cost > effectiveBudget) break;
+      visible.push(tag);
+      used += cost;
+    }
+    return { visible, hasMore: visible.length < allTags.length };
   };
 
   /**
@@ -408,29 +460,41 @@ const NewConnectionCard: React.FC<NewConnectionCardProps> = ({
 
 
 
-          {/* Tags - Common Interests */}
-          {connection.common_interests && connection.common_interests.length > 0 && (
-            <div className="flex flex-wrap gap-2 mb-2">
-              <Tag className="h-3 w-3 text-slate-400 mr-1 flex-shrink-0" />
-              {connection.common_interests.slice(0, 3).map((interest: string, index: number) => (
-                <Badge
-                  key={index}
-                  variant="outline"
-                  className="text-xs border-blue-400/30 text-blue-300"
-                >
-                  {interest}
-                </Badge>
-              ))}
-              {connection.common_interests.length > 3 && (
-                <Badge
-                  variant="outline"
-                  className="text-xs border-slate-400/30 text-slate-400"
-                >
-                  +{connection.common_interests.length - 3} more
-                </Badge>
-              )}
-            </div>
-          )}
+          {/* Tags - Single line, visible tag budget + "+N more" like ConnectionCard */}
+          {(connection.tags?.length || connection.common_interests?.length) && (() => {
+            const allTags = (connection.tags || connection.common_interests || []) as string[];
+            const { visible, hasMore } = getVisibleTagsByCharacterBudget(allTags);
+            return (
+              <div className="mb-2">
+                <div className="flex items-center overflow-hidden flex-nowrap gap-2 max-w-full whitespace-nowrap leading-7 min-h-[28px] py-0.5">
+                  <Tag className="h-3 w-3 text-slate-400 mr-1 flex-shrink-0" />
+                  {visible.map((tag: string, index: number) => (
+                    <Badge
+                      key={index}
+                      variant="outline"
+                      className={`cursor-pointer text-xs transition-all duration-200 hover:scale-105 flex-shrink-0 ${
+                        activeTags.includes(tag)
+                          ? 'bg-blue-600 text-white border-blue-500 shadow-lg'
+                          : 'border-blue-400/30 text-blue-300 hover:bg-blue-600/20 hover:border-blue-400'
+                      }`}
+                      onClick={(e: React.MouseEvent) => handleTagClick(tag, e)}
+                    >
+                      {tag}
+                    </Badge>
+                  ))}
+                  {hasMore && (
+                    <Badge
+                      variant="outline"
+                      className="cursor-pointer text-xs border-slate-400/30 text-slate-400 flex-shrink-0 ml-1 transition-all duration-200 hover:scale-[1.2] hover:bg-slate-500/20 hover:border-slate-400/50 hover:text-slate-200"
+                      onClick={(e: React.MouseEvent) => { e.stopPropagation(); setIsTagsOpen(true); }}
+                    >
+                      +{allTags.length - visible.length} more
+                    </Badge>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Date Added */}
           {connection.date_added && (
@@ -440,6 +504,31 @@ const NewConnectionCard: React.FC<NewConnectionCardProps> = ({
           )}
         </div>
       </div>
+
+      {/* Tags Modal */}
+      <Dialog open={isTagsOpen} onOpenChange={setIsTagsOpen}>
+        <DialogContent className="text-slate-100 bg-slate-900 border border-slate-700 shadow-2xl" onClick={(e: React.MouseEvent) => e.stopPropagation()}>
+          <DialogHeader>
+            <DialogTitle className="text-white">Tags</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-wrap gap-2">
+            {(connection.tags || connection.common_interests || []).map((tag: string, index: number) => (
+              <Badge 
+                key={`all-${index}`} 
+                variant="outline" 
+                className={`cursor-pointer text-xs transition-all duration-200 hover:scale-105 ${
+                  activeTags.includes(tag)
+                    ? 'bg-blue-600 text-white border-blue-500 shadow-lg'
+                    : 'border-blue-400/30 text-blue-300 hover:bg-blue-600/20 hover:border-blue-400'
+                }`}
+                onClick={(e: React.MouseEvent) => handleTagClick(tag, e)}
+              >
+                {tag}
+              </Badge>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

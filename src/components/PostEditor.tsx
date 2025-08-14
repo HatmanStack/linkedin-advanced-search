@@ -1,9 +1,9 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
+import { Button } from "./ui/button";
+import { Textarea } from "./ui/textarea";
 import { FileText, Save, Send } from 'lucide-react';
 
-interface PostCreatorProps {
+interface PostEditorProps {
   content: string;
   onContentChange: (content: string) => void;
   onSaveDraft: () => void;
@@ -12,14 +12,14 @@ interface PostCreatorProps {
   isPublishing: boolean;
 }
 
-const PostCreator = ({
+const PostEditor = ({
   content,
   onContentChange,
   onSaveDraft,
   onPublishPost,
   isSavingDraft,
   isPublishing
-}: PostCreatorProps) => {
+}: PostEditorProps) => {
   return (
     <Card className="bg-white/5 backdrop-blur-md border-white/10">
       <CardHeader>
@@ -49,7 +49,7 @@ const PostCreator = ({
               disabled={isSavingDraft}
             >
               <Save className="h-4 w-4 mr-2" />
-              {isSavingDraft ? 'Saving...' : 'Save Draft'}
+              {isSavingDraft ? 'Saving...' : 'Save'}
             </Button>
             <Button
               disabled={!content.trim() || isPublishing}
@@ -66,4 +66,6 @@ const PostCreator = ({
   );
 };
 
-export default PostCreator;
+export default PostEditor;
+
+

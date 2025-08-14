@@ -74,86 +74,75 @@ def lambda_handler(event: Dict[str, Any], context) -> Dict[str, Any]:
                 return create_response(401, {'error': 'Unauthorized: Missing or invalid JWT token'}, _get_origin_from_event(event))
             return get_user_profile(user_id)
 
-        # TEMP DISABLE MODE
-        # This endpoint is temporarily configured to only log the request body and
-        # return a successful response, skipping all normal actions.
-        #
-        # To revert back to normal functioning:
-        # 1) Remove the early return block below (from "Request body:" logging to the return statement)
-        # 2) Uncomment the "Original handler logic (disabled)" block further below
-        # 3) Deploy the Lambda
-
-        # Parse request body (if any) and log it, then short-circuit with success
+        # Parse request body (if any)
         body = json.loads(event.get('body', '{}')) if event.get('body') else {}
-        try:
-            logger.info(f"Request body: {json.dumps(body)[:2000]}")
-        except Exception:
-            logger.info("Request body received (non-serializable)")
+        operation = body.get('operation')
 
-        origin = _get_origin_from_event(event)
-        return create_response(200, {
-            'success': True,
-            'message': 'Request received',
-            'echo': body
-        }, origin)
-
-        # --- Original handler logic (disabled) ---
         # Extract user ID from JWT token (same pattern as edge-processing)
-        # user_id = event.get('requestContext', {}).get('authorizer', {}).get('claims', {}).get('sub')
-        # if not user_id:
-        #     logger.error("No user ID found in JWT token")
-        #     return create_response(401, {'error': 'Unauthorized: Missing or invalid JWT token'})
-        #
-        # logger.info(f"Processing request for user: {user_id}")
-        #
-        # # Parse request body (if any)
-        # body = json.loads(event.get('body', '{}')) if event.get('body') else {}
-        # operation = body.get('operation')
-        #
-        # # 1) HTTP-style routing for /profile
-        # if http_method in ('GET', 'PUT'):
-        #     if http_method == 'GET':
-        #         return get_user_profile(user_id)
-        #     if http_method == 'PUT':
-        #         # Accept full/partial profile + optional linkedin_credentials
-        #         return update_user_profile(user_id, body)
-        #
-        # # 2) Operation-based routing (backward compatible)
-        # if not operation:
-        #     return create_response(400, {'error': 'Missing operation field in request body'})
-        #
-        # # Operations that require a profileId
-        # if operation in ('get_details', 'create'):
-        #     profile_id = body.get('profileId')
-        #     if not profile_id:
-        #         return create_response(400, {'error': 'profileId is required'})
-        #     profile_id_b64 = base64.urlsafe_b64encode(profile_id.encode()).decode()
-        #     body['profileId_b64'] = profile_id_b64
-        #
-        # if operation == 'get_details':
-        #     return get_profile_details(user_id, body)
-        # elif operation == 'create':
-        #     return create_bad_contact_profile(user_id, body)
-        # elif operation == 'get_user_settings':
-        #     return get_user_settings(user_id)
-        # elif operation == 'update_user_settings':
-        #     linkedin_credentials = body.get('linkedin_credentials')
-        #     if linkedin_credentials is None:
-        #         return create_response(400, {'error': 'Missing required field: linkedin_credentials'})
-        #     return update_user_settings(user_id, linkedin_credentials)
-        # elif operation == 'get_user_profile':
-        #     return get_user_profile(user_id)
-        # elif operation == 'update_user_profile':
-        #     return update_user_profile(user_id, body)
-        # else:
-        #     return create_response(400, {
-        #         'error': f'Unsupported operation: {operation}',
-        #         'supported_operations': [
-        #             'get_details', 'create',
-        #             'get_user_settings', 'update_user_settings',
-        #             'get_user_profile', 'update_user_profile'
-        #         ]
-        #     })
+        user_id = event.get('requestContext', {}).get('authorizer', {}).get('claims', {}).get('sub')
+        if not user_id:
+            logger.error("No user ID found in JWT token")
+            return create_response(401, {'error': 'Unauthorized: Missing or invalid JWT token'}, _get_origin_from_event(event))
+
+        logger.info(f"Processing request for user: {user_id}")
+
+        # 1) HTTP-style routing for /profiles
+        if http_method in ('GET', 'PUT'):
+            if http_method == 'GET':
+                return get_user_profile(user_id)
+            if http_method == 'PUT':
+                # Accept full/partial profile + optional linkedin_credentials
+                if 'unsent_post_content' in body:
+                    try:
+                        # Log only presence/length for debugging; avoid content logging
+                        upc = body.get('unsent_post_content')
+                        logger.info(f"unsent_post_content present, length={len(upc) if isinstance(upc, str) else 'n/a'}")
+                    except Exception:
+                        pass
+                return update_user_profile(user_id, body)
+
+        # 2) Operation-based routing (backward compatible)
+        if not operation:
+            return create_response(400, {'error': 'Missing operation field in request body'}, _get_origin_from_event(event))
+
+        # Operations that require a profileId
+        if operation in ('get_details', 'create'):
+            profile_id = body.get('profileId')
+            if not profile_id:
+                return create_response(400, {'error': 'profileId is required'}, _get_origin_from_event(event))
+            profile_id_b64 = base64.urlsafe_b64encode(profile_id.encode()).decode()
+            body['profileId_b64'] = profile_id_b64
+
+        if operation == 'get_details':
+            return get_profile_details(user_id, body)
+        elif operation == 'create':
+            return create_bad_contact_profile(user_id, body)
+        elif operation == 'get_user_settings':
+            return get_user_settings(user_id)
+        elif operation == 'update_user_settings':
+            linkedin_credentials = body.get('linkedin_credentials')
+            if linkedin_credentials is None:
+                return create_response(400, {'error': 'Missing required field: linkedin_credentials'}, _get_origin_from_event(event))
+            return update_user_settings(user_id, linkedin_credentials)
+        elif operation == 'get_user_profile':
+            return get_user_profile(user_id)
+        elif operation == 'update_user_profile':
+            if 'unsent_post_content' in body:
+                try:
+                    upc = body.get('unsent_post_content')
+                    logger.info(f"unsent_post_content present, length={len(upc) if isinstance(upc, str) else 'n/a'}")
+                except Exception:
+                    pass
+            return update_user_profile(user_id, body)
+        else:
+            return create_response(400, {
+                'error': f'Unsupported operation: {operation}',
+                'supported_operations': [
+                    'get_details', 'create',
+                    'get_user_settings', 'update_user_settings',
+                    'get_user_profile', 'update_user_profile'
+                ]
+            }, _get_origin_from_event(event))
 
     except Exception as e:
         logger.error(f"Error processing request: {str(e)}")
@@ -312,6 +301,8 @@ def get_user_profile(user_id: str) -> Dict[str, Any]:
             'current_position': profile_item.get('current_position', ''),
             'company': profile_item.get('company', ''),
             'interests': profile_item.get('interests', []),
+            # Include unsent post content for client-side draft restore
+            'unsent_post_content': profile_item.get('unsent_post_content', ''),
             'created_at': profile_item.get('created_at', ''),
             'updated_at': profile_item.get('updated_at', ''),
         }
@@ -336,7 +327,9 @@ def update_user_profile(user_id: str, body: Dict[str, Any]) -> Dict[str, Any]:
         profile_updates = {}
         allowed_fields = [
             'first_name', 'last_name', 'headline', 'profile_url', 'profile_picture_url',
-            'location', 'summary', 'industry', 'current_position', 'company', 'interests'
+            'location', 'summary', 'industry', 'current_position', 'company', 'interests',
+            # New field to persist client draft text (non-sensitive)
+            'unsent_post_content'
         ]
         for field in allowed_fields:
             if field in body and body[field] is not None:
