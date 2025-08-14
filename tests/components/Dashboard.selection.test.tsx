@@ -53,7 +53,7 @@ const mockConnections = [
     last_name: 'Doe',
     position: 'Software Engineer',
     company: 'TechCorp',
-    status: 'allies',
+    status: 'ally',
     messages: 5,
     date_added: '2024-01-01'
   },
@@ -63,7 +63,7 @@ const mockConnections = [
     last_name: 'Smith',
     position: 'Product Manager',
     company: 'StartupInc',
-    status: 'allies',
+    status: 'ally',
     messages: 3,
     date_added: '2024-01-02'
   },
@@ -157,7 +157,7 @@ describe('Dashboard Connection Selection', () => {
       expect(screen.getByText('John Doe')).toBeInTheDocument();
     });
     
-    // Find and click a checkbox for an allies connection
+    // Find and click a checkbox for an ally connection
     const johnCheckbox = screen.getByLabelText('Select John Doe for messaging');
     fireEvent.click(johnCheckbox);
     
@@ -189,14 +189,14 @@ describe('Dashboard Connection Selection', () => {
     // Now the button should be enabled
     expect(screen.getByText(/Generate Personalized Messages/)).not.toBeDisabled();
   }); 
- it('should only show checkboxes for allies status connections', async () => {
+it('should only show checkboxes for ally status connections', async () => {
     renderDashboard();
     
     await waitFor(() => {
       expect(screen.getByText('John Doe')).toBeInTheDocument();
     });
     
-    // Should have checkboxes for allies connections (John and Jane)
+    // Should have checkboxes for ally connections (John and Jane)
     expect(screen.getByLabelText('Select John Doe for messaging')).toBeInTheDocument();
     expect(screen.getByLabelText('Select Jane Smith for messaging')).toBeInTheDocument();
     

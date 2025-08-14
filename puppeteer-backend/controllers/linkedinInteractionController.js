@@ -273,7 +273,7 @@ export class LinkedInInteractionController {
       // Send connection request via service layer (single workflow)
       logger.info('Attempting to send LinkedIn connection request', { requestId, profileId, userId });
 
-      const result = await linkedinService.executeConnectionWorkflow(profileId, '', {});
+      const result = await linkedinService.executeConnectionWorkflow(profileId, '', { jwtToken: req.jwtToken });
 
       // Return success response
       res.json({

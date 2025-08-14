@@ -144,7 +144,7 @@ export type ConnectionStatus =
   | 'possible'   // Potential connection not yet contacted
   | 'incoming'   // Connection request received from them
   | 'outgoing'   // Connection request sent to them
-  | 'allies'     // Established connection
+  | 'ally'     // Established connection
   | 'processed'; // Removed from possible connections
 
 /**
@@ -162,7 +162,7 @@ export type MessageSender = 'user' | 'connection';
  * @description Valid values for the status picker component filter.
  * Includes 'all' for showing all connection types.
  */
-export type StatusValue = 'all' | 'incoming' | 'outgoing' | 'allies';
+export type StatusValue = 'all' | 'incoming' | 'outgoing' | 'ally';
 
 /**
  * Error severity levels
@@ -352,7 +352,7 @@ export interface ConnectionCardProps {
   /** Whether to show checkbox for connection selection */
   showCheckbox?: boolean;
   
-  /** Whether the checkbox is enabled (only for allies status) */
+  /** Whether the checkbox is enabled (only for ally status) */
   isCheckboxEnabled?: boolean;
   
   /** Whether the checkbox is checked */
@@ -372,8 +372,8 @@ export interface NewConnectionCardProps {
   /** Connection data to display (must have status 'possible') */
   connection: Connection;
   
-  /** Callback when remove button is clicked */
-  onRemove?: (connectionId: string) => void;
+  /** Callback when status-changing actions occur (remove/connect) */
+  onRemove?: (connectionId: string, newStatus: ConnectionStatus) => void;
   
   /** Callback when card is selected */
   onSelect?: (connection: Connection) => void;
@@ -467,7 +467,7 @@ export interface ConnectionCounts {
   outgoing: number;
   
   /** Number of established connections */
-  allies: number;
+  ally: number;
   
   /** Total number of connections across all statuses */
   total: number;

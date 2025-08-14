@@ -4,14 +4,14 @@ import ConnectionCard from './ConnectionCard';
 import NewConnectionCard from './NewConnectionCard';
 import ConnectionFiltersComponent from './ConnectionFilters';
 import { filterConnections, sortConnections } from '@/utils/connectionFiltering';
-import type { Connection, ConnectionFilters } from '@/types';
+import type { Connection, ConnectionFilters, ConnectionStatus } from '@/types';
 
 interface VirtualConnectionListProps {
   connections: Connection[];
   isNewConnection?: boolean;
   onSelect?: (connectionId: string) => void;
   onNewConnectionClick?: (connection: Connection) => void;
-  onRemove?: (connectionId: string) => void;
+  onRemove?: (connectionId: string, newStatus: ConnectionStatus) => void;
   onTagClick?: (tag: string) => void;
   onMessageClick?: (connection: Connection) => void;
   activeTags?: string[];
@@ -37,7 +37,7 @@ interface ListItemProps {
     isNewConnection?: boolean;
     onSelect?: (connectionId: string) => void;
     onNewConnectionClick?: (connection: Connection) => void;
-    onRemove?: (connectionId: string) => void;
+    onRemove?: (connectionId: string, newStatus: ConnectionStatus) => void;
     onTagClick?: (tag: string) => void;
     onMessageClick?: (connection: Connection) => void;
     activeTags?: string[];
@@ -90,7 +90,7 @@ const ListItem: React.FC<ListItemProps> = ({ index, style, data }) => {
           onMessageClick={data.onMessageClick}
           activeTags={activeTags}
           showCheckbox={showCheckboxes}
-          isCheckboxEnabled={connection.status === 'allies'}
+          isCheckboxEnabled={connection.status === 'ally'}
           isChecked={selectedConnections?.includes(connection.id) || false}
           onCheckboxChange={onCheckboxChange}
         />
@@ -129,16 +129,11 @@ const VirtualConnectionList: React.FC<VirtualConnectionListProps> = ({
   const handleResize = useCallback(() => {
     if (containerRef) {
       const rect = containerRef.getBoundingClientRect();
-      const availableHeight = window.innerHeight - rect.top - 100; // Leave some margin
+      const availableHeight = window.innerHeight - rect.top - 40; // Reduced margin for fuller viewport usage
       
-      if (isNewConnection) {
-        // For new connections, use at least 80vh and allow it to grow larger
-        const minHeight = Math.max(window.innerHeight * 0.8, 600);
-        setContainerHeight(Math.max(minHeight, availableHeight));
-      } else {
-        // For regular connections, keep the original behavior
-        setContainerHeight(Math.max(400, Math.min(800, availableHeight)));
-      }
+      // For both new and regular connections, use a generous viewport height similar to NewConnectionSearch
+      const minHeight = Math.max(window.innerHeight * 0.9, 700);
+      setContainerHeight(Math.max(minHeight, availableHeight));
     }
   }, [containerRef, isNewConnection]);
 
@@ -155,8 +150,12 @@ const VirtualConnectionList: React.FC<VirtualConnectionListProps> = ({
     if (removedIds.size > 0) {
       filtered = filtered.filter((c: Connection) => !removedIds.has(c.id));
     }
+    // When tags are active upstream, preserve the provided order (parent handles tag-based sorting)
+    if (activeTags && activeTags.length > 0) {
+      return filtered;
+    }
     return sortConnections(filtered, sortBy, sortOrder);
-  }, [connections, filters, sortBy, sortOrder, removedIds]);
+  }, [connections, filters, sortBy, sortOrder, removedIds, activeTags]);
 
   // Handle filter changes
   const handleFiltersChange = useCallback((newFilters: ConnectionFilters) => {
@@ -164,13 +163,13 @@ const VirtualConnectionList: React.FC<VirtualConnectionListProps> = ({
   }, []);
 
   // Wrap onRemove to also update local removedIds so the list re-renders immediately
-  const handleRemoveInternal = useCallback((connectionId: string) => {
+  const handleRemoveInternal = useCallback((connectionId: string, newStatus: ConnectionStatus) => {
     setRemovedIds(prev => {
       const next = new Set(prev);
       next.add(connectionId);
       return next;
     });
-    if (onRemove) onRemove(connectionId);
+    if (onRemove) onRemove(connectionId, newStatus);
   }, [onRemove]);
 
   // Memoize the data object to prevent unnecessary re-renders

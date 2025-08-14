@@ -1,12 +1,10 @@
+import type React from 'react';
 import { useState, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { UserPlus, Building, User, Search, Filter, X, Loader2, AlertCircle } from 'lucide-react';
+import { UserPlus, Building, User, Search, X, Loader2, AlertCircle } from 'lucide-react';
 import VirtualConnectionList from './VirtualConnectionList';
-import { useToast } from "@/hooks/use-toast";
-import { lambdaApiService as dbConnector, ApiError } from '@/services/lambdaApiService';
 import { connectionCache } from '@/utils/connectionCache';
 
 interface NewConnection {
@@ -22,7 +20,7 @@ interface NewConnection {
   linkedin_url?: string;
   isFakeData?: boolean;
   last_activity_summary?: string;
-  status?: 'possible' | 'incoming' | 'outgoing' | 'allies';
+  status?: 'possible' | 'incoming' | 'outgoing' | 'ally';
   conversion_likelihood?: number;
 }
 
@@ -34,6 +32,7 @@ interface NewConnectionSearchProps {
   connectionsLoading?: boolean;
   connectionsError?: string | null;
   onRefresh?: () => void;
+  onRemoveConnection?: (connectionId: string, newStatus: 'processed' | 'outgoing') => void;
 }
 
 const NewConnectionSearch = ({
@@ -43,9 +42,9 @@ const NewConnectionSearch = ({
   userId,
   connectionsLoading = false,
   connectionsError = null,
-  onRefresh
+  onRefresh,
+  onRemoveConnection
 }: NewConnectionSearchProps) => {
-  const { toast } = useToast();
   const [searchFilters, setSearchFilters] = useState({
     company: '',
     job: '',
@@ -56,14 +55,14 @@ const NewConnectionSearch = ({
   // Use real data from props instead of fake data
   const displayResults = searchResults.length > 0 ? searchResults : [];
 
-  // Get all unique tags from connections
-  const allTags = useMemo(() => {
-    const tagSet = new Set<string>();
-    displayResults.forEach(connection => {
-      (connection.tags || connection.common_interests || []).forEach(tag => tagSet.add(tag));
-    });
-    return Array.from(tagSet).sort();
-  }, [displayResults]);
+  // Get all unique tags from connections (reserved for future filter UI)
+  // const allTags = useMemo(() => {
+  //   const tagSet = new Set<string>();
+  //   displayResults.forEach(connection => {
+  //     (connection.tags || connection.common_interests || []).forEach(tag => tagSet.add(tag));
+  //   });
+  //   return Array.from(tagSet).sort();
+  // }, [displayResults]);
 
   // Sort connections based on active tags
   const sortedConnections = useMemo(() => {
@@ -98,34 +97,18 @@ const NewConnectionSearch = ({
   };
 
   // Handle connection removal with optimistic updates
-  const handleRemoveConnection = useCallback(async (connectionId: string) => {
+  const handleRemoveConnection = useCallback(async (connectionId: string, newStatus: 'processed' | 'outgoing') => {
     try {
-      // Update status from 'possible' to 'processed' using DBConnector
-      await dbConnector.updateConnectionStatus(connectionId, 'processed');
-
-      // Remove from cache so it disappears immediately
-      connectionCache.delete(connectionId);
-
-      // Show success feedback
-      toast({
-        title: "Connection Removed",
-        description: "Connection has been removed from new connections.",
-        variant: "default",
-      });
-
-      // No refetch needed; UI is updated via cache/state above
+      // API call is performed in the card component; here we just update UI/cache to trigger re-render
+      connectionCache.update(connectionId, { status: newStatus });
+      // Inform parent (Dashboard) so its source-of-truth updates and persists across tab switches
+      if (onRemoveConnection) {
+        onRemoveConnection(connectionId, newStatus);
+      }
     } catch (error) {
       console.error('Error removing connection:', error);
-      const errorMessage = error instanceof ApiError ? error.message : 'Failed to remove connection';
-
-      // Show error feedback
-      toast({
-        title: "Remove Failed",
-        description: errorMessage,
-        variant: "destructive",
-      });
     }
-  }, [toast, onRefresh]);
+  }, [onRemoveConnection]);
 
   // Handle tag clicks for filtering
   const handleTagClick = useCallback((tag: string) => {
@@ -175,7 +158,7 @@ const NewConnectionSearch = ({
                 <Input
                   placeholder="Company"
                   value={searchFilters.company}
-                  onChange={(e) => setSearchFilters(prev => ({ ...prev, company: e.target.value }))}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchFilters(prev => ({ ...prev, company: e.target.value }))}
                   className="pl-10 bg-white/5 border-white/20 text-white placeholder-slate-400"
                 />
               </div>
@@ -184,7 +167,7 @@ const NewConnectionSearch = ({
                 <Input
                   placeholder="Job Title"
                   value={searchFilters.job}
-                  onChange={(e) => setSearchFilters(prev => ({ ...prev, job: e.target.value }))}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchFilters(prev => ({ ...prev, job: e.target.value }))}
                   className="pl-10 bg-white/5 border-white/20 text-white placeholder-slate-400"
                 />
               </div>
@@ -193,7 +176,7 @@ const NewConnectionSearch = ({
                 <Input
                   placeholder="Location"
                   value={searchFilters.location}
-                  onChange={(e) => setSearchFilters(prev => ({ ...prev, location: e.target.value }))}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchFilters(prev => ({ ...prev, location: e.target.value }))}
                   className="pl-10 bg-white/5 border-white/20 text-white placeholder-slate-400"
                 />
               </div>

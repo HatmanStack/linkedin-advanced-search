@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import VirtualConnectionList from '@/components/VirtualConnectionList';
 import { useConnections } from '@/hooks/useConnections';
 import { useProfileInit } from '@/hooks/useProfileInit';
 import { Connection } from '@/services/puppeteerApiService';
@@ -122,6 +123,24 @@ const ConnectionsList: React.FC<ConnectionsListProps> = ({
     initializationError, 
     initializeProfile 
   } = useProfileInit();
+  
+  const [containerHeight, setContainerHeight] = useState(600);
+  const [containerRef, setContainerRef] = useState<HTMLDivElement | null>(null);
+  
+  const handleResize = useCallback(() => {
+    if (containerRef) {
+      const rect = containerRef.getBoundingClientRect();
+      const availableHeight = window.innerHeight - rect.top - 40;
+      const minHeight = Math.max(window.innerHeight * 0.9, 700);
+      setContainerHeight(Math.max(minHeight, availableHeight));
+    }
+  }, [containerRef]);
+  
+  useEffect(() => {
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [handleResize]);
   
   // Use fake data if no real connections are available
   const displayConnections = connections.length > 0 ? connections : generateFakeConnections();
@@ -292,29 +311,36 @@ const ConnectionsList: React.FC<ConnectionsListProps> = ({
             </div>
           </div>
 
-          {/* Fake Connections using ConnectionCard */}
-          <div className="h-[100vh] overflow-y-auto">
-            <div className="space-y-4">
-              {fakeConnections.map((connection) => (
-                <ConnectionCard
-                  key={connection.connection_id}
-                  connection={{
-                    ...connection,
-                    id: connection.connection_id,
-                    position: connection.position || '',
-                    company: connection.company || '',
-                    recent_activity: connection.last_activity_summary,
-                    common_interests: connection.tags,
-                    messages: connection.message_count,
-                    date_added: connection.created_at
-                  }}
-                  isSelected={selectedConnections.includes(connection.connection_id)}
-                  onSelect={handleConnectionClick}
-                  onTagClick={handleTagClick}
-                  activeTags={activeTags}
-                />
-              ))}
-            </div>
+          {/* Fake Connections using VirtualConnectionList for consistent spacing/VH */}
+          <div ref={setContainerRef} style={{ height: containerHeight }} className="overflow-y-auto">
+            <VirtualConnectionList
+              connections={generateFakeConnections().map((c) => ({
+                id: c.connection_id,
+                first_name: c.first_name,
+                last_name: c.last_name,
+                position: c.position || '',
+                company: c.company || '',
+                last_action_summary: c.last_activity_summary,
+                recent_activity: c.last_activity_summary,
+                common_interests: c.tags,
+                tags: c.tags,
+                messages: c.message_count,
+                date_added: c.created_at,
+                status: c.connection_status === 'connected' ? 'ally' : c.connection_status === 'pending' ? 'incoming' : 'ally',
+                isFakeData: true
+              }))}
+              onSelect={handleConnectionClick}
+              onTagClick={handleTagClick}
+              activeTags={activeTags}
+              className="min-h-[80vh]"
+              itemHeight={220}
+              showFilters={false}
+              sortBy="name"
+              sortOrder="asc"
+              showCheckboxes={true}
+              selectedConnections={selectedConnections}
+              onCheckboxChange={(connectionId: string, checked: boolean) => handleSelectionToggle(connectionId)}
+            />
           </div>
         </CardContent>
       </Card>
@@ -418,37 +444,36 @@ const ConnectionsList: React.FC<ConnectionsListProps> = ({
           )}
         </div>
 
-        {/* Connections List */}
-        <div className="h-[100vh] overflow-y-auto">
-          {filteredConnections.length === 0 ? (
-            <div className="text-center py-8 text-slate-400">
-              <Users className="h-12 w-12 mx-auto mb-4 text-slate-500" />
-              <p>No connections found</p>
-              <p className="text-sm">Start by searching for new connections</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {filteredConnections.map((connection) => (
-                <ConnectionCard
-                  key={connection.connection_id}
-                  connection={{
-                    ...connection,
-                    id: connection.connection_id,
-                    position: connection.position || '',
-                    company: connection.company || '',
-                    recent_activity: connection.last_activity_summary,
-                    common_interests: connection.tags,
-                    messages: connection.message_count,
-                    date_added: connection.created_at
-                  }}
-                  isSelected={selectedConnections.includes(connection.connection_id)}
-                  onSelect={handleConnectionClick}
-                  onTagClick={handleTagClick}
-                  activeTags={activeTags}
-                />
-              ))}
-            </div>
-          )}
+        {/* Connections List using VirtualConnectionList for consistent spacing/VH */}
+        <div ref={setContainerRef} style={{ height: containerHeight }} className="overflow-y-auto">
+          <VirtualConnectionList
+            connections={filteredConnections.map((c) => ({
+              id: c.connection_id,
+              first_name: c.first_name,
+              last_name: c.last_name,
+              position: c.position || '',
+              company: c.company || '',
+              location: c.location,
+              last_action_summary: c.last_activity_summary,
+              recent_activity: c.last_activity_summary,
+              common_interests: c.tags,
+              tags: c.tags,
+              messages: c.message_count,
+              date_added: c.created_at,
+              status: c.connection_status === 'connected' ? 'ally' : c.connection_status === 'pending' ? 'incoming' : 'ally'
+            }))}
+            onSelect={handleConnectionClick}
+            onTagClick={handleTagClick}
+            activeTags={activeTags}
+            className="min-h-[80vh]"
+            itemHeight={220}
+            showFilters={false}
+            sortBy="name"
+            sortOrder="asc"
+            showCheckboxes={true}
+            selectedConnections={selectedConnections}
+            onCheckboxChange={(connectionId: string, checked: boolean) => handleSelectionToggle(connectionId)}
+          />
         </div>
       </CardContent>
     </Card>

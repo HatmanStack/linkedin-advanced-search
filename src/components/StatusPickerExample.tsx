@@ -13,7 +13,7 @@ const StatusPickerExample: React.FC = () => {
   const connectionCounts: ConnectionCounts = {
     incoming: 8,    // Pending connections
     outgoing: 5,    // Sent connection requests
-    allies: 23,     // Established connections
+    ally: 23,     // Established connections
     total: 36       // Total of all connection types
   };
 

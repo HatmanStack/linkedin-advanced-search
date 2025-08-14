@@ -138,7 +138,7 @@ describe('MessageModal Component', () => {
     company: 'TechCorp',
     location: 'San Francisco, CA',
     headline: 'Building great software',
-    status: 'allies',
+    status: 'ally',
     messages: 3,
     message_history: [
       {

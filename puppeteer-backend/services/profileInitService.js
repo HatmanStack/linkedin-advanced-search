@@ -5,7 +5,7 @@ import RandomHelpers from '../utils/randomHelpers.js';
 import fs from 'fs/promises';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
-import { ensureEdge } from '../utils/edgeManager.js';
+
 
 export class ProfileInitService {
   constructor(puppeteerService, linkedInService, linkedInContactService, dynamoDBService) {
@@ -209,14 +209,14 @@ export class ProfileInitService {
       // Update total connections in state from master index
       if (masterIndex.metadata) {
         state.totalConnections = {
-          allies: masterIndex.metadata.totalAllies || 0,
+          ally: masterIndex.metadata.totalAllies || 0,
           incoming: masterIndex.metadata.totalIncoming || 0,
           outgoing: masterIndex.metadata.totalOutgoing || 0
         };
       }
 
       // Process each connection type
-      const connectionTypes = ['allies', 'outgoing', 'incoming'];
+      const connectionTypes = ['ally', 'outgoing', 'incoming'];
       const results = {
         processed: 0,
         skipped: 0,
@@ -303,18 +303,18 @@ export class ProfileInitService {
       const masterIndex = {
         metadata: {
           capturedAt: new Date().toISOString(),
-          totalAllies: connectionCounts.allies,
+          totalAllies: connectionCounts.ally || connectionCounts.allies,
           totalIncoming: connectionCounts.incoming,
           totalOutgoing: connectionCounts.outgoing,
           batchSize: this.batchSize
         },
         files: {
-          alliesConnections: [],
+          allyConnections: [],
           incomingConnections: [],
           outgoingConnections: []
         },
         processingState: {
-          currentList: 'allies',
+          currentList: 'ally',
           currentBatch: 0,
           currentIndex: 0,
           completedBatches: []
@@ -363,7 +363,7 @@ export class ProfileInitService {
   }
 
   /**
-   * Process connections for a specific type (allies, incoming, outgoing)
+   * Process connections for a specific type (ally, incoming, outgoing)
    * @param {string} connectionType - Type of connections to process
    * @param {Object} masterIndex - Master index data
    * @param {Object} state - Profile initialization state
@@ -400,7 +400,7 @@ export class ProfileInitService {
           totalInvitations: invitationsData.totalInvitations
         };
       } else {
-        // Handle regular connections (allies)
+        // Handle regular connections (ally)
         connections = await this._getConnectionList(connectionType, masterIndex, state);
       }
 
@@ -625,7 +625,7 @@ export class ProfileInitService {
 
           // Process the connection (create database entry)
           // Extract connection type from batch data or connection status
-          const connectionType = batchData.connectionType || connectionStatus || 'allies';
+          const connectionType = batchData.connectionType || connectionStatus || 'ally';
           await this._processConnection(connectionProfileId, state, connectionType);
 
           const connectionDuration = Date.now() - connectionStartTime;
@@ -804,7 +804,7 @@ export class ProfileInitService {
    * Process a single connection profile
    * @param {string} connectionProfileId - LinkedIn profile ID
    * @param {Object} state - Profile initialization state
-   * @param {string} connectionType - Type of connection (allies, incoming, outgoing)
+   * @param {string} connectionType - Type of connection (ally, incoming, outgoing)
    */
   async _processConnection(connectionProfileId, state, connectionType) {
     const requestId = state.requestId || 'unknown';
@@ -857,7 +857,7 @@ export class ProfileInitService {
         });
 
         // Use central edge manager to create edge for this connection
-        databaseResult = await ensureEdge(this.dynamoDBService, connectionProfileId, connectionType);
+        databaseResult = await this.dynamoDBService.upsertEdgeStatus(connectionProfileId, connectionType);
 
         const processingDuration = Date.now() - startTime;
         logger.debug(`Successfully processed connection: ${connectionProfileId}`, {
@@ -963,7 +963,7 @@ export class ProfileInitService {
    * @param {string} tempDir - Temporary directory for screenshots
    * @returns {Promise<Object>} Screenshot capture result
    */
-  async captureProfileScreenshot(profileId, tempDir, status = 'allies') {
+  async captureProfileScreenshot(profileId, tempDir, status = 'ally') {
     try {
       logger.info(`Capturing profile screenshot for: ${profileId}`);
 
@@ -988,7 +988,7 @@ export class ProfileInitService {
       logger.info('Getting connection counts from LinkedIn');
 
       const counts = {
-        allies: 0,
+        ally: 0,
         incoming: 0,
         outgoing: 0
       };
@@ -1025,8 +1025,8 @@ export class ProfileInitService {
           return connectionItems.length;
         });
 
-        counts.allies = allConnectionsCount || 0;
-        logger.info(`Found ${counts.allies} total allies connections`);
+        counts.ally = allConnectionsCount || 0;
+        logger.info(`Found ${counts.ally} total ally connections`);
 
       } catch (error) {
         logger.warn('Could not extract connection count from page:', error.message);
@@ -1079,7 +1079,7 @@ export class ProfileInitService {
 
   /**
    * Get connection list for a specific type by navigating to LinkedIn and extracting profile IDs
-   * @param {string} connectionType - Type of connections (allies)
+   * @param {string} connectionType - Type of connections (ally)
    * @param {Object} masterIndex - Master index for file management
    * @returns {Promise<Array>} Array of connection profile IDs
    */
@@ -1118,7 +1118,7 @@ export class ProfileInitService {
 
   /**
    * Load existing links from saved files for healing recovery
-   * @param {string} connectionType - Type of connections (allies, incoming, outgoing)
+   * @param {string} connectionType - Type of connections (ally, incoming, outgoing)
    * @param {Object} masterIndex - Master index containing file references
    * @returns {Promise<Array>} Array of existing links
    */
@@ -1232,7 +1232,7 @@ export class ProfileInitService {
   /**
    * Save links to file with proper file management and master index updates
    * @param {Array} links - Array of links to save
-   * @param {string} connectionType - Type of connections (allies, incoming, outgoing)
+   * @param {string} connectionType - Type of connections (ally, incoming, outgoing)
    * @param {number} fileIndex - Current file index
    * @param {Object} masterIndex - Master index for tracking files
    */

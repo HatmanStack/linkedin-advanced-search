@@ -109,7 +109,7 @@ export function isValidUrl(value: unknown): value is string {
  */
 export function isConnectionStatus(value: unknown): value is ConnectionStatus {
   return typeof value === 'string' && 
-    ['possible', 'incoming', 'outgoing', 'allies', 'processed'].includes(value);
+    ['possible', 'incoming', 'outgoing', 'ally', 'processed'].includes(value);
 }
 
 /**
@@ -130,7 +130,7 @@ export function isMessageSender(value: unknown): value is MessageSender {
  */
 export function isStatusValue(value: unknown): value is StatusValue {
   return typeof value === 'string' && 
-    ['all', 'incoming', 'outgoing', 'allies'].includes(value);
+    ['all', 'incoming', 'outgoing', 'ally'].includes(value);
 }
 
 // =============================================================================
@@ -261,7 +261,7 @@ export function isConnectionCounts(value: unknown): value is ConnectionCounts {
   return (
     isValidNumber(obj.incoming) && obj.incoming >= 0 &&
     isValidNumber(obj.outgoing) && obj.outgoing >= 0 &&
-    isValidNumber(obj.allies) && obj.allies >= 0 &&
+    isValidNumber(obj.ally) && obj.ally >= 0 &&
     isValidNumber(obj.total) && obj.total >= 0 &&
     (obj.possible === undefined || (isValidNumber(obj.possible) && obj.possible >= 0))
   );

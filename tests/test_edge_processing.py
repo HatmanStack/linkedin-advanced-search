@@ -20,7 +20,7 @@ from datetime import datetime
 from lambda_function import lambda_handler
 
 
-def create_mock_api_gateway_event(linkedin_profile, user_sub, operation="create", updates=None):
+def create_mock_api_gateway_event(linkedin_profile, user_sub, operation="upsert_status", updates=None):
     """Create a mock API Gateway event for testing"""
     body_data = {
         "linkedinurl": linkedin_profile,
@@ -65,7 +65,7 @@ def create_mock_lambda_context():
     return MockContext()
 
 
-def test_single_operation(linkedin_profile, user_sub, operation="create", updates=None):
+def test_single_operation(linkedin_profile, user_sub, operation="upsert_status", updates=None):
     """Test processing a single LinkedIn profile with specific operation"""
     print(f"\n{'='*60}")
     print(f"Testing Profile: {linkedin_profile}")

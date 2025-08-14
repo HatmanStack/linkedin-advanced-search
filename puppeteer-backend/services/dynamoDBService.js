@@ -15,6 +15,30 @@ class DynamoDBService {
     }
 
     /**
+     * Public: Single entrypoint to upsert edge status (create if missing, update otherwise)
+     */
+    async upsertEdgeStatus(profileId, status, extraUpdates = {}) {
+        const now = new Date().toISOString();
+        return await this._post('/edge', {
+            operation: 'upsert_status',
+            profileId,
+            updates: {status, ...extraUpdates, updatedAt: now}
+        });
+    }
+
+    /**
+     * Internal POST helper with unified headers and error handling
+     */
+    async _post(path, body) {
+        try {
+            const response = await this.apiClient.post(path, body, { headers: this.getHeaders() });
+            return response?.data;
+        } catch (error) {
+            throw this.handleError(error);
+        }
+    }
+
+    /**
      * Set the authorization token for API requests
      * @param {string} token - JWT token from Cognito
      */
@@ -45,55 +69,26 @@ class DynamoDBService {
      */
     async getProfileDetails(profileId) {
         try {
-            logger.info(`Request payload:`, {
+            const data = await this._post('/profiles', {
                 operation: 'get_details',
-                profileId: profileId
+                profileId
             });
-
-            const response = await this.apiClient.post('/profiles', {
-                operation: 'get_details',
-                profileId: profileId
-            }, { headers: this.getHeaders() });
-            // If profile doesn't exist, return true
-            if (!response.data || !response.data.profile) {
-                return true;
-            }
-
-            const profile = response.data.profile;
-            const updatedAt = profile.updatedAt;
-            const evaluated = profile.evaluated;
-            logger.info(`Profile flags from DynamoDBService: evaluated=${evaluated}, updatedAt=${updatedAt}`);
-
-            // Evaluate using new evaluated flag and last-updated staleness
-            const isStale = (() => {
-                if (!updatedAt) return true; // no timestamp = stale
-                const oneMonthAgo = new Date();
-                oneMonthAgo.setDate(oneMonthAgo.getDate() - 30);
-                const profileUpdateDate = new Date(updatedAt);
-                return profileUpdateDate < oneMonthAgo;
-            })();
-
-            if (typeof evaluated === 'boolean') {
-                // evaluated === false => not yet evaluated, process
-                if (evaluated === false) return true;
-                // evaluated === true => process only if stale
-                return isStale;
-            }
-
-            // No evaluated flag present: fall back to staleness logic
+            if (!data || !data.profile) return true;
+            const { updatedAt, evaluated } = data.profile;
+            const isStale = this._isStale(updatedAt);
+            if (typeof evaluated === 'boolean') return evaluated === false ? true : isStale;
             return isStale;
-
         } catch (error) {
-            logger.info(`Caught error in getProfileDetails:`, error.message);
-            logger.info(`Full error object:`, error);
-            logger.info(`Error status:`, error.response?.status);
-            logger.info(`Error response:`, error.response?.data);
-            logger.info(`Has error.response:`, !!error.response);
-
-            // API Gateway likely returns 200 with error in body, not HTTP error codes
-            logger.info(`This is likely a 200 response with error in body, not a real HTTP error`);
+            logger.info(`getProfileDetails fallback: ${error.message}`);
             return true;
         }
+    }
+
+    _isStale(updatedAt) {
+        if (!updatedAt) return true;
+        const oneMonthAgo = new Date();
+        oneMonthAgo.setDate(oneMonthAgo.getDate() - 30);
+        return new Date(updatedAt) < oneMonthAgo;
     }
 
     /**
@@ -122,27 +117,19 @@ class DynamoDBService {
     }
 
     /**
-     * Create edges for a good contact with possible status
-     * @param {string} profileId - Profile ID for the good contact
-     * @param {Object} edgesData - Edge relationship data
-     * @returns {Promise<Object>} Edge creation result
+     * Mark a profile as bad contact (wrapper around createBadContactProfile)
+     * @param {string} profileId
+     * @returns {Promise<boolean>}
      */
-    async createGoodContactEdges(profileId, connectionType) {
+    async markBadContact(profileId) {
+        if (!profileId) throw new Error('profileId is required');
         try {
-            // Call the edge-processing endpoint to create edges with possible status
-            const response = await this.apiClient.post('/edge', {
-                operation: 'create_edges',
-                profileId: profileId,
-                status: connectionType,
-                edgesData: {
-                    addedAt: new Date().toISOString()
-                }
-            }, { headers: this.getHeaders() });
-
-            return response.data;
+            await this.createBadContactProfile(profileId);
+            logger?.info?.(`Marked bad contact profile: ${profileId}`);
+            return true;
         } catch (error) {
-            console.error('Error creating good contact edges:', error);
-            throw this.handleError(error);
+            logger?.error?.(`Failed to mark bad contact for ${profileId}: ${error.message}`);
+            throw error;
         }
     }
 
@@ -154,32 +141,15 @@ class DynamoDBService {
      */
     async checkEdgeExists(connectionProfileId) {
         try {
-            logger.info(`Checking edge existence for profile: ${connectionProfileId}`);
-
-            // Call the edge-processing endpoint to check if edge exists
-            // The user ID is extracted from the JWT token in the Lambda function
-            const response = await this.apiClient.post('/edge', {
+            const data = await this._post('/edge', {
                 operation: 'check_exists',
                 linkedinurl: connectionProfileId
-            }, { headers: this.getHeaders() });
-
-            // Extract the result from the response
-            const result = response.data?.result;
-
-            if (result && result.success) {
-                const exists = result.exists || false;
-                logger.info(`Edge existence check result: ${exists} for profile ${connectionProfileId}`);
-                return exists;
-            } else {
-                logger.warn(`Edge existence check failed for profile ${connectionProfileId}:`, result);
-                return false;
-            }
-
+            });
+            const exists = !!data?.result?.exists;
+            logger.info(`Edge existence for ${connectionProfileId}: ${exists}`);
+            return exists;
         } catch (error) {
-            logger.error(`Error checking edge existence for profile ${connectionProfileId}:`, error.message);
-
-            // If there's an error checking, assume edge doesn't exist to allow processing
-            // This ensures the system continues to work even if the check fails
+            logger.warn(`checkEdgeExists failed for ${connectionProfileId}: ${error.message}`);
             return false;
         }
     }

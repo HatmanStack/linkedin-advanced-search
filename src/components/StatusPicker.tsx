@@ -22,7 +22,7 @@ import type { StatusValue, ConnectionCounts, StatusPickerProps, StatusMapping } 
  * - all → "All Statuses" (shows total count)
  * - incoming → "Pending" (shows incoming count)
  * - outgoing → "Sent" (shows outgoing count)
- * - allies → "Connections" (shows allies count)
+ * - ally → "Connections" (shows ally count)
  */
 
 /**
@@ -33,7 +33,7 @@ export const STATUS_MAPPING: Record<StatusValue, StatusMapping> = {
   all: { label: 'All Statuses', icon: Filter },
   incoming: { label: 'Pending', icon: Clock },
   outgoing: { label: 'Sent', icon: Send },
-  allies: { label: 'Connections', icon: UserCheck }
+  ally: { label: 'Connections', icon: UserCheck }
 } as const;
 
 /**
@@ -55,7 +55,7 @@ const StatusPicker: React.FC<StatusPickerProps> = ({
 }) => {
   /**
    * Gets the connection count for a specific status value
-   * Only counts incoming, outgoing, and allies statuses (excludes possible)
+   * Only counts incoming, outgoing, and ally statuses (excludes possible)
    * 
    * @param status - The status value to get count for
    * @returns The number of connections for the given status
@@ -63,14 +63,14 @@ const StatusPicker: React.FC<StatusPickerProps> = ({
   const getStatusCount = (status: StatusValue): number => {
     switch (status) {
       case 'all':
-        // Only count incoming, outgoing, and allies (exclude possible status)
-        return connectionCounts.incoming + connectionCounts.outgoing + connectionCounts.allies;
+        // Only count incoming, outgoing, and ally (exclude possible status)
+        return connectionCounts.incoming + connectionCounts.outgoing + connectionCounts.ally;
       case 'incoming':
         return connectionCounts.incoming;
       case 'outgoing':
         return connectionCounts.outgoing;
-      case 'allies':
-        return connectionCounts.allies;
+      case 'ally':
+        return connectionCounts.ally;
       default:
         return 0;
     }

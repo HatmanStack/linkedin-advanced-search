@@ -535,7 +535,7 @@ function sanitizeConnectionStatus(value: unknown): ConnectionStatus | null {
         return 'outgoing';
       case 'connected':
       case 'accepted':
-        return 'allies';
+        return 'ally';
       case 'removed':
       case 'ignored':
         return 'processed';

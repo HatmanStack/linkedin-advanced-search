@@ -4,7 +4,7 @@ import { logger } from '../utils/logger.js';
 // sharp import removed; this service no longer saves screenshots directly
 import RandomHelpers from '../utils/randomHelpers.js';
 import DynamoDBService from './dynamoDBService.js';
-import { ensureEdge, markBadContact } from '../utils/edgeManager.js';
+// edgeManager removed; using DynamoDBService unified methods
 // fs and path imports removed; temp directories are now managed by LinkedInContactService
 import { decryptSealboxB64Tag } from '../utils/crypto.js';
 
@@ -39,6 +39,14 @@ export class LinkedInService {
           logger.error('Failed to decrypt LinkedIn credentials for login');
           throw new Error('Credential decryption failed');
         }
+      }
+
+      // Validate credentials before interacting with the page
+      if (typeof username !== 'string' || username.trim().length === 0) {
+        throw new Error('LinkedIn username is missing or invalid');
+      }
+      if (typeof password !== 'string' || password.trim().length === 0) {
+        throw new Error('LinkedIn password is missing or invalid');
       }
 
       await this.puppeteer.goto('https://www.linkedin.com/login');
@@ -457,12 +465,12 @@ export class LinkedInService {
       logger.debug(`Contact ${profileId} final score: ${score}, Good contact: ${isGoodContact}`);
 
       if (isGoodContact) {
-        await ensureEdge(this.dynamoDBService, profileId, 'possible');
+        await this.dynamoDBService.upsertEdgeStatus(profileId, 'possible');
         return { isGoodContact: true };
 
       }
-      await ensureEdge(this.dynamoDBService, profileId, 'processed');
-      await markBadContact(this.dynamoDBService, profileId);
+      await this.dynamoDBService.upsertEdgeStatus(profileId, 'processed');
+      await this.dynamoDBService.markBadContact(profileId);
 
       return { isGoodContact: false };
     } catch (error) {

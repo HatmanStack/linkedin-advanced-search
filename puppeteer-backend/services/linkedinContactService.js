@@ -65,7 +65,7 @@ export class LinkedInContactService {
     }
   }
 
-  async takeScreenShotAndUploadToS3(profileId, tempDir, status = 'allies', options = {}) {
+  async takeScreenShotAndUploadToS3(profileId, tempDir, status = 'ally', options = {}) {
     const s3UploadedObjects = [];
     // Ensure a working temp directory; manage lifecycle locally
     let workingTempDir = tempDir;
@@ -121,7 +121,7 @@ export class LinkedInContactService {
 
   /**
    * Capture the required screenshots for a profile depending on the connection status.
-   * - allies: Reactions, Profile, Recent Activity, About This Profile, Message History
+   * - ally: Reactions, Profile, Recent Activity, About This Profile, Message History
    * - incoming/outgoing: Reactions, Profile, Recent Activity, About This Profile
    * - possible: Reactions, Profile, Recent Activity
    */
@@ -134,7 +134,7 @@ export class LinkedInContactService {
     } else if (status === 'possible') {
       defaultScreens = ['Reactions', 'Profile', 'Recent-Activity'];
     } else {
-      // allies or general: include messages
+      // ally or general: include messages
       defaultScreens = ['Reactions', 'Profile', 'Activity', 'Recent-Activity', 'About-This-Profile', 'Messages'];
     }
     const desired = Array.isArray(options.screens) && options.screens.length > 0
@@ -205,7 +205,7 @@ export class LinkedInContactService {
       if (err.message !== 'skip') logger.warn(`About This Profile screenshot failed for ${profileId}: ${err.message}`);
     }
 
-    // 5) Message History (only for allies)
+    // 5) Message History (only for ally)
     if (status !== 'incoming' && status !== 'outgoing') {
       try {
         if (desired && !desired.has('Messages')) { throw new Error('skip'); }

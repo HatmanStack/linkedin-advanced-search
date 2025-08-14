@@ -376,7 +376,7 @@ class LambdaApiService {
       const response = await this.makeEdgeRequest<{
         connections: Connection[];
         count: number;
-      }>('get_connections_by_status', status ? { status } : {});
+      }>('get_connections_by_status', { updates: status ? { status } : {} });
 
       // Transform and validate the response
       const connections = this.formatConnectionsResponse(response.connections || []);
@@ -409,7 +409,7 @@ class LambdaApiService {
   async updateConnectionStatus(
     connectionId: string,
     newStatus: ConnectionStatus | 'processed',
-    options?: { linkedinurl?: string; linkedinUrl?: string }
+    options?: { profileId?: string }
   ): Promise<void> {
     const context = `update connection status to ${newStatus}`;
     
@@ -429,7 +429,7 @@ class LambdaApiService {
         });
       }
 
-      const validStatuses = ['possible', 'incoming', 'outgoing', 'allies', 'processed'];
+      const validStatuses = ['possible', 'incoming', 'outgoing', 'ally', 'processed'];
       if (!validStatuses.includes(newStatus)) {
         throw new ApiError({
           message: `Invalid status: ${newStatus}. Must be one of: ${validStatuses.join(', ')}`,
@@ -438,8 +438,8 @@ class LambdaApiService {
       }
 
       await this.makeEdgeRequest<{ success: boolean; updated: Record<string, any> }>('update_metadata', {
-        // Edge Lambda expects lowercase 'linkedinurl'. Default to connectionId when not provided.
-        linkedinurl: options?.linkedinurl ?? options?.linkedinUrl ?? connectionId,
+        // Edge Lambda expects 'profileId' in the request body; we always send profileId
+        profileId: options?.profileId ?? connectionId,
         updates: {
           status: newStatus,
           updatedAt: new Date().toISOString(),

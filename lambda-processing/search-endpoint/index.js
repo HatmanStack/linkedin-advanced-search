@@ -397,17 +397,56 @@ exports.handler = async (event) => {
             };
         }
 
-        // Extract user ID from JWT token
-        const userId = extractUserFromJWT(event.headers.Authorization || event.headers.authorization);
-        console.log(`Processing search request for user: ${userId}`);
+        // TEMP DISABLE MODE
+        // This endpoint is temporarily configured to only log the request body and
+        // return a successful response, skipping all normal actions.
+        //
+        // To revert back to normal functioning:
+        // 1) Remove the early return block below (from 'Request body' logging to the return)
+        // 2) Uncomment the original logic below to re-enable auth and search
+        // 3) Deploy the Lambda
 
-        // Parse request body
+        // Parse request body, log it, and short-circuit with success
         let requestBody;
         try {
             requestBody = JSON.parse(event.body || '{}');
         } catch (parseError) {
-            throw new Error('Invalid JSON in request body');
+            requestBody = event.body;
         }
+
+        try {
+            console.log('Request body:', JSON.stringify(requestBody).slice(0, 2000));
+        } catch (e) {
+            console.log('Request body received (non-serializable)');
+        }
+
+        return {
+            statusCode: 200,
+            headers: {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+                'Access-Control-Allow-Methods': 'POST,OPTIONS'
+            },
+            body: JSON.stringify({
+                success: true,
+                message: 'Request received',
+                echo: requestBody
+            })
+        };
+
+        // --- Original logic (disabled) ---
+        // // Extract user ID from JWT token
+        // const userId = extractUserFromJWT(event.headers.Authorization || event.headers.authorization);
+        // console.log(`Processing search request for user: ${userId}`);
+        //
+        // // Parse request body
+        // let requestBody;
+        // try {
+        //     requestBody = JSON.parse(event.body || '{}');
+        // } catch (parseError) {
+        //     throw new Error('Invalid JSON in request body');
+        // }
 
         const {
             query,

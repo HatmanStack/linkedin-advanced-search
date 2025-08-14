@@ -21,6 +21,45 @@ import time
 from datetime import datetime, timezone
 from botocore.exceptions import ClientError
 
+# Common API response headers
+API_HEADERS = {
+    'Content-Type': 'application/json',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+    'Access-Control-Allow-Methods': 'POST,OPTIONS'
+}
+
+
+def _resp(status_code, body_dict):
+    return {
+        'statusCode': status_code,
+        'headers': API_HEADERS,
+        'body': json.dumps(body_dict)
+    }
+
+
+def _parse_body(event):
+    if 'body' in event:
+        body_raw = event['body']
+        if isinstance(body_raw, str):
+            try:
+                return json.loads(body_raw)
+            except Exception:
+                return {}
+        return body_raw or {}
+    return event or {}
+
+
+def _extract_user_id(event):
+    sub = event.get('requestContext', {}).get('authorizer', {}).get('claims', {}).get('sub')
+    if sub:
+        return sub
+    # Simple fallback for local testing when Authorization present
+    auth_header = event.get('headers', {}).get('Authorization', '')
+    if auth_header:
+        return 'test-user-id'
+    return None
+
 # Configure logging
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -39,13 +78,13 @@ class EdgeManager:
     def __init__(self):
         self.table = table
     
-    def manage_edges(self, user_id, linkedin_url, operation, updates=None):
+    def manage_edges(self, user_id, profile_id, operation, updates=None):
         """
         Manage edges between user and profile based on operation type
         
         Args:
             user_id (str): The user ID from Cognito
-            linkedin_url (str): The LinkedIn profile URL/identifier
+            profile_id (str): The LinkedIn profile URL/identifier
             operation (str): Operation type (create, update_status, add_message, update_metadata, check_exists, get_connections_by_status)
             updates (dict): Updates to apply based on operation type
             
@@ -56,32 +95,27 @@ class EdgeManager:
             updates = {}
             
         try:
-            # Handle operations that don't require linkedin_url encoding
-            if operation == "get_connections_by_status":
-                return self._get_connections_by_status(user_id, updates.get('status'))
-            elif operation == "get_messages":
-                return self._get_messages(user_id, updates.get('profileId'))
             
-            # Encode the LinkedIn URL for use as profile ID
-            profile_id_b64 = base64.urlsafe_b64encode(linkedin_url.encode()).decode()
+            if operation == "get_connections_by_status":
+                return self._get_connections_by_status(user_id, updates.get('status'))       
+            
+            profile_id_b64 = base64.urlsafe_b64encode(profile_id.encode()).decode()
             
             logger.info(f"Managing edges for user {user_id}, profile {profile_id_b64}, operation: {operation}")
             
-            if operation == "create":
-                return self._create_edges(user_id, profile_id_b64, linkedin_url, updates)
-            elif operation == "update_status":
-                return self._update_status(user_id, profile_id_b64, updates)
+            if operation in ("upsert_status"):          
+                return self._upsert_status(user_id, profile_id_b64, updates)
+            elif operation == "get_messages":
+                return self._get_messages(user_id, profile_id_b64, updates)
             elif operation == "add_message":
                 return self._add_message(user_id, profile_id_b64, updates)
-            elif operation == "update_metadata":
-                return self._update_metadata(user_id, profile_id_b64, updates)
             elif operation == "check_exists":
                 return self._check_edge_exists(user_id, profile_id_b64)
             else:
                 return {
                     'success': False,
                     'error': f'Unsupported operation: {operation}',
-                    'supported_operations': ['create', 'update_status', 'add_message', 'update_metadata', 'check_exists', 'get_connections_by_status', 'get_messages']
+                    'supported_operations': ['upsert_status', 'add_message', 'check_exists', 'get_connections_by_status', 'get_messages']
                 }
                 
         except Exception as e:
@@ -91,102 +125,18 @@ class EdgeManager:
                 'error': str(e)
             }
     
-    def create_contact_edges(self, user_id, profile_id, status, edges_data=None):
-        """
-        Create edges for contacts with specified status (processed for bad, possible for good)
-        
-        Args:
-            user_id (str): The user ID from Cognito
-            profile_id (str): The profile ID (can be URL or encoded ID)
-            status (str): Edge status ('processed' for bad contacts, 'possible' for good contacts)
-            edges_data (dict): Additional edge data
-            
-        Returns:
-            dict: Operation result with success status and details
-        """
-        if edges_data is None:
-            edges_data = {}
-            
-        try:
-            # Handle both URL and encoded profile IDs
-            if profile_id.startswith('http'):
-                linkedin_url = profile_id
-                profile_id_b64 = base64.urlsafe_b64encode(profile_id.encode()).decode()
-            else:
-                profile_id_b64 = profile_id
-                # Try to decode to get original URL
-                try:
-                    linkedin_url = base64.urlsafe_b64decode(profile_id + '==').decode()
-                except:
-                    linkedin_url = profile_id  # Fallback
-            
-            logger.info(f"Creating {status} contact edges for user {user_id}, profile {profile_id_b64}")
-            
-            current_time = datetime.now(timezone.utc).isoformat()
-            
-            # Create user-to-profile edge
-            user_profile_edge = {
-                'PK': f'USER#{user_id}',
-                'SK': f'PROFILE#{profile_id_b64}',
-                'status': status,
-                'addedAt': edges_data.get('addedAt', current_time),
-                'updatedAt': current_time,
-                'messages': edges_data.get('messages', []),
-                'GSI1PK': f'USER#{user_id}',
-                'GSI1SK': f'STATUS#{status}#PROFILE#{profile_id_b64}'
-            }
-            
-            # Add processed timestamp for bad contacts
-            if status == 'processed':
-                user_profile_edge['processedAt'] = edges_data.get('processedAt', current_time)
-            
-            # Add any additional edge data
-            for key, value in edges_data.items():
-                if key not in ['addedAt', 'processedAt', 'messages']:
-                    user_profile_edge[key] = value
-            
-            self.table.put_item(Item=user_profile_edge)
-            
-            # Create profile-to-user edge
-            profile_user_edge = {
-                'PK': f'PROFILE#{profile_id_b64}',
-                'SK': f'USER#{user_id}',
-                'addedAt': edges_data.get('addedAt', current_time),
-                'status': status,
-                'attempts': 1,
-                'lastAttempt': current_time,
-                'updatedAt': current_time
-            }
-            
-            self.table.put_item(Item=profile_user_edge)
-            
-            logger.info(f"Successfully created {status} contact edges for profile {profile_id_b64}")
-            
-            return {
-                'success': True,
-                'message': f'{status.capitalize()} contact edges created successfully',
-                'profileId': profile_id_b64,
-                'status': status,
-                'edges_created': {
-                    'user_to_profile': f'USER#{user_id} -> PROFILE#{profile_id_b64}',
-                    'profile_to_user': f'PROFILE#{profile_id_b64} -> USER#{user_id}'
-                }
-            }
-            
-        except Exception as e:
-            logger.error(f"Error creating contact edges: {str(e)}")
-            return {
-                'success': False,
-                'error': str(e)
-            }
+
     
-    def _create_edges(self, user_id, profile_id_b64, linkedin_url, updates):
-        """Create initial edges between user and profile"""
+    def _upsert_status(self, user_id, profile_id_b64, updates):
+        """Create edges if missing or update status if they exist (idempotent upsert)."""
         try:
-            current_time = datetime.now(timezone.utc).isoformat()
-            status = updates.get('status', 'pending')
             
-            # Create user-to-profile edge
+            status = updates.get('status', 'pending')
+
+            # Create path
+            current_time = datetime.now(timezone.utc).isoformat()
+            
+
             user_profile_edge = {
                 'PK': f'USER#{user_id}',
                 'SK': f'PROFILE#{profile_id_b64}',
@@ -197,97 +147,35 @@ class EdgeManager:
                 'GSI1PK': f'USER#{user_id}',
                 'GSI1SK': f'STATUS#{status}#PROFILE#{profile_id_b64}'
             }
-            
-            # Add processed timestamp if status is processed
             if status == 'processed':
                 user_profile_edge['processedAt'] = updates.get('processedAt', current_time)
-            
             self.table.put_item(Item=user_profile_edge)
-            
-            # Create profile-to-user edge
+
             profile_user_edge = {
                 'PK': f'PROFILE#{profile_id_b64}',
                 'SK': f'USER#{user_id}',
                 'addedAt': updates.get('addedAt', current_time),
                 'status': status,
                 'attempts': 1,
-                'lastAttempt': current_time
+                'lastAttempt': current_time,
+                'updatedAt': current_time
             }
-            
             self.table.put_item(Item=profile_user_edge)
-            
+
             return {
                 'success': True,
-                'message': 'Edges created successfully',
+                'message': 'Edge upserted successfully',
                 'profileId': profile_id_b64,
                 'status': status
             }
-            
         except Exception as e:
-            logger.error(f"Error creating edges: {str(e)}")
+            logger.error(f"Error upserting edges: {str(e)}")
             return {
                 'success': False,
                 'error': str(e)
             }
     
-    def _update_status(self, user_id, profile_id_b64, updates):
-        """Update the status of existing edges"""
-        try:
-            new_status = updates.get('status')
-            if not new_status:
-                return {
-                    'success': False,
-                    'error': 'Status is required for update_status operation'
-                }
-            
-            current_time = datetime.now(timezone.utc).isoformat()
-            
-            # Update user-to-profile edge
-            self.table.update_item(
-                Key={
-                    'PK': f'USER#{user_id}',
-                    'SK': f'PROFILE#{profile_id_b64}'
-                },
-                UpdateExpression='SET #status = :status, GSI1SK = :gsi1sk, updatedAt = :updated_at',
-                ExpressionAttributeNames={
-                    '#status': 'status'
-                },
-                ExpressionAttributeValues={
-                    ':status': new_status,
-                    ':gsi1sk': f'STATUS#{new_status}#PROFILE#{profile_id_b64}',
-                    ':updated_at': current_time
-                }
-            )
-            
-            # Update profile-to-user edge
-            self.table.update_item(
-                Key={
-                    'PK': f'PROFILE#{profile_id_b64}',
-                    'SK': f'USER#{user_id}'
-                },
-                UpdateExpression='SET #status = :status, updatedAt = :updated_at',
-                ExpressionAttributeNames={
-                    '#status': 'status'
-                },
-                ExpressionAttributeValues={
-                    ':status': new_status,
-                    ':updated_at': current_time
-                }
-            )
-            
-            return {
-                'success': True,
-                'message': 'Status updated successfully',
-                'profileId': profile_id_b64,
-                'status': new_status
-            }
-            
-        except Exception as e:
-            logger.error(f"Error updating status: {str(e)}")
-            return {
-                'success': False,
-                'error': str(e)
-            }
+    # _update_status removed; update logic handled inline by _upsert_status
     
     def _add_message(self, user_id, profile_id_b64, updates):
         """Add a message to the edge"""
@@ -332,129 +220,7 @@ class EdgeManager:
                 'error': str(e)
             }
     
-    def _update_metadata(self, user_id, profile_id_b64, updates):
-        """
-        Update metadata fields on the edge with enhanced validation and GSI1SK handling
-        """
-        try:
-            # Enhanced parameter validation
-            if not profile_id_b64:
-                return {
-                    'success': False,
-                    'error': 'profileId is required for update_metadata operation'
-                }
-            
-            if not updates or not isinstance(updates, dict):
-                return {
-                    'success': False,
-                    'error': 'Updates object is required for update_metadata operation'
-                }
-            
-            if len(updates) == 0:
-                return {
-                    'success': False,
-                    'error': 'At least one field must be provided in updates'
-                }
-            
-            logger.info(f"Updating metadata for user {user_id}, profile {profile_id_b64}, updates: {updates}")
-            
-            current_time = datetime.now(timezone.utc).isoformat()
-            
-            # Build update expression
-            update_expression_parts = ['SET updatedAt = :updated_at']
-            expression_attribute_values = {':updated_at': current_time}
-            expression_attribute_names = {}
-            
-            # Handle status changes - update GSI1SK for index consistency
-            if 'status' in updates:
-                new_status = updates['status']
-                if not new_status:
-                    return {
-                        'success': False,
-                        'error': 'Status value cannot be empty'
-                    }
-                
-                # Update GSI1SK when status changes
-                gsi1sk_value = f'STATUS#{new_status}#PROFILE#{profile_id_b64}'
-                update_expression_parts.append('GSI1SK = :gsi1sk')
-                expression_attribute_values[':gsi1sk'] = gsi1sk_value
-                
-                logger.info(f"Status change detected, updating GSI1SK to: {gsi1sk_value}")
-            
-            # Process all update fields
-            for key, value in updates.items():
-                if key not in ['updatedAt', 'GSI1SK']:  # Skip reserved fields that we handle separately
-                    attr_name = f'#{key}'
-                    attr_value = f':{key}'
-                    update_expression_parts.append(f'{attr_name} = {attr_value}')
-                    expression_attribute_names[attr_name] = key
-                    expression_attribute_values[attr_value] = value
-            
-            update_expression = ', '.join(update_expression_parts)
-            
-            # Update user-to-profile edge
-            update_params = {
-                'Key': {
-                    'PK': f'USER#{user_id}',
-                    'SK': f'PROFILE#{profile_id_b64}'
-                },
-                'UpdateExpression': update_expression,
-                'ExpressionAttributeValues': expression_attribute_values,
-                'ReturnValues': 'ALL_NEW'  # Return updated item for verification
-            }
-            
-            if expression_attribute_names:
-                update_params['ExpressionAttributeNames'] = expression_attribute_names
-            
-            # Perform the update
-            response = self.table.update_item(**update_params)
-            updated_item = response.get('Attributes', {})
-            
-            logger.info(f"Successfully updated metadata for profile {profile_id_b64}")
-            
-            return {
-                'success': True,
-                'message': 'Metadata updated successfully',
-                'profileId': profile_id_b64,
-                'updated_fields': list(updates.keys()),
-                'timestamp': current_time,
-                'updated_item': {
-                    'status': updated_item.get('status'),
-                    'updatedAt': updated_item.get('updatedAt'),
-                    'GSI1SK': updated_item.get('GSI1SK')
-                }
-            }
-            
-        except ClientError as e:
-            error_code = e.response['Error']['Code']
-            error_message = e.response['Error']['Message']
-            logger.error(f"DynamoDB error updating metadata: {error_code} - {error_message}")
-            
-            if error_code == 'ConditionalCheckFailedException':
-                return {
-                    'success': False,
-                    'error': 'Edge does not exist or condition failed',
-                    'error_code': error_code
-                }
-            elif error_code == 'ValidationException':
-                return {
-                    'success': False,
-                    'error': f'Invalid update parameters: {error_message}',
-                    'error_code': error_code
-                }
-            else:
-                return {
-                    'success': False,
-                    'error': f'Database error: {error_message}',
-                    'error_code': error_code
-                }
-                
-        except Exception as e:
-            logger.error(f"Unexpected error updating metadata: {str(e)}")
-            return {
-                'success': False,
-                'error': f'Unexpected error: {str(e)}'
-            }
+
     
     def _get_connections_by_status(self, user_id, status=None):
         """
@@ -779,258 +545,31 @@ def lambda_handler(event, context):
     }
     """
     try:
-        logger.info(f"Received event: {json.dumps(event)}")
-        
-        # Parse the request body
-        if 'body' in event:
-            if isinstance(event['body'], str):
-                body = json.loads(event['body'])
-            else:
-                body = event['body']
-        else:
-            body = event
-        
-        # Extract user ID from JWT token
-        user_id = event.get('requestContext', {}).get('authorizer', {}).get('claims', {}).get('sub')
-        if not user_id:
-            # Fallback for testing
-            auth_header = event.get('headers', {}).get('Authorization', '')
-            if auth_header:
-                user_id = "test-user-id"
-            else:
-                return {
-                    'statusCode': 401,
-                    'headers': {
-                        'Content-Type': 'application/json',
-                        'Access-Control-Allow-Origin': '*',
-                        'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-                        'Access-Control-Allow-Methods': 'POST,OPTIONS'
-                    },
-                    'body': json.dumps({
-                        'error': 'Unauthorized: Missing or invalid JWT token'
-                    })
-                }
-        
-        # Extract operation type
-        operation = body.get('operation', 'create')  # Default to create for backward compatibility
-        
-        # Handle the new create_edges operation
-        if operation == 'create_edges':
-            profile_id = body.get('profileId')
-            status = body.get('status')
-            edges_data = body.get('edgesData', {})
-            
-            if not profile_id:
-                return {
-                    'statusCode': 400,
-                    'headers': {
-                        'Content-Type': 'application/json',
-                        'Access-Control-Allow-Origin': '*',
-                        'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-                        'Access-Control-Allow-Methods': 'POST,OPTIONS'
-                    },
-                    'body': json.dumps({
-                        'error': 'Missing required parameter: profileId'
-                    })
-                }
-            
-            if not status:
-                return {
-                    'statusCode': 400,
-                    'headers': {
-                        'Content-Type': 'application/json',
-                        'Access-Control-Allow-Origin': '*',
-                        'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-                        'Access-Control-Allow-Methods': 'POST,OPTIONS'
-                    },
-                    'body': json.dumps({
-                        'error': 'Missing required parameter: status'
-                    })
-                }
-            
-            # Process the create_edges operation
-            edge_manager = EdgeManager()
-            result = edge_manager.create_contact_edges(user_id, profile_id, status, edges_data)
-            
-            if result['success']:
-                return {
-                    'statusCode': 200,
-                    'headers': {
-                        'Content-Type': 'application/json',
-                        'Access-Control-Allow-Origin': '*',
-                        'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-                        'Access-Control-Allow-Methods': 'POST,OPTIONS'
-                    },
-                    'body': json.dumps({
-                        'message': 'Contact edges created successfully',
-                        'result': result
-                    })
-                }
-            else:
-                return {
-                    'statusCode': 400,
-                    'headers': {
-                        'Content-Type': 'application/json',
-                        'Access-Control-Allow-Origin': '*',
-                        'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-                        'Access-Control-Allow-Methods': 'POST,OPTIONS'
-                    },
-                    'body': json.dumps({
-                        'error': 'Contact edges creation failed',
-                        'details': result
-                    })
-                }
-        
-        # Handle get_connections_by_status operation (doesn't require linkedinurl)
-        if operation == 'get_connections_by_status':
-            status_filter = body.get('status')  # Optional status filter
-            
-            edge_manager = EdgeManager()
-            result = edge_manager.manage_edges(user_id, None, operation, {'status': status_filter})
-            
-            if result['success']:
-                return {
-                    'statusCode': 200,
-                    'headers': {
-                        'Content-Type': 'application/json',
-                        'Access-Control-Allow-Origin': '*',
-                        'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-                        'Access-Control-Allow-Methods': 'POST,OPTIONS'
-                    },
-                    'body': json.dumps({
-                        'message': 'Connections fetched successfully',
-                        'connections': result['connections'],
-                        'count': result['count']
-                    })
-                }
-            else:
-                return {
-                    'statusCode': 400,
-                    'headers': {
-                        'Content-Type': 'application/json',
-                        'Access-Control-Allow-Origin': '*',
-                        'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-                        'Access-Control-Allow-Methods': 'POST,OPTIONS'
-                    },
-                    'body': json.dumps({
-                        'error': 'Failed to fetch connections',
-                        'details': result
-                    })
-                }
-        
-        # Handle get_messages operation (doesn't require linkedinurl)
-        if operation == 'get_messages':
-            profile_id = body.get('profileId')
-            
-            if not profile_id:
-                return {
-                    'statusCode': 400,
-                    'headers': {
-                        'Content-Type': 'application/json',
-                        'Access-Control-Allow-Origin': '*',
-                        'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-                        'Access-Control-Allow-Methods': 'POST,OPTIONS'
-                    },
-                    'body': json.dumps({
-                        'error': 'Missing required parameter: profileId'
-                    })
-                }
-            
-            edge_manager = EdgeManager()
-            result = edge_manager.manage_edges(user_id, None, operation, {'profileId': profile_id})
-            
-            if result['success']:
-                return {
-                    'statusCode': 200,
-                    'headers': {
-                        'Content-Type': 'application/json',
-                        'Access-Control-Allow-Origin': '*',
-                        'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-                        'Access-Control-Allow-Methods': 'POST,OPTIONS'
-                    },
-                    'body': json.dumps({
-                        'message': 'Messages fetched successfully',
-                        'messages': result['messages'],
-                        'count': result['count']
-                    })
-                }
-            else:
-                return {
-                    'statusCode': 400,
-                    'headers': {
-                        'Content-Type': 'application/json',
-                        'Access-Control-Allow-Origin': '*',
-                        'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-                        'Access-Control-Allow-Methods': 'POST,OPTIONS'
-                    },
-                    'body': json.dumps({
-                        'error': 'Failed to fetch messages',
-                        'details': result
-                    })
-                }
-        
-        # Handle existing operations (require linkedinurl)
-        linkedin_url = body.get('linkedinurl')
+        logger.info(f"Received event: {json.dumps(event)[:2000]}")
+
+        body = _parse_body(event)
+        profileId = body.get('profileId')
+        operation = body.get('operation')
         updates = body.get('updates', {})
         
-        if not linkedin_url:
-            return {
-                'statusCode': 400,
-                'headers': {
-                    'Content-Type': 'application/json',
-                    'Access-Control-Allow-Origin': '*',
-                    'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-                    'Access-Control-Allow-Methods': 'POST,OPTIONS'
-                },
-                'body': json.dumps({
-                    'error': 'Missing required parameter: linkedinurl'
-                })
-            }
+        # Extract user ID from JWT token
+        user_id = _extract_user_id(event)
+        if not user_id:
+            return _resp(401, { 'error': 'Unauthorized: Missing or invalid JWT token' })
         
-        # Process the edge management operation
+        # Extract operation type
         edge_manager = EdgeManager()
-        result = edge_manager.manage_edges(user_id, linkedin_url, operation, updates)
-        
-        if result['success']:
-            return {
-                'statusCode': 200,
-                'headers': {
-                    'Content-Type': 'application/json',
-                    'Access-Control-Allow-Origin': '*',
-                    'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-                    'Access-Control-Allow-Methods': 'POST,OPTIONS'
-                },
-                'body': json.dumps({
-                    'message': f'Edge {operation} operation completed successfully',
-                    'result': result
-                })
-            }
+        if operation == "get_connections_by_status":
+            result = edge_manager.manage_edges(user_id, None ,operation, updates)
         else:
-            return {
-                'statusCode': 400,
-                'headers': {
-                    'Content-Type': 'application/json',
-                    'Access-Control-Allow-Origin': '*',
-                    'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-                    'Access-Control-Allow-Methods': 'POST,OPTIONS'
-                },
-                'body': json.dumps({
-                    'error': f'Edge {operation} operation failed',
-                    'details': result
-                })
-            }
+            result = edge_manager.manage_edges(user_id, profileId, operation, updates)
+        
+        if result['success'] and operation == "get_connections_by_status":
+            return _resp(200, { 'message': 'Connections fetched successfully', 'connections': result['connections'], 'count': result['count'] })
+        else:
+            return _resp(200, { 'error': f'Edge {operation} operation failed','details': result , 'result': result, 'message': f'Edge {operation} operation completed successfully'})
+    
     
     except Exception as e:
         logger.error(f"Unexpected error in lambda_handler: {str(e)}")
-        return {
-            'statusCode': 500,
-            'headers': {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-                'Access-Control-Allow-Methods': 'POST,OPTIONS'
-            },
-            'body': json.dumps({
-                'error': 'Internal server error'
-            })
-        }
+        return _resp(500, { 'error': 'Internal server error' })
