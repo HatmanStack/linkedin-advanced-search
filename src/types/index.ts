@@ -378,6 +378,12 @@ export interface NewConnectionCardProps {
   /** Callback when card is selected */
   onSelect?: (connection: Connection) => void;
   
+  /** Callback when a tag is clicked */
+  onTagClick?: (tag: string) => void;
+  
+  /** Array of currently active/selected tags */
+  activeTags?: string[];
+  
   /** Additional CSS classes */
   className?: string;
 }

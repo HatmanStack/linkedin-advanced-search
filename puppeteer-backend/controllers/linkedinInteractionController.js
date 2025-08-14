@@ -5,6 +5,7 @@ import LinkedInService from '../services/linkedinService.js';
 import LinkedInErrorHandler from '../utils/linkedinErrorHandler.js';
 import LinkedInAuditLogger from '../utils/linkedinAuditLogger.js';
 import { v4 as uuidv4 } from 'uuid';
+import { linkedInInteractionQueue } from '../utils/interactionQueue.js';
 
 export class LinkedInInteractionController {
   
@@ -93,48 +94,46 @@ export class LinkedInInteractionController {
         return res.status(httpStatus).json(response);
       }
       
-      // Initialize LinkedIn interaction service
-      const linkedinService = new LinkedInInteractionService();
+      // Enqueue the interaction to prevent concurrent page access
+      const meta = { type: 'send-message', requestId, userId, recipientProfileId };
+      const result = await linkedInInteractionQueue.enqueue(async () => {
+        // Initialize LinkedIn interaction service
+        const linkedinService = new LinkedInInteractionService();
 
-      // Ensure we are logged in if no active authenticated session
-      try {
-        const sessionActive = await linkedinService.isSessionActive();
-        if (!sessionActive) {
-          const puppeteerService = await linkedinService.initializeBrowserSession();
-          const credentialsCiphertext = req.body?.linkedinCredentialsCiphertext;
-          const loginHelper = new LinkedInService(puppeteerService);
-          await loginHelper.login(
-            null,
-            null,
-            null,
-            credentialsCiphertext,
-            'interaction-controller'
-          );
+        // Ensure we are logged in if no active authenticated session
+        try {
+          const sessionActive = await linkedinService.isSessionActive();
+          if (!sessionActive) {
+            const puppeteerService = await linkedinService.initializeBrowserSession();
+            const credentialsCiphertext = req.body?.linkedinCredentialsCiphertext;
+            const loginHelper = new LinkedInService(puppeteerService);
+            await loginHelper.login(
+              null,
+              null,
+              null,
+              credentialsCiphertext,
+              'interaction-controller'
+            );
+          }
+        } catch (loginErr) {
+          throw new Error('Login required but failed to authenticate to LinkedIn');
         }
-      } catch (loginErr) {
-        const error = new Error('Login required but failed to authenticate to LinkedIn');
-        const { response, httpStatus } = LinkedInErrorHandler.createErrorResponse(
-          error,
-          { operation: 'sendMessage', userId, reason: 'login_failed' },
-          requestId
-        );
-        return res.status(httpStatus).json(response);
-      }
-      
-      // Send message via service layer
-      logger.info('Attempting to send LinkedIn message', {
-        requestId,
-        recipientProfileId,
-        messageLength: messageContent.length,
-        userId,
-        recipientName
-      });
 
-      const result = await linkedinService.sendMessage(
-        recipientProfileId, 
-        messageContent, 
-        userId
-      );
+        // Send message via service layer
+        logger.info('Attempting to send LinkedIn message', {
+          requestId,
+          recipientProfileId,
+          messageLength: messageContent.length,
+          userId,
+          recipientName
+        });
+
+        return await linkedinService.sendMessage(
+          recipientProfileId,
+          messageContent,
+          userId
+        );
+      }, meta);
 
       const duration = Date.now() - startTime;
       
@@ -242,38 +241,35 @@ export class LinkedInInteractionController {
         return res.status(httpStatus).json(response);
       }
       logger.info('Add connection request received  2', { requestId, profileId });
-      // Initialize LinkedIn interaction service
-      const linkedinService = new LinkedInInteractionService();
+      // Enqueue the interaction to prevent concurrent page access
+      const meta = { type: 'add-connection', requestId, userId, profileId };
+      const result = await linkedInInteractionQueue.enqueue(async () => {
+        // Initialize LinkedIn interaction service
+        const linkedinService = new LinkedInInteractionService();
 
-      // Ensure we are logged in if no active authenticated session
-      try {
-        const sessionActive = await linkedinService.isSessionActive();
-        if (!sessionActive) {
-          const puppeteerService = await linkedinService.initializeBrowserSession();
-          const credentialsCiphertext = req.body?.linkedinCredentialsCiphertext;
-          const loginHelper = new LinkedInService(puppeteerService);
-          await loginHelper.login(
-            null,
-            null,
-            null,
-            credentialsCiphertext,
-            'interaction-controller'
-          );
+        // Ensure we are logged in if no active authenticated session
+        try {
+          const sessionActive = await linkedinService.isSessionActive();
+          if (!sessionActive) {
+            const puppeteerService = await linkedinService.initializeBrowserSession();
+            const credentialsCiphertext = req.body?.linkedinCredentialsCiphertext;
+            const loginHelper = new LinkedInService(puppeteerService);
+            await loginHelper.login(
+              null,
+              null,
+              null,
+              credentialsCiphertext,
+              'interaction-controller'
+            );
+          }
+        } catch (loginErr) {
+          throw new Error('Login required but failed to authenticate to LinkedIn');
         }
-      } catch (loginErr) {
-        const error = new Error('Login required but failed to authenticate to LinkedIn');
-        const { response, httpStatus } = LinkedInErrorHandler.createErrorResponse(
-          error,
-          { operation: 'addConnection', userId, reason: 'login_failed' },
-          requestId
-        );
-        return res.status(httpStatus).json(response);
-      }
 
-      // Send connection request via service layer (single workflow)
-      logger.info('Attempting to send LinkedIn connection request', { requestId, profileId, userId });
-
-      const result = await linkedinService.executeConnectionWorkflow(profileId, '', { jwtToken: req.jwtToken });
+        // Send connection request via service layer (single workflow)
+        logger.info('Attempting to send LinkedIn connection request', { requestId, profileId, userId });
+        return await linkedinService.executeConnectionWorkflow(profileId, '', { jwtToken: req.jwtToken });
+      }, meta);
 
       // Return success response
       res.json({
@@ -402,23 +398,25 @@ export class LinkedInInteractionController {
         return res.status(httpStatus).json(response);
       }
       
-      // Initialize LinkedIn interaction service
-      const linkedinService = new LinkedInInteractionService();
-      
-      // Create post via service layer
-      logger.info('Attempting to create LinkedIn post', {
-        requestId,
-        contentLength: content.length,
-        hasMediaAttachments: !!mediaAttachments && mediaAttachments.length > 0,
-        mediaCount: mediaAttachments ? mediaAttachments.length : 0,
-        userId
-      });
+      const meta = { type: 'create-post', requestId, userId };
+      const result = await linkedInInteractionQueue.enqueue(async () => {
+        // Initialize LinkedIn interaction service
+        const linkedinService = new LinkedInInteractionService();
 
-      const result = await linkedinService.createPost(
-        content, 
-        mediaAttachments || [], 
-        userId
-      );
+        logger.info('Attempting to create LinkedIn post', {
+          requestId,
+          contentLength: content.length,
+          hasMediaAttachments: !!mediaAttachments && mediaAttachments.length > 0,
+          mediaCount: mediaAttachments ? mediaAttachments.length : 0,
+          userId
+        });
+
+        return await linkedinService.createPost(
+          content,
+          mediaAttachments || [],
+          userId
+        );
+      }, meta);
 
       // Return success response
       res.json({

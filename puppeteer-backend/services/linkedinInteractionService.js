@@ -602,21 +602,62 @@ export class LinkedInInteractionService {
     try {
       const session = await this.getBrowserSession();
       const page = session.getPage();
-      
-      // Wait for network to be idle
-      await page.waitForLoadState?.('networkidle') || 
-            page.waitForTimeout(2000);
-      
-      // Wait for LinkedIn-specific elements that indicate page is loaded
+
+      // Heuristic hydration/stability detector for SPA pages (avoids flaky networkidle)
+      const maxWaitMs = this.configManager.get('pageLoadMaxWait', 10000);
+      const sampleIntervalMs = 250;
+      const requiredStableSamples = 3;
+
+      let lastMetrics = null;
+      let stableSamples = 0;
+      const startTs = Date.now();
+
+      while (Date.now() - startTs < maxWaitMs) {
+        const metrics = await page.evaluate(() => {
+          const ready = document.readyState; // 'loading' | 'interactive' | 'complete'
+          const main = !!document.querySelector('main');
+          const scaffold = !!document.querySelector('.scaffold-layout');
+          const nav = !!document.querySelector('header.global-nav, .global-nav');
+          const anchors = document.querySelectorAll('a[href]')?.length || 0;
+          const images = document.images?.length || 0;
+          const height = document.body?.scrollHeight || 0;
+          const url = location.href;
+          const isCheckpoint = /checkpoint|authwall/i.test(url);
+          return { ready, main, scaffold, nav, anchors, images, height, isCheckpoint };
+        });
+
+        // Fast path: base UI present and DOM not loading
+        const baseUiPresent = (metrics.main || metrics.scaffold || metrics.nav) && metrics.ready !== 'loading';
+
+        // Stability: DOM metrics not changing over a few samples
+        if (
+          lastMetrics &&
+          baseUiPresent &&
+          metrics.anchors === lastMetrics.anchors &&
+          metrics.images === lastMetrics.images &&
+          metrics.height === lastMetrics.height
+        ) {
+          stableSamples += 1;
+          if (stableSamples >= requiredStableSamples) {
+            return true;
+          }
+        } else {
+          stableSamples = 0;
+        }
+
+        lastMetrics = metrics;
+        await page.waitForTimeout(sampleIntervalMs);
+      }
+
+      // Fallback: ensure at least a key container exists before proceeding
       await Promise.race([
-        session.waitForSelector('main'),
-        session.waitForSelector('[data-test-id]'),
-        session.waitForSelector('.scaffold-layout'),
-        page.waitForTimeout(5000) // Fallback timeout
+        session.waitForSelector('main', { timeout: 2000 }),
+        session.waitForSelector('.scaffold-layout', { timeout: 2000 }),
+        session.waitForSelector('[data-test-id]', { timeout: 2000 }),
+        page.waitForTimeout(2000)
       ]);
-      
     } catch (error) {
-      logger.debug('LinkedIn page load wait completed with timeout');
+      logger.debug('LinkedIn page load heuristic finished without full stability; proceeding');
     }
   }
   
@@ -646,12 +687,7 @@ export class LinkedInInteractionService {
     return false;
   }
 
-  /**
-   * Handle LinkedIn-specific errors and authentication issues
-   * @returns {Promise<void>}
-   */
-  // Previously removed; provide a safe no-op to avoid crashes where referenced
-  async handleLinkedInErrors() { /* no-op */ }
+
 
   /**
    * Send a direct message to a LinkedIn connection
@@ -1545,9 +1581,7 @@ export class LinkedInInteractionService {
       logger.info(`${buttonName} container check: ${container ? 'found' : 'not found'}` +
         `${usedSelector ? ` (${usedSelector})` : ''}`);
       if (!container) return false;
-
-      const containerHtml = await page.evaluate(el => el.innerHTML || '', container);
-      logger.debug(`${buttonName} container innerHTML: ${containerHtml}`);
+      
 
       if (buttonName === "pending") {
           const containsPending = await page.evaluate((el, buttonName) => {
@@ -1884,13 +1918,7 @@ export class LinkedInInteractionService {
     }
   }
 
-  /**
-   * Scroll element into view with human-like behavior
-   * @param {Object} page - Puppeteer page object
-   * @param {Object} element - Element to scroll into view
-   * @returns {Promise<void>}
-   */
-  // scrollElementIntoView removed
+
 
   /**
    * Complete LinkedIn messaging workflow
@@ -2111,7 +2139,7 @@ export class LinkedInInteractionService {
       
       // Step 2: Ensure browser session is healthy
       const session = await this.getBrowserSession();
-      await this.handleLinkedInErrors();
+      
       
       // Step 3: Navigate to post creation interface
       logger.info('Step 1/5: Opening post creation interface');

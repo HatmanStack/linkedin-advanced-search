@@ -402,7 +402,7 @@ const ConnectionCard = ({
             const { visible, hasMore } = getVisibleTagsByCharacterBudget(allTags);
             return (
               <div className="mb-2">
-                <div className="flex items-center overflow-hidden flex-nowrap gap-2 max-w-full whitespace-nowrap">
+                <div className="flex items-center overflow-hidden flex-nowrap gap-2 max-w-full whitespace-nowrap leading-7 min-h-[28px] py-0.5">
                   <Tag className="h-3 w-3 text-slate-400 mr-1 flex-shrink-0" />
                   {visible.map((tag: string, index: number) => (
                     <Badge 
@@ -419,13 +419,13 @@ const ConnectionCard = ({
                     </Badge>
                   ))}
                   {hasMore && (
-                    <button
-                      type="button"
+                    <Badge
+                      variant="outline"
+                      className="cursor-pointer text-xs border-slate-400/30 text-slate-400 flex-shrink-0 ml-1 transition-all duration-200 hover:scale-[1.2] hover:bg-slate-500/20 hover:border-slate-400/50 hover:text-slate-200"
                       onClick={handleOpenTags}
-                      className="text-xs text-slate-200 hover:text-slate-100 flex-shrink-0 ml-1"
                     >
-                      … more
-                    </button>
+                      +{allTags.length - visible.length} more
+                    </Badge>
                   )}
                 </div>
               </div>
