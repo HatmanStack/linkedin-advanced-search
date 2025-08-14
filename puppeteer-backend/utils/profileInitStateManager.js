@@ -113,7 +113,7 @@ export class ProfileInitStateManager {
     }
 
     // Validate connection list type - updated for new connection types
-    const validConnectionTypes = ['allies', 'incoming', 'outgoing'];
+    const validConnectionTypes = ['ally', 'incoming', 'outgoing'];
     if (
       state.currentProcessingList !== undefined &&
       state.currentProcessingList !== null &&
@@ -198,7 +198,7 @@ export class ProfileInitStateManager {
   /**
    * Create healing state for list creation scenarios
    * @param {Object} baseState - Base state
-   * @param {string} connectionType - Type of connection being collected (allies, incoming, outgoing)
+   * @param {string} connectionType - Type of connection being collected (ally, incoming, outgoing)
    * @param {number} expansionAttempt - Current expansion attempt number
    * @param {number} currentFileIndex - Current file index being written
    * @param {Object} masterIndex - Current master index state
@@ -283,7 +283,7 @@ export class ProfileInitStateManager {
   static resetProcessingState(state) {
     return {
       ...state,
-      currentProcessingList: 'allies',
+      currentProcessingList: 'ally',
       currentBatch: 0,
       currentIndex: 0,
       completedBatches: [],

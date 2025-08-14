@@ -60,7 +60,7 @@ const Dashboard = () => {
   const [connectionCounts, setConnectionCounts] = useState<ConnectionCounts>({
     incoming: 0,
     outgoing: 0,
-    allies: 0,
+    ally: 0,
     total: 0
   });
 
@@ -150,15 +150,15 @@ const Dashboard = () => {
           const counts = {
             incoming: 0,
             outgoing: 0,
-            allies: 0,
+            ally: 0,
             total: 0
           } as ConnectionCounts;
           fetchedConnections.forEach((conn: Connection) => {
             if (conn.status === 'incoming') counts.incoming++;
             else if (conn.status === 'outgoing') counts.outgoing++;
-            else if (conn.status === 'allies') counts.allies++;
+            else if (conn.status === 'ally') counts.ally++;
           });
-          counts.total = counts.incoming + counts.outgoing + counts.allies;
+          counts.total = counts.incoming + counts.outgoing + counts.ally;
           setConnectionCounts(counts);
           // Clear change flag after successful refresh
           connectionChangeTracker.clearChanged();
@@ -177,15 +177,15 @@ const Dashboard = () => {
       const counts = {
         incoming: 0,
         outgoing: 0,
-        allies: 0,
+        ally: 0,
         total: 0
       } as ConnectionCounts;
       cached.forEach((conn: Connection) => {
         if (conn.status === 'incoming') counts.incoming++;
         else if (conn.status === 'outgoing') counts.outgoing++;
-        else if (conn.status === 'allies') counts.allies++;
+        else if (conn.status === 'ally') counts.ally++;
       });
-      counts.total = counts.incoming + counts.outgoing + counts.allies;
+      counts.total = counts.incoming + counts.outgoing + counts.ally;
       setConnectionCounts(counts);
       // Ensure session initialized flag is set when data already exists in cache
       if (!hasInitializedThisSession) {
@@ -243,7 +243,7 @@ const Dashboard = () => {
     const counts = {
       incoming: 0,
       outgoing: 0,
-      allies: 0,
+      ally: 0,
       total: 0
     };
 
@@ -255,19 +255,19 @@ const Dashboard = () => {
         case 'outgoing':
           counts.outgoing++;
           break;
-        case 'allies':
-          counts.allies++;
+        case 'ally':
+          counts.ally++;
           break;
       }
     });
 
-    // Total should only include incoming, outgoing, and allies (exclude possible)
-    counts.total = counts.incoming + counts.outgoing + counts.allies;
+    // Total should only include incoming, outgoing, and ally (exclude possible)
+    counts.total = counts.incoming + counts.outgoing + counts.ally;
 
     return counts;
   }, []);
 
-  const updateConnectionStatus = useCallback(async (connectionId: string, newStatus: 'possible' | 'incoming' | 'outgoing' | 'allies' | 'processed') => {
+  const updateConnectionStatus = useCallback(async (connectionId: string, newStatus: 'possible' | 'incoming' | 'outgoing' | 'ally' | 'processed') => {
     try {
       // Optimistic update
       setConnections(prev => prev.map(conn =>
@@ -391,8 +391,8 @@ const Dashboard = () => {
     setGenerationError(null);
     errorHandler.clearError();
 
-    const selectedConnectionsData = connections.filter(conn => 
-      selectedConnections.includes(conn.id) && conn.status === 'allies'
+      const selectedConnectionsData = connections.filter(conn => 
+      selectedConnections.includes(conn.id) && conn.status === 'ally'
     );
 
     console.log('Processing connections:', selectedConnectionsData.map(c => `${c.first_name} ${c.last_name}`));
@@ -576,7 +576,7 @@ const Dashboard = () => {
   const filteredConnections = useMemo(() => {
     return connections.filter(connection => {
       if (selectedStatus === 'all') {
-        return ['incoming', 'outgoing', 'allies'].includes(connection.status);
+        return ['incoming', 'outgoing', 'ally'].includes(connection.status);
       }
       return connection.status === selectedStatus;
     });
@@ -990,9 +990,9 @@ const Dashboard = () => {
                           className="bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700 text-white"
                         >
                           <Database className="h-4 w-4 mr-2" />
-                          {isInitializing 
-                            ? 'Initializing...' 
-                            : connectionCounts.allies > 0 
+                         {isInitializing 
+                             ? 'Initializing...' 
+                             : connectionCounts.ally > 0 
                               ? 'Refresh' 
                               : 'Initialize Profile Database'
                           }
@@ -1067,6 +1067,11 @@ const Dashboard = () => {
               connectionsLoading={connectionsLoading}
               connectionsError={connectionsError}
               onRefresh={fetchConnections}
+              onRemoveConnection={(connectionId: string, newStatus: 'processed' | 'outgoing') => {
+                // Update status accordingly in state and cache to trigger list re-render
+                setConnections(prev => prev.map(c => c.id === connectionId ? { ...c, status: newStatus } : c));
+                connectionCache.update(connectionId, { status: newStatus });
+              }}
             />
 
             {error && (

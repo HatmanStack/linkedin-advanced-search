@@ -4,6 +4,8 @@ import config from '../config/index.js';
 // Removed human-like delay/behavior helpers for simplicity
 import LinkedInErrorHandler from '../utils/linkedinErrorHandler.js';
 import ConfigManager from '../utils/configManager.js';
+import DynamoDBService from './dynamoDBService.js';
+// edgeManager removed; using DynamoDBService.ensureEdge directly
 
 // Lightweight fallback utilities to replace removed human-behavior helpers
 const RandomHelpers = {
@@ -270,6 +272,7 @@ export class LinkedInInteractionService {
     this.sessionManager = BrowserSessionManager;
     // Human behavior manager removed
     this.configManager = ConfigManager;
+    this.dynamoDBService = new DynamoDBService();
     // Provide safe no-op fallbacks to avoid runtime errors where humanBehavior was used previously
     this.humanBehavior = {
       async checkAndApplyCooldown() { /* no-op */ },
@@ -1373,120 +1376,75 @@ export class LinkedInInteractionService {
    * Implements requirement 2.4 - Connection request workflow
    * @returns {Promise<Object>} Connection request result
    */
-  async sendConnectionRequest() {
-    logger.info('Sending connection request');
-    
+  async sendConnectionRequest(profileId, jwtToken) {
+    logger.info('Sending connection request for profile: ' + profileId);
     try {
       const session = await this.getBrowserSession();
       const page = session.getPage();
       
-      // Add human-like delay before sending
-      
-      
-      // Look for send/connect button in the modal
-      const sendButtonSelectors = [
-        'button[aria-label*="Send"]',
-        'button[aria-label*="send"]',
-        'button[data-test-id="send-invite-button"]',
-        '.artdeco-button--primary[aria-label*="Send"]',
-        'button[data-control-name="invite.send"]',
-        'button[type="submit"][aria-label*="Send"]',
-        '.send-invite__actions button[aria-label*="Send"]',
-        'button:has-text("Send invitation")',
-        'button:has-text("Send")',
-        '.connect-button-send-invite'
-      ];
-      
-      let sendButton = null;
-      for (const selector of sendButtonSelectors) {
-        try {
-          sendButton = await session.waitForSelector(selector, { timeout: 3000 });
-          if (sendButton) {
-            // Verify button is visible and enabled
-            const isVisible = await sendButton.isVisible();
-            const isEnabled = !(await sendButton.getAttribute('disabled'));
-            
-            if (isVisible && isEnabled) {
-              logger.debug(`Found send button with selector: ${selector}`);
-              break;
-            } else {
-              sendButton = null; // Reset if not usable
+       
+
+        // 2. Wait for the modal to appear and be visible.
+        const modalSelector = '[role="dialog"], .artdeco-modal, .send-invite';
+        const modal = await page.waitForSelector(modalSelector, { visible: true, timeout: 5000 });
+        if (!modal) {
+            throw new Error('Connection request modal did not appear.');
+        }
+        logger.info('Connection modal appeared.');
+
+        // 3. Find the clickable "Send" button within the modal using DOM evaluation (Puppeteer-agnostic)
+        const sendHandle = await page.evaluateHandle((modalEl) => {
+          const lower = (s) => (s || '').toLowerCase();
+          const nodes = modalEl.querySelectorAll('button, [role="button"]');
+          for (const n of nodes) {
+            const aria = lower(n.getAttribute('aria-label'));
+            const txt = lower((n.innerText || n.textContent || '').trim());
+            if (
+              aria.includes('send without a note') || txt === 'send without a note' ||
+              aria.includes('send invitation') || txt === 'send invitation' ||
+              txt === 'send' || aria === 'send'
+            ) {
+              return n;
             }
           }
-        } catch (error) {
-          // Continue to next selector
-        }
-      }
-      
+          return null;
+        }, modal);
+
+        const sendButton = sendHandle?.asElement?.();
       if (!sendButton) {
-        throw new Error('Send connection request button not found or not enabled');
+          throw new Error('Send button not found within the modal.');
       }
       
-      // Simulate human mouse movement to send button
+        // 4. Click the button and wait for confirmation.
       await this.humanBehavior.simulateHumanMouseMovement(page, sendButton);
-      
-      
-      // Click send button
       await sendButton.click();
-      logger.info('Connection request send button clicked');
+        logger.info('Clicked send button in modal.');
       
-      // Wait for request to be processed
-      
-      
-      // Look for confirmation indicators
       const confirmationSelectors = [
-        '[data-test-id="invitation-sent-confirmation"]',
-        '.artdeco-toast-message',
-        '.invitation-sent-message',
-        '[aria-live="polite"]',
-        '.connect-button-send-invite--sent',
+            '.artdeco-toast-item', 
         'button[aria-label*="Pending"]',
-        'button[aria-label*="pending"]'
-      ];
-      
-      let confirmationFound = false;
-      for (const selector of confirmationSelectors) {
+            '[data-test-id="invitation-sent-confirmation"]'
+        ];
+        await page.waitForSelector(confirmationSelectors.join(', '), { timeout: 5000 });
+        
+        logger.info('Connection request confirmation found.');
+        const requestId = `conn_req_${Date.now()}`;
+        
+        this.humanBehavior.recordAction('connection_request_sent', { requestId, confirmationFound: true });
         try {
-          const confirmation = await session.waitForSelector(selector, { timeout: 5000 });
-          if (confirmation) {
-            logger.debug(`Connection request confirmation found: ${selector}`);
-            confirmationFound = true;
-            break;
-          }
-        } catch (error) {
-          // Continue checking other selectors
-        }
-      }
-      
-      // Generate connection request ID for tracking
-      const requestId = `conn_req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      
-      // Record successful connection request
-      this.humanBehavior.recordAction('connection_request_sent', {
-        requestId,
-        confirmationFound
-      });
-      
-      logger.info('Connection request sent successfully', {
-        requestId,
-        confirmationFound
-      });
+            await this.ensureEdge(profileId, 'outgoing', jwtToken);
+        } catch (_) {}
       
       return {
         requestId,
-        status: confirmationFound ? 'sent' : 'pending_confirmation',
+            status: 'sent',
         sentAt: new Date().toISOString(),
-        confirmationFound
+            confirmationFound: true
       };
       
     } catch (error) {
-      logger.error('Failed to send connection request:', error);
-      
-      // Record failed attempt
-      this.humanBehavior.recordAction('connection_request_failed', {
-        error: error.message
-      });
-      
+        logger.error('Failed to send connection request:', error.message);
+        this.humanBehavior.recordAction('connection_request_failed', { error: error.message });
       throw new Error(`Connection request failed: ${error.message}`);
     }
   }
@@ -1554,298 +1512,124 @@ export class LinkedInInteractionService {
   }
 
   /**
-   * Find and click the connect button on a LinkedIn profile
-   * @returns {Promise<void>}
+   * Check if the profile page container contains an aria-label with "Pending"
+   * If true, caller should treat connection as already pending/outgoing
+   * @returns {Promise<boolean>}
    */
-  /**
-   * Find and click the connect button on a LinkedIn profile
-   * Implements requirements 2.2, 2.3
-   * @returns {Promise<void>}
-   */
-  async findAndClickConnectButton() {
-    logger.info('Looking for and clicking connect button');
-    
+  async isProfileContainer(buttonName) {
     try {
       const session = await this.getBrowserSession();
       const page = session.getPage();
-      
-      // Check for cooling-off period before interaction
-      await this.humanBehavior.checkAndApplyCooldown();
-      
-      logger.info('Looking for and clicking connect button');
-      // Look for a plain "Connect" button first (text-based and aria-based selectors)
-      const connectButtonSelectors = [
-        'button[aria-label*="Connect"]',
-        'button[aria-label*="connect"]',
-        '[data-test-id="connect-button"]',
-        '.connect-button',
-        'button[data-control-name*="connect"]',
-        '.pv-s-profile-actions button[aria-label*="Connect"]',
-        '.pvs-profile-actions__action button[aria-label*="Connect"]',
-        'button[data-control-name="connect"]',
-        '.pv-top-card-v2-ctas button[aria-label*="Connect"]'
+      // Try broader, stable containers in priority order
+      const candidateSelectors = [
+        '#profile-content main section.artdeco-card div.ph5.pb5',
+        '#profile-content main section.artdeco-card',
+        '#profile-content main',
+        'main .pv-top-card',
+        'main'
       ];
-      let { element: connectButton, selector: foundSelector } = await this.findElementBySelectors(connectButtonSelectors, 2500);
 
-      // Fallback: find by visible text "Connect" using XPath
-      if (!connectButton) {
+      let container = null;
+      let usedSelector = null;
+      for (const sel of candidateSelectors) {
         try {
-          const [byText] = await page.$x("//button//*[normalize-space(text())='Connect']/ancestor::button | //button[normalize-space(text())='Connect']");
-          if (byText) {
-            connectButton = byText;
-            foundSelector = 'xpath://button[.=\'Connect\']';
-          }
-        } catch (_) {}
-      }
-
-      if (connectButton) {
-        // Scroll button into view and click humanly
-        await this.clickElementHumanly(page, connectButton);
-        await this.waitForConnectionModal();
-        logger.info('Successfully clicked direct Connect button');
-        return;
-      }
-
-      // If direct button not found, open the More actions menu and click Connect inside it
-      logger.info('Direct Connect button not found, trying More actions menu');
-      const moreButtonSelectors = [
-        'button[aria-label*="More actions"]',
-        'button[aria-label*="More"]',
-        '[id*="profile-overflow-action"]',
-        '#ember-profile-overflow-action',
-        '.pv-top-card-v2-ctas button[aria-label*="More"]'
-      ];
-      const { element: moreButton } = await this.findElementBySelectors(moreButtonSelectors, 2500);
-
-      if (!moreButton) {
-        // Before bailing, check if already connected/pending
-        const alreadyConnectedSelectors = [
-          'button[aria-label*="Message"]',
-          'button[aria-label*="Following"]',
-          'button[aria-label*="Pending"]',
-          '.pv-s-profile-actions button[aria-label*="Message"]'
-        ];
-        const { element: statusElement } = await this.findElementBySelectors(alreadyConnectedSelectors, 1000);
-        if (statusElement) {
-          throw new Error('Profile is already connected or connection is pending');
-        }
-        throw new Error('Connect button not found and More actions menu unavailable');
-      }
-
-      // Click More actions
-      await this.clickElementHumanly(page, moreButton);
-
-      // Wait for dropdown/menu to appear
-      const menuSelectors = [
-        '.artdeco-dropdown__content',
-        'div[role="menu"]',
-        '.pv-top-card-v2-ctas__dropdown'
-      ];
-      const { element: menuEl } = await this.findElementBySelectors(menuSelectors, 2500);
-      if (!menuEl) {
-        logger.warn('More actions menu did not appear; attempting to continue');
-      }
-
-      // Find Connect item inside the menu by text
-      let menuConnect = null;
-      try {
-        const candidates = await page.$$('div[role="menu"] * , .artdeco-dropdown__content *');
-        for (const el of candidates) {
-          try {
-            const text = (await page.evaluate(node => node.innerText || node.textContent || '', el)).trim();
-            if (text && /^(connect)$/i.test(text)) {
-              menuConnect = el;
-              break;
-            }
-          } catch (_) {}
-        }
-      } catch (_) {}
-
-      // XPath fallback for Connect in menu
-      if (!menuConnect) {
-        try {
-          const [byMenuText] = await page.$x("//*[contains(@class,'artdeco-dropdown__content') or @role='menu']//*[normalize-space(text())='Connect']");
-          if (byMenuText) menuConnect = byMenuText;
-        } catch (_) {}
-      }
-
-      if (!menuConnect) {
-        throw new Error('Connect option not found in More actions menu');
-      }
-
-      await this.clickElementHumanly(page, menuConnect);
-      await this.waitForConnectionModal();
-      logger.info('Successfully clicked Connect via More actions menu');
-      
-    } catch (error) {
-      logger.error('Failed to find and click connect button:', error);
-      
-      // Screenshot capture removed
-      
-      throw new Error(`Connect button interaction failed: ${error.message}`);
-    }
-  }
-
-  /**
-   * Wait for connection modal to appear
-   * @returns {Promise<void>}
-   */
-  async waitForConnectionModal() {
-    try {
-      const session = await this.getBrowserSession();
-      const page = session.getPage();
-      
-      // Wait for connection modal or direct connection confirmation
-      const modalSelectors = [
-        '[data-test-id="connect-modal"]',
-        '.send-invite',
-        '.connect-button-send-invite',
-        '.artdeco-modal',
-        '[role="dialog"]',
-        '.ip-fuse-limit-alert'
-      ];
-      
-      let modalFound = false;
-      for (const selector of modalSelectors) {
-        try {
-          const modal = await session.waitForSelector(selector, { timeout: 3000 });
-          if (modal) {
-            logger.debug(`Connection modal found with selector: ${selector}`);
-            modalFound = true;
+          const el = await page.$(sel);
+          if (el) {
+            container = el;
+            usedSelector = sel;
             break;
           }
-        } catch (error) {
-          // Continue to next selector
-        }
+        } catch (_) {}
       }
-      
-      if (!modalFound) {
-        // Check if connection was sent directly (no modal)
-        const confirmationSelectors = [
-          'button[aria-label*="Pending"]',
-          'button[aria-label*="Invitation sent"]',
-          '.pv-s-profile-actions button[aria-label*="Pending"]'
-        ];
-        
-        for (const selector of confirmationSelectors) {
-          try {
-            const confirmation = await session.waitForSelector(selector, { timeout: 2000 });
-            if (confirmation) {
-              logger.debug(`Direct connection confirmation found: ${selector}`);
-              return;
-            }
-          } catch (error) {
-            // Continue checking
-          }
+
+      logger.info(`${buttonName} container check: ${container ? 'found' : 'not found'}` +
+        `${usedSelector ? ` (${usedSelector})` : ''}`);
+      if (!container) return false;
+
+      const containerHtml = await page.evaluate(el => el.innerHTML || '', container);
+      logger.debug(`${buttonName} container innerHTML: ${containerHtml}`);
+
+      if (buttonName === "pending") {
+          const containsPending = await page.evaluate((el, buttonName) => {
+          const html = el.innerHTML || '';
+          return new RegExp(`aria[-\\s]?label\\s*=\\s*["'][^"']*${buttonName}[^"']*["']`, 'i').test(html);
+        }, container, buttonName);
+      logger.info(`${buttonName} container match: ${containsPending ? 'found' : 'not found'}`);
+      return !!containsPending;
+    } else if (buttonName === "connection-degree") {
+      const isFirst = await page.evaluate((root) => {
+        const el = root.querySelector('span.distance-badge .dist-value');
+        const txt = (el && el.textContent) ? el.textContent.trim() : '';
+        return txt === '1st';
+      }, container);
+      logger.info(`connection-degree match: ${isFirst ? '1st' : 'not 1st'}`);
+      return !!isFirst;
+
+    } else if (buttonName === "connect") {
+      const handle = await page.evaluateHandle((root) => {
+        const lower = (s) => (s || '').toLowerCase();
+        const isVisible = (n) => {
+          const r = n.getBoundingClientRect();
+          const s = window.getComputedStyle(n);
+          return r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && s.display !== 'none';
+        };
+        const nodes = root.querySelectorAll('button,[role="button"],.artdeco-button');
+        for (const n of nodes) {
+          const aria = lower(n.getAttribute('aria-label'));
+          const txt = lower((n.innerText || n.textContent || '').trim());
+          if (((aria && aria.includes('connect')) || txt === 'connect') && isVisible(n)) return n;
         }
-      }
-      
-      // Additional wait for modal to be fully loaded
-      
-      
+        return null;
+      }, container);
+      const btn = handle && handle.asElement && handle.asElement();
+      if (btn) { await this.clickElementHumanly(page, btn); return true; }
+      return false;
+
+    } else if (buttonName === "more") {
+      const handle = await page.evaluateHandle((root) => {
+        const lower = (s) => (s || '').toLowerCase();
+        const isVisible = (n) => {
+          const r = n.getBoundingClientRect();
+          const s = window.getComputedStyle(n);
+          return r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && s.display !== 'none';
+        };
+        const nodes = root.querySelectorAll('button,[role="button"],.artdeco-button');
+        for (const n of nodes) {
+          const aria = lower(n.getAttribute('aria-label'));
+          const txt = lower((n.innerText || n.textContent || '').trim());
+          if (((aria && aria.includes('more')) || txt === 'more') && isVisible(n)) return n;
+        }
+        return null;
+      }, container);
+      const btn = handle && handle.asElement && handle.asElement();
+      if (btn) { await this.clickElementHumanly(page, btn); return true; }
+      return false;
+    } else {
+      throw new Error(`Invalid button name: ${buttonName}`);
+    }
     } catch (error) {
-      logger.debug('Connection modal wait completed with potential issues:', error.message);
-      // Don't throw error here as connection might have been successful
+      logger.debug('Pending container check failed:', error.message);
+      return false;
     }
   }
-  
 
   /**
-   * Add a personalized message to the connection request
-   * @param {string} connectionMessage - Message to add to connection request
-   * @returns {Promise<void>}
+   * Ensure an edge is recorded for the profile using edge manager
+   * @param {string} profileId - Profile ID to record edge for
+   * @param {string} status - Edge status (e.g., 'outgoing', 'pending', 'connected')
+   * @param {string|undefined} jwtToken - JWT token for authentication
    */
-  async addConnectionMessage(connectionMessage) {
-    logger.info('Adding connection message', {
-      messageLength: connectionMessage.length
-    });
-    
+  async ensureEdge(profileId, status, jwtToken) {
     try {
-      const session = await this.getBrowserSession();
-      const page = session.getPage();
-      
-      // Wait for connection modal to appear
-      await this.waitForLinkedInLoad();
-      
-      // Add thinking delay before looking for elements
-      
-      
-      // Look for "Add a note" button or link
-      const addNoteSelectors = [
-        'button[aria-label*="Add a note"]',
-        'button[aria-label*="add a note"]',
-        '[data-test-id="add-note-button"]',
-        '.add-note-button',
-        'button:has-text("Add a note")',
-        'a:has-text("Add a note")'
-      ];
-      const { element: addNoteButton } = await this.findElementBySelectors(addNoteSelectors, 2000);
-      
-      if (addNoteButton) {
-        // Simulate human mouse movement to button
-        await this.humanBehavior.simulateHumanMouseMovement(page, addNoteButton);
-        
-        // Click add note button to expand message field
-        logger.info('Clicking add note button');
-        await addNoteButton.click();
-        
-        // Record the click action
-        this.humanBehavior.recordAction('click', {
-          element: 'add_note_button',
-          action: 'expand_message_field'
-        });
-        
-        
+      if (jwtToken) {
+        this.dynamoDBService.setAuthToken(jwtToken);
       }
-      
-        // Look for message input field
-        const messageInputSelectors = [
-          '[data-test-id="connection-message-input"]',
-          'textarea[name="message"]',
-          'textarea[placeholder*="message"]',
-          'textarea[placeholder*="note"]',
-          '.connection-message-input',
-          'textarea[aria-label*="message"]'
-        ];
-        const { element: messageInput } = await this.findElementBySelectors(messageInputSelectors, 3000);
-      
-      if (!messageInput) {
-        logger.warn('Connection message input field not found, proceeding without message');
-        return;
-      }
-      
-      // Simulate human mouse movement, clear and type
-      await this.humanBehavior.simulateHumanMouseMovement(page, messageInput);
-      await this.clearAndTypeText(page, messageInput, connectionMessage);
-      
-      // Add delay after typing
-      
-      
-      logger.info('Connection message added successfully');
-      
+      await this.dynamoDBService.upsertEdgeStatus(profileId, status);
     } catch (error) {
-      logger.error('Failed to add connection message:', error);
-      // Don't throw error - connection can still proceed without message
-      logger.warn('Proceeding with connection request without personalized message');
+      logger.warn(`Failed to create edge with status '${status}' via edge manager:`, error.message);
     }
   }
 
-  /**
-   * Send the connection request after all setup is complete
-   * @returns {Promise<Object>} Connection result with ID
-   */
-  // Duplicate method removed (consolidated above)
-
-  /**
-   * Create and publish a LinkedIn post
-   * @param {string} content - Post content
-   * @param {Array} mediaAttachments - Optional media attachments
-   * @param {string} userId - ID of authenticated user
-   * @returns {Promise<Object>} Post result
-   */
-  // Duplicate createPost removed to avoid redundancy
-
-  // Duplicate navigateToPostCreator removed
 
   /**
    * Input post content with realistic typing patterns and delays
@@ -2181,6 +1965,35 @@ export class LinkedInInteractionService {
   }
 
   /**
+   * Create a standardized connection workflow result object
+   * @param {string} profileId - Profile ID being connected with
+   * @param {string} connectionMessage - Connection message (if any)
+   * @param {Object} workflowData - Workflow execution data
+   * @returns {Object} Standardized connection workflow result
+   */
+  createConnectionWorkflowResult(profileId, connectionMessage, workflowData) {
+    return {
+      requestId: workflowData.requestId || null,
+      status: workflowData.status || workflowData.connectionStatus || 'unknown',
+      sentAt: workflowData.sentAt || new Date().toISOString(),
+      profileId,
+      hasPersonalizedMessage: connectionMessage.length > 0
+    };
+  }
+
+  async getEarlyConnectionStatus() {
+    try {
+      const isAlly = await this.isProfileContainer("connection-degree");
+      if (isAlly) return 'ally';
+      const isPending = await this.isProfileContainer("pending");
+      if (isPending) return 'outgoing';
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /**
    * Complete LinkedIn connection workflow
    * Implements requirements 2.2, 2.3, 2.4 - End-to-end connection
    * @param {string} profileId - Profile ID to connect with
@@ -2206,63 +2019,67 @@ export class LinkedInInteractionService {
       
       
       // Step 3: Navigate to target profile
-      logger.info('Step 1/5: Navigating to profile');
+      logger.info('Step 1/4: Navigating to profile');
       const navigationSuccess = await this.navigateToProfile(profileId);
       if (!navigationSuccess) {
         throw new Error(`Failed to navigate to profile: ${profileId}`);
       }
 
       // Step 4: Check current connection status
-      logger.info('Step 2/5: Checking connection status');
-      //nst connectionStatus = await this.checkConnectionStatus();
-      //if (connectionStatus.isConnected || connectionStatus === 'connected') {
-        //row new Error('Profile is already connected');
-      //}
-      //if (connectionStatus.isPending || connectionStatus === 'pending') {
-        //row new Error('Connection request is already pending');
-      //}
-      
-      // Step 5: Find and click connect button
-      logger.info('Step 3/5: Clicking connect button');
-      await this.findAndClickConnectButton();
-      
-      // Step 6: Add personalized message if provided
-      if (connectionMessage && connectionMessage.trim().length > 0) {
-        logger.info('Step 4/5: Adding personalized message');
-        await this.addConnectionMessage(connectionMessage.trim());
+      logger.info('Step 2/4: Checking connection status');
+      const earlyStatus = await this.getEarlyConnectionStatus();
+      if (earlyStatus) {
+        await this.ensureEdge(profileId, earlyStatus, options?.jwtToken);
+        const earlyWorkflowData = { status: earlyStatus, connectionStatus: earlyStatus };
+        const earlyResult = this.createConnectionWorkflowResult(
+          profileId,
+          connectionMessage,
+          earlyWorkflowData
+        );
+        logger.info(`Early connection status detected: ${earlyStatus}`, earlyResult);
+        return earlyResult;
       }
       
-      // Step 7: Send connection request
-      logger.info('Step 5/5: Sending connection request');
-      const requestResult = await this.sendConnectionRequest();
+      // Step 5: Find and click connect button
+      logger.info('Step 3/4: Clicking connect button');
+      const connectButtonFound = await this.isProfileContainer('connect');
+      logger.info('Connect button found: ' + connectButtonFound);
+      if (!connectButtonFound) {
+        const moreButtonFound = await this.isProfileContainer('more');
+        if (moreButtonFound) {
+          await this.isProfileContainer('connect');
+          
+        }else{
+          throw new logger.error('Connect button not found in profile container');
+        }
+      }
+      
+      // Step 6: Send connection request (message addition skipped per requirement)
+      logger.info('Step 4/4: Sending connection request');
+      const requestResult = await this.sendConnectionRequest(profileId, options?.jwtToken);
       
       // Update session activity and record success
       this.sessionManager.lastActivity = new Date();
       this.humanBehavior.recordAction('connection_workflow_completed', {
         profileId,
-        hasPersonalizedMessage: connectionMessage.length > 0,
-        messageLength: connectionMessage.length,
+        hasPersonalizedMessage: false,
+        messageLength: 0,
         requestConfirmed: requestResult.confirmationFound,
         workflowDuration: Date.now() - context.startTime
       });
       
-      const result = {
-        workflowId: `conn_workflow_${Date.now()}_${profileId}`,
+      const normalWorkflowData = {
         requestId: requestResult.requestId,
-        connectionStatus: requestResult.status,
+        status: requestResult.status,
         sentAt: requestResult.sentAt,
-        profileId,
-        hasPersonalizedMessage: connectionMessage.length > 0,
-        messageLength: connectionMessage.length,
-        confirmationFound: requestResult.confirmationFound,
-        workflowSteps: [
-          { step: 'profile_navigation', status: 'completed' },
-          { step: 'connection_status_check', status: 'completed' },
-          { step: 'connect_button_click', status: 'completed' },
-          { step: 'message_addition', status: connectionMessage ? 'completed' : 'skipped' },
-          { step: 'request_submission', status: requestResult.confirmationFound ? 'confirmed' : 'pending' }
-        ]
+        confirmationFound: requestResult.confirmationFound
       };
+      
+      const result = this.createConnectionWorkflowResult(
+        profileId, 
+        connectionMessage, 
+        normalWorkflowData
+      );
       
       logger.info('LinkedIn connection workflow completed successfully', result);
       return result;
@@ -2418,24 +2235,6 @@ export class LinkedInInteractionService {
     return validation;
   }
 
-  /**
-   * Get workflow execution statistics and health metrics
-   * @returns {Promise<Object>} Workflow statistics
-   */
-  // getWorkflowStatistics removed
 
-  /**
-   * Generate workflow execution recommendations based on current state
-   * @param {Object} activityStats - Current activity statistics
-   * @param {Object} suspiciousActivity - Suspicious activity analysis
-   * @returns {Array} Array of recommendations
-   */
-  // generateWorkflowRecommendations removed
-
-  /**
-   * Take screenshot for error debugging
-   * @param {string} errorType - Type of error for filename
-   * @returns {Promise<void>}
-   */
-  // takeErrorScreenshot removed
+ 
 }

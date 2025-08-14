@@ -193,7 +193,7 @@ export function validateConnectionData(connection: any): boolean {
   }
   
   // Validate status
-  const validStatuses = ['possible', 'incoming', 'outgoing', 'allies'];
+  const validStatuses = ['possible', 'incoming', 'outgoing', 'ally'];
   if (!validStatuses.includes(connection.status)) {
     console.warn(`Connection has invalid status: ${connection.status}`, connection);
     return false;
@@ -225,7 +225,7 @@ export function sanitizeConnectionData(connection: any): any {
     linkedin_url: connection.linkedin_url || '',
     tags: Array.isArray(connection.tags) ? connection.tags : [],
     last_action_summary: connection.last_action_summary || '',
-    status: ['possible', 'incoming', 'outgoing', 'allies'].includes(connection.status) 
+    status: ['possible', 'incoming', 'outgoing', 'ally'].includes(connection.status) 
       ? connection.status 
       : 'possible',
     conversion_likelihood: typeof connection.conversion_likelihood === 'number' 

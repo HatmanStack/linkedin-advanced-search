@@ -138,9 +138,27 @@ export class PuppeteerService {
     }
 
     try {
+      // Validate and normalize input text to avoid Puppeteer type errors
+      if (text === null || text === undefined) {
+        logger.warn(`safeType called with null/undefined text for selector: ${selector}`);
+        return false;
+      }
+
+      if (typeof text !== 'string') {
+        try {
+          text = String(text);
+        } catch (_) {
+          logger.warn(`safeType could not convert non-string text for selector: ${selector}`);
+          return false;
+        }
+      }
+
+      // Optionally trim to avoid accidental whitespace-only input
+      const inputText = text;
+
       const element = await this.waitForSelector(selector);
       if (element) {
-        await element.type(text, {
+        await element.type(inputText, {
           delay: RandomHelpers.randomInRange(50, 150),
           ...options
         });

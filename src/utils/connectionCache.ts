@@ -15,7 +15,7 @@ interface Connection {
   last_action_summary?: string;
   isFakeData?: boolean;
   last_activity_summary?: string;
-  status?: 'possible' | 'incoming' | 'outgoing' | 'allies';
+  status?: 'possible' | 'incoming' | 'outgoing' | 'ally';
   conversion_likelihood?: number;
 }
 
@@ -311,8 +311,8 @@ export class ConnectionCache {
   preload(connections: Connection[]): void {
     // Sort by some priority if needed (e.g., by date_added or status)
     const sortedConnections = [...connections].sort((a, b) => {
-      // Prioritize 'allies' and 'incoming' connections
-      const statusPriority = { allies: 3, incoming: 2, outgoing: 1, possible: 0 };
+      // Prioritize 'ally' and 'incoming' connections
+      const statusPriority = { ally: 3, incoming: 2, outgoing: 1, possible: 0 };
       const aPriority = statusPriority[a.status as keyof typeof statusPriority] || 0;
       const bPriority = statusPriority[b.status as keyof typeof statusPriority] || 0;
       

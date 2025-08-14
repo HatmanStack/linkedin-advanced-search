@@ -11,7 +11,7 @@ describe('useWorkflowProgress - Task 12 Core Functionality', () => {
       last_name: 'Doe',
       position: 'Software Engineer',
       company: 'Tech Corp',
-      status: 'allies',
+      status: 'ally',
     },
     {
       id: 'conn-2',
@@ -19,7 +19,7 @@ describe('useWorkflowProgress - Task 12 Core Functionality', () => {
       last_name: 'Smith',
       position: 'Product Manager',
       company: 'StartupCo',
-      status: 'allies',
+      status: 'ally',
     },
   ];
 

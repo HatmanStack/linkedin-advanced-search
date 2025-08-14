@@ -109,18 +109,16 @@ const NewConnectionCard: React.FC<NewConnectionCardProps> = ({
     setIsDialogOpen(false);
 
     try {
-      // Update status from 'possible' to 'processed' using DBConnector
-      // linkedin_url is a LinkedIn profile id (no http)
-      const linkedinUrlValue = connection.linkedin_url || connection.id;
+      // Determine profile identifier to pass to edge API (linkedin URL or fallback to id)
+      const profileId = connection.linkedin_url || connection.id;
 
-      await dbConnector.updateConnectionStatus(connection.id, 'processed', {
-        linkedinurl: linkedinUrlValue,
-      });
+      // Update status from 'possible' to 'processed' via edge API
+      await dbConnector.updateConnectionStatus(connection.id, 'processed', { profileId });
 
-      // Update local cache to remove processed connections from lists
+      // Update local cache with new status to trigger re-render
       try {
         const { connectionCache } = await import('@/utils/connectionCache');
-        connectionCache.delete(connection.id);
+        connectionCache.update(connection.id, { status: 'processed' });
       } catch {}
 
       // Show success feedback with animation
@@ -135,9 +133,9 @@ const NewConnectionCard: React.FC<NewConnectionCardProps> = ({
         variant: "default",
       });
 
-      // Notify parent component to remove from UI
+      // Notify parent component to update status/remove from UI
       if (onRemove) {
-        onRemove(connection.id);
+        onRemove(connection.id, 'processed');
       }
     } catch (error) {
       console.error('Error removing connection:', error);
@@ -195,7 +193,17 @@ const NewConnectionCard: React.FC<NewConnectionCardProps> = ({
     e.stopPropagation();
     // Skip if already pending/outgoing
     if (connection.status === 'outgoing') {
-      toast({ title: 'Already pending', description: 'Connection request was already sent.', variant: 'default' });
+      toast({
+        title: 'Connection Request Sent',
+        description: (
+          <div className="flex items-center space-x-2">
+            <CheckCircle className="h-4 w-4 text-green-500" />
+            <span>Connection request sent to {connection.first_name} {connection.last_name}.</span>
+          </div>
+        ),
+        variant: 'default'
+      });
+      if (onRemove) onRemove(connection.id, 'outgoing');
       return;
     }
     setIsConnecting(true);
@@ -211,7 +219,18 @@ const NewConnectionCard: React.FC<NewConnectionCardProps> = ({
         throw new Error(resp.error || 'Failed to send connection request');
       }
 
-      // Show success feedback
+      // Update status to 'outgoing' in DB for consistency
+      try {
+        await dbConnector.updateConnectionStatus(connection.id, 'outgoing', { profileId });
+      } catch {}
+
+      // Update local cache with new status to trigger re-render
+      try {
+        const { connectionCache } = await import('@/utils/connectionCache');
+        connectionCache.update(connection.id, { status: 'outgoing' });
+      } catch {}
+
+      // Regardless of response status (sent/pending/outgoing), show success and remove from UI
       toast({
         title: "Connection Request Sent",
         description: (
@@ -222,8 +241,7 @@ const NewConnectionCard: React.FC<NewConnectionCardProps> = ({
         ),
         variant: "default",
       });
-
-      // Do not update/remove locally here; wait for backend edge update
+      if (onRemove) onRemove(connection.id, 'outgoing');
     } catch (error) {
       console.error('Error connecting:', error);
 

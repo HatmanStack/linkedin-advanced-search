@@ -7,7 +7,7 @@ const StatusPickerDemo: React.FC = () => {
   const mockConnectionCounts: ConnectionCounts = {
     incoming: 5,
     outgoing: 3,
-    allies: 12,
+    ally: 12,
     total: 20
   };
 
