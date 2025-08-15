@@ -4,7 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
-import { LinkedInCredentialsProvider } from "@/contexts/LinkedInCredentialsContext"; // Added
+import { UserProfileProvider } from "@/contexts/UserProfileContext"; // Added
 import { HealAndRestoreProvider } from "@/contexts/HealAndRestoreContext"; // Added
 import { PostComposerProvider } from "@/contexts/PostComposerContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -22,8 +22,8 @@ const App = () => (
       <Toaster />
       <Sonner />
       <AuthProvider>
-        <PostComposerProvider>
-          <LinkedInCredentialsProvider> {/* Added Provider */}
+        <UserProfileProvider>
+          <PostComposerProvider>
             <HealAndRestoreProvider> {/* Added Provider */}
               <BrowserRouter>
                 <Routes>
@@ -43,8 +43,8 @@ const App = () => (
                 </Routes>
               </BrowserRouter>
             </HealAndRestoreProvider> {/* Added Provider */}
-          </LinkedInCredentialsProvider> {/* Added Provider */}
-        </PostComposerProvider>
+          </PostComposerProvider>
+        </UserProfileProvider>
       </AuthProvider>
     </TooltipProvider>
   </QueryClientProvider>

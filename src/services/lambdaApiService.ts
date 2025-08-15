@@ -679,6 +679,28 @@ class ExtendedLambdaApiService extends LambdaApiService {
       return { success: false, error: message };
     }
   }
+
+  /**
+   * Send LLM operation request to the /llm endpoint
+   * @param operation The LLM operation to execute
+   * @param params Additional parameters for the operation
+   * @returns Promise resolving to the LLM operation response
+   */
+  async sendLLMRequest(operation: string, params: Record<string, any> = {}): Promise<{ success: boolean; data?: any; error?: string }> {
+    try {
+      const response = await this.apiClient.post('/llm', {
+        operation,
+        ...params,
+      });
+      
+      const data = response.data;
+      return { success: true, data };
+    } catch (error) {
+      const err = error as AxiosError<any>;
+      const message = (err.response?.data as any)?.error || err.message || 'Failed to execute LLM operation';
+      return { success: false, error: message };
+    }
+  }
 }
 
 // Export singleton instance

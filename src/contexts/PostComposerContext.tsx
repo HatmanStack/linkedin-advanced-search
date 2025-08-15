@@ -1,6 +1,7 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useContext, type ReactNode, useState, useCallback, useMemo, useEffect } from 'react';
 import { postsService } from '../services/postsService';
 import { useAuth } from './AuthContext';
+import { useUserProfile } from './UserProfileContext';
 import { useToast } from '../hooks/use-toast';
 
 interface PostComposerContextValue {
@@ -12,7 +13,7 @@ interface PostComposerContextValue {
   isResearching: boolean;
   saveDraft: () => Promise<void>;
   publish: () => Promise<void>;
-  generateIdeas: () => Promise<void>;
+  generateIdeas: (prompt?: string) => Promise<string[]>;
   researchTopics: (query: string) => Promise<void>;
 }
 
@@ -26,6 +27,7 @@ export const usePostComposer = (): PostComposerContextValue => {
 
 export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
   const { user } = useAuth();
+  const { userProfile } = useUserProfile();
   const { toast } = useToast();
   const [content, setContent] = useState('');
   const [isSaving, setIsSaving] = useState(false);
@@ -37,26 +39,23 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      if (!user) {
+      if (!user || !userProfile) {
         setContent("");
         return;
       }
-      try {
-        const profileResp = await postsService.fetchUserProfile();
-        const unsent = (profileResp && (profileResp as any).unsent_post_content) as string | undefined;
-        if (!cancelled) setContent(unsent || "");
-      } catch (err) {
-        if (!cancelled) setContent("");
-      }
+      
+      // Use the profile data from context instead of fetching again
+      const unsent = userProfile.unsent_post_content;
+      if (!cancelled) setContent(unsent || "");
     })();
     return () => { cancelled = true; };
-  }, [user]);
+  }, [user, userProfile]);
 
   const saveDraft = useCallback(async () => {
-    if (!content.trim()) return;
+    if (!content.trim() || !userProfile) return;
     setIsSaving(true);
     try {
-      await postsService.saveUnsentPostToProfile(content);
+      await postsService.saveUnsentPostToProfile(content, userProfile);
       toast({
         title: 'Draft saved',
         description: 'Only text content was saved. Images or media are not saved.',
@@ -64,30 +63,40 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       setIsSaving(false);
     }
-  }, [content]);
+  }, [content, userProfile, toast]);
 
   const publish = useCallback(async () => {
-    if (!content.trim()) return;
+    if (!content.trim() || !userProfile) return;
     setIsPublishing(true);
     try {
       await postsService.publishPost(content);
       // On publish, remove saved unsent content from profile
-      await postsService.clearUnsentPostFromProfile();
+      await postsService.clearUnsentPostFromProfile(userProfile);
       setContent('');
     } finally {
       setIsPublishing(false);
     }
-  }, [content, user]);
+  }, [content, userProfile]);
 
-  const generateIdeas = useCallback(async () => {
+  const generateIdeas = useCallback(async (prompt?: string): Promise<string[]> => {
     setIsGeneratingIdeas(true);
     try {
-      const idea = await postsService.generateIdeas(user);
-      setContent(idea);
+      const idea = await postsService.generateIdeas(prompt, userProfile || undefined);
+      
+      if (idea.length === 0) {
+        setContent('No ideas generated. Please try again.');
+        return [];
+      }
+      
+      // Format ideas into numbered list for the post content
+      const formattedIdeas = idea.map((idea: string, index: number) => `${index + 1}. ${idea}`).join('\n\n');
+      setContent(formattedIdeas);
+      
+      return idea;
     } finally {
       setIsGeneratingIdeas(false);
     }
-  }, [user]);
+  }, [userProfile]);
 
   const researchTopics = useCallback(async (query: string) => {
     setIsResearching(true);

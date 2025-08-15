@@ -12,7 +12,6 @@ import type { SearchFormData } from '@/utils/validation';
 import ConversationTopicPanel from '@/components/ConversationTopicPanel';
 import NewConnectionSearch from '@/components/NewConnectionSearch';
 import PostComposer from '@/components/PostComposer';
-import { useLinkedInCredentials } from '@/contexts/LinkedInCredentialsContext';
 import StatusPicker, { StatusValue, ConnectionCounts } from '@/components/StatusPicker';
 import VirtualConnectionList from '@/components/VirtualConnectionList';
 import MessageModal from '@/components/MessageModal';
@@ -27,6 +26,7 @@ import { connectionDataContextService } from '@/services/connectionDataContextSe
 import { useErrorHandler } from '@/hooks/useErrorHandler';
 import { useProgressTracker } from '@/hooks/useProgressTracker';
 import ProgressIndicator from '@/components/ProgressIndicator';
+import { useUserProfile } from '@/contexts/UserProfileContext';
 
 // Removed unused demo sampleConnections to reduce noise
 
@@ -38,7 +38,7 @@ const Dashboard = () => {
   const { user, signOut } = useAuth();
   const { startListening } = useHealAndRestore(); // Added
   const { toast } = useToast();
-  const { ciphertext: linkedInCredsCiphertext } = useLinkedInCredentials(); // Ciphertext only
+  const { ciphertext: linkedInCredsCiphertext } = useUserProfile(); // Ciphertext only
   const [conversationTopic, setConversationTopic] = useState('');
   const [selectedConnections, setSelectedConnections] = useState<string[]>([]);
   const [isSearchingLinkedIn, setIsSearchingLinkedIn] = useState(false);
@@ -259,10 +259,7 @@ const Dashboard = () => {
 
   const updateConnectionStatus = useCallback(async (connectionId: string, newStatus: 'possible' | 'incoming' | 'outgoing' | 'ally' | 'processed') => {
     try {
-      // Optimistic update
-      setConnections(prev => prev.map(conn =>
-        conn.id === connectionId ? { ...conn, status: newStatus } : conn
-      ));
+      // Optimistic update and count recalculation will be handled in the setConnections callback below
 
       // Update cache; if processed, remove it so lists reflect immediately
       if (newStatus === 'processed') {
@@ -277,12 +274,15 @@ const Dashboard = () => {
       // Mark change so next dashboard mount can conditionally refresh
       connectionChangeTracker.markChanged('interaction');
 
-      // Recalculate counts
-      const updatedConnections = connections.map(conn =>
-        conn.id === connectionId ? { ...conn, status: newStatus } : conn
-      );
-      const counts = calculateConnectionCounts(updatedConnections);
-      setConnectionCounts(counts);
+      // Recalculate counts using the updated state
+      setConnections(prev => {
+        const updated = prev.map(conn =>
+          conn.id === connectionId ? { ...conn, status: newStatus } : conn
+        );
+        const counts = calculateConnectionCounts(updated);
+        setConnectionCounts(counts);
+        return updated;
+      });
 
       toast({
         title: "Connection Updated",
@@ -877,7 +877,13 @@ const Dashboard = () => {
               onRefresh={fetchConnections}
               onRemoveConnection={(connectionId: string, newStatus: 'processed' | 'outgoing') => {
                 // Update status accordingly in state and cache to trigger list re-render
-                setConnections(prev => prev.map(c => c.id === connectionId ? { ...c, status: newStatus } : c));
+                setConnections(prev => {
+                  const updated = prev.map(c => c.id === connectionId ? { ...c, status: newStatus } : c);
+                  // Recalculate connection counts after status update
+                  const counts = calculateConnectionCounts(updated);
+                  setConnectionCounts(counts);
+                  return updated;
+                });
                 connectionCache.update(connectionId, { status: newStatus });
               }}
             />

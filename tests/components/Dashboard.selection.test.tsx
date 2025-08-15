@@ -5,7 +5,7 @@ import { BrowserRouter } from 'react-router-dom';
 import Dashboard from '@/pages/Dashboard';
 import { useAuth } from '@/contexts/AuthContext';
 import { useHealAndRestore } from '@/contexts/HealAndRestoreContext';
-import { useLinkedInCredentials } from '@/contexts/LinkedInCredentialsContext';
+import { useUserProfile } from '@/contexts/UserProfileContext';
 import { useToast } from '@/hooks/use-toast';
 import { useSearchResults } from '@/hooks';
 import { useProfileInit } from '@/hooks/useProfileInit';
@@ -96,8 +96,24 @@ describe('Dashboard Connection Selection', () => {
       startListening: vi.fn(),
     });
     
-    (useLinkedInCredentials as any).mockReturnValue({
-      credentials: { email: 'test@linkedin.com', password: 'password' },
+    (useUserProfile as any).mockReturnValue({
+      ciphertext: 'sealbox_x25519:b64:test-ciphertext',
+      setCiphertext: vi.fn(),
+      userProfile: {
+        user_id: '1',
+        first_name: 'Test',
+        last_name: 'User',
+        email: 'test@example.com',
+        profile_url: 'https://www.linkedin.com/in/testuser',
+        headline: 'Software Engineer',
+        summary: 'Experienced developer',
+        industry: 'Technology',
+        location: 'San Francisco',
+        interests: ['React', 'TypeScript'],
+      },
+      updateUserProfile: vi.fn(),
+      refreshUserProfile: vi.fn(),
+      isLoading: false,
     });
     
     (useToast as any).mockReturnValue({

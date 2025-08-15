@@ -1,22 +1,22 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
+import { Button } from "../components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
+import { Input } from "../components/ui/input";
+import { Textarea } from "../components/ui/textarea";
+import { Label } from "../components/ui/label";
+import { Badge } from "../components/ui/badge";
+import { Separator } from "../components/ui/separator";
 import { MessageSquare, ArrowLeft, User, Building, MapPin, Save, Plus, X, Key, Eye, EyeOff } from 'lucide-react';
-import { useToast } from "@/hooks/use-toast";
-import { useLinkedInCredentials } from '@/contexts/LinkedInCredentialsContext';
-import { lambdaApiService } from '@/services/lambdaApiService';
-import { encryptWithSealboxB64 } from '@/utils/crypto';
+import { useToast } from "../hooks/use-toast";
+import { useUserProfile } from '../contexts/UserProfileContext';
+import { lambdaApiService } from '../services/lambdaApiService';
+import { encryptWithSealboxB64 } from '../utils/crypto';
 
 const Profile = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { ciphertext, setCiphertext } = useLinkedInCredentials();
+  const { ciphertext, setCiphertext, userProfile, updateUserProfile } = useUserProfile();
   
   const [profile, setProfile] = useState({
     name: 'Tom, Dick, And Harry',
