@@ -38,7 +38,7 @@ const Dashboard = () => {
   const { user, signOut } = useAuth();
   const { startListening } = useHealAndRestore(); // Added
   const { toast } = useToast();
-  const { ciphertext: linkedInCredsCiphertext } = useUserProfile(); // Ciphertext only
+  const { ciphertext: linkedInCredsCiphertext, userProfile } = useUserProfile(); // Include profile for display name
   const [conversationTopic, setConversationTopic] = useState('');
   const [selectedConnections, setSelectedConnections] = useState<string[]>([]);
   const [isSearchingLinkedIn, setIsSearchingLinkedIn] = useState(false);
@@ -551,6 +551,13 @@ const Dashboard = () => {
     processSelectedConnections();
   }, [selectedConnections, conversationTopic, processSelectedConnections, toast]);
 
+  // Display name from user profile context (fallback to auth user)
+  const displayName = useMemo(() => {
+    const fullName = [userProfile?.first_name, userProfile?.last_name].filter(Boolean).join(' ');
+    if (fullName) return fullName;
+    return userProfile?.email || user?.firstName || user?.email || 'User';
+  }, [userProfile, user]);
+
   // Get current connection name for display
   const currentConnectionName = useMemo(() => {
     if (!isGeneratingMessages || currentConnectionIndex >= selectedConnections.length) {
@@ -679,7 +686,7 @@ const Dashboard = () => {
             </div>
             <div className="flex items-center space-x-4">
               {/* Welcome message with current user by name */}
-              <span className="text-white">Welcome, {user?.firstName || user?.email}</span>
+              <span className="text-white">Welcome, {displayName}</span>
 
               {/* User profile section */}
               <Button

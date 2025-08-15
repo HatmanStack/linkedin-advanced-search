@@ -81,18 +81,9 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
   const generateIdeas = useCallback(async (prompt?: string): Promise<string[]> => {
     setIsGeneratingIdeas(true);
     try {
-      const idea = await postsService.generateIdeas(prompt, userProfile || undefined);
-      
-      if (idea.length === 0) {
-        setContent('No ideas generated. Please try again.');
-        return [];
-      }
-      
-      // Format ideas into numbered list for the post content
-      const formattedIdeas = idea.map((idea: string, index: number) => `${index + 1}. ${idea}`).join('\n\n');
-      setContent(formattedIdeas);
-      
-      return idea;
+      const ideas = await postsService.generateIdeas(prompt, userProfile || undefined);
+      // Do not modify editor content here; return ideas for the assistant list
+      return ideas;
     } finally {
       setIsGeneratingIdeas(false);
     }

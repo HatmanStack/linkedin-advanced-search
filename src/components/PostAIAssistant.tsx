@@ -1,8 +1,8 @@
-import { useState, type ChangeEvent, type KeyboardEvent } from 'react';
+import { useState, type ChangeEvent, type KeyboardEvent, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
-import { Sparkles, Search } from 'lucide-react';
+import { Sparkles, Search, X } from 'lucide-react';
 
 interface PostAIAssistantProps {
   onGenerateIdeas: (prompt?: string) => void;
@@ -29,6 +29,36 @@ const PostAIAssistant = ({
   const [researchQuery, setResearchQuery] = useState('');
   const [ideaPrompt, setIdeaPrompt] = useState('');
   const [selectedIdeas, setSelectedIdeas] = useState<Set<number>>(new Set());
+  const [localIdeas, setLocalIdeas] = useState<string[]>([]);
+
+  // Session storage key for ideas
+  const IDEAS_STORAGE_KEY = 'ai_generated_ideas';
+
+  // Load ideas from session storage on component mount
+  useEffect(() => {
+    try {
+      const storedIdeas = sessionStorage.getItem(IDEAS_STORAGE_KEY);
+      if (storedIdeas) {
+        const parsedIdeas = JSON.parse(storedIdeas);
+        setLocalIdeas(parsedIdeas);
+      }
+    } catch (error) {
+      console.error('Failed to load ideas from session storage:', error);
+    }
+  }, []);
+
+  // Update local ideas when props change
+  useEffect(() => {
+    if (ideas && ideas.length > 0) {
+      setLocalIdeas(ideas);
+      // Save to session storage
+      try {
+        sessionStorage.setItem(IDEAS_STORAGE_KEY, JSON.stringify(ideas));
+      } catch (error) {
+        console.error('Failed to save ideas to session storage:', error);
+      }
+    }
+  }, [ideas]);
 
   const handleResearchSubmit = () => {
     if (researchQuery.trim()) {
@@ -42,9 +72,35 @@ const PostAIAssistant = ({
     onGenerateIdeas(ideaPrompt.trim() || undefined);
   };
 
-  const handleClearIdeas = () => {
-    setSelectedIdeas(new Set());
-    onClearIdeas?.();
+  const handleDeleteIdea = (index: number) => {
+    const newIdeas = localIdeas.filter((_, i) => i !== index);
+    setLocalIdeas(newIdeas);
+    
+    // Update session storage
+    try {
+      sessionStorage.setItem(IDEAS_STORAGE_KEY, JSON.stringify(newIdeas));
+    } catch (error) {
+      console.error('Failed to update ideas in session storage:', error);
+    }
+    
+    // Clear selection if deleted idea was selected
+    const newSelected = new Set(selectedIdeas);
+    newSelected.delete(index);
+    // Adjust indices for remaining selections
+    const adjustedSelected = new Set<number>();
+    newSelected.forEach(selectedIndex => {
+      if (selectedIndex > index) {
+        adjustedSelected.add(selectedIndex - 1);
+      } else {
+        adjustedSelected.add(selectedIndex);
+      }
+    });
+    setSelectedIdeas(adjustedSelected);
+    
+    // Notify parent if callback exists
+    if (onClearIdeas) {
+      onClearIdeas();
+    }
   };
 
   const handleIdeaToggle = (index: number) => {
@@ -58,7 +114,7 @@ const PostAIAssistant = ({
   };
 
   const handleResearchTopicsClick = () => {
-    if (ideas && ideas.length > 0) {
+    if (localIdeas && localIdeas.length > 0) {
       // If we have ideas, check if any are selected
       if (selectedIdeas.size === 0) {
         onValidationError('Please select at least one idea.');
@@ -66,7 +122,7 @@ const PostAIAssistant = ({
       }
       
       // Get the selected ideas and send them for research
-      const selectedIdeasList = Array.from(selectedIdeas).map(index => ideas[index]);
+      const selectedIdeasList = Array.from(selectedIdeas).map(index => localIdeas[index]);
       onResearchSelectedIdeas(selectedIdeasList);
     } else {
       // No ideas, show the research input as before
@@ -78,17 +134,9 @@ const PostAIAssistant = ({
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <h4 className="text-white font-semibold">Generated Ideas</h4>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleClearIdeas}
-          className="text-slate-300 border-slate-600 hover:bg-slate-600 hover:text-white"
-        >
-          Clear Ideas
-        </Button>
       </div>
       <div className="space-y-2">
-        {ideas?.map((idea, index) => (
+        {localIdeas?.map((idea, index) => (
           <div key={index} className="flex items-start space-x-3 p-3 bg-white/5 rounded-md border border-white/10">
             <input
               type="checkbox"
@@ -100,6 +148,15 @@ const PostAIAssistant = ({
             <label htmlFor={`idea-${index}`} className="text-slate-300 text-sm leading-relaxed cursor-pointer flex-1">
               {idea}
             </label>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0 text-red-400 hover:text-red-300 hover:bg-red-500/20"
+              onClick={() => handleDeleteIdea(index)}
+              title="Delete idea"
+            >
+              <X className="h-4 w-4" />
+            </Button>
           </div>
         ))}
       </div>
@@ -126,9 +183,9 @@ const PostAIAssistant = ({
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {ideas && ideas.length > 0 ? renderIdeasList() : renderTextarea()}
+          {localIdeas && localIdeas.length > 0 ? renderIdeasList() : renderTextarea()}
           
-          {!ideas || ideas.length === 0 ? (
+          {!localIdeas || localIdeas.length === 0 ? (
             <Button 
               className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white"
               onClick={handleGenerateIdeas}
