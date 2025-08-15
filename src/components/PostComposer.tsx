@@ -48,7 +48,7 @@ const PostComposerInner = () => {
 
   const handleResearchSelectedIdeas = async (selectedIdeas: string[]) => {
     try {
-      const researchContent = await postsService.researchSelectedIdeas(selectedIdeas, userProfile || undefined);
+      const researchContent = await postsService.researchSelectedIdeas(selectedIdeas);
       setContent(researchContent);
       
       toast({

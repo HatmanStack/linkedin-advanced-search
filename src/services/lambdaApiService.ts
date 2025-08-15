@@ -34,7 +34,7 @@ export class ApiError extends Error {
 
   private isRetryableError(status?: number, code?: string): boolean {
     // Network errors are retryable
-    if (!status && (code === 'NETWORK_ERROR' || code === 'ECONNABORTED')) {
+    if (!status && (code === 'NETWORK_ERROR' || code === 'ERR_NETWORK' || code === 'ECONNABORTED')) {
       return true;
     }
     
@@ -69,7 +69,7 @@ export class ApiError extends Error {
   }
 }
 
-export interface EdgeApiResponse<T = any> {
+export interface ApiResponse<T = any> {
   statusCode: number;
   body: T;
 }
@@ -115,9 +115,14 @@ class LambdaApiService {
       );
     }
 
+    // Normalize base URL to ensure trailing slash so relative endpoints join correctly (e.g., .../prod/llm)
+    const normalizedBaseUrl = apiBaseUrl
+      ? (apiBaseUrl.endsWith('/') ? apiBaseUrl : `${apiBaseUrl}/`)
+      : undefined;
+
     this.apiClient = axios.create({
-      baseURL: apiBaseUrl || undefined,
-      timeout: 30000, // 30 second timeout
+      baseURL: normalizedBaseUrl,
+      timeout: 60000, // Increase timeout to better accommodate LLM latency
       headers: {
         'Content-Type': 'application/json',
       },
@@ -248,7 +253,8 @@ class LambdaApiService {
   async getUserSettings(): Promise<{ linkedin_credentials?: string | null }>
   {
     try {
-      const response = await this.makeEdgeRequest<{ settings?: { linkedin_credentials?: string } }>(
+      const response = await this.makeRequest<{ settings?: { linkedin_credentials?: string } }>(
+        'get_user_settings',
         'get_user_settings',
         {}
       );
@@ -268,7 +274,7 @@ class LambdaApiService {
    */
   async updateUserSettings(updates: { linkedin_credentials?: string }): Promise<void> {
     try {
-      await this.makeEdgeRequest<{ success: boolean }>('update_user_settings', {
+      await this.makeRequest<{ success: boolean }>('update_user_settings', 'update_user_settings', {
         updates,
       });
     } catch (error) {
@@ -279,22 +285,23 @@ class LambdaApiService {
   }
 
   /**
-   * Make authenticated request to edge processing endpoint with retry logic
+   * Make authenticated request to Lambda endpoints with retry logic
    * Handles Lambda response format, implements exponential backoff, and provides comprehensive error handling
    * 
    * @template T - The expected response body type
+   * @param endpoint - The endpoint to call (e.g., '/edge', '/llm')
    * @param operation - The Lambda operation to execute
    * @param params - Parameters to send with the operation
    * @returns Promise resolving to the operation response body
    * @throws {ApiError} When the request fails after all retries
    * @private
    */
-  private async makeEdgeRequest<T>(operation: string, params: Record<string, any> = {}): Promise<T> {
+  private async makeRequest<T>(endpoint: string, operation: string, params: Record<string, any> = {}): Promise<T> {
     let lastError: Error | null = null;
 
     for (let attempt = 1; attempt <= this.maxRetries; attempt++) {
       try {
-        const response = await this.apiClient.post<EdgeApiResponse<T>>('/edge', {
+        const response = await this.apiClient.post<ApiResponse<T>>(endpoint, {
           operation,
           ...params,
         });
@@ -342,6 +349,7 @@ class LambdaApiService {
         
         if (!apiError.retryable || attempt === this.maxRetries) {
           console.error(`API request failed after ${attempt} attempts:`, {
+            endpoint,
             operation,
             error: apiError.toJSON(),
             params: Object.keys(params)
@@ -352,6 +360,7 @@ class LambdaApiService {
         // Calculate delay for next retry
         const delay = this.calculateBackoffDelay(attempt);
         console.warn(`API request failed (attempt ${attempt}/${this.maxRetries}), retrying in ${delay}ms:`, {
+          endpoint,
           operation,
           error: apiError.message,
           nextRetryIn: delay
@@ -373,10 +382,10 @@ class LambdaApiService {
     const context = `fetch connections${status ? ` with status ${status}` : ''}`;
     
     try {
-      const response = await this.makeEdgeRequest<{
+      const response = await this.makeRequest<{
         connections: Connection[];
         count: number;
-      }>('get_connections_by_status', { updates: status ? { status } : {} });
+      }>('edge', 'get_connections_by_status', { updates: status ? { status } : {} });
 
       // Transform and validate the response
       const connections = this.formatConnectionsResponse(response.connections || []);
@@ -437,7 +446,7 @@ class LambdaApiService {
         });
       }
 
-      await this.makeEdgeRequest<{ success: boolean; updated: Record<string, any> }>('update_metadata', {
+      await this.makeRequest<{ success: boolean; updated: Record<string, any> }>('edge', 'update_metadata', {
         // Edge Lambda expects 'profileId' in the request body; we always send profileId
         profileId: options?.profileId ?? connectionId,
         updates: {
@@ -483,10 +492,10 @@ class LambdaApiService {
         });
       }
 
-      const response = await this.makeEdgeRequest<{
+      const response = await this.makeRequest<{
         messages: Message[];
         count: number;
-      }>('get_messages', {
+      }>('edge', 'get_messages', {
         profileId: connectionId,
       });
 
@@ -611,6 +620,38 @@ class LambdaApiService {
       })
       .filter((msg): msg is Message => msg !== null); // Remove null entries
   }
+
+  /**
+   * Make authenticated request to LLM endpoint
+   * @param operation The LLM operation to execute
+   * @param params Additional parameters for the operation
+   * @returns Promise resolving to the operation response
+   */
+  private async makeLLMRequest<T>(operation: string, params: Record<string, any> = {}): Promise<T> {
+    return this.makeRequest<T>('llm', operation, params);
+  }
+
+  /**
+   * Send LLM operation request to the /llm endpoint
+   * @param operation The LLM operation to execute
+   * @param params Additional parameters for the operation
+   * @returns Promise resolving to the LLM operation response
+   */
+  async sendLLMRequest(operation: string, params: Record<string, any> = {}): Promise<{ success: boolean; data?: any; error?: string }> {
+    try {
+      const response = await this.makeLLMRequest<any>(operation, params);
+      console.log('LLM response:', response);
+      return { success: true, data: response };
+    } catch (error) {
+      console.log('LLM error:', error);
+      
+      if (error instanceof ApiError) {
+        return { success: false, error: error.message };
+      }
+      
+      return { success: false, error: 'Failed to execute LLM operation' };
+    }
+  }
 }
 
 // Profile operations via Lambda-backed API
@@ -638,7 +679,7 @@ export interface UserProfile {
 class ExtendedLambdaApiService extends LambdaApiService {
   async getUserProfile(): Promise<{ success: boolean; data?: UserProfile; error?: string }> {
     try {
-      const response = await this.apiClient.get('/profiles');
+      const response = await this.apiClient.get('profiles');
       const data = (response.data?.data ?? response.data) as UserProfile;
       return { success: true, data };
     } catch (error) {
@@ -651,7 +692,7 @@ class ExtendedLambdaApiService extends LambdaApiService {
   async updateUserProfile(profile: Partial<UserProfile>): Promise<{ success: boolean; data?: UserProfile; error?: string }> {
     try {
       // API requires operation-based POST body; fields must be at top-level
-      const response = await this.apiClient.post('/profiles', {
+      const response = await this.apiClient.post('profiles', {
         operation: 'update_user_profile',
         ...profile,
       });
@@ -667,7 +708,7 @@ class ExtendedLambdaApiService extends LambdaApiService {
   async createUserProfile(profile: Omit<UserProfile, 'user_id' | 'created_at' | 'updated_at'>): Promise<{ success: boolean; data?: UserProfile; error?: string }> {
     try {
       // Reuse update operation for upsert semantics; body fields must be top-level
-      const response = await this.apiClient.post('/profiles', {
+      const response = await this.apiClient.post('profiles', {
         operation: 'update_user_profile',
         ...profile,
       });
@@ -676,28 +717,6 @@ class ExtendedLambdaApiService extends LambdaApiService {
     } catch (error) {
       const err = error as AxiosError<any>;
       const message = (err.response?.data as any)?.error || err.message || 'Failed to create profile';
-      return { success: false, error: message };
-    }
-  }
-
-  /**
-   * Send LLM operation request to the /llm endpoint
-   * @param operation The LLM operation to execute
-   * @param params Additional parameters for the operation
-   * @returns Promise resolving to the LLM operation response
-   */
-  async sendLLMRequest(operation: string, params: Record<string, any> = {}): Promise<{ success: boolean; data?: any; error?: string }> {
-    try {
-      const response = await this.apiClient.post('/llm', {
-        operation,
-        ...params,
-      });
-      
-      const data = response.data;
-      return { success: true, data };
-    } catch (error) {
-      const err = error as AxiosError<any>;
-      const message = (err.response?.data as any)?.error || err.message || 'Failed to execute LLM operation';
       return { success: false, error: message };
     }
   }
