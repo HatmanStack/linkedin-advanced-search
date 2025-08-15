@@ -1,3 +1,21 @@
+### Search Endpoint (Node.js 22)
+
+Mimics the `edge-endpoint` JWT/authorizer handling. You can implement the core search logic inside `index.js`.
+
+- Runtime: Node.js 22 (nodejs22.x)
+- Entry: `index.js` (`exports.handler`)
+
+#### Event contract
+- Expects API Gateway proxy event
+- Extracts user id from `requestContext.authorizer.claims.sub`
+- Falls back to `'test-user-id'` when an `Authorization` header is present (for local testing)
+
+#### Response
+- JSON with standard API headers and CORS
+
+#### Next steps
+- Implement your search logic where indicated in `index.js`.
+
 # Pinecone Search Lambda Function
 
 This Lambda function provides semantic search across LinkedIn profiles stored in Pinecone, with user-profile relationship filtering to ensure data privacy and security.

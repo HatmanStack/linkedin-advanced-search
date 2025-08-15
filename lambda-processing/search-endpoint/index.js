@@ -1,3 +1,66 @@
+'use strict';
+
+const API_HEADERS = {
+  'Content-Type': 'application/json',
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+  'Access-Control-Allow-Methods': 'POST,OPTIONS'
+};
+
+function resp(statusCode, body) {
+  return {
+    statusCode,
+    headers: API_HEADERS,
+    body: JSON.stringify(body)
+  };
+}
+
+function parseBody(event) {
+  if (!event) return {};
+  const raw = event.body;
+  if (!raw) return {};
+  if (typeof raw === 'string') {
+    try {
+      return JSON.parse(raw);
+    } catch (_e) {
+      return {};
+    }
+  }
+  return raw || {};
+}
+
+function extractUserId(event) {
+  const sub = event?.requestContext?.authorizer?.claims?.sub;
+  if (sub) return sub;
+  const authHeader = event?.headers?.Authorization || event?.headers?.authorization;
+  if (authHeader) return 'test-user-id';
+  return null;
+}
+
+exports.handler = async (event, _context) => {
+  try {
+    if (event?.httpMethod === 'OPTIONS') {
+      return resp(200, { ok: true });
+    }
+
+    const body = parseBody(event);
+    const userId = extractUserId(event);
+    if (!userId) {
+      return resp(401, { error: 'Unauthorized: Missing or invalid JWT token' });
+    }
+
+    // Placeholder: you will implement the core search logic
+    return resp(200, {
+      message: 'Search endpoint initialized',
+      userId,
+      received: body
+    });
+  } catch (err) {
+    console.error('Unexpected error in handler:', err);
+    return resp(500, { error: 'Internal server error' });
+  }
+};
+
 /**
  * Pinecone Search Lambda Function
  * 
