@@ -99,6 +99,18 @@ def lambda_handler(event: Dict[str, Any], context) -> Dict[str, Any]:
                         logger.info(f"unsent_post_content present, length={len(upc) if isinstance(upc, str) else 'n/a'}")
                     except Exception:
                         pass
+                if 'unpublished_post_content' in body:
+                    try:
+                        upc2 = body.get('unpublished_post_content')
+                        logger.info(f"unpublished_post_content present, length={len(upc2) if isinstance(upc2, str) else 'n/a'}")
+                    except Exception:
+                        pass
+                if 'ai_generated_post_content' in body:
+                    try:
+                        keys = list((body.get('ai_generated_post_content') or {}).keys())
+                        logger.info(f"ai_generated_post_content present, keys={keys}")
+                    except Exception:
+                        pass
                 return update_user_profile(user_id, body)
 
         # 2) Operation-based routing (backward compatible)
@@ -131,6 +143,18 @@ def lambda_handler(event: Dict[str, Any], context) -> Dict[str, Any]:
                 try:
                     upc = body.get('unsent_post_content')
                     logger.info(f"unsent_post_content present, length={len(upc) if isinstance(upc, str) else 'n/a'}")
+                except Exception:
+                    pass
+            if 'unpublished_post_content' in body:
+                try:
+                    upc2 = body.get('unpublished_post_content')
+                    logger.info(f"unpublished_post_content present, length={len(upc2) if isinstance(upc2, str) else 'n/a'}")
+                except Exception:
+                    pass
+            if 'ai_generated_post_content' in body:
+                try:
+                    keys = list((body.get('ai_generated_post_content') or {}).keys())
+                    logger.info(f"ai_generated_post_content present, keys={keys}")
                 except Exception:
                     pass
             return update_user_profile(user_id, body)
@@ -301,8 +325,10 @@ def get_user_profile(user_id: str) -> Dict[str, Any]:
             'current_position': profile_item.get('current_position', ''),
             'company': profile_item.get('company', ''),
             'interests': profile_item.get('interests', []),
-            # Include unsent post content for client-side draft restore
+            # Include both legacy and new draft content fields; client can choose preferred
             'unsent_post_content': profile_item.get('unsent_post_content', ''),
+            'unpublished_post_content': profile_item.get('unpublished_post_content', profile_item.get('unsent_post_content', '')),
+            'ai_generated_post_content': profile_item.get('ai_generated_post_content', {}),
             'created_at': profile_item.get('created_at', ''),
             'updated_at': profile_item.get('updated_at', ''),
         }
@@ -328,12 +354,18 @@ def update_user_profile(user_id: str, body: Dict[str, Any]) -> Dict[str, Any]:
         allowed_fields = [
             'first_name', 'last_name', 'headline', 'profile_url', 'profile_picture_url',
             'location', 'summary', 'industry', 'current_position', 'company', 'interests',
-            # New field to persist client draft text (non-sensitive)
-            'unsent_post_content'
+            # Draft content (legacy + new)
+            'unsent_post_content', 'unpublished_post_content',
+            # AI generated bundle (research, ideas)
+            'ai_generated_post_content'
         ]
         for field in allowed_fields:
             if field in body and body[field] is not None:
                 profile_updates[field] = body[field]
+
+        # Backward-compatibility: if only legacy unsent_post_content provided, mirror to unpublished_post_content
+        if ('unsent_post_content' in profile_updates) and ('unpublished_post_content' not in profile_updates):
+            profile_updates['unpublished_post_content'] = profile_updates['unsent_post_content']
 
         # If any profile fields provided, upsert profile item
         if profile_updates:

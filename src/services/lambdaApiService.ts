@@ -671,7 +671,8 @@ export interface UserProfile {
   company?: string;
   interests?: string[];
   linkedin_credentials?: string;
-  preferences?: any;
+  unpublished_post_content?: string;
+  ai_generated_post_content?: any;
   created_at?: string;
   updated_at?: string;
 }
@@ -720,6 +721,21 @@ class ExtendedLambdaApiService extends LambdaApiService {
       return { success: false, error: message };
     }
   }
+
+  /**
+   * Generic helper to call operation-based POSTs against the llm backend.
+   * This does not implement any polling; it simply forwards the operation and params.
+   */
+  async callProfilesOperation<T = any>(operation: string, params: Record<string, any> = {}): Promise<{ success?: boolean; data?: T } & Record<string, any>> {
+    const response = await this.apiClient.post('llm', {
+      operation,
+      ...params,
+    });
+    const data = (response.data?.data ?? response.data) as any;
+    return data;
+  }
+
+
 }
 
 // Export singleton instance

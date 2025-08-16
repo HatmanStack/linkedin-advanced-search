@@ -21,8 +21,8 @@ export interface UserProfile {
   company?: string;
   interests?: string[];
   linkedin_credentials?: string;
-  unsent_post_content?: string;
-  preferences?: any;
+  unpublished_post_content?: string;
+  ai_generated_post_content?: any;
   created_at?: string;
   updated_at?: string;
 }

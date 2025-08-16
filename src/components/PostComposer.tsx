@@ -1,10 +1,9 @@
 import PostEditor from './PostEditor';
 import PostAIAssistant from './PostAIAssistant';
-import { PostComposerProvider, usePostComposer } from '../contexts/PostComposerContext';
+import ResearchResultsCard from './ResearchResultsCard';
+import { usePostComposer } from '../contexts/PostComposerContext';
 import { useState } from 'react';
-import { postsService } from '../services/postsService';
 import { useToast } from '../hooks/use-toast';
-import { useUserProfile } from '../contexts/UserProfileContext';
 
 const PostComposerInner = () => {
   const {
@@ -14,14 +13,17 @@ const PostComposerInner = () => {
     isPublishing,
     isGeneratingIdeas,
     isResearching,
+    isSynthesizing,
+    researchContent,
     saveDraft,
     publish,
     generateIdeas,
     researchTopics,
+    synthesizeResearch,
+    clearResearch,
   } = usePostComposer();
 
   const { toast } = useToast();
-  const { userProfile } = useUserProfile();
   const [ideas, setIdeas] = useState<string[]>([]);
 
   const handleGenerateIdeas = async (prompt?: string) => {
@@ -46,24 +48,7 @@ const PostComposerInner = () => {
     });
   };
 
-  const handleResearchSelectedIdeas = async (selectedIdeas: string[]) => {
-    try {
-      const researchContent = await postsService.researchSelectedIdeas(selectedIdeas);
-      setContent(researchContent);
-      
-      toast({
-        title: 'Research Complete',
-        description: `Successfully researched ${selectedIdeas.length} selected topics.`,
-      });
-    } catch (error) {
-      console.error('Failed to research selected ideas:', error);
-      toast({
-        title: 'Research Failed',
-        description: 'Failed to research selected ideas. Please try again.',
-        variant: 'destructive',
-      });
-    }
-  };
+  // Research of selected ideas is handled via onResearchTopics with a string[] from the assistant
 
   return (
     <div className="grid lg:grid-cols-[13fr_7fr] gap-8">
@@ -75,6 +60,14 @@ const PostComposerInner = () => {
           onPublishPost={publish}
           isSavingDraft={isSaving}
           isPublishing={isPublishing}
+          isSynthesizing={isSynthesizing}
+          onSynthesizeResearch={researchContent ? () => synthesizeResearch() : undefined}
+        />
+
+        <ResearchResultsCard
+          isResearching={isResearching}
+          researchContent={researchContent}
+          onClear={clearResearch}
         />
       </div>
 
@@ -82,7 +75,6 @@ const PostComposerInner = () => {
         <PostAIAssistant
           onGenerateIdeas={handleGenerateIdeas}
           onResearchTopics={researchTopics}
-          onResearchSelectedIdeas={handleResearchSelectedIdeas}
           onValidationError={handleValidationError}
           isGeneratingIdeas={isGeneratingIdeas}
           isResearching={isResearching}
