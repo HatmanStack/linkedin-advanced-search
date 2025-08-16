@@ -11,10 +11,16 @@ interface PostComposerContextValue {
   isPublishing: boolean;
   isGeneratingIdeas: boolean;
   isResearching: boolean;
+  isSynthesizing: boolean;
+  researchContent: string | null;
   saveDraft: () => Promise<void>;
   publish: () => Promise<void>;
   generateIdeas: (prompt?: string) => Promise<string[]>;
-  researchTopics: (query: string) => Promise<void>;
+  researchTopics: (topics: string[]) => Promise<void>;
+  synthesizeResearch: (contentOverride?: string) => Promise<void>;
+  clearResearch: () => void;
+  ideas: string[];
+  setIdeas: (ideas: string[]) => void;
 }
 
 const PostComposerContext = createContext<PostComposerContextValue | undefined>(undefined);
@@ -34,6 +40,11 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
   const [isPublishing, setIsPublishing] = useState(false);
   const [isGeneratingIdeas, setIsGeneratingIdeas] = useState(false);
   const [isResearching, setIsResearching] = useState(false);
+  const [isSynthesizing, setIsSynthesizing] = useState(false);
+  const [researchContent, setResearchContent] = useState<string | null>(null);
+  const RESEARCH_STORAGE_KEY = 'ai_research_content';
+  const IDEAS_STORAGE_KEY = 'ai_generated_ideas';
+  const [ideas, setIdeas] = useState<string[]>([]);
 
   // Load or clear unsent post content whenever user changes (app start/sign-in/sign-out)
   useEffect(() => {
@@ -41,12 +52,38 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
     (async () => {
       if (!user || !userProfile) {
         setContent("");
+        setResearchContent(null);
         return;
       }
       
       // Use the profile data from context instead of fetching again
-      const unsent = userProfile.unsent_post_content;
+      const unsent = (userProfile as any).unpublished_post_content || (userProfile as any).unsent_post_content;
       if (!cancelled) setContent(unsent || "");
+      // Load research content from session storage
+      try {
+        const stored = sessionStorage.getItem(RESEARCH_STORAGE_KEY);
+        if (!cancelled && stored) {
+          setResearchContent(stored);
+        } else {
+          const fromProfile = (userProfile as any)?.ai_generated_post_content?.research_content;
+          if (!cancelled && typeof fromProfile === 'string' && fromProfile.trim()) {
+            setResearchContent(fromProfile);
+          }
+        }
+      } catch {}
+
+      // Load ideas from session storage
+      try {
+        const storedIdeas = sessionStorage.getItem(IDEAS_STORAGE_KEY);
+        if (!cancelled && storedIdeas) {
+          setIdeas(JSON.parse(storedIdeas));
+        } else {
+          const fromProfileIdeas = (userProfile as any)?.ai_generated_post_content?.ideas;
+          if (!cancelled && Array.isArray(fromProfileIdeas)) {
+            setIdeas(fromProfileIdeas);
+          }
+        }
+      } catch {}
     })();
     return () => { cancelled = true; };
   }, [user, userProfile]);
@@ -55,15 +92,30 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
     if (!content.trim() || !userProfile) return;
     setIsSaving(true);
     try {
-      await postsService.saveUnsentPostToProfile(content, userProfile);
+      // Prefer latest values from session storage if present
+      let researchForSave = researchContent ?? null;
+      try {
+        const stored = sessionStorage.getItem(RESEARCH_STORAGE_KEY);
+        if (stored && typeof stored === 'string') researchForSave = stored;
+      } catch {}
+      let ideasForSave: string[] | null = ideas ?? null;
+      try {
+        const storedIdeas = sessionStorage.getItem(IDEAS_STORAGE_KEY);
+        if (storedIdeas) ideasForSave = JSON.parse(storedIdeas);
+      } catch {}
+
+      await postsService.saveUnsentPostToProfile(content, userProfile, {
+        researchContent: researchForSave,
+        ideas: ideasForSave,
+      });
       toast({
         title: 'Draft saved',
-        description: 'Only text content was saved. Images or media are not saved.',
+        description: 'Editor text, research, and ideas saved.',
       });
     } finally {
       setIsSaving(false);
     }
-  }, [content, userProfile, toast]);
+  }, [content, userProfile, researchContent, ideas, toast]);
 
   const publish = useCallback(async () => {
     if (!content.trim() || !userProfile) return;
@@ -82,21 +134,47 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
     setIsGeneratingIdeas(true);
     try {
       const ideas = await postsService.generateIdeas(prompt, userProfile || undefined);
-      // Do not modify editor content here; return ideas for the assistant list
+      // Persist locally in session storage for repopulation across reloads
+      try { sessionStorage.setItem(IDEAS_STORAGE_KEY, JSON.stringify(ideas)); } catch {}
+      setIdeas(ideas);
       return ideas;
     } finally {
       setIsGeneratingIdeas(false);
     }
   }, [userProfile]);
 
-  const researchTopics = useCallback(async (query: string) => {
+  const researchTopics = useCallback(async (topics: string[]) => {
     setIsResearching(true);
     try {
-      const result = await postsService.researchTopics(query);
+      const result = await postsService.researchTopics(topics, userProfile || undefined);
       if (result) setContent(result);
+      if (result) {
+        setResearchContent(result);
+        try { sessionStorage.setItem(RESEARCH_STORAGE_KEY, result); } catch {}
+      }
     } finally {
       setIsResearching(false);
     }
+  }, [userProfile]);
+
+  const synthesizeResearch = useCallback(async (contentOverride?: string) => {
+    const source = (contentOverride ?? content).trim();
+    if (!source) return;
+    setIsSynthesizing(true);
+    try {
+      const synthesized = await postsService.synthesizeResearch({
+        existing_content: source,
+        research_content: researchContent ?? undefined,
+      }, userProfile || undefined);
+      if (synthesized) setContent(synthesized);
+    } finally {
+      setIsSynthesizing(false);
+    }
+  }, [content, researchContent, userProfile]);
+
+  const clearResearch = useCallback(() => {
+    setResearchContent(null);
+    try { sessionStorage.removeItem(RESEARCH_STORAGE_KEY); } catch {}
   }, []);
 
   const value = useMemo(
@@ -107,12 +185,18 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
       isPublishing,
       isGeneratingIdeas,
       isResearching,
+      isSynthesizing,
+      researchContent,
       saveDraft,
       publish,
       generateIdeas,
       researchTopics,
+      synthesizeResearch,
+      clearResearch,
+      ideas,
+      setIdeas,
     }),
-    [content, isSaving, isPublishing, isGeneratingIdeas, isResearching, saveDraft, publish, generateIdeas, researchTopics]
+    [content, isSaving, isPublishing, isGeneratingIdeas, isResearching, isSynthesizing, researchContent, ideas, saveDraft, publish, generateIdeas, researchTopics, synthesizeResearch, clearResearch]
   );
 
   return (

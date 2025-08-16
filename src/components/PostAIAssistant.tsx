@@ -5,9 +5,8 @@ import { Input } from "./ui/input";
 import { Sparkles, Search, X } from 'lucide-react';
 
 interface PostAIAssistantProps {
-  onGenerateIdeas: (prompt?: string) => void;
-  onResearchTopics: (query: string) => void;
-  onResearchSelectedIdeas: (selectedIdeas: string[]) => void;
+  onGenerateIdeas: (prompt?: string) => void | Promise<void>;
+  onResearchTopics: (topics: string[]) => void | Promise<void>;
   onValidationError: (message: string) => void;
   isGeneratingIdeas: boolean;
   isResearching: boolean;
@@ -18,7 +17,6 @@ interface PostAIAssistantProps {
 const PostAIAssistant = ({ 
   onGenerateIdeas, 
   onResearchTopics, 
-  onResearchSelectedIdeas,
   onValidationError,
   isGeneratingIdeas, 
   isResearching,
@@ -62,7 +60,7 @@ const PostAIAssistant = ({
 
   const handleResearchSubmit = () => {
     if (researchQuery.trim()) {
-      onResearchTopics(researchQuery);
+      onResearchTopics([researchQuery.trim()]);
       setShowResearchInput(false);
       setResearchQuery('');
     }
@@ -114,20 +112,22 @@ const PostAIAssistant = ({
   };
 
   const handleResearchTopicsClick = () => {
-    if (localIdeas && localIdeas.length > 0) {
-      // If we have ideas, check if any are selected
-      if (selectedIdeas.size === 0) {
-        onValidationError('Please select at least one idea.');
-        return;
-      }
-      
-      // Get the selected ideas and send them for research
-      const selectedIdeasList = Array.from(selectedIdeas).map(index => localIdeas[index]);
-      onResearchSelectedIdeas(selectedIdeasList);
-    } else {
-      // No ideas, show the research input as before
-      setShowResearchInput(!showResearchInput);
+    // If textarea has content, research the custom topic
+    if (ideaPrompt.trim()) {
+      onResearchTopics([ideaPrompt.trim()]);
+      setIdeaPrompt(''); // Clear the textarea after sending
+      return;
     }
+    
+    // If we have selected ideas, research those
+    if (localIdeas && localIdeas.length > 0 && selectedIdeas.size > 0) {
+      const selectedIdeasList = Array.from(selectedIdeas).map(index => localIdeas[index]);
+      onResearchTopics(selectedIdeasList);
+      return;
+    }
+    
+    // If neither, show the research input
+    setShowResearchInput(!showResearchInput);
   };
 
   const renderIdeasList = () => (
@@ -199,9 +199,11 @@ const PostAIAssistant = ({
           <Button 
             className="w-full bg-slate-700 hover:bg-slate-600 text-white border-slate-600 hover:border-slate-500"
             onClick={handleResearchTopicsClick}
+            disabled={isResearching}
           >
             <Search className="h-4 w-4 mr-2" />
-            Research Topics
+            {ideaPrompt.trim() ? 'Research Custom Topic' : 
+             localIdeas && localIdeas.length > 0 && selectedIdeas.size > 0 ? 'Research Selected Ideas' : 'Research Topics'}
           </Button>
           
           {showResearchInput && (

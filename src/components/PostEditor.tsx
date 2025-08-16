@@ -10,6 +10,8 @@ interface PostEditorProps {
   onPublishPost: () => void;
   isSavingDraft: boolean;
   isPublishing: boolean;
+  isSynthesizing?: boolean;
+  onSynthesizeResearch?: () => void;
 }
 
 const PostEditor = ({
@@ -18,7 +20,9 @@ const PostEditor = ({
   onSaveDraft,
   onPublishPost,
   isSavingDraft,
-  isPublishing
+  isPublishing,
+  isSynthesizing,
+  onSynthesizeResearch
 }: PostEditorProps) => {
   return (
     <Card className="bg-white/5 backdrop-blur-md border-white/10">
@@ -51,6 +55,17 @@ const PostEditor = ({
               <Save className="h-4 w-4 mr-2" />
               {isSavingDraft ? 'Saving...' : 'Save'}
             </Button>
+            {onSynthesizeResearch && (
+              <Button
+                className="bg-slate-700 hover:bg-slate-600 text-white border-slate-600 hover:border-slate-500"
+                onClick={onSynthesizeResearch}
+                disabled={isSynthesizing}
+                title="Synthesize research into a concise post"
+              >
+                <FileText className="h-4 w-4 mr-2" />
+                {isSynthesizing ? 'Synthesizing...' : 'Synthesize Research'}
+              </Button>
+            )}
             <Button
               disabled={!content.trim() || isPublishing}
               className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
