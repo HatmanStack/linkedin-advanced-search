@@ -330,7 +330,7 @@ def handle_get_research_result(user_id: str, job_id: str, kind: str | None = Non
         return { 'success': False }
 
 
-def handle_synthesize_research(research_content, post_content, user_profile: dict, job_id: str | None, user_id: str | None) -> dict:
+def handle_synthesize_research(research_content, post_content, ideas_content,user_profile: dict, job_id: str | None, user_id: str | None) -> dict:
     """
     Handle synthesize_research operation.
 
@@ -370,6 +370,7 @@ def handle_synthesize_research(research_content, post_content, user_profile: dic
             user_data=user_data,
             research_content=research_text,
             post_content=post_text,
+            ideas_content=ideas_content,
         )
 
         # Queue background synthesis. Result will arrive via webhook and be stored under SYNTHESIZE#{job_id}
@@ -439,9 +440,10 @@ def lambda_handler(event, _context):
             post_content = body.get('existing_content', None)
             profile = body.get('user_profile', {})
             job_id = body.get('job_id')
+            ideas_content = body.get('selected_ideas', [])
             if not job_id:
                 return _resp(400, { 'error': 'Missing required field: job_id' })
-            result = handle_synthesize_research(research_content, post_content, profile, job_id, user_id)
+            result = handle_synthesize_research(research_content, post_content, ideas_content, profile, job_id, user_id)
             return _resp(200, result)
         else:
             return _resp(400, { 'error': f'Unsupported operation: {operation}' })
