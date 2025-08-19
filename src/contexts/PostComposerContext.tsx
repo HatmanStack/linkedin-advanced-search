@@ -1,4 +1,4 @@
-import { createContext, useContext, type ReactNode, useState, useCallback, useMemo, useEffect } from 'react';
+import { createContext, useContext, type ReactNode, useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { postsService } from '../services/postsService';
 import { useAuth } from './AuthContext';
 import { useUserProfile } from './UserProfileContext';
@@ -13,12 +13,16 @@ interface PostComposerContextValue {
   isResearching: boolean;
   isSynthesizing: boolean;
   researchContent: string | null;
+  postReasoning: string | null;
+  postHook: string | null;
   saveDraft: () => Promise<void>;
   publish: () => Promise<void>;
   generateIdeas: (prompt?: string) => Promise<string[]>;
   researchTopics: (topics: string[]) => Promise<void>;
   synthesizeResearch: (contentOverride?: string) => Promise<void>;
   clearResearch: () => void;
+  clearIdeas: () => void;
+  clearSynthesis: () => void;
   ideas: string[];
   setIdeas: (ideas: string[]) => void;
 }
@@ -36,36 +40,50 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
   const { userProfile } = useUserProfile();
   const { toast } = useToast();
   const [content, setContent] = useState('');
+  const hasHydratedContentRef = useRef(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const [isGeneratingIdeas, setIsGeneratingIdeas] = useState(false);
   const [isResearching, setIsResearching] = useState(false);
   const [isSynthesizing, setIsSynthesizing] = useState(false);
   const [researchContent, setResearchContent] = useState<string | null>(null);
+  const [postReasoning, setPostReasoning] = useState<string | null>(null);
+  const [postHook, setPostHook] = useState<string | null>(null);
   const RESEARCH_STORAGE_KEY = 'ai_research_content';
   const IDEAS_STORAGE_KEY = 'ai_generated_ideas';
+  const REASONING_STORAGE_KEY = 'ai_generated_post_reasoning';
+  const HOOK_STORAGE_KEY = 'ai_generated_post_hook';
   const [ideas, setIdeas] = useState<string[]>([]);
 
-  // Load or clear unsent post content whenever user changes (app start/sign-in/sign-out)
+  // Load or clear unsent post content when user/profile becomes available.
+  // Only hydrate editor content once per user session to avoid overwriting local edits on profile refreshes.
   useEffect(() => {
     let cancelled = false;
+    console.log('PostComposer useEffect triggered with:', { user: !!user, userProfile: !!userProfile });
     (async () => {
       if (!user || !userProfile) {
+        console.log('Missing user or userProfile, returning early');
         setContent("");
         setResearchContent(null);
+        hasHydratedContentRef.current = false;
         return;
       }
       
+   
+      
       // Use the profile data from context instead of fetching again
       const unsent = (userProfile as any).unpublished_post_content || (userProfile as any).unsent_post_content;
-      if (!cancelled) setContent(unsent || "");
+      if (!cancelled && !hasHydratedContentRef.current) {
+        setContent(unsent || "");
+        hasHydratedContentRef.current = true;
+      }
       // Load research content from session storage
       try {
         const stored = sessionStorage.getItem(RESEARCH_STORAGE_KEY);
         if (!cancelled && stored) {
           setResearchContent(stored);
         } else {
-          const fromProfile = (userProfile as any)?.ai_generated_post_content?.research_content;
+          const fromProfile = (userProfile as any)?.ai_generated_research;
           if (!cancelled && typeof fromProfile === 'string' && fromProfile.trim()) {
             setResearchContent(fromProfile);
           }
@@ -75,47 +93,71 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
       // Load ideas from session storage
       try {
         const storedIdeas = sessionStorage.getItem(IDEAS_STORAGE_KEY);
+        console.log('Stored ideas from session:', storedIdeas);
         if (!cancelled && storedIdeas) {
           setIdeas(JSON.parse(storedIdeas));
+          console.log('Loaded ideas from session storage');
         } else {
-          const fromProfileIdeas = (userProfile as any)?.ai_generated_post_content?.ideas;
+         
+          const fromProfileIdeas = (userProfile as any)?.ai_generated_ideas;
           if (!cancelled && Array.isArray(fromProfileIdeas)) {
+            
             setIdeas(fromProfileIdeas);
+          } else {
+            console.log('No valid ideas found in userProfile or not an array');
           }
         }
-      } catch {}
+      } catch (error) {
+        console.error('Error loading ideas:', error);
+      }
+
+      // Load reasoning from session storage
+      try {
+        const storedReasoning = sessionStorage.getItem(REASONING_STORAGE_KEY);
+        if (!cancelled && storedReasoning) {
+          setPostReasoning(storedReasoning);
+        } else {
+          const fromProfileReasoning = (userProfile as any)?.ai_generated_post_reasoning;
+          if (!cancelled && typeof fromProfileReasoning === 'string' && fromProfileReasoning.trim()) {
+            setPostReasoning(fromProfileReasoning);
+          }
+        }
+      } catch (error) {
+        console.error('Error loading reasoning:', error);
+      }
+
+      // Load hook from session storage
+      try {
+        const storedHook = sessionStorage.getItem(HOOK_STORAGE_KEY);
+        if (!cancelled && storedHook) {
+          setPostHook(storedHook);
+        } else {
+          const fromProfileHook = (userProfile as any)?.ai_generated_post_hook;
+          if (!cancelled && typeof fromProfileHook === 'string' && fromProfileHook.trim()) {
+            setPostHook(fromProfileHook);
+          }
+        }
+      } catch (error) {
+        console.error('Error loading hook:', error);
+      }
     })();
     return () => { cancelled = true; };
   }, [user, userProfile]);
 
   const saveDraft = useCallback(async () => {
-    if (!content.trim() || !userProfile) return;
+    console.log('saveDraft clicked with content length:', content.length);
+    if (!content.trim()) return;
     setIsSaving(true);
     try {
-      // Prefer latest values from session storage if present
-      let researchForSave = researchContent ?? null;
-      try {
-        const stored = sessionStorage.getItem(RESEARCH_STORAGE_KEY);
-        if (stored && typeof stored === 'string') researchForSave = stored;
-      } catch {}
-      let ideasForSave: string[] | null = ideas ?? null;
-      try {
-        const storedIdeas = sessionStorage.getItem(IDEAS_STORAGE_KEY);
-        if (storedIdeas) ideasForSave = JSON.parse(storedIdeas);
-      } catch {}
-
-      await postsService.saveUnsentPostToProfile(content, userProfile, {
-        researchContent: researchForSave,
-        ideas: ideasForSave,
-      });
+      await postsService.saveUnsentPostToProfile(content);
       toast({
         title: 'Draft saved',
-        description: 'Editor text, research, and ideas saved.',
+        description: 'Editor text saved.',
       });
     } finally {
       setIsSaving(false);
     }
-  }, [content, userProfile, researchContent, ideas, toast]);
+  }, [content, toast]);
 
   const publish = useCallback(async () => {
     if (!content.trim() || !userProfile) return;
@@ -123,7 +165,7 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
     try {
       await postsService.publishPost(content);
       // On publish, remove saved unsent content from profile
-      await postsService.clearUnsentPostFromProfile(userProfile);
+      await postsService.clearUnsentPostFromProfile();
       setContent('');
     } finally {
       setIsPublishing(false);
@@ -136,6 +178,7 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
       const ideas = await postsService.generateIdeas(prompt, userProfile || undefined);
       // Persist locally in session storage for repopulation across reloads
       try { sessionStorage.setItem(IDEAS_STORAGE_KEY, JSON.stringify(ideas)); } catch {}
+      
       setIdeas(ideas);
       return ideas;
     } finally {
@@ -147,7 +190,6 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
     setIsResearching(true);
     try {
       const result = await postsService.researchTopics(topics, userProfile || undefined);
-      if (result) setContent(result);
       if (result) {
         setResearchContent(result);
         try { sessionStorage.setItem(RESEARCH_STORAGE_KEY, result); } catch {}
@@ -166,7 +208,20 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
         existing_content: source,
         research_content: researchContent ?? undefined,
       }, userProfile || undefined);
-      if (synthesized) setContent(synthesized);
+      if (synthesized) {
+        // Set the main content in the editor
+        setContent(synthesized.content);
+        
+        // Save reasoning and hook to session storage and state
+        if (synthesized.reasoning) {
+          setPostReasoning(synthesized.reasoning);
+          try { sessionStorage.setItem(REASONING_STORAGE_KEY, synthesized.reasoning); } catch {}
+        }
+        if (synthesized.hook) {
+          setPostHook(synthesized.hook);
+          try { sessionStorage.setItem(HOOK_STORAGE_KEY, synthesized.hook); } catch {}
+        }
+      }
     } finally {
       setIsSynthesizing(false);
     }
@@ -175,6 +230,20 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
   const clearResearch = useCallback(() => {
     setResearchContent(null);
     try { sessionStorage.removeItem(RESEARCH_STORAGE_KEY); } catch {}
+  }, []);
+
+  const clearIdeas = useCallback(() => {
+    setIdeas([]);
+    try { sessionStorage.removeItem(IDEAS_STORAGE_KEY); } catch {}
+  }, []);
+
+  const clearSynthesis = useCallback(() => {
+    setPostReasoning(null);
+    setPostHook(null);
+    try { 
+      sessionStorage.removeItem(REASONING_STORAGE_KEY);
+      sessionStorage.removeItem(HOOK_STORAGE_KEY);
+    } catch {}
   }, []);
 
   const value = useMemo(
@@ -187,16 +256,20 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
       isResearching,
       isSynthesizing,
       researchContent,
+      postReasoning,
+      postHook,
       saveDraft,
       publish,
       generateIdeas,
       researchTopics,
       synthesizeResearch,
       clearResearch,
+      clearIdeas,
+      clearSynthesis,
       ideas,
       setIdeas,
     }),
-    [content, isSaving, isPublishing, isGeneratingIdeas, isResearching, isSynthesizing, researchContent, ideas, saveDraft, publish, generateIdeas, researchTopics, synthesizeResearch, clearResearch]
+    [content, isSaving, isPublishing, isGeneratingIdeas, isResearching, isSynthesizing, researchContent, postReasoning, postHook, ideas, saveDraft, publish, generateIdeas, researchTopics, synthesizeResearch, clearResearch, clearIdeas, clearSynthesis]
   );
 
   return (
@@ -205,5 +278,6 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
     </PostComposerContext.Provider>
   );
 };
+
 
 

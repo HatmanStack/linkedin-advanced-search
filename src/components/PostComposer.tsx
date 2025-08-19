@@ -21,10 +21,12 @@ const PostComposerInner = () => {
     researchTopics,
     synthesizeResearch,
     clearResearch,
+    clearIdeas,
+    ideas,
+    setIdeas,
   } = usePostComposer();
 
   const { toast } = useToast();
-  const [ideas, setIdeas] = useState<string[]>([]);
 
   const handleGenerateIdeas = async (prompt?: string) => {
     try {
@@ -37,7 +39,7 @@ const PostComposerInner = () => {
   };
 
   const handleClearIdeas = () => {
-    setIdeas([]);
+    clearIdeas();
   };
 
   const handleValidationError = (message: string) => {

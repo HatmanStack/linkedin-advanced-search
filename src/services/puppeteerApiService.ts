@@ -1,5 +1,5 @@
-import { CognitoUserPool, CognitoUser, CognitoUserSession } from 'amazon-cognito-identity-js';
-import { cognitoConfig } from '@/config/appConfig';
+import { CognitoUserPool, CognitoUserSession } from 'amazon-cognito-identity-js';
+import { cognitoConfig } from '../config/appConfig';
 import { connectionChangeTracker } from '../utils/connectionChangeTracker';
 import type { SearchFormData } from '../utils/validation';
 
@@ -164,15 +164,29 @@ class PuppeteerApiService {
     options: RequestInit = {}
   ): Promise<ApiResponse<T>> {
     try {
-      // Attach ciphertext credentials for sensitive endpoints if present in sessionStorage
+      // Attach ciphertext credentials for sensitive endpoints; rely on UserProfileContext to have stored them
       let augmentedBody = options.body;
-      const shouldAttach = endpoint.startsWith('/linkedin') || endpoint.startsWith('/profile-init') || endpoint.startsWith('/search');
+      const shouldAttach =
+        endpoint.startsWith('/linkedin') ||
+        endpoint.startsWith('/linkedin-interactions') ||
+        endpoint.startsWith('/profile-init') ||
+        endpoint.startsWith('/search');
       if (shouldAttach) {
-        const ciphertextTag = sessionStorage.getItem('li_credentials_ciphertext');
-        if (ciphertextTag && typeof ciphertextTag === 'string' && (ciphertextTag.startsWith('sealbox_x25519:b64:'))) {
-          const original = options.body ? JSON.parse(options.body as string) : {};
-          augmentedBody = JSON.stringify({ ...original, linkedinCredentialsCiphertext: ciphertextTag });
+        let ciphertextTag = null as string | null;
+        try {
+          const fromSession = sessionStorage.getItem('li_credentials_ciphertext');
+          ciphertextTag = (fromSession && fromSession.startsWith('sealbox_x25519:b64:')) ? fromSession : null;
+        } catch {}
+
+        if (!ciphertextTag) {
+          return {
+            success: false,
+            error: 'LinkedIn credentials are missing. Please add your encrypted LinkedIn credentials on the Profile page first.',
+          } as ApiResponse<T>;
         }
+
+        const original = options.body ? JSON.parse(options.body as string) : {};
+        augmentedBody = JSON.stringify({ ...original, linkedinCredentialsCiphertext: ciphertextTag });
       }
 
       const response = await fetch(`${PUPPETEER_BACKEND_URL}${endpoint}`, {

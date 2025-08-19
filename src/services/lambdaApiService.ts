@@ -247,44 +247,6 @@ class LambdaApiService {
   }
 
   /**
-   * Get application user settings (e.g., encrypted linkedin_credentials)
-   * The backend identifies the user from the JWT and returns settings.
-   */
-  async getUserSettings(): Promise<{ linkedin_credentials?: string | null }>
-  {
-    try {
-      const response = await this.makeRequest<{ settings?: { linkedin_credentials?: string } }>(
-        'get_user_settings',
-        'get_user_settings',
-        {}
-      );
-      return {
-        linkedin_credentials: response?.settings?.linkedin_credentials ?? null,
-      };
-    } catch (error) {
-      throw error instanceof ApiError
-        ? error
-        : new ApiError({ message: 'Failed to get user settings', status: 500 });
-    }
-  }
-
-  /**
-   * Update application user settings (e.g., set encrypted linkedin_credentials)
-   * The backend updates the DynamoDB table using the caller's user identity.
-   */
-  async updateUserSettings(updates: { linkedin_credentials?: string }): Promise<void> {
-    try {
-      await this.makeRequest<{ success: boolean }>('update_user_settings', 'update_user_settings', {
-        updates,
-      });
-    } catch (error) {
-      throw error instanceof ApiError
-        ? error
-        : new ApiError({ message: 'Failed to update user settings', status: 500 });
-    }
-  }
-
-  /**
    * Make authenticated request to Lambda endpoints with retry logic
    * Handles Lambda response format, implements exponential backoff, and provides comprehensive error handling
    * 
@@ -379,6 +341,7 @@ class LambdaApiService {
    * @returns Promise<Connection[]> Array of connections matching the filter
    */
   async getConnectionsByStatus(status?: ConnectionStatus): Promise<Connection[]> {
+    
     const context = `fetch connections${status ? ` with status ${status}` : ''}`;
     
     try {
@@ -545,11 +508,11 @@ class LambdaApiService {
           }
 
           // If validation failed, try to sanitize the data
-          console.warn(`Invalid connection data at index ${index}:`, validationResult.errors);
+          //console.warn(`Invalid connection data at index ${index}:`, validationResult.errors);
           const sanitized = sanitizeConnectionData(conn);
           
           if (sanitized && isConnection(sanitized)) {
-            console.log(`Successfully sanitized connection data at index ${index}`);
+            //console.log(`Successfully sanitized connection data at index ${index}`);
             return sanitized;
           }
 
@@ -671,8 +634,11 @@ export interface UserProfile {
   company?: string;
   interests?: string[];
   linkedin_credentials?: string;
-  unpublished_post_content?: string;
-  ai_generated_post_content?: any;
+  unpublished_post_content?: string,
+  ai_generated_ideas?: string [],
+  ai_generated_research?: string,
+  ai_generated_post_hook?: string,
+  ai_generated_post_reasoning?: string,
   created_at?: string;
   updated_at?: string;
 }
@@ -680,8 +646,11 @@ export interface UserProfile {
 class ExtendedLambdaApiService extends LambdaApiService {
   async getUserProfile(): Promise<{ success: boolean; data?: UserProfile; error?: string }> {
     try {
+      console.log('Fetching user profile (GET /profiles)');
       const response = await this.apiClient.get('profiles');
+      
       const data = (response.data?.data ?? response.data) as UserProfile;
+      console.log('User profile data:', data);
       return { success: true, data };
     } catch (error) {
       const err = error as AxiosError<any>;
@@ -693,8 +662,10 @@ class ExtendedLambdaApiService extends LambdaApiService {
   async updateUserProfile(profile: Partial<UserProfile>): Promise<{ success: boolean; data?: UserProfile; error?: string }> {
     try {
       // API requires operation-based POST body; fields must be at top-level
+      console.log('Updating profile (POST /profiles):', profile);
+      // Use POST /profiles (backend accepts POST same as PUT)
       const response = await this.apiClient.post('profiles', {
-        operation: 'update_user_profile',
+        operation: 'update_user_settings',
         ...profile,
       });
       const data = (response.data?.data ?? response.data) as UserProfile;
@@ -710,7 +681,7 @@ class ExtendedLambdaApiService extends LambdaApiService {
     try {
       // Reuse update operation for upsert semantics; body fields must be top-level
       const response = await this.apiClient.post('profiles', {
-        operation: 'update_user_profile',
+        operation: 'update_user_settings',
         ...profile,
       });
       const data = (response.data?.data ?? response.data) as UserProfile;

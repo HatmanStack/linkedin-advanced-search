@@ -1,6 +1,9 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { useEffect } from "react";
+import { X } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface ResearchResultsCardProps {
   isResearching: boolean;
@@ -23,10 +26,25 @@ const ResearchResultsCard = ({
   return (
     <Card className="bg-white/5 backdrop-blur-md border-white/10">
       <CardHeader>
-        <CardTitle className="text-white">Research</CardTitle>
-        <CardDescription className="text-slate-300">
-          {isResearching ? 'Research in progress…' : 'Research results'}
-        </CardDescription>
+        <div className="flex items-start justify-between">
+          <div>
+            <CardTitle className="text-white">Research</CardTitle>
+            <CardDescription className="text-slate-300">
+              {isResearching ? 'Research in progress…' : 'Research results'}
+            </CardDescription>
+          </div>
+          {researchContent && !isResearching ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0 text-red-400 hover:text-red-300 hover:bg-red-500/20"
+              onClick={onClear}
+              title="Clear research"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          ) : null}
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
         {isResearching && (
@@ -40,17 +58,38 @@ const ResearchResultsCard = ({
         )}
         {researchContent && (
           <div className="space-y-3">
-            <pre className="whitespace-pre-wrap text-slate-100 text-sm bg-white/5 border border-white/10 rounded-md p-3 max-h-[320px] overflow-auto">
-              {researchContent}
-            </pre>
-            <div className="flex gap-2">
-              <Button
-                variant="ghost"
-                className="text-slate-300 hover:text-white hover:bg-white/10"
-                onClick={onClear}
+            <div className="text-white prose prose-invert max-w-none whitespace-pre-wrap break-words prose-h1:text-center prose-headings:text-white">
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={{
+                  h1: ({ node, ...props }) => (
+                    <h1 {...props} className="text-center text-white" />
+                  ),
+                  ul: ({ node, ...props }) => (
+                    <ul
+                      {...props}
+                      className="list-none pl-0 my-1 space-y-1"
+                      style={{ listStyleType: 'none', marginTop: '0.25rem', marginBottom: '0.25rem' }}
+                    />
+                  ),
+                  ol: ({ node, ...props }) => (
+                    <ol
+                      {...props}
+                      className="list-none pl-0 my-1 space-y-1"
+                      style={{ listStyleType: 'none', marginTop: '0.25rem', marginBottom: '0.25rem' }}
+                    />
+                  ),
+                  li: ({ node, ...props }) => (
+                    <li
+                      {...props}
+                      className="pl-0 my-0.5 marker:text-transparent before:hidden"
+                      style={{ marginTop: '0.125rem', marginBottom: '0.125rem' }}
+                    />
+                  ),
+                }}
               >
-                Clear
-              </Button>
+                {researchContent}
+              </ReactMarkdown>
             </div>
           </div>
         )}

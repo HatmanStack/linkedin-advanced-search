@@ -1,35 +1,24 @@
 import { puppeteerApiService } from './puppeteerApiService';
 import { lambdaApiService } from './lambdaApiService';
+import { v4 as uuidv4 } from 'uuid';
 import type { UserProfile } from '../contexts/UserProfileContext';
 
-export const postsService = {
-  async saveUnsentPostToProfile(
-    content: string,
-    userProfile: UserProfile,
-    options?: { researchContent?: string | null; ideas?: string[] | null }
-  ): Promise<void> {
-    const existingAIGenerated = (userProfile as any)?.ai_generated_post_content || {};
-    const newAIGenerated: Record<string, any> = { ...existingAIGenerated };
-    if (options && typeof options.researchContent === 'string') {
-      newAIGenerated.research_content = options.researchContent;
-    }
-    if (options && Array.isArray(options.ideas)) {
-      newAIGenerated.ideas = options.ideas;
-    }
+// Prevent concurrent or duplicate idea polling loops (e.g., accidental double clicks or re-renders)
+let ideasPollingInFlight = false;
+// Prevent concurrent or duplicate synthesis polling loops
+let synthPollingInFlight = false;
 
-    const updates: Partial<UserProfile> = {
-      ...(userProfile as any),
-      // cast to any to permit new fields until backend fully supports them
-      unpublished_post_content: content,
-      ai_generated_post_content: newAIGenerated,
-    } as any;
+export const postsService = {
+  async saveUnsentPostToProfile(content: string): Promise<void> {
+    // Save only the textarea content
+    const updates: Partial<UserProfile> = { unpublished_post_content: content } as any;
     const resp = await lambdaApiService.updateUserProfile(updates);
     if (!resp.success) throw new Error(resp.error || 'Failed to save unsent post');
   },
 
-  async clearUnsentPostFromProfile(userProfile: UserProfile): Promise<void> {
-    const { unpublished_post_content, ...rest } = (userProfile as any) || {};
-    const updates: Partial<UserProfile> = { ...rest, unpublished_post_content: '' } as any;
+  async clearUnsentPostFromProfile(): Promise<void> {
+    // Clear only the draft field
+    const updates: Partial<UserProfile> = { unpublished_post_content: '' } as any;
     const resp = await lambdaApiService.updateUserProfile(updates);
     if (!resp.success) throw new Error(resp.error || 'Failed to clear unsent post');
   },
@@ -41,23 +30,58 @@ export const postsService = {
 
   async generateIdeas(prompt?: string, userProfile?: UserProfile): Promise<string[]> {
     try {
+      if (ideasPollingInFlight) {
+        throw new Error('Idea generation already in progress');
+      }
+      ideasPollingInFlight = true;
+
       const profileToSend = userProfile
         ? (() => { const { unsent_post_content, unpublished_post_content, ai_generated_post_content, linkedin_credentials, ...rest } = userProfile as any; return rest; })()
         : null;
+
+      // Generate a client-side job id and request async idea generation
+      const jobId = uuidv4();
       const response = await lambdaApiService.sendLLMRequest('generate_ideas', {
         prompt: prompt || '',
-        user_profile: profileToSend
+        user_profile: profileToSend,
+        job_id: jobId,
       });
-      
+
       if (!response.success) {
-        throw new Error(response.error || 'Failed to generate ideas');
+        throw new Error(response.error || 'Failed to request idea generation');
       }
-      
-      // Return the ideas array directly
-      return response.data?.ideas || [];
+
+      // Poll every 10 seconds for results stored by the backend under IDEAS#{job_id}
+      const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
+      const intervalMs = 5_000; // 5 seconds
+      const maxChecks = 25;      // up to ~1.5 minutes
+
+      for (let i = 0; i < maxChecks; i++) {
+        try {
+          const poll = await lambdaApiService.callProfilesOperation<{ ideas?: string[] }>('get_research_result', {
+            job_id: jobId,
+            kind: 'IDEAS',
+          });
+          if (poll && (poll.success === true || poll.status === 'ok')) {
+            const ideas = (poll as any).ideas || (poll as any).data?.ideas;
+            if (Array.isArray(ideas) && ideas.length > 0) {
+              console.log('ideas', ideas);
+              ideasPollingInFlight = false;
+              return ideas as string[];
+            }
+          }
+        } catch (_) {
+          // ignore transient errors and continue polling
+        }
+        if (i < maxChecks - 1) await sleep(intervalMs);
+      }
+      throw new Error('Idea generation polling timed out');
     } catch (error) {
       console.error('Error generating ideas:', error);
       throw new Error('Failed to generate ideas');
+    }
+    finally {
+      ideasPollingInFlight = false;
     }
   },
 
@@ -89,7 +113,9 @@ export const postsService = {
       await sleep(delayMs);
       for (let i = 0; i < maxChecks; i++) {
         try {
-          const poll = await lambdaApiService.callProfilesOperation<{ content?: string }>('get_research_result', { job_id: jobId });
+          const poll = await lambdaApiService.callProfilesOperation<{ content?: string }>('get_research_result', { 
+            job_id: jobId,
+            kind: 'RESEARCH', });
           if (poll && (poll.success === true || poll.status === 'ok')) {
             const content = (poll as any).content || (poll as any).data?.content;
             if (content && typeof content === 'string' && content.trim().length > 0) {
@@ -111,29 +137,64 @@ export const postsService = {
   async synthesizeResearch(
     payload: { existing_content: string; research_content?: string },
     userProfile?: UserProfile
-  ): Promise<string> {
+  ): Promise<{ content: string; reasoning: string; hook: string }> {
     try {
+      if (synthPollingInFlight) {
+        throw new Error('Synthesis already in progress');
+      }
+      synthPollingInFlight = true;
+
       const profileToSend = userProfile
         ? (() => { const { unsent_post_content, unpublished_post_content, ai_generated_post_content, linkedin_credentials, ...rest } = userProfile as any; return rest; })()
         : null;
+
+      // Generate a client-side job id and request async synthesis
+      const jobId = uuidv4();
       const response = await lambdaApiService.sendLLMRequest('synthesize_research', {
         existing_content: payload.existing_content,
         research_content: payload.research_content ?? null,
-        user_profile: profileToSend
+        user_profile: profileToSend,
+        job_id: jobId,
       });
 
       if (!response.success) {
         throw new Error(response.error || 'Failed to synthesize research');
       }
 
-      const content: string | undefined = (response.data?.post || response.data?.synthesized_content) as (string | undefined);
-      if (!content || typeof content !== 'string') {
-        throw new Error('Invalid synthesize response');
+      // Poll every 5 seconds up to ~1.5 minutes, mirroring generateIdeas
+      const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
+      const intervalMs = 5_000;
+      const maxChecks = 25;
+
+      for (let i = 0; i < maxChecks; i++) {
+        try {
+          const poll = await lambdaApiService.callProfilesOperation<{ sections?: any }>('get_research_result', {
+            job_id: jobId,
+            // Use a distinct kind for synthesis; backend will fallback to RESEARCH if unknown
+            kind: 'SYNTHESIZE',
+          });
+          if (poll && (poll.success === true || (poll as any).status === 'ok')) {
+            const sections = (poll as any).sections || (poll as any).data?.sections;
+            if (sections ) {
+              synthPollingInFlight = false;
+              return {
+                content: sections['1'] || '',
+                reasoning: sections['2'] || '',
+                hook: sections['3'] || ''
+              };
+            }
+          }
+        } catch (_) {
+          // ignore transient errors and continue polling
+        }
+        if (i < maxChecks - 1) await sleep(intervalMs);
       }
-      return content;
+      throw new Error('Synthesis polling timed out');
     } catch (error) {
       console.error('Error synthesizing research:', error);
       throw new Error('Failed to synthesize research');
+    } finally {
+      synthPollingInFlight = false;
     }
   },
 };

@@ -64,107 +64,46 @@ def lambda_handler(event: Dict[str, Any], context) -> Dict[str, Any]:
         # Handle CORS preflight without requiring auth
         if http_method == 'OPTIONS':
             return preflight_response(event)
-
+       
+        # Safely unwrap requestContext.authorizer.claims in case any layer is present but null
+        rc = event.get('requestContext') or {}
+        auth = rc.get('authorizer') or {}
+        claims = auth.get('claims') or {}
+        user_id = claims.get('sub')
         # Allow GET to function normally for frontend profile page data
         if http_method == 'GET':
-            # Extract user ID from JWT token
-            user_id = event.get('requestContext', {}).get('authorizer', {}).get('claims', {}).get('sub')
+            # Extract optional profileId from query string, handling null queryStringParameters safely
+            profile_id = (event.get('queryStringParameters') or {}).get('profileId')
+            if profile_id:
+                # Backend stores profile keys base64-encoded; encode incoming raw ID
+                profile_id_b64 = base64.urlsafe_b64encode(profile_id.encode()).decode()
+                item = get_profile_metadata(profile_id_b64)
+                if not item:
+                    return create_response(200, {'message': 'Profile not found', 'profile': None})
+                return create_response(200, {'profile': item})
+            
+            # No profileId provided, return combined user profile for the authenticated user
             if not user_id:
-                logger.error("No user ID found in JWT token")
+                logger.error("No user ID found in JWT token for profile GET")
                 return create_response(401, {'error': 'Unauthorized: Missing or invalid JWT token'}, _get_origin_from_event(event))
-            return get_user_profile(user_id)
+            
+            return get_user_settings(user_id)
 
         # Parse request body (if any)
         body = json.loads(event.get('body', '{}')) if event.get('body') else {}
         operation = body.get('operation')
 
-        # Extract user ID from JWT token (same pattern as edge-processing)
-        user_id = event.get('requestContext', {}).get('authorizer', {}).get('claims', {}).get('sub')
-        if not user_id:
-            logger.error("No user ID found in JWT token")
-            return create_response(401, {'error': 'Unauthorized: Missing or invalid JWT token'}, _get_origin_from_event(event))
 
-        logger.info(f"Processing request for user: {user_id}")
-
-        # 1) HTTP-style routing for /profiles
-        if http_method in ('GET', 'PUT'):
-            if http_method == 'GET':
-                return get_user_profile(user_id)
-            if http_method == 'PUT':
-                # Accept full/partial profile + optional linkedin_credentials
-                if 'unsent_post_content' in body:
-                    try:
-                        # Log only presence/length for debugging; avoid content logging
-                        upc = body.get('unsent_post_content')
-                        logger.info(f"unsent_post_content present, length={len(upc) if isinstance(upc, str) else 'n/a'}")
-                    except Exception:
-                        pass
-                if 'unpublished_post_content' in body:
-                    try:
-                        upc2 = body.get('unpublished_post_content')
-                        logger.info(f"unpublished_post_content present, length={len(upc2) if isinstance(upc2, str) else 'n/a'}")
-                    except Exception:
-                        pass
-                if 'ai_generated_post_content' in body:
-                    try:
-                        keys = list((body.get('ai_generated_post_content') or {}).keys())
-                        logger.info(f"ai_generated_post_content present, keys={keys}")
-                    except Exception:
-                        pass
-                return update_user_profile(user_id, body)
-
-        # 2) Operation-based routing (backward compatible)
-        if not operation:
-            return create_response(400, {'error': 'Missing operation field in request body'}, _get_origin_from_event(event))
-
-        # Operations that require a profileId
-        if operation in ('get_details', 'create'):
-            profile_id = body.get('profileId')
-            if not profile_id:
-                return create_response(400, {'error': 'profileId is required'}, _get_origin_from_event(event))
-            profile_id_b64 = base64.urlsafe_b64encode(profile_id.encode()).decode()
-            body['profileId_b64'] = profile_id_b64
-
-        if operation == 'get_details':
-            return get_profile_details(user_id, body)
-        elif operation == 'create':
+        # Dispatch by operation
+        if operation == 'create':
             return create_bad_contact_profile(user_id, body)
-        elif operation == 'get_user_settings':
-            return get_user_settings(user_id)
         elif operation == 'update_user_settings':
-            linkedin_credentials = body.get('linkedin_credentials')
-            if linkedin_credentials is None:
-                return create_response(400, {'error': 'Missing required field: linkedin_credentials'}, _get_origin_from_event(event))
-            return update_user_settings(user_id, linkedin_credentials)
-        elif operation == 'get_user_profile':
-            return get_user_profile(user_id)
-        elif operation == 'update_user_profile':
-            if 'unsent_post_content' in body:
-                try:
-                    upc = body.get('unsent_post_content')
-                    logger.info(f"unsent_post_content present, length={len(upc) if isinstance(upc, str) else 'n/a'}")
-                except Exception:
-                    pass
-            if 'unpublished_post_content' in body:
-                try:
-                    upc2 = body.get('unpublished_post_content')
-                    logger.info(f"unpublished_post_content present, length={len(upc2) if isinstance(upc2, str) else 'n/a'}")
-                except Exception:
-                    pass
-            if 'ai_generated_post_content' in body:
-                try:
-                    keys = list((body.get('ai_generated_post_content') or {}).keys())
-                    logger.info(f"ai_generated_post_content present, keys={keys}")
-                except Exception:
-                    pass
-            return update_user_profile(user_id, body)
+            return update_user_settings(user_id, body)
         else:
             return create_response(400, {
                 'error': f'Unsupported operation: {operation}',
                 'supported_operations': [
-                    'get_details', 'create',
-                    'get_user_settings', 'update_user_settings',
-                    'get_user_profile', 'update_user_profile'
+                    'create', 'get_details', 'get_user_settings', 'update_user_settings', 'update_user_profile'
                 ]
             }, _get_origin_from_event(event))
 
@@ -172,29 +111,13 @@ def lambda_handler(event: Dict[str, Any], context) -> Dict[str, Any]:
         logger.error(f"Error processing request: {str(e)}")
         return create_response(500, {'error': 'Internal server error'})
 
-def get_profile_details(user_id: str, body: Dict[str, Any]) -> Dict[str, Any]:
-    """Get detailed profile information"""
-    try:
-        profile_id_b64 = body.get('profileId_b64')
-        if not profile_id_b64:
-            return create_response(400, {'error': 'profileId_b64 is required'})
-        
-        profile_data = get_profile_metadata(profile_id_b64)
-        if not profile_data:
-            return create_response(200, {'message': 'Profile not found', 'profile': None})
-            
-        return create_response(200, {'profile': profile_data})
-        
-    except ClientError as e:
-        logger.error(f"DynamoDB error: {str(e)}")
-        return create_response(500, {'error': 'Database error'})
-
 def create_bad_contact_profile(user_id: str, body: Dict[str, Any]) -> Dict[str, Any]:
     """Create a bad contact profile with processed status AND create edges"""
     try:
-        profile_id_b64 = body.get('profileId_b64')
-        if not profile_id_b64:
-            return create_response(400, {'error': 'profileId_b64 is required'})
+        profile_id = body.get('profileId')
+        if not profile_id:
+            return create_response(400, {'error': 'profileId is required'})
+        profile_id_b64 = base64.urlsafe_b64encode(profile_id.encode()).decode()
         
         updates = body.get('updates', {})
         current_time = datetime.now(timezone.utc).isoformat()
@@ -251,121 +174,35 @@ def get_user_settings(user_id: str) -> Dict[str, Any]:
                 'SK': '#SETTINGS'
             }
         )
-        item = response.get('Item') or {}
-        # Return only the fields needed by the client
-        result = {}
-        if 'linkedin_credentials' in item:
-            # Return the stored encrypted value or ciphertext tag; do not modify
-            result['linkedin_credentials'] = item.get('linkedin_credentials')
-        return create_response(200, result)
+        return create_response(200, response.get('Item'))
     except ClientError as e:
         logger.error(f"DynamoDB error (get_user_settings): {str(e)}")
         return create_response(500, {'error': 'Database error'})
 
-def update_user_settings(user_id: str, linkedin_credentials: str) -> Dict[str, Any]:
-    """Upsert user settings with provided linkedin_credentials string.
-    The value may already be client-side encrypted (e.g., rsa_oaep_sha256:b64:...),
-    or may be a JSON string for server-side encryption with KMS (to be added separately).
-    """
-    try:
-        current_time = datetime.now(timezone.utc).isoformat()
-        # Minimal update; KMS envelope encryption can be added here if required
-        table.update_item(
-            Key={
-                'PK': f'USER#{user_id}',
-                'SK': '#SETTINGS'
-            },
-            UpdateExpression='SET linkedin_credentials = :cred, updatedAt = :ts',
-            ExpressionAttributeValues={
-                ':cred': linkedin_credentials,
-                ':ts': current_time
-            }
-        )
-        return create_response(200, {'success': True})
-    except ClientError as e:
-        logger.error(f"DynamoDB error (update_user_settings): {str(e)}")
-        return create_response(500, {'error': 'Database error'})
-
-def get_user_profile(user_id: str) -> Dict[str, Any]:
-    """Return combined user profile data including non-sensitive profile info
-    and presence/value of linkedin_credentials.
-    Profile item: PK=USER#<sub>, SK=#PROFILE
-    Settings item: PK=USER#<sub>, SK=#SETTINGS
-    """
-    try:
-        # Fetch profile item
-        profile_resp = table.get_item(
-            Key={
-                'PK': f'USER#{user_id}',
-                'SK': '#PROFILE'
-            }
-        )
-        profile_item = profile_resp.get('Item') or {}
-
-        # Fetch settings item
-        settings_resp = table.get_item(
-            Key={
-                'PK': f'USER#{user_id}',
-                'SK': '#SETTINGS'
-            }
-        )
-        settings_item = settings_resp.get('Item') or {}
-
-        # Map profile fields back to API model
-        result = {
-            'user_id': user_id,
-            'first_name': profile_item.get('first_name', ''),
-            'last_name': profile_item.get('last_name', ''),
-            'headline': profile_item.get('headline', ''),
-            'profile_url': profile_item.get('profile_url', ''),
-            'profile_picture_url': profile_item.get('profile_picture_url', ''),
-            'location': profile_item.get('location', ''),
-            'summary': profile_item.get('summary', ''),
-            'industry': profile_item.get('industry', ''),
-            'current_position': profile_item.get('current_position', ''),
-            'company': profile_item.get('company', ''),
-            'interests': profile_item.get('interests', []),
-            # Include both legacy and new draft content fields; client can choose preferred
-            'unsent_post_content': profile_item.get('unsent_post_content', ''),
-            'unpublished_post_content': profile_item.get('unpublished_post_content', profile_item.get('unsent_post_content', '')),
-            'ai_generated_post_content': profile_item.get('ai_generated_post_content', {}),
-            'created_at': profile_item.get('created_at', ''),
-            'updated_at': profile_item.get('updated_at', ''),
-        }
-
-        if 'linkedin_credentials' in settings_item:
-            result['linkedin_credentials'] = settings_item.get('linkedin_credentials')
-
-        return create_response(200, result)
-    except ClientError as e:
-        logger.error(f"DynamoDB error (get_user_profile): {str(e)}")
-        return create_response(500, {'error': 'Database error'})
-
-def update_user_profile(user_id: str, body: Dict[str, Any]) -> Dict[str, Any]:
-    """Update user profile info and optionally linkedin_credentials.
-    Accepts partial updates; upserts profile fields on #PROFILE key and delegates
-    credential updates to update_user_settings if provided.
+def update_user_settings(user_id: str, body: Dict[str, Any]) -> Dict[str, Any]:
+    """Update user profile info and/or linkedin_credentials.
+    - Profile fields are stored under PK=USER#{sub}, SK=#PROFILE
+    - linkedin_credentials is stored under PK=USER#{sub}, SK=#SETTINGS
     """
     try:
         current_time = datetime.now(timezone.utc).isoformat()
 
-        # Extract profile fields
+        # Extract profile fields (exclude linkedin_credentials which belongs to SETTINGS)
         profile_updates = {}
-        allowed_fields = [
+        allowed_profile_fields = [
             'first_name', 'last_name', 'headline', 'profile_url', 'profile_picture_url',
             'location', 'summary', 'industry', 'current_position', 'company', 'interests',
-            # Draft content (legacy + new)
-            'unsent_post_content', 'unpublished_post_content',
-            # AI generated bundle (research, ideas)
-            'ai_generated_post_content'
+            'unpublished_post_content', 'linkedin_credentials',
+            'ai_generated_ideas',
+            'ai_generated_research',
+            'ai_generated_post_hook',
+            'ai_generated_post_reasoning',
         ]
-        for field in allowed_fields:
+        for field in allowed_profile_fields:
             if field in body and body[field] is not None:
                 profile_updates[field] = body[field]
-
-        # Backward-compatibility: if only legacy unsent_post_content provided, mirror to unpublished_post_content
-        if ('unsent_post_content' in profile_updates) and ('unpublished_post_content' not in profile_updates):
-            profile_updates['unpublished_post_content'] = profile_updates['unsent_post_content']
+        
+        print(f'THIS IS THE PROFILE UPDATES:  {profile_updates}')
 
         # If any profile fields provided, upsert profile item
         if profile_updates:
@@ -394,19 +231,18 @@ def update_user_profile(user_id: str, body: Dict[str, Any]) -> Dict[str, Any]:
             )
 
             table.update_item(
-                Key={ 'PK': f'USER#{user_id}', 'SK': '#PROFILE' },
+                Key={ 'PK': f'USER#{user_id}', 'SK': '#SETTINGS' },
                 UpdateExpression=update_expression,
                 ExpressionAttributeNames=expr_attr_names,
                 ExpressionAttributeValues=expr_attr_values
             )
-
-        # Handle linkedin_credentials if provided
-        if 'linkedin_credentials' in body and body['linkedin_credentials'] is not None:
-            return update_user_settings(user_id, body['linkedin_credentials'])
-
+        else:
+            print(f"No profile fields provided for update: {body}")
+        
+        
         return create_response(200, {'success': True})
     except ClientError as e:
-        logger.error(f"DynamoDB error (update_user_profile): {str(e)}")
+        logger.error(f"DynamoDB error (update_user_settings): {str(e)}")
         return create_response(500, {'error': 'Database error'})
 
 def get_profile_metadata(profile_id_b64: str) -> Optional[Dict[str, Any]]:
@@ -419,7 +255,7 @@ def get_profile_metadata(profile_id_b64: str) -> Optional[Dict[str, Any]]:
                 'SK': '#METADATA'
             }
         )
-        return response.get('Item')
+        return create_response(200, response.get('Item'))
     except ClientError as e:
         logger.error(f"Error getting profile metadata: {str(e)}")
         return None

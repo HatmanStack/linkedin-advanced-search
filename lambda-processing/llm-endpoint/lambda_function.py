@@ -18,6 +18,7 @@ FEATURES:
 import json
 import logging
 import os
+from datetime import datetime, timezone
 from prompts import LINKEDIN_IDEAS_PROMPT, LINKEDIN_RESEARCH_PROMPT, SYNTHESIZE_RESEARCH_PROMPT
 from openai import OpenAI
 import boto3
@@ -27,8 +28,9 @@ client = OpenAI(api_key=os.environ.get('OPENAI_API_KEY'),timeout=3600)
 API_HEADERS = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-    'Access-Control-Allow-Methods': 'POST,OPTIONS'
+    'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token,x-requested-with',
+    'Access-Control-Allow-Methods': 'POST,OPTIONS',
+    'Access-Control-Expose-Headers': 'Content-Type,Authorization'
 }
 
 
@@ -82,7 +84,7 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 
-def handle_generate_ideas(user_profile: dict, prompt: str = "") -> dict:
+def handle_generate_ideas(user_profile: dict, prompt: str = "", job_id: str | None = None, user_id: str | None = None) -> dict:
     """
     Handle generate_ideas operation
     """
@@ -103,44 +105,26 @@ def handle_generate_ideas(user_profile: dict, prompt: str = "") -> dict:
         )
 
 
-        # Call AI model for content ideas
-        response = client.responses.create(
+        # Queue background processing via OpenAI webhooks (reliable async in Lambda)
+        try:
+            response = client.responses.create(
                 model="gpt-5",
-                input=llm_prompt
+                input=llm_prompt,
+                background=True,
+                metadata={"job_id": job_id, "user_id": user_id, "kind": "IDEAS"},
+                extra_headers={"Idempotency-Key": os.environ.get('IDEM_KEY')},
             )
-            
-        generated_ideas = response.output_text
-        print(f"Generated ideas: {generated_ideas}")
+            _ = getattr(response, 'id', None)
+        except Exception as bg_err:
+            logger.error(f"Failed to enqueue background ideas generation: {bg_err}")
+            return {
+                'success': False,
+                'error': 'Failed to queue ideas generation'
+            }
 
-        ideas = []
-        if "Idea:" in generated_ideas:
-            # Split by "**Idea:**" and clean up
-            idea_parts = generated_ideas.split("Idea:")
-            for part in idea_parts[1:]:  # Skip the first empty part
-                idea = part.strip()
-                if idea:
-                    ideas.append(idea)
-        else:
-            # Fallback: split by double newlines or treat as single idea
-            ideas = [generated_ideas] if generated_ideas else []
-            
-            # Ensure we have at least some ideas
-            if not ideas:
-                ideas = [
-                    "Share a recent professional achievement or milestone",
-                    "Reflect on a challenging project and what you learned",
-                    "Ask your network for advice on career development",
-                    "Share insights from a recent industry event or conference"
-                ]
-            
-        print(f"Successfully generated {len(ideas)} AI-powered content ideas")
-            
         return {
             'success': True,
-            'ideas': ideas,
-            'prompt_used': prompt or "No specific prompt provided",
-            'ai_generated': True,
-            'raw_ai_response': generated_ideas
+            'status': 'queued'
         }
             
     except Exception as e:
@@ -187,15 +171,13 @@ def handle_research_selected_ideas(user_data: dict, selected_ideas: list, user_i
         
         response = client.responses.create(
             model="o4-mini-deep-research",
-            input=input_text,                 # keep it concise; reference large docs by URL/file ID
-            background=True,                  # run asynchronously
+            input=research_prompt,                 
+            background=True,                  
             metadata={"job_id": job_id, "user_id": user_id},
-            webhook={"url": os.environ.get('OPENAI_WEBHOOK_URL'), "secret": os.environ.get('OPENAI_WEBHOOK_SECRET')},  # per-request webhook (if supported)
             tools=[
                 {"type": "web_search_preview"},
                 {"type": "code_interpreter", "container": {"type": "auto"}},
-            ],
-            extra_headers={"Idempotency-Key": os.environ.get('IDEM_KEY')},
+            ]
         )
 
         return {
@@ -213,10 +195,10 @@ def handle_research_selected_ideas(user_data: dict, selected_ideas: list, user_i
         }
 
 
-def handle_get_research_result(user_id: str, job_id: str) -> dict:
+def handle_get_research_result(user_id: str, job_id: str, kind: str | None = None) -> dict:
     """
     Look up a previously stored research result by (user_id, job_id).
-    Expected key schema: PK = f"USER#{user_id}", SK = f"RESEARCH#{job_id}"
+    Expected key schema: PK = f"USER#{user_id}", SK = f"{KIND}#{job_id}" where KIND is one of IDEAS, RESEARCH, SYNTHESIZE
     Returns:
       - { success: True, content: <string or object> } if found
       - { success: False } if not found or storage unavailable
@@ -226,24 +208,129 @@ def handle_get_research_result(user_id: str, job_id: str) -> dict:
             logger.error("DynamoDB table not configured for research lookup")
             return { 'success': False }
 
-        response = _table.get_item(
-            Key={
-                'PK': f'USER#{user_id}',
-                'SK': f'RESEARCH#{job_id}'
-            }
-        )
-        item = response.get('Item')
+        # Determine key prefix based on kind or attempt all
+        prefixes = []
+        if kind == 'IDEAS':
+            prefixes = ['IDEAS']
+        elif kind == 'RESEARCH':
+            prefixes = ['RESEARCH']
+        elif kind == 'SYNTHESIZE':
+            prefixes = ['SYNTHESIZE']
+        
+
+        item = None
+        found_kind = None
+        
+        for prefix in prefixes:
+            print(f'PK:     USER#{user_id}')
+            print(f'SK:     {prefix}#{job_id}')
+            response = _table.get_item(
+                Key={
+                    'PK': f'USER#{user_id}',
+                    'SK': f'{prefix}#{job_id}'
+                }
+            )
+            item = response.get('Item')
+            if item:
+                found_kind = prefix
+                break
         if not item:
             return { 'success': False }
 
-        content = item.get('content') if isinstance(item, dict) else None
-        return { 'success': True, 'content': content }
+        # Build profile_updates based on the kind of item found
+        profile_updates = {}
+
+        def _parse_synthesize_sections(text: str) -> dict:
+            """Parse synthesize content into sections 1, 2, 3 using numeric prefixes.
+            Accepts markers at line starts like '1:', '1.', '1)', '1 -'. Returns dict keys '1','2','3'."""
+            import re
+            sections = {}
+            if not isinstance(text, str) or not text.strip():
+                return sections
+            pattern = re.compile(r"(?m)^(?:\s*)([123])\s*[:\.\)\-]", re.UNICODE)
+            matches = list(pattern.finditer(text))
+            if not matches:
+                return sections
+            for idx, m in enumerate(matches):
+                key = m.group(1)
+                start = m.end()
+                end = matches[idx + 1].start() if idx + 1 < len(matches) else len(text)
+                value = text[start:end].strip()
+                
+                # Skip the first line if it's just a title/header (like "The LinkedIn Post")
+                lines = value.split('\n')
+                if len(lines) > 1:
+                    # Skip first line and join the rest
+                    content = '\n'.join(lines[1:]).strip()
+                    if content:
+                        sections[key] = content.strip()
+                elif value and not value.startswith('The LinkedIn Post'):
+                    # Single line that's not a title
+                    sections[key] = value.strip()
+            return sections
+        sections = {}
+        if found_kind == 'IDEAS':
+            ideas = item.get('ideas') if isinstance(item, dict) else None
+            if ideas is not None:
+                profile_updates['ai_generated_ideas'] = ideas
+        elif found_kind == 'RESEARCH':
+            content = item.get('content') if isinstance(item, dict) else None
+            if content is not None:
+                profile_updates['ai_generated_research'] = content
+        elif found_kind == 'SYNTHESIZE':
+            content = item.get('content') if isinstance(item, dict) else None
+            if content is not None:
+                sections = _parse_synthesize_sections(content)
+                if '1' in sections:
+                    profile_updates['unpublished_post_content'] = sections['1']
+                if '2' in sections:
+                    profile_updates['ai_generated_post_reasoning'] = sections['2']
+                if '3' in sections:
+                    profile_updates['ai_generated_post_hook'] = sections['3']
+                # Fallback: if no numeric sections parsed, store entire content as draft
+                if not sections:
+                    profile_updates['unpublished_post_content'] = content
+                
+                
+
+        # Upsert profile fields on USER#<id> #PROFILE if any updates
+        if profile_updates:
+            current_time = datetime.now(timezone.utc).isoformat()
+            update_expr_parts = []
+            expr_attr_values = { ':ts': current_time }
+            expr_attr_names = {}
+            for k, v in profile_updates.items():
+                name_key = f"#f_{k}"
+                expr_attr_names[name_key] = k
+                value_key = f":v_{k}"
+                expr_attr_values[value_key] = v
+                update_expr_parts.append(f"{name_key} = {value_key}")
+
+            update_expression = (
+                'SET ' + ', '.join(update_expr_parts + ['updated_at = :ts', 'created_at = if_not_exists(created_at, :ts)'])
+            )
+
+            _table.update_item(
+                Key={ 'PK': f'USER#{user_id}', 'SK': '#SETTINGS' },
+                UpdateExpression=update_expression,
+                ExpressionAttributeNames=expr_attr_names,
+                ExpressionAttributeValues=expr_attr_values
+            )
+
+        # Return shape depends on prefix
+        if item.get('ideas'):
+            return { 'success': True, 'ideas': item.get('ideas') }
+        elif item.get('synthesize'):
+            return { 'success': True, 'sections': sections}
+        else:
+            content = item.get('content') if isinstance(item, dict) else None
+            return { 'success': True, 'content': content }
     except Exception as e:
         logger.error(f"Error in handle_get_research_result: {str(e)}")
         return { 'success': False }
 
 
-def handle_synthesize_research(research_content, post_content, user_profile: dict) -> dict:
+def handle_synthesize_research(research_content, post_content, user_profile: dict, job_id: str | None, user_id: str | None) -> dict:
     """
     Handle synthesize_research operation.
 
@@ -254,35 +341,16 @@ def handle_synthesize_research(research_content, post_content, user_profile: dic
     converted to formatted JSON for inclusion in the prompt.
     """
     try:
-        # Lazy import to avoid hard dependency until the prompt is created.
-        try:
-            # Expect the user to add this constant to prompts.py
-            from prompts import SYNTHESIZE_RESEARCH_PROMPT as _SYNTH_PROMPT  # type: ignore
-        except Exception:
-            _SYNTH_PROMPT = (
-                """
-                You are an expert LinkedIn content strategist. Using the inputs below, synthesize a
-                polished LinkedIn post that is specific, credible, and engaging for a professional audience.
-
-                Inputs:
-                - User Profile (structured):\n{user_data}\n
-                - Research Content (notes, bullets, citations or structured findings):\n{research_content}\n
-                - Draft Post Content (optional starting copy or outline):\n{post_content}\n
-                Requirements:
-                - Produce a single LinkedIn post in the user's voice.
-                - Be concrete. Use specific insights/data from the research when available.
-                - Keep it under 1800 characters. Use short paragraphs and whitespace for readability.
-                - Include 1-3 thoughtful hashtags at the end only if they add value.
-                - Do not include any preamble or commentary—output only the final post text.
-                """
-            )
-
+        if not job_id:
+            return {
+                'success': False,
+                'error': 'Missing required field: job_id'
+            }
         # Format user profile
         user_data = ''
         if isinstance(user_profile, dict) and user_profile.get('name') != "Tom, Dick, And Harry":
             for key, value in user_profile.items():
-                if key != "linkedin_credentials":
-                    user_data += f"{key}: {value}\n"
+                user_data += f"{key}: {value}\n"
 
         # Normalize research and post content to strings
         def _normalize_content(value) -> str:
@@ -298,28 +366,27 @@ def handle_synthesize_research(research_content, post_content, user_profile: dic
         research_text = _normalize_content(research_content)
         post_text = _normalize_content(post_content)
 
-        llm_prompt = _SYNTH_PROMPT.format(
+        llm_prompt = SYNTHESIZE_RESEARCH_PROMPT.format(
             user_data=user_data,
             research_content=research_text,
             post_content=post_text,
         )
 
+        # Queue background synthesis. Result will arrive via webhook and be stored under SYNTHESIZE#{job_id}
         response = client.responses.create(
             model="gpt-5",
             input=llm_prompt,
+            background=True,
+            metadata={"job_id": job_id, "user_id": user_id, "kind": "SYNTHESIZE"},
+            extra_headers={"Idempotency-Key": os.environ.get('IDEM_KEY')},
         )
 
-        generated_post = getattr(response, 'output_text', None) or ''
-
-        if not generated_post:
-            return {
-                'success': False,
-                'error': 'LLM returned empty content',
-            }
+        _ = getattr(response, 'id', None)
 
         return {
             'success': True,
-            'post': generated_post,
+            'status': 'queued',
+    
         }
     except Exception as e:
         logger.error(f"Error in handle_synthesize_research: {str(e)}")
@@ -350,7 +417,10 @@ def lambda_handler(event, _context):
         if operation == 'generate_ideas':
             prompt = body.get('prompt', None)
             profile = body.get('user_profile', None)
-            result = handle_generate_ideas(profile, prompt)
+            job_id = body.get('job_id')
+            if not job_id:
+                return _resp(400, { 'error': 'Missing required field: job_id' })
+            result = handle_generate_ideas(profile, prompt, job_id, user_id)
             return _resp(200, result)
         elif operation == 'research_selected_ideas':
             selected_ideas = body.get('selected_ideas', [])
@@ -361,13 +431,17 @@ def lambda_handler(event, _context):
             job_id = body.get('job_id')
             if not job_id:
                 return _resp(400, { 'error': 'Missing required field: job_id' })
-            result = handle_get_research_result(user_id, job_id)
+            kind = body.get('kind')
+            result = handle_get_research_result(user_id, job_id, kind)
             return _resp(200, result)
         elif operation == 'synthesize_research':
             research_content = body.get('research_content', None)
-            post_content = body.get('post_content', None)
+            post_content = body.get('existing_content', None)
             profile = body.get('user_profile', {})
-            result = handle_synthesize_research(research_content, post_content, profile)
+            job_id = body.get('job_id')
+            if not job_id:
+                return _resp(400, { 'error': 'Missing required field: job_id' })
+            result = handle_synthesize_research(research_content, post_content, profile, job_id, user_id)
             return _resp(200, result)
         else:
             return _resp(400, { 'error': f'Unsupported operation: {operation}' })
