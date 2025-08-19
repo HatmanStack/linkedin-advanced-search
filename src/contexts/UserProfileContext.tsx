@@ -21,8 +21,11 @@ export interface UserProfile {
   company?: string;
   interests?: string[];
   linkedin_credentials?: string;
-  unpublished_post_content?: string;
-  ai_generated_post_content?: any;
+  unpublished_post_content?: string,
+  ai_generated_ideas?: string [],
+  ai_generated_research?: string,
+  ai_generated_post_hook?: string,
+  ai_generated_post_reasoning?: string,
   created_at?: string;
   updated_at?: string;
 }
@@ -49,6 +52,10 @@ export const UserProfileProvider = ({ children }: { children: ReactNode }) => {
   const [isLoading, setIsLoading] = useState(false);
   const { user } = useAuth();
 
+  // Avoid redundant fetches within a single session
+  // This ensures we fetch once (e.g., from Dashboard) and reuse across the app
+  let fetchedFlag = false;
+
   // Fetch user profile from API
   const fetchUserProfile = async () => {
     if (!user) return;
@@ -66,6 +73,8 @@ export const UserProfileProvider = ({ children }: { children: ReactNode }) => {
             sessionStorage.setItem('li_credentials_ciphertext', response.data.linkedin_credentials);
           } catch {}
         }
+        try { sessionStorage.setItem('profile_fetched', 'true'); } catch {}
+        fetchedFlag = true;
       }
     } catch (error) {
       console.error('Failed to fetch user profile:', error);
@@ -84,6 +93,8 @@ export const UserProfileProvider = ({ children }: { children: ReactNode }) => {
       if (response.success) {
         // Refresh the profile to get updated data
         await fetchUserProfile();
+        try { sessionStorage.setItem('profile_fetched', 'true'); } catch {}
+        fetchedFlag = true;
       } else {
         throw new Error(response.error || 'Failed to update profile');
       }
@@ -100,7 +111,8 @@ export const UserProfileProvider = ({ children }: { children: ReactNode }) => {
     await fetchUserProfile();
   };
 
-  // On mount, attempt to hydrate from sessionStorage, then from user profile
+  // On mount, hydrate ciphertext from sessionStorage. Defer profile fetch to Dashboard,
+  // but allow a guarded fetch if not fetched yet (for direct navigation fallbacks)
   useEffect(() => {
     try {
       const stored = sessionStorage.getItem('li_credentials_ciphertext');
@@ -109,9 +121,14 @@ export const UserProfileProvider = ({ children }: { children: ReactNode }) => {
       }
     } catch {}
 
-    // Fetch profile when user is available (post-login)
     if (user) {
-      fetchUserProfile();
+      const alreadyFetched = (() => { try { return sessionStorage.getItem('profile_fetched') === 'true'; } catch { return false; } })();
+      if (!alreadyFetched && !fetchedFlag) {
+        // Guarded fetch for non-dashboard entry points
+        fetchUserProfile();
+        fetchedFlag = true;
+        try { sessionStorage.setItem('profile_fetched', 'true'); } catch {}
+      }
     }
   }, [user]);
 

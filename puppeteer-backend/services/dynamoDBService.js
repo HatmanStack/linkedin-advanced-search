@@ -6,8 +6,13 @@ const API_BASE_URL = process.env.API_GATEWAY_BASE_URL;
 class DynamoDBService {
     constructor() {
         this.authToken = null;
+        // Ensure trailing slash so relative endpoint paths join correctly (preserve stage path)
+        const normalizedBaseUrl = API_BASE_URL
+            ? (API_BASE_URL.endsWith('/') ? API_BASE_URL : `${API_BASE_URL}/`)
+            : API_BASE_URL;
+
         this.apiClient = axios.create({
-            baseURL: API_BASE_URL,
+            baseURL: normalizedBaseUrl,
             headers: {
                 'Content-Type': 'application/json'
             }
@@ -19,7 +24,7 @@ class DynamoDBService {
      */
     async upsertEdgeStatus(profileId, status, extraUpdates = {}) {
         const now = new Date().toISOString();
-        return await this._post('/edge', {
+        return await this._post('edge', {
             operation: 'upsert_status',
             profileId,
             updates: {status, ...extraUpdates, updatedAt: now}
@@ -32,6 +37,21 @@ class DynamoDBService {
     async _post(path, body) {
         try {
             const response = await this.apiClient.post(path, body, { headers: this.getHeaders() });
+            return response?.data;
+        } catch (error) {
+            throw this.handleError(error);
+        }
+    }
+
+    /**
+     * Internal GET helper with unified headers and error handling
+     */
+    async _get(path, params = {}) {
+        try {
+            const response = await this.apiClient.get(path, {
+                headers: this.getHeaders(),
+                params
+            });
             return response?.data;
         } catch (error) {
             throw this.handleError(error);
@@ -69,9 +89,8 @@ class DynamoDBService {
      */
     async getProfileDetails(profileId) {
         try {
-            const data = await this._post('/profiles', {
-                operation: 'get_details',
-                profileId
+            const data = await this._get('profiles', {
+                profileId: profileId
             });
             if (!data || !data.profile) return true;
             const { updatedAt, evaluated } = data.profile;
@@ -99,7 +118,7 @@ class DynamoDBService {
      */
     async createBadContactProfile(profileId) {
         try {
-            const response = await this.apiClient.post('/profiles', {
+            const response = await this.apiClient.post('profiles', {
                 operation: 'create',
                 profileId: profileId,
                 updates: {
@@ -141,7 +160,7 @@ class DynamoDBService {
      */
     async checkEdgeExists(connectionProfileId) {
         try {
-            const data = await this._post('/edge', {
+            const data = await this._post('edge', {
                 operation: 'check_exists',
                 linkedinurl: connectionProfileId
             });

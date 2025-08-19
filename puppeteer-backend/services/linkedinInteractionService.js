@@ -64,7 +64,7 @@ class BrowserSessionManager {
       // Check if existing instance is still valid
       if (this.instance && await this.isSessionHealthy()) {
         this.lastActivity = new Date();
-        logger.debug('Reusing existing browser session');
+        logger.debug('Reusing existing browser session');  // Unable to reuse session if it's not already authenticated
         return this.instance;
       }
 
@@ -1410,6 +1410,8 @@ export class LinkedInInteractionService {
   /**
    * Send the connection request after clicking connect button
    * Implements requirement 2.4 - Connection request workflow
+   * This still isn't sending notification if the user is already connected to the profile
+   * Although the backend is recording the edge, the frontend is not updating the connection status
    * @returns {Promise<Object>} Connection request result
    */
   async sendConnectionRequest(profileId, jwtToken) {

@@ -38,7 +38,7 @@ const Dashboard = () => {
   const { user, signOut } = useAuth();
   const { startListening } = useHealAndRestore(); // Added
   const { toast } = useToast();
-  const { ciphertext: linkedInCredsCiphertext, userProfile } = useUserProfile(); // Include profile for display name
+  const { ciphertext: linkedInCredsCiphertext, userProfile, refreshUserProfile } = useUserProfile(); // Include profile for display name
   const [conversationTopic, setConversationTopic] = useState('');
   const [selectedConnections, setSelectedConnections] = useState<string[]>([]);
   const [isSearchingLinkedIn, setIsSearchingLinkedIn] = useState(false);
@@ -107,6 +107,11 @@ const Dashboard = () => {
   useEffect(() => {
     startListening();
   }, [startListening]);
+
+  // Fetch the user profile once on dashboard mount (preferred fetch site)
+  useEffect(() => {
+    refreshUserProfile();
+  }, []); // Empty dependency array - only run once on mount
 
   // Initialize connections data on component mount
   useEffect(() => {
@@ -269,7 +274,7 @@ const Dashboard = () => {
       }
 
       // Update database
-      await dbConnector.updateConnectionStatus(connectionId, newStatus);
+      // await dbConnector.updateConnectionStatus(connectionId, newStatus);
 
       // Mark change so next dashboard mount can conditionally refresh
       connectionChangeTracker.markChanged('interaction');
@@ -313,7 +318,7 @@ const Dashboard = () => {
 
     try {
       // Fetch message history from database
-      const messages = await dbConnector.getMessageHistory(connection.id);
+      // const messages = await dbConnector.getMessageHistory(connection.id);
       setMessageHistory(messages);
     } catch (err: any) {
       console.error('Error fetching message history:', err);
@@ -483,7 +488,7 @@ const Dashboard = () => {
   const generateMessageForConnection = useCallback(async (connection: Connection): Promise<string> => {
     try {
       // Fetch message history for context
-      const messageHistory = await dbConnector.getMessageHistory(connection.id);
+      // const messageHistory = await dbConnector.getMessageHistory(connection.id);
       
       // Build request using shared context service for DRYness
       const cleanedTopic = connectionDataContextService.prepareConversationTopic(conversationTopic);
@@ -568,9 +573,7 @@ const Dashboard = () => {
     const connection = connections.find(conn => conn.id === currentConnectionId);
     return connection ? `${connection.first_name} ${connection.last_name}` : undefined;
   }, [isGeneratingMessages, currentConnectionIndex, selectedConnections, connections]);
-
-  // Filtered connections based on selected status and tab
-  const filteredConnections = useMemo(() => {
+   const filteredConnections = useMemo(() => {
     // status filter first
     let list = connections.filter(connection => {
       if (selectedStatus === 'all') {
@@ -590,7 +593,6 @@ const Dashboard = () => {
     }
     return list;
   }, [connections, selectedStatus, activeTags]);
-
   const handleTagClick = useCallback((tag: string) => {
     setActiveTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
   }, []);

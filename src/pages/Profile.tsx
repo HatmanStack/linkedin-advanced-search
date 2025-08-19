@@ -10,7 +10,7 @@ import { Separator } from "../components/ui/separator";
 import { MessageSquare, ArrowLeft, User, Building, MapPin, Save, Plus, X, Key, Eye, EyeOff } from 'lucide-react';
 import { useToast } from "../hooks/use-toast";
 import { useUserProfile } from '../contexts/UserProfileContext';
-import { lambdaApiService } from '../services/lambdaApiService';
+// import { lambdaApiService } from '../services/lambdaApiService';
 import { encryptWithSealboxB64 } from '../utils/crypto';
 
 const Profile = () => {
@@ -50,38 +50,33 @@ const Profile = () => {
   }, [ciphertext]);
 
   useEffect(() => {
-    // On load, check if encrypted credentials already exist in DynamoDB via the API service
-    // We do not attempt to fetch or display plaintext; backend manages decryption when needed.
+    // When user profile context updates, hydrate this page's local editable fields
     (async () => {
       try {
-        const response = await lambdaApiService.getUserProfile();
-        if (response.success && response.data) {
-          const data: any = response.data;
+        const data: any = userProfile;
+        if (!data) return;
+        const firstName = (data.first_name || '').trim();
+        const lastName = (data.last_name || '').trim();
+        const derivedName = [firstName, lastName].filter(Boolean).join(' ').trim();
+        setProfile(prev => ({
+          ...prev,
+          name: derivedName || prev.name,
+          title: (data.headline || data.current_position || prev.title || '').toString(),
+          company: (data.company || prev.company || '').toString(),
+          location: (data.location || prev.location || '').toString(),
+          bio: (data.summary || prev.bio || '').toString(),
+          interests: Array.isArray(data.interests) ? data.interests : prev.interests,
+          linkedinUrl: (data.profile_url || prev.linkedinUrl || '').toString(),
+        }));
 
-          // Populate profile fields from DynamoDB if present
-          const firstName = (data.first_name || '').trim();
-          const lastName = (data.last_name || '').trim();
-          const derivedName = [firstName, lastName].filter(Boolean).join(' ').trim();
-          setProfile(prev => ({
-            ...prev,
-            name: derivedName || prev.name,
-            title: (data.headline || data.current_position || prev.title || '').toString(),
-            company: (data.company || prev.company || '').toString(),
-            location: (data.location || prev.location || '').toString(),
-            bio: (data.summary || prev.bio || '').toString(),
-            interests: Array.isArray(data.interests) ? data.interests : prev.interests,
-            linkedinUrl: (data.profile_url || prev.linkedinUrl || '').toString(),
-          }));
-
-          if (data.linkedin_credentials) {
-            setHasStoredCredentials(true);
-          }
+        if (data.linkedin_credentials) {
+          setHasStoredCredentials(true);
         }
       } catch (err) {
         // Silent fail; do not block profile page if profile isn't initialized yet
       }
     })();
-  }, []);
+  }, [userProfile]);
 
   const handleLinkedinCredentialsChange = (field: string, value: string) => {
     setLinkedinCredentials(prev => ({ ...prev, [field]: value }));
@@ -134,10 +129,7 @@ const Profile = () => {
           // Do NOT store plaintext in context
         }
 
-        const resp = await lambdaApiService.updateUserProfile(payload);
-        if (!resp.success) {
-          throw new Error(resp.error || 'Failed to save LinkedIn credentials');
-        }
+        await updateUserProfile(payload);
         setHasStoredCredentials(true);
 
         // Clear password from local component state after saving to reduce exposure in memory
@@ -159,10 +151,7 @@ const Profile = () => {
         profile_url: profile.linkedinUrl || undefined,
       };
 
-      const profileResp = await lambdaApiService.updateUserProfile(profilePayload);
-      if (!profileResp.success) {
-        throw new Error(profileResp.error || 'Failed to save profile information');
-      }
+      await updateUserProfile(profilePayload);
 
       toast({
         title: "Profile updated!",
