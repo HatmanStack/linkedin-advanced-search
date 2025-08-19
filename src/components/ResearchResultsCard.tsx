@@ -1,27 +1,37 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { X } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
 interface ResearchResultsCardProps {
   isResearching: boolean;
-  researchContent: string | null;
   onClear: () => void;
 }
 
+const RESEARCH_STORAGE_KEY = 'ai_research_content';
+
 const ResearchResultsCard = ({
   isResearching,
-  researchContent,
   onClear,
   
 }: ResearchResultsCardProps) => {
-  useEffect(() => {
-    // No-op, placeholder for future side effects
-  }, [researchContent]);
+  const [localResearch, setLocalResearch] = useState<string | null>(null);
 
-  if (!isResearching && !researchContent) return null;
+  // Local hydration from sessionStorage on mount and whenever research completes
+  useEffect(() => {
+    if (!isResearching) {
+      try {
+        const stored = sessionStorage.getItem(RESEARCH_STORAGE_KEY);
+        setLocalResearch(stored ?? null);
+      } catch {
+        setLocalResearch(null);
+      }
+    }
+  }, [isResearching]);
+
+  if (!isResearching && !localResearch) return null;
 
   return (
     <Card className="bg-white/5 backdrop-blur-md border-white/10">
@@ -33,12 +43,12 @@ const ResearchResultsCard = ({
               {isResearching ? 'Research in progress…' : 'Research results'}
             </CardDescription>
           </div>
-          {researchContent && !isResearching ? (
+          {localResearch && !isResearching ? (
             <Button
               variant="ghost"
               size="sm"
               className="h-8 w-8 p-0 text-red-400 hover:text-red-300 hover:bg-red-500/20"
-              onClick={onClear}
+              onClick={() => { setLocalResearch(null); onClear(); }}
               title="Clear research"
             >
               <X className="h-4 w-4" />
@@ -56,39 +66,50 @@ const ResearchResultsCard = ({
             This may take several minutes.
           </div>
         )}
-        {researchContent && (
+        {localResearch && (
           <div className="space-y-3">
             <div className="text-white prose prose-invert max-w-none whitespace-pre-wrap break-words prose-h1:text-center prose-headings:text-white">
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 components={{
+                  p: ({ node, ...props }) => (
+                    <p {...props} />
+                  ),
                   h1: ({ node, ...props }) => (
-                    <h1 {...props} className="text-center text-white" />
+                    <h1 {...props} className="text-center text-white -mb-2" />
+                  ),
+                  h2: ({ node, ...props }) => (
+                    <h2 {...props} className="text-center text-white -mb-2" />
+                  ),
+                  h3: ({ node, ...props }) => (
+                    <h3 {...props} className="text-white -mb-2" />
+                  ),
+                  h4: ({ node, ...props }) => (
+                    <h4 {...props} className="text-white -mb-2" />
                   ),
                   ul: ({ node, ...props }) => (
                     <ul
                       {...props}
                       className="list-none pl-0 my-1 space-y-1"
-                      style={{ listStyleType: 'none', marginTop: '0.25rem', marginBottom: '0.25rem' }}
+                      style={{ listStyleType: 'none'}}
                     />
                   ),
                   ol: ({ node, ...props }) => (
                     <ol
                       {...props}
                       className="list-none pl-0 my-1 space-y-1"
-                      style={{ listStyleType: 'none', marginTop: '0.25rem', marginBottom: '0.25rem' }}
+                      style={{ listStyleType: 'none'}}
                     />
                   ),
                   li: ({ node, ...props }) => (
                     <li
                       {...props}
                       className="pl-0 my-0.5 marker:text-transparent before:hidden"
-                      style={{ marginTop: '0.125rem', marginBottom: '0.125rem' }}
                     />
                   ),
                 }}
               >
-                {researchContent}
+                {localResearch}
               </ReactMarkdown>
             </div>
           </div>
@@ -96,7 +117,7 @@ const ResearchResultsCard = ({
       </CardContent>
     </Card>
   );
-};
+}
 
 export default ResearchResultsCard;
 

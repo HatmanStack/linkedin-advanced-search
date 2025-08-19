@@ -2,8 +2,10 @@ import PostEditor from './PostEditor';
 import PostAIAssistant from './PostAIAssistant';
 import ResearchResultsCard from './ResearchResultsCard';
 import { usePostComposer } from '../contexts/PostComposerContext';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useToast } from '../hooks/use-toast';
+
+const RESEARCH_STORAGE_KEY = 'ai_research_content';
 
 const PostComposerInner = () => {
   const {
@@ -21,12 +23,37 @@ const PostComposerInner = () => {
     researchTopics,
     synthesizeResearch,
     clearResearch,
-    clearIdeas,
+    clearIdea,
     ideas,
     setIdeas,
   } = usePostComposer();
 
   const { toast } = useToast();
+  const [hasSessionResearch, setHasSessionResearch] = useState<boolean>(false);
+
+  // Hydrate local flag from session storage so Synthesize is available after refresh
+  useEffect(() => {
+    try {
+      const stored = sessionStorage.getItem(RESEARCH_STORAGE_KEY);
+      setHasSessionResearch(Boolean(stored && stored.trim()));
+    } catch {
+      setHasSessionResearch(false);
+    }
+  }, []);
+
+  // Keep flag in sync when researchContent changes
+  useEffect(() => {
+    if (researchContent && researchContent.trim()) {
+      setHasSessionResearch(true);
+    } else {
+      try {
+        const stored = sessionStorage.getItem(RESEARCH_STORAGE_KEY);
+        setHasSessionResearch(Boolean(stored && stored.trim()));
+      } catch {
+        setHasSessionResearch(false);
+      }
+    }
+  }, [researchContent]);
 
   const handleGenerateIdeas = async (prompt?: string) => {
     try {
@@ -38,8 +65,30 @@ const PostComposerInner = () => {
     }
   };
 
-  const handleClearIdeas = () => {
-    clearIdeas();
+  const handleClearResearch = async () => {
+    try {
+      await clearResearch();
+    } catch (error) {
+      console.error('Failed to clear research:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to clear research. Please try again.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleIdeasUpdate = async (newIdeas: string[]) => {
+    try {
+      await clearIdea(newIdeas);
+    } catch (error) {
+      console.error('Failed to update ideas:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to update ideas. Please try again.',
+        variant: 'destructive',
+      });
+    }
   };
 
   const handleValidationError = (message: string) => {
@@ -63,13 +112,12 @@ const PostComposerInner = () => {
           isSavingDraft={isSaving}
           isPublishing={isPublishing}
           isSynthesizing={isSynthesizing}
-          onSynthesizeResearch={researchContent ? () => synthesizeResearch() : undefined}
+          onSynthesizeResearch={() => synthesizeResearch()}
         />
 
         <ResearchResultsCard
           isResearching={isResearching}
-          researchContent={researchContent}
-          onClear={clearResearch}
+          onClear={handleClearResearch}
         />
       </div>
 
@@ -81,7 +129,7 @@ const PostComposerInner = () => {
           isGeneratingIdeas={isGeneratingIdeas}
           isResearching={isResearching}
           ideas={ideas}
-          onClearIdeas={handleClearIdeas}
+          onIdeasUpdate={handleIdeasUpdate}
         />
       </div>
     </div>

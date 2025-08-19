@@ -650,7 +650,7 @@ class ExtendedLambdaApiService extends LambdaApiService {
       const response = await this.apiClient.get('profiles');
       
       const data = (response.data?.data ?? response.data) as UserProfile;
-      console.log('User profile data:', data);
+     
       return { success: true, data };
     } catch (error) {
       const err = error as AxiosError<any>;

@@ -54,7 +54,7 @@ export const postsService = {
       // Poll every 10 seconds for results stored by the backend under IDEAS#{job_id}
       const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
       const intervalMs = 5_000; // 5 seconds
-      const maxChecks = 25;      // up to ~1.5 minutes
+      const maxChecks = 35;      // up to ~1.5 minutes
 
       for (let i = 0; i < maxChecks; i++) {
         try {
@@ -135,7 +135,7 @@ export const postsService = {
   },
 
   async synthesizeResearch(
-    payload: { existing_content: string; research_content?: string },
+    payload: { existing_content: string; research_content?: string; selected_ideas?: string[] },
     userProfile?: UserProfile
   ): Promise<{ content: string; reasoning: string; hook: string }> {
     try {
@@ -145,7 +145,9 @@ export const postsService = {
       synthPollingInFlight = true;
 
       const profileToSend = userProfile
-        ? (() => { const { unsent_post_content, unpublished_post_content, ai_generated_post_content, linkedin_credentials, ...rest } = userProfile as any; return rest; })()
+        ? (() => { const { unpublished_post_content, linkedin_credentials,
+          ai_generated_ideas, ai_generated_research, ai_generated_post_hook,
+          ai_generated_post_reasoning,...rest } = userProfile as any; return rest; })()
         : null;
 
       // Generate a client-side job id and request async synthesis
@@ -153,6 +155,7 @@ export const postsService = {
       const response = await lambdaApiService.sendLLMRequest('synthesize_research', {
         existing_content: payload.existing_content,
         research_content: payload.research_content ?? null,
+        selected_ideas: Array.isArray(payload.selected_ideas) && payload.selected_ideas.length > 0 ? payload.selected_ideas : [],
         user_profile: profileToSend,
         job_id: jobId,
       });
@@ -164,7 +167,7 @@ export const postsService = {
       // Poll every 5 seconds up to ~1.5 minutes, mirroring generateIdeas
       const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
       const intervalMs = 5_000;
-      const maxChecks = 25;
+      const maxChecks = 35;
 
       for (let i = 0; i < maxChecks; i++) {
         try {

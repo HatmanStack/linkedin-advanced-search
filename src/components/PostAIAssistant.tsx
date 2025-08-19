@@ -5,23 +5,24 @@ import { Input } from "./ui/input";
 import { Sparkles, Search, X } from 'lucide-react';
 
 interface PostAIAssistantProps {
-  onGenerateIdeas: (prompt?: string) => void | Promise<void>;
-  onResearchTopics: (topics: string[]) => void | Promise<void>;
+  onGenerateIdeas: (prompt?: string) => Promise<void>;
+  onResearchTopics: (topics: string[]) => void;
   onValidationError: (message: string) => void;
   isGeneratingIdeas: boolean;
   isResearching: boolean;
   ideas?: string[];
-  onClearIdeas?: () => void;
+  onIdeasUpdate?: (newIdeas: string[]) => Promise<void>;
 }
+
+const SELECTED_IDEAS_STORAGE_KEY = 'ai_selected_ideas';
 
 const PostAIAssistant = ({ 
   onGenerateIdeas, 
   onResearchTopics, 
-  onValidationError,
   isGeneratingIdeas, 
   isResearching,
   ideas,
-  onClearIdeas
+  onIdeasUpdate
 }: PostAIAssistantProps) => {
   const [showResearchInput, setShowResearchInput] = useState(false);
   const [researchQuery, setResearchQuery] = useState('');
@@ -36,12 +37,23 @@ const PostAIAssistant = ({
   useEffect(() => {
     try {
       const storedIdeas = sessionStorage.getItem(IDEAS_STORAGE_KEY);
+      let parsed: string[] | null = null;
       if (storedIdeas) {
-        const parsedIdeas = JSON.parse(storedIdeas);
-        setLocalIdeas(parsedIdeas);
+        parsed = JSON.parse(storedIdeas);
+        setLocalIdeas(parsed ?? []);
+      }
+      // hydrate selected ideas
+      const storedSelected = sessionStorage.getItem(SELECTED_IDEAS_STORAGE_KEY);
+      if (storedSelected) {
+        const selectedList: string[] = JSON.parse(storedSelected);
+        const indices = new Set<number>();
+        (parsed || localIdeas).forEach((idea: string, idx: number) => {
+          if (selectedList.includes(idea)) indices.add(idx);
+        });
+        if (indices.size > 0) setSelectedIdeas(indices);
       }
     } catch (error) {
-      console.error('Failed to load ideas from session storage:', error);
+      console.error('Failed to load ideas/selection from session storage:', error);
     }
   }, []);
 
@@ -58,6 +70,16 @@ const PostAIAssistant = ({
     }
   }, [ideas]);
 
+  // Persist selected idea texts whenever selection or list changes
+  useEffect(() => {
+    try {
+      const selectedTexts = Array.from(selectedIdeas).map(idx => localIdeas[idx]).filter(Boolean);
+      sessionStorage.setItem(SELECTED_IDEAS_STORAGE_KEY, JSON.stringify(selectedTexts));
+    } catch (e) {
+      console.error('Failed to persist selected ideas:', e);
+    }
+  }, [selectedIdeas, localIdeas]);
+
   const handleResearchSubmit = () => {
     if (researchQuery.trim()) {
       onResearchTopics([researchQuery.trim()]);
@@ -70,7 +92,7 @@ const PostAIAssistant = ({
     onGenerateIdeas(ideaPrompt.trim() || undefined);
   };
 
-  const handleDeleteIdea = (index: number) => {
+  const handleDeleteIdea = async (index: number) => {
     const newIdeas = localIdeas.filter((_, i) => i !== index);
     setLocalIdeas(newIdeas);
     
@@ -81,10 +103,9 @@ const PostAIAssistant = ({
       console.error('Failed to update ideas in session storage:', error);
     }
     
-    // Clear selection if deleted idea was selected
+    // Clear selection if deleted idea was selected and shift indices
     const newSelected = new Set(selectedIdeas);
     newSelected.delete(index);
-    // Adjust indices for remaining selections
     const adjustedSelected = new Set<number>();
     newSelected.forEach(selectedIndex => {
       if (selectedIndex > index) {
@@ -96,8 +117,8 @@ const PostAIAssistant = ({
     setSelectedIdeas(adjustedSelected);
     
     // Notify parent if callback exists
-    if (onClearIdeas) {
-      onClearIdeas();
+    if (onIdeasUpdate) {
+      await onIdeasUpdate(newIdeas);
     }
   };
 
