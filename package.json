@@ -21,6 +21,7 @@
     "@aws-sdk/client-dynamodb": "^3.859.0",
     "@aws-sdk/lib-dynamodb": "^3.844.0",
     "@hookform/resolvers": "^3.9.0",
+    
     "@radix-ui/react-accordion": "^1.2.0",
     "@radix-ui/react-alert-dialog": "^1.1.1",
     "@radix-ui/react-aspect-ratio": "^1.1.0",

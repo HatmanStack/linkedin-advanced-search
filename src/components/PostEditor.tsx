@@ -6,10 +6,12 @@ import { Label } from "./ui/label";
 import { FileText, Save, Send, X } from 'lucide-react';
 import { usePostComposer } from '../contexts/PostComposerContext';
 import { useState, useMemo, useEffect } from 'react';
+import { postsService } from '../services/postsService';
 
 const REASONING_STORAGE_KEY = 'ai_generated_post_reasoning';
 const HOOK_STORAGE_KEY = 'ai_generated_post_hook';
 const CONTENT_STORAGE_KEY = 'post_editor_content';
+const STYLE_CACHE_KEY = 'post_style_cache';
 
 interface PostEditorProps {
   content: string;
@@ -35,7 +37,9 @@ const PostEditor = ({
   const { postReasoning, postHook, clearSynthesis } = usePostComposer();
   const [localReasoning, setLocalReasoning] = useState<string | null>(null);
   const [localHook, setLocalHook] = useState<string | null>(null);
-  const [selectedStyle, setSelectedStyle] = useState<string>('neutral');
+  const [selectedStyle, setSelectedStyle] = useState<string>('default');
+  const [isFormatting, setIsFormatting] = useState<boolean>(false);
+  const [localHydratedContent, setLocalHydratedContent] = useState<string>(content);
   const hasSynthesized = useMemo(() => {
     return Boolean((localHook ?? postHook) || (localReasoning ?? postReasoning));
   }, [postHook, postReasoning, localHook, localReasoning]);
@@ -66,6 +70,7 @@ const PostEditor = ({
         const stored = sessionStorage.getItem(CONTENT_STORAGE_KEY);
         if (stored) {
           onContentChange(stored);
+          setLocalHydratedContent(stored);
         }
       } catch {}
     }
@@ -73,12 +78,39 @@ const PostEditor = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Persist content to sessionStorage whenever it changes
-  useEffect(() => {
+
+  const handleStyleChange = async (value: string) => {
+    setSelectedStyle(value);
+    // Revert to original when Default is selected
+    if (value === 'default') {
+      onContentChange(localHydratedContent);
+      return;
+    }
+
+    const raw = sessionStorage.getItem(STYLE_CACHE_KEY);
+    
+    const parsed = JSON.parse(raw ?? '{}');
+    console.log('Parsed',  parsed);
+    if (parsed[value]) {
+      onContentChange(parsed[value]);
+      return;
+    }
+    setIsFormatting(true);
     try {
-      sessionStorage.setItem(CONTENT_STORAGE_KEY, content || '');
-    } catch {}
-  }, [content]);
+      const styled = await postsService.applyPostStyle(localHydratedContent, value);
+      // Ignore if a newer job started meanwhile
+      
+      onContentChange(styled);    
+      parsed[value] = styled;
+      setIsFormatting(false);
+      sessionStorage.setItem(STYLE_CACHE_KEY, JSON.stringify(parsed));  
+    } catch (err) {
+      // Ignore failure and keep original content
+      console.error('Failed to apply post style', err);
+    } 
+  };
+
+
   return (
     <Card className="bg-white/5 backdrop-blur-md border-white/10">
       <CardHeader>
@@ -98,16 +130,16 @@ const PostEditor = ({
           </div>
         )}
         <Textarea
-          placeholder="Share your thoughts, experiences, or use Synthesize to turn ideas and/or research into a post."
+          placeholder="Share your thoughts, experiences, or use Synthesize to turn the current post, ideas, and/or research into a post."
           value={content}
           onChange={(e) => onContentChange(e.target.value)}
-          className="bg-white/5 border-white/20 text-white placeholder-slate-400 min-h-[300px]"
+          className="bg-white/5 border-white/20 text-white placeholder-slate-400 min-h-[400px]"
         />
         <div className="flex justify-between items-center">
           <span className="text-slate-400 text-sm">
             {content.length}/3000 characters
           </span>
-          <div className="space-x-2">
+          <div className="flex items-center gap-2">
             <Button
               className="bg-slate-700 hover:bg-slate-600 text-white border-slate-600 hover:border-slate-500"
               onClick={onSaveDraft}
@@ -117,13 +149,17 @@ const PostEditor = ({
               {isSavingDraft ? 'Saving...' : 'Save'}
             </Button>
             {hasSynthesized ? (
-              <div className="inline-flex items-center gap-2 align-middle">
-                <Label htmlFor="style-select" className="text-slate-300 text-sm">Writing style</Label>
-                <Select value={selectedStyle} onValueChange={setSelectedStyle}>
-                  <SelectTrigger id="style-select" className="w-[180px] bg-white/5 border-white/20 text-white">
+              <div className="flex items-center gap-2 h-10">
+                <Label htmlFor="style-select" className="inline-flex items-center h-10 text-slate-300 text-sm">Writing style</Label>
+                {isFormatting ? (
+                  <span className="inline-flex items-center h-10 w-[180px] ml-3 text-xs text-slate-400">Formatting…</span>
+                ) : (
+                <Select value={selectedStyle} onValueChange={handleStyleChange}>
+                  <SelectTrigger id="style-select" className="h-10 w-[180px] bg-white/5 border-white/20 text-white">
                     <SelectValue placeholder="Choose style" />
                   </SelectTrigger>
                   <SelectContent className="bg-slate-800 border-white/20 text-white">
+                    <SelectItem value="default">Default</SelectItem>
                     <SelectItem value="neutral">Neutral</SelectItem>
                     <SelectItem value="formal">Formal</SelectItem>
                     <SelectItem value="playful">Playful</SelectItem>
@@ -132,6 +168,7 @@ const PostEditor = ({
                     <SelectItem value="persuasive">Persuasive</SelectItem>
                   </SelectContent>
                 </Select>
+                ) }
               </div>
             ) : (
               onSynthesizeResearch && (
@@ -166,9 +203,10 @@ const PostEditor = ({
                 className="h-6 w-6 p-0 text-red-400 hover:text-red-300 hover:bg-red-500/20"
                 onClick={async () => {
                   try {
-                    await clearSynthesis();
                     setLocalReasoning(null);
                     setLocalHook(null);
+                    sessionStorage.setItem(STYLE_CACHE_KEY, "{}");  
+                    await clearSynthesis();
                   } catch (error) {
                     console.error('Failed to clear synthesis:', error);
                   }

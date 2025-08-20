@@ -133,22 +133,25 @@ const PostAIAssistant = ({
   };
 
   const handleResearchTopicsClick = () => {
+    const hasCustomTopic = Boolean(ideaPrompt.trim());
+    const hasSelected = Boolean(localIdeas && localIdeas.length > 0 && selectedIdeas.size > 0);
+
     // If textarea has content, research the custom topic
-    if (ideaPrompt.trim()) {
+    if (hasCustomTopic) {
       onResearchTopics([ideaPrompt.trim()]);
       setIdeaPrompt(''); // Clear the textarea after sending
       return;
     }
     
     // If we have selected ideas, research those
-    if (localIdeas && localIdeas.length > 0 && selectedIdeas.size > 0) {
+    if (hasSelected) {
       const selectedIdeasList = Array.from(selectedIdeas).map(index => localIdeas[index]);
       onResearchTopics(selectedIdeasList);
       return;
     }
     
-    // If neither, show the research input
-    setShowResearchInput(!showResearchInput);
+    // If neither, do nothing (button will be disabled in UI)
+    setShowResearchInput(false);
   };
 
   const renderIdeasList = () => (
@@ -217,15 +220,23 @@ const PostAIAssistant = ({
             </Button>
           ) : null}
           
-          <Button 
-            className="w-full bg-slate-700 hover:bg-slate-600 text-white border-slate-600 hover:border-slate-500"
-            onClick={handleResearchTopicsClick}
-            disabled={isResearching}
-          >
-            <Search className="h-4 w-4 mr-2" />
-            {ideaPrompt.trim() ? 'Research Custom Topic' : 
-             localIdeas && localIdeas.length > 0 && selectedIdeas.size > 0 ? 'Research Selected Ideas' : 'Research Topics'}
-          </Button>
+          {(() => {
+            const hasCustomTopic = Boolean(ideaPrompt.trim());
+            const hasSelected = Boolean(localIdeas && localIdeas.length > 0 && selectedIdeas.size > 0);
+            const canResearch = hasCustomTopic || hasSelected;
+            return (
+              <Button 
+                className="w-full bg-slate-700 hover:bg-slate-600 text-white border-slate-600 hover:border-slate-500"
+                onClick={handleResearchTopicsClick}
+                disabled={isResearching || !canResearch}
+                title={!canResearch ? 'Enter a topic above or select at least one idea to research' : undefined}
+              >
+                <Search className="h-4 w-4 mr-2" />
+                {hasCustomTopic ? 'Research Custom Topic' : 
+                 hasSelected ? 'Research Selected Ideas' : 'Research Topics'}
+              </Button>
+            );
+          })()}
           
           {showResearchInput && (
             <div className="space-y-2">

@@ -200,6 +200,31 @@ export const postsService = {
       synthPollingInFlight = false;
     }
   },
+
+  async applyPostStyle(existingContent: string, style: string): Promise<string> {
+    try {
+      
+      const response = await lambdaApiService.sendLLMRequest('post_style_change', {
+        existing_content: existingContent,
+        style,
+      });
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to apply post style');
+      }
+      const data = (response.data as any) || {};
+      // Support either { content } or { data: { content } }
+      const content = data.content ?? data.data?.content;
+      if (typeof content === 'string' && content.trim().length > 0) {
+        return content as string;
+      }
+      // If backend returns full object, attempt common field names
+      if (typeof data.result === 'string') return data.result;
+      throw new Error('No styled content returned from backend');
+    } catch (error) {
+      console.error('Error applying post style:', error);
+      throw new Error('Failed to apply post style');
+    }
+  },
 };
 
 
