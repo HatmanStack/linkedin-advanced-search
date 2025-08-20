@@ -19,7 +19,7 @@ import json
 import logging
 import os
 from datetime import datetime, timezone
-from prompts import LINKEDIN_IDEAS_PROMPT, LINKEDIN_RESEARCH_PROMPT, SYNTHESIZE_RESEARCH_PROMPT
+from prompts import LINKEDIN_IDEAS_PROMPT, LINKEDIN_RESEARCH_PROMPT, SYNTHESIZE_RESEARCH_PROMPT, APPLY_POST_STYLE_PROMPT    
 from openai import OpenAI
 import boto3
 client = OpenAI(api_key=os.environ.get('OPENAI_API_KEY'),timeout=3600)
@@ -320,11 +320,11 @@ def handle_get_research_result(user_id: str, job_id: str, kind: str | None = Non
         # Return shape depends on prefix
         if item.get('ideas'):
             return { 'success': True, 'ideas': item.get('ideas') }
-        elif item.get('synthesize'):
-            return { 'success': True, 'sections': sections}
         else:
-            content = item.get('content') if isinstance(item, dict) else None
-            return { 'success': True, 'content': content }
+            if len(sections) > 0:
+                return { 'success': True, 'sections': sections }
+            else:
+                return { 'success': True, 'content': content }
     except Exception as e:
         logger.error(f"Error in handle_get_research_result: {str(e)}")
         return { 'success': False }
@@ -396,6 +396,47 @@ def handle_synthesize_research(research_content, post_content, ideas_content,use
             'error': 'Failed to synthesize research into post',
         }
 
+def handle_apply_post_style(existing_content, style):
+    """
+    Handle apply_post_style operation.
+    """
+    try:
+        llm_prompt = APPLY_POST_STYLE_PROMPT.format(
+            existing_content=existing_content,
+            style=style
+        )
+
+        body = json.dumps({
+            "anthropic_version": "bedrock-2023-05-31",
+            "temperature": 0.7,
+            "max_tokens": 5000,
+            "messages": [
+                {
+                    "role": "user", 
+                    "content": llm_prompt
+                }
+            ]
+        })
+
+        response = boto3.client('bedrock-runtime').invoke_model(
+            modelId= os.environ.get('BEDROCK_MODEL_ID'),
+            body=body,
+            contentType='application/json'
+        )
+        response_body = json.loads(response['body'].read())
+        print(f'STYLE RESPONSE: {response_body}')
+
+        return {
+            'success': True,
+            'content': response_body["content"][0]["text"]
+        }
+    except Exception as e:
+        logger.error(f"Error in handle_apply_post_style: {str(e)}")
+        return {
+            'success': False,
+            'error': 'Failed to apply post style',
+        }
+
 
 def lambda_handler(event, _context):
     try:
@@ -444,6 +485,11 @@ def lambda_handler(event, _context):
             if not job_id:
                 return _resp(400, { 'error': 'Missing required field: job_id' })
             result = handle_synthesize_research(research_content, post_content, ideas_content, profile, job_id, user_id)
+            return _resp(200, result)
+        elif operation == 'post_style_change':
+            existing_content = body.get('existing_content', None)
+            style = body.get('style', None)
+            result = handle_apply_post_style(existing_content, style)
             return _resp(200, result)
         else:
             return _resp(400, { 'error': f'Unsupported operation: {operation}' })

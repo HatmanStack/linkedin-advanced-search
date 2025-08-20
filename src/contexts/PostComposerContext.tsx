@@ -51,6 +51,7 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
   const [researchContent, setResearchContent] = useState<string | null>(null);
   const [postReasoning, setPostReasoning] = useState<string | null>(null);
   const [postHook, setPostHook] = useState<string | null>(null);
+  const CONTENT_STORAGE_KEY = 'post_editor_content';
   const RESEARCH_STORAGE_KEY = 'ai_research_content';
   const IDEAS_STORAGE_KEY = 'ai_generated_ideas';
   const REASONING_STORAGE_KEY = 'ai_generated_post_reasoning';
@@ -85,6 +86,13 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
         const pResearch = (userProfile as any)?.ai_generated_research;
         if (typeof pResearch === 'string' && pResearch.trim()) {
           try { sessionStorage.setItem(RESEARCH_STORAGE_KEY, pResearch); } catch {}
+        }
+      } catch {}
+
+      try {
+        const pResearch = (userProfile as any)?.unpublished_post_content;
+        if (typeof pResearch === 'string' && pResearch.trim()) {
+          try { sessionStorage.setItem(CONTENT_STORAGE_KEY, pResearch); } catch {}
         }
       } catch {}
 
