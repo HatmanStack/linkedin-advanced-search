@@ -1,6 +1,9 @@
-# LinkedIn Advanced Search
-
 <div align="center">
+<h1>LinkedIn Advanced Search</h1>
+</div>
+
+
+<div align="center">  
   <h3>AI-powered LinkedIn networking with intelligent automation and secure cloud infrastructure</h3>
   
   [![License](https://img.shields.io/badge/license-Apache2.0-blue)](https://www.apache.org/licenses/LICENSE-2.0.html)
@@ -166,14 +169,6 @@ cd puppeteer-backend
 npm run dev          # Start backend with hot reload
 npm run test         # Run backend tests
 ```
-
-## 📚 Documentation
-
-- [Application Specification](./APP-enhanced.md) - Comprehensive system documentation
-- [Queue Design](./QUEUE_DESIGN.md) - Interaction queue architecture
-- [Heal & Restore](./HEAL_AND_RESTORE.md) - Recovery system documentation
-- [Interaction Guidelines](./INTERACTION_GUIDELINES.md) - LinkedIn automation best practices
-- [Environment Variables](./.env.example) - Configuration reference
 
 ## 🚀 Deployment Status
 

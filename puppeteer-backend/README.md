@@ -1,190 +1,91 @@
-# LinkedIn Advanced Search 
+<div align="center">
+<h1>LinkedIn Advanced Search - Backend</h1>
+</div>
 
-Modern, modular backend for LinkedIn Advanced Search
+<div align="center">
+Node.js automation backend for LinkedIn interactions with queue-based processing
 
-## 🚀 Features
+ >⚠️ **Active Development Notice**: This backend service is under active development and subject to frequent changes.
+</div>
 
-- **Modular Architecture**: Separated concerns with services, controllers, and utilities
-- **Environment Configuration**: Flexible configuration via environment variables
-- **Comprehensive Logging**: Winston-based logging with multiple transports
-- **Error Handling**: Robust error handling and graceful failures
-- **Type Safety**: Modern ES modules with proper imports
-- **Configuration Management**: Centralized configuration with validation
-- **File Management**: Organized file operations and data persistence
+## Features
 
-## 📁 Project Structure
+- **LinkedIn Automation**: Queue-based LinkedIn search, messaging, and connection management
+- **Session Management**: Long-lived browser sessions with heal & restore capabilities
+- **AWS Integration**: DynamoDB and S3 storage with encrypted credential management
+- **Secure Processing**: Sealbox encryption and user data isolation
+- **Error Recovery**: Checkpoint-based recovery for interrupted processes
 
-```
-Puppeteer-Backend/
-├── src/
-│   └── server.js           # Main server entry point
-├── config/
-│   └── index.js           # Centralized configuration
-├── controllers/
-│   └── searchController.js # Search logic and API endpoints
-├── routes/
-│   └── searchRoutes.js    # Express route definitions
-├── services/
-│   ├── puppeteerService.js # Browser automation service
-│   └── linkedinService.js  # LinkedIn-specific operations
-├── utils/
-│   ├── logger.js          # Winston logging configuration
-│   ├── fileHelpers.js     # File system operations
-│   └── randomHelpers.js   # Random utilities for human-like behavior
-├── package.json
-├── .env.example
-├── nodemon.json
-└── README.md
-```
+## Quick Start
 
-## 🛠️ Installation & Setup
+### Prerequisites
+- Node.js 22+
+- AWS credentials configured
+- Chrome/Chromium browser
 
-### 1. Install Dependencies
+### Installation
 ```bash
 cd puppeteer-backend
 npm install
-```
-
-### 2. Environment Configuration
-```bash
 cp .env.example .env
 ```
 
-Edit `.env` with your configuration:
-```env
-# Server Configuration
-PORT=3001
-NODE_ENV=development
-
-# CORS Configuration (Frontend URLs)
-FRONTEND_URLS=http://localhost:3000,http://localhost:5173
-
-# LinkedIn Search Parameters
-RECENCY_HOURS=6
-RECENCY_DAYS=5
-RECENCY_WEEKS=3
-HISTORY_TO_CHECK=4
-THRESHOLD=8
-PAGE_NUMBER_START=50
-PAGE_NUMBER_END=100
-
-# Google AI API Key (optional)
-GOOGLE_AI_API_KEY=your_api_key_here
-
-# Puppeteer Settings
-HEADLESS=false
-SLOW_MO=50
-```
-
-### 3. Start the Server
-
-**Development mode:**
+### Start Server
 ```bash
-npm run dev
+npm run dev    # Development
+npm start      # Production
 ```
 
-**Production mode:**
-```bash
-npm start
-```
+Server runs at `http://localhost:3001`
 
-## 🔧 Configuration Options
+## API Endpoints
 
-### LinkedIn Search Parameters
-- `RECENCY_HOURS` (6): Weight for very recent activity (last day)
-- `RECENCY_DAYS` (5): Weight for recent activity (last 6 days)
-- `RECENCY_WEEKS` (3): Weight for older activity (last 3 weeks)
-- `HISTORY_TO_CHECK` (4): Number of scroll iterations on activity pages
-- `THRESHOLD` (8): Minimum combined score to consider a contact "good"
-- `PAGE_NUMBER_START/END` (1-100): LinkedIn search result pages to process
+### Core Operations
+- `POST /search` - Execute LinkedIn search with company/role filters
+- `POST /profile-init` - Initialize user profile and extract connections
+- `POST /linkedin-interactions` - Queue LinkedIn messages, connections, posts
+- `GET /heal-restore` - Check automation recovery status
+- `POST /heal-restore` - Authorize session recovery
+- `GET /health` - System health and queue status
 
-### Puppeteer Settings
-- `HEADLESS` (false): Run browser in headless mode
-- `SLOW_MO` (50): Delay between actions in milliseconds
-- `VIEWPORT_WIDTH/HEIGHT`: Browser viewport dimensions
+All endpoints require JWT authentication and encrypted credentials.
 
-## 📡 API Endpoints
+## How It Works
 
-### POST `/search`
-Perform LinkedIn search with the following payload:
-```json
-{
-  "companyName": "Company Name",
-  "companyRole": "Software Engineer",
-  "companyLocation": "New York, NY",
-  "searchName": "your_linkedin_email",
-  "searchPassword": "your_linkedin_password"
-}
-```
+1. **Authentication**: Secure credential decryption with Sealbox encryption
+2. **Queue Processing**: FIFO queue serializes LinkedIn interactions
+3. **Session Management**: Long-lived browser sessions minimize logins
+4. **Data Capture**: Multi-page screenshots stored in S3 with DynamoDB metadata
+5. **Recovery System**: Checkpoint-based recovery for interrupted processes
+6. **AWS Integration**: Direct DynamoDB and S3 operations for data persistence
 
-### GET `/search/results`
-Retrieve previously stored search results.
+## Security
 
-### GET `/search/health`
-Health check endpoint with system status.
+- **Sealbox Encryption**: Device-specific credential encryption
+- **Session Management**: Long-lived sessions with automatic cleanup
+- **User Data Isolation**: All data isolated by Cognito user ID
+- **Audit Logging**: Comprehensive logging without sensitive data
+- **AWS Integration**: IAM roles and encrypted storage
 
-## 📊 Response Format
+### Troubleshooting
+- **Login Issues**: LinkedIn may require 2FA or CAPTCHA
+- **Browser Crashes**: Monitor memory usage and restart if needed
+- **Queue Stalls**: Check processing delays and job limits
+- **AWS Permissions**: Verify IAM roles for DynamoDB and S3
 
-```json
-{
-  "response": ["profile-id-1", "profile-id-2"],
-  "metadata": {
-    "totalProfilesAnalyzed": 1500,
-    "goodContactsFound": 75,
-    "successRate": "5.00%",
-    "searchParameters": {
-      "companyName": "Company Name",
-      "companyRole": "Software Engineer",
-      "companyLocation": "New York, NY",
-      "pagesSearched": 51
-    }
-  }
-}
-```
-
-## 🔍 How It Works
-
-1. **Authentication**: Logs into LinkedIn using provided credentials
-2. **Company Search**: Finds the target company profile
-3. **Jobs Navigation**: Navigates to company jobs section with location filter
-4. **People Search**: Searches through company employee pages
-5. **Activity Analysis**: Analyzes each profile's recent LinkedIn activity
-6. **Scoring**: Scores contacts based on recent activity frequency
-7. **Results**: Returns profiles that meet the activity threshold
-
-## 🛡️ Security & Best Practices
-
-- **Credential Handling**: Credentials are not logged or stored
-- **Rate Limiting**: Random delays between actions
-- **Error Recovery**: Graceful handling of LinkedIn layout changes
-- **Resource Cleanup**: Proper browser cleanup on completion/error
-- **Logging**: Comprehensive logging without sensitive data exposure
-
-## ⚠️ Important Notes
-
-- **LinkedIn ToS**: Review LinkedIn's terms of service and automation policies
-- **Browser Visibility**: Runs in non-headless mode by default for transparency
-- **Data Storage**: Results are cached locally in JSON files
-- **Error Handling**: Continues processing even if individual profiles fail
-
-## 🐛 Troubleshooting
-
-### Common Issues
-
-1. **Login Failures**: LinkedIn may require 2FA or CAPTCHA verification
-2. **Element Not Found**: LinkedIn frequently changes their DOM structure
-3. **Rate Limiting**: Too many requests may trigger LinkedIn's rate limiting
-4. **Puppeteer Issues**: Ensure Chrome/Chromium is properly installed
-
-### Debugging
-
-Enable debug logging by setting:
-```env
-NODE_ENV=development
-```
-
-Check logs in the `logs/` directory for detailed error information.
-
-## 📝 License
+## License
 
 Apache 2.0 - see the [LICENSE](https://www.apache.org/licenses/LICENSE-2.0.html) file for details.
+
+---
+
+## Work in Progress / To Do
+
+### Core Development Tasks
+- [ ] **Profile Init Logic** - Complete user personal database initialization system
+- [ ] **Multi-Message Architecture** - Implement comprehensive message handling system
+- [ ] **Message Retrieval Logic** - Build efficient message retrieval 
+- [ ] **Encrypt/Decrypt Optimization** - Enhance Sealbox encryption performance
+- [ ] **Code Refactor** - Reduce AI-generated code inefficiencies
+- [ ] **Performance Optimization** - Optimize API calls and database queries
+
