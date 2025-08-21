@@ -57,5 +57,13 @@ user*.json
 repair*.json
 all*.json
 
+APP-enhanced.md
+APP.md
+INTERACTION_GUIDELINES.md
+app-documentation-enhancement/
+validation-report-7.1.md
+validation-report-7.2.md
+validation-report-7.3.md
+validation-report-7.4.md
 
 
