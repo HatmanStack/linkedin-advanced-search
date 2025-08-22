@@ -68,7 +68,7 @@ export function isPositiveInteger(value: unknown): value is number {
  */
 export function isValidISODate(value: unknown): value is string {
   if (!isNonEmptyString(value)) return false;
-  
+
   try {
     const date = new Date(value);
     return date.toISOString() === value;
@@ -85,7 +85,7 @@ export function isValidISODate(value: unknown): value is string {
  */
 export function isValidUrl(value: unknown): value is string {
   if (!isNonEmptyString(value)) return false;
-  
+
   try {
     new URL(value);
     return true;
@@ -105,7 +105,7 @@ export function isValidUrl(value: unknown): value is string {
  * @returns True if value is a valid ConnectionStatus
  */
 export function isConnectionStatus(value: unknown): value is ConnectionStatus {
-  return typeof value === 'string' && 
+  return typeof value === 'string' &&
     ['possible', 'incoming', 'outgoing', 'ally', 'processed'].includes(value);
 }
 
@@ -126,7 +126,7 @@ export function isMessageSender(value: unknown): value is MessageSender {
  * @returns True if value is a valid StatusValue
  */
 export function isStatusValue(value: unknown): value is StatusValue {
-  return typeof value === 'string' && 
+  return typeof value === 'string' &&
     ['all', 'incoming', 'outgoing', 'ally'].includes(value);
 }
 
@@ -142,9 +142,9 @@ export function isStatusValue(value: unknown): value is StatusValue {
  */
 export function isMessage(value: unknown): value is Message {
   if (typeof value !== 'object' || value === null) return false;
-  
+
   const obj = value as Record<string, unknown>;
-  
+
   return (
     isNonEmptyString(obj.id) &&
     typeof obj.content === 'string' &&
@@ -161,9 +161,9 @@ export function isMessage(value: unknown): value is Message {
  */
 export function isConnection(value: unknown): value is Connection {
   if (typeof value !== 'object' || value === null) return false;
-  
+
   const obj = value as Record<string, unknown>;
-  
+
   // Check required fields
   if (
     !isNonEmptyString(obj.id) ||
@@ -175,7 +175,7 @@ export function isConnection(value: unknown): value is Connection {
   ) {
     return false;
   }
-  
+
   // Check optional fields if they exist
   if (obj.location !== undefined && typeof obj.location !== 'string') return false;
   if (obj.headline !== undefined && typeof obj.headline !== 'string') return false;
@@ -187,29 +187,29 @@ export function isConnection(value: unknown): value is Connection {
   if (obj.last_activity_summary !== undefined && typeof obj.last_activity_summary !== 'string') return false;
   if (obj.conversion_likelihood !== undefined && !isValidNumber(obj.conversion_likelihood)) return false;
   if (obj.isFakeData !== undefined && typeof obj.isFakeData !== 'boolean') return false;
-  
+
   // Check array fields
   if (obj.common_interests !== undefined) {
-    if (!Array.isArray(obj.common_interests) || 
-        !obj.common_interests.every(item => typeof item === 'string')) {
+    if (!Array.isArray(obj.common_interests) ||
+      !obj.common_interests.every(item => typeof item === 'string')) {
       return false;
     }
   }
-  
+
   if (obj.tags !== undefined) {
-    if (!Array.isArray(obj.tags) || 
-        !obj.tags.every(item => typeof item === 'string')) {
+    if (!Array.isArray(obj.tags) ||
+      !obj.tags.every(item => typeof item === 'string')) {
       return false;
     }
   }
-  
+
   if (obj.message_history !== undefined) {
-    if (!Array.isArray(obj.message_history) || 
-        !obj.message_history.every(isMessage)) {
+    if (!Array.isArray(obj.message_history) ||
+      !obj.message_history.every(isMessage)) {
       return false;
     }
   }
-  
+
   return true;
 }
 
@@ -221,26 +221,26 @@ export function isConnection(value: unknown): value is Connection {
  */
 export function isConnectionFilters(value: unknown): value is ConnectionFilters {
   if (typeof value !== 'object' || value === null) return false;
-  
+
   const obj = value as Record<string, unknown>;
-  
+
   // All fields are optional, so check only if they exist
   if (obj.status !== undefined) {
     if (!(isConnectionStatus(obj.status) || obj.status === 'all')) {
       return false;
     }
   }
-  
+
   if (obj.tags !== undefined) {
     if (!Array.isArray(obj.tags) || !obj.tags.every(item => typeof item === 'string')) {
       return false;
     }
   }
-  
+
   if (obj.company !== undefined && typeof obj.company !== 'string') return false;
   if (obj.location !== undefined && typeof obj.location !== 'string') return false;
   if (obj.searchTerm !== undefined && typeof obj.searchTerm !== 'string') return false;
-  
+
   return true;
 }
 
@@ -252,9 +252,9 @@ export function isConnectionFilters(value: unknown): value is ConnectionFilters 
  */
 export function isConnectionCounts(value: unknown): value is ConnectionCounts {
   if (typeof value !== 'object' || value === null) return false;
-  
+
   const obj = value as Record<string, unknown>;
-  
+
   return (
     isValidNumber(obj.incoming) && obj.incoming >= 0 &&
     isValidNumber(obj.outgoing) && obj.outgoing >= 0 &&
@@ -279,16 +279,16 @@ export function isApiResponse<T>(
   bodyValidator?: (body: unknown) => body is T
 ): value is ApiResponse<T> {
   if (typeof value !== 'object' || value === null) return false;
-  
+
   const obj = value as Record<string, unknown>;
-  
+
   if (!isValidNumber(obj.statusCode)) return false;
   if (obj.body === undefined) return false;
   if (obj.error !== undefined && typeof obj.error !== 'string') return false;
-  
+
   // If a body validator is provided, use it
   if (bodyValidator && !bodyValidator(obj.body)) return false;
-  
+
   return true;
 }
 
@@ -306,9 +306,9 @@ export function isApiResponse<T>(
  */
 export function isApiErrorInfo(value: unknown): value is ApiErrorInfo {
   if (typeof value !== 'object' || value === null) return false;
-  
+
   const obj = value as Record<string, unknown>;
-  
+
   return (
     isNonEmptyString(obj.message) &&
     (obj.status === undefined || isValidNumber(obj.status)) &&
@@ -324,9 +324,9 @@ export function isApiErrorInfo(value: unknown): value is ApiErrorInfo {
  */
 export function isErrorRecoveryAction(value: unknown): value is ErrorRecoveryAction {
   if (typeof value !== 'object' || value === null) return false;
-  
+
   const obj = value as Record<string, unknown>;
-  
+
   return (
     isNonEmptyString(obj.label) &&
     typeof obj.action === 'function' &&
@@ -343,9 +343,9 @@ export function isErrorRecoveryAction(value: unknown): value is ErrorRecoveryAct
  */
 export function isUserErrorInfo(value: unknown): value is UserErrorInfo {
   if (typeof value !== 'object' || value === null) return false;
-  
+
   const obj = value as Record<string, unknown>;
-  
+
   return (
     isNonEmptyString(obj.userMessage) &&
     isNonEmptyString(obj.technicalMessage) &&
@@ -376,15 +376,15 @@ export function isUserErrorInfo(value: unknown): value is UserErrorInfo {
  */
 export function isValidationResult(value: unknown): value is ValidationResult {
   if (typeof value !== 'object' || value === null) return false;
-  
+
   const obj = value as Record<string, unknown>;
-  
+
   return (
     typeof obj.isValid === 'boolean' &&
     Array.isArray(obj.errors) &&
     obj.errors.every(error => typeof error === 'string') &&
-    (obj.warnings === undefined || 
-     (Array.isArray(obj.warnings) && obj.warnings.every(warning => typeof warning === 'string'))) &&
+    (obj.warnings === undefined ||
+      (Array.isArray(obj.warnings) && obj.warnings.every(warning => typeof warning === 'string'))) &&
     (obj.sanitizedData === undefined || obj.sanitizedData !== null)
   );
 }
@@ -434,11 +434,11 @@ export function isStringArray(value: unknown): value is string[] {
  * @returns Type guard function
  */
 export function hasRequiredProperties<T extends Record<string, unknown>>(
-  requiredKeys: (keyof T)[]
+  requiredKeys: string[]
 ): (value: unknown) => value is T {
   return (value: unknown): value is T => {
     if (typeof value !== 'object' || value === null) return false;
-    
+
     const obj = value as Record<string, unknown>;
     return requiredKeys.every(key => obj[key] !== undefined);
   };

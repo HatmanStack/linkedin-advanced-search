@@ -4,7 +4,7 @@
  */
 
 import { useState, useCallback } from 'react';
-import type { ProgressState, LoadingState } from '@/types/errorTypes';
+import type { ProgressState, LoadingState } from '@/types/index';
 
 export const useProgressTracker = () => {
   const [progressState, setProgressState] = useState<ProgressState>({
@@ -12,7 +12,7 @@ export const useProgressTracker = () => {
     total: 0,
     phase: 'preparing'
   });
-  
+
   const [loadingState, setLoadingState] = useState<LoadingState>({
     isLoading: false
   });
@@ -85,10 +85,10 @@ export const useProgressTracker = () => {
 
   const getEstimatedTimeString = useCallback(() => {
     if (!progressState.estimatedTimeRemaining) return null;
-    
+
     const minutes = Math.floor(progressState.estimatedTimeRemaining / 60);
     const seconds = progressState.estimatedTimeRemaining % 60;
-    
+
     if (minutes > 0) {
       return `${minutes}m ${seconds}s remaining`;
     } else {
@@ -101,7 +101,7 @@ export const useProgressTracker = () => {
       case 'preparing':
         return 'Preparing message generation...';
       case 'generating':
-        return progressState.currentConnectionName 
+        return progressState.currentConnectionName
           ? `Generating message for ${progressState.currentConnectionName}...`
           : 'Generating messages...';
       case 'waiting_approval':
