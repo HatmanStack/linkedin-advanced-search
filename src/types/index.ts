@@ -338,6 +338,146 @@ export interface UserErrorInfo {
   timestamp: string;
 }
 
+/**
+ * Error recovery options for workflow errors
+ * 
+ * @interface ErrorRecoveryOptions
+ * @description Defines which recovery options are available for a specific error
+ */
+export interface ErrorRecoveryOptions {
+  /** Allow retry of failed operation */
+  retry: boolean;
+
+  /** Skip current connection and continue */
+  skip: boolean;
+
+  /** Stop entire process */
+  stop: boolean;
+
+  /** Use fallback message generation */
+  fallback: boolean;
+}
+
+/**
+ * Workflow error for message generation process
+ * 
+ * @interface WorkflowError
+ * @description Contains error information specific to message generation workflow
+ */
+export interface WorkflowError {
+  /** Type of error that occurred */
+  type: 'network' | 'api' | 'validation' | 'authentication' | 'rate_limit' | 'unknown';
+
+  /** Error message */
+  message: string;
+
+  /** Connection ID where error occurred (optional) */
+  connectionId?: string;
+
+  /** Connection name for display (optional) */
+  connectionName?: string;
+
+  /** Available recovery options */
+  recoveryOptions: ErrorRecoveryOptions;
+
+  /** Number of retry attempts (optional) */
+  retryCount?: number;
+
+  /** Timestamp when error occurred */
+  timestamp: string;
+}
+
+/**
+ * Progress state for workflow operations
+ * 
+ * @interface ProgressState
+ * @description Tracks progress of multi-step operations like message generation
+ */
+export interface ProgressState {
+  /** Current step number */
+  current: number;
+
+  /** Total number of steps */
+  total: number;
+
+  /** Current connection name being processed (optional) */
+  currentConnectionName?: string;
+
+  /** Current phase of the operation */
+  phase: 'preparing' | 'generating' | 'waiting_approval' | 'completed' | 'error';
+
+  /** Estimated time remaining in seconds (optional) */
+  estimatedTimeRemaining?: number;
+}
+
+/**
+ * Loading state for UI components
+ * 
+ * @interface LoadingState
+ * @description Manages loading indicators and progress displays
+ */
+export interface LoadingState {
+  /** Whether a loading operation is in progress */
+  isLoading: boolean;
+
+  /** Loading message to display (optional) */
+  message?: string;
+
+  /** Progress percentage 0-100 (optional) */
+  progress?: number;
+
+  /** Whether the operation can be cancelled (optional) */
+  canCancel?: boolean;
+}
+
+/**
+ * Progress state for workflow operations
+ * 
+ * @interface ProgressState
+ * @description Tracks progress of multi-step operations like message generation
+ */
+export interface ProgressState {
+  /** Current step number */
+  current: number;
+
+  /** Total number of steps */
+  total: number;
+
+  /** Current connection name being processed (optional) */
+  currentConnectionName?: string;
+
+  /** Current phase of the operation */
+  phase: 'preparing' | 'generating' | 'waiting_approval' | 'completed' | 'error';
+
+  /** Estimated time remaining in seconds (optional) */
+  estimatedTimeRemaining?: number;
+}
+
+/**
+ * Loading state for UI components
+ * 
+ * @interface LoadingState
+ * @description Tracks loading state with optional progress and cancellation
+ */
+export interface LoadingState {
+  /** Whether currently loading */
+  isLoading: boolean;
+
+  /** Loading message to display (optional) */
+  message?: string;
+
+  /** Progress percentage 0-100 (optional) */
+  progress?: number;
+
+  /** Whether the operation can be cancelled (optional) */
+  canCancel?: boolean;
+}
+
+/**
+ * Error recovery options for workflow errors
+ * 
+ * @interface ErrorRecoveryOptions
+
 // =============================================================================
 // API RESPONSE INTERFACES
 // =============================================================================
