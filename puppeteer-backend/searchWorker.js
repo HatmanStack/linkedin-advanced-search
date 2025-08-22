@@ -1,8 +1,8 @@
 // searchWorker.js
 import fs from 'fs/promises';
-import { logger } from './utils/logger.js';
-import SearchController from './controllers/searchController.js';
-import { waitForHealAndRestoreAuthorization } from './services/healAndRestoreService.js';
+import { logger } from '@/utils/logger.js';
+import SearchController from '@/controllers/searchController.js';
+import { waitForHealAndRestoreAuthorization } from '@/services/healAndRestoreService.js';
 
 async function main() {
   const args = process.argv.slice(2);

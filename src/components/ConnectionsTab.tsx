@@ -2,18 +2,14 @@ import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import VirtualConnectionList from '@/components/VirtualConnectionList';
 import { useConnections } from '@/hooks/useConnections';
 import { useProfileInit } from '@/hooks/useProfileInit';
-import { Connection } from '@/services/puppeteerApiService';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Search, Users, MessageSquare, Tag, Calendar, Filter, X, Database } from 'lucide-react';
-import ConnectionCard from './ConnectionCard';
+import { Search, Users, Filter, X, Database } from 'lucide-react';
 
 // Fake data for when server is unavailable
-const generateFakeConnections = (): Connection[] => [
+const generateFakeConnections = (): any[] => [
   {
     connection_id: 'fake-1',
     user_id: 'fake-user',
@@ -25,6 +21,7 @@ const generateFakeConnections = (): Connection[] => [
     connection_status: 'connected',
     message_count: 12,
     tags: ['AI', 'Product Management', 'Startups', 'Innovation'],
+    conversation_topics: ['AI Strategy', 'Product Roadmaps', 'Team Leadership'],
     last_activity_summary: 'Recently shared insights about AI in product development',
     created_at: '2024-01-15T00:00:00Z',
     updated_at: '2024-01-15T00:00:00Z',
@@ -42,6 +39,7 @@ const generateFakeConnections = (): Connection[] => [
     connection_status: 'connected',
     message_count: 8,
     tags: ['Machine Learning', 'React', 'Open Source', 'JavaScript'],
+    conversation_topics: ['Code Architecture', 'ML Algorithms', 'Open Source Projects'],
     last_activity_summary: 'Just completed a machine learning certification',
     created_at: '2024-02-03T00:00:00Z',
     updated_at: '2024-02-03T00:00:00Z',
@@ -59,6 +57,7 @@ const generateFakeConnections = (): Connection[] => [
     connection_status: 'connected',
     message_count: 25,
     tags: ['UX Design', 'Accessibility', 'Design Systems', 'Figma'],
+    conversation_topics: ['User Research', 'Design Systems', 'Accessibility Standards'],
     last_activity_summary: 'Published an article about accessibility in design',
     created_at: '2023-11-22T00:00:00Z',
     updated_at: '2023-11-22T00:00:00Z',
@@ -76,6 +75,7 @@ const generateFakeConnections = (): Connection[] => [
     connection_status: 'pending',
     message_count: 3,
     tags: ['Data Science', 'Python', 'Statistics', 'Machine Learning'],
+    conversation_topics: ['Data Analytics', 'Statistical Models', 'Python Libraries'],
     last_activity_summary: 'Presented at Data Science Conference 2024',
     created_at: '2024-03-10T00:00:00Z',
     updated_at: '2024-03-10T00:00:00Z',
@@ -93,6 +93,7 @@ const generateFakeConnections = (): Connection[] => [
     connection_status: 'connected',
     message_count: 17,
     tags: ['Marketing', 'Growth Hacking', 'B2B', 'Analytics'],
+    conversation_topics: ['Growth Strategies', 'B2B Marketing', 'Campaign Analytics'],
     last_activity_summary: 'Launched successful product campaign',
     created_at: '2024-01-28T00:00:00Z',
     updated_at: '2024-01-28T00:00:00Z',
@@ -101,32 +102,32 @@ const generateFakeConnections = (): Connection[] => [
   }
 ];
 
-interface ConnectionsListProps {
-  onConnectionSelect?: (connection: Connection) => void;
+interface ConnectionsTabProps {
+  onConnectionSelect?: (connection: any) => void;
   selectedConnections?: string[];
   onSelectionChange?: (connectionIds: string[]) => void;
 }
 
-const ConnectionsList: React.FC<ConnectionsListProps> = ({
+const ConnectionsTab: React.FC<ConnectionsTabProps> = ({
   onConnectionSelect,
   selectedConnections = [],
   onSelectionChange
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+
   const [activeTags, setActiveTags] = useState<string[]>([]);
-  
+
   const { connections, loading, error, refetch } = useConnections();
-  const { 
-    isInitializing, 
-    initializationMessage, 
-    initializationError, 
-    initializeProfile 
+  const {
+    isInitializing,
+    initializationMessage,
+    initializationError,
+    initializeProfile
   } = useProfileInit();
-  
+
   const [containerHeight, setContainerHeight] = useState(600);
   const [containerRef, setContainerRef] = useState<HTMLDivElement | null>(null);
-  
+
   const handleResize = useCallback(() => {
     if (containerRef) {
       const rect = containerRef.getBoundingClientRect();
@@ -135,13 +136,13 @@ const ConnectionsList: React.FC<ConnectionsListProps> = ({
       setContainerHeight(Math.max(minHeight, availableHeight));
     }
   }, [containerRef]);
-  
+
   useEffect(() => {
     handleResize();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, [handleResize]);
-  
+
   // Use fake data if no real connections are available
   const displayConnections = connections.length > 0 ? connections : generateFakeConnections();
 
@@ -149,7 +150,7 @@ const ConnectionsList: React.FC<ConnectionsListProps> = ({
   const allTags = useMemo(() => {
     const tagSet = new Set<string>();
     displayConnections.forEach(connection => {
-      (connection.tags || []).forEach(tag => tagSet.add(tag));
+      (connection.tags || []).forEach((tag: string) => tagSet.add(tag));
     });
     return Array.from(tagSet).sort();
   }, [displayConnections]);
@@ -157,26 +158,26 @@ const ConnectionsList: React.FC<ConnectionsListProps> = ({
   // Filter and sort connections based on search and tags
   const filteredConnections = useMemo(() => {
     let filtered = displayConnections.filter(connection => {
-      const matchesSearch = searchQuery === '' || 
+      const matchesSearch = searchQuery === '' ||
         connection.first_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         connection.last_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         connection.company?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         connection.position?.toLowerCase().includes(searchQuery.toLowerCase());
-      
+
       return matchesSearch;
     });
 
     // Sort by tag matches if tags are selected
     if (activeTags.length > 0) {
       filtered = filtered.sort((a, b) => {
-        const aTagsMatch = (a.tags || []).filter(tag => activeTags.includes(tag)).length;
-        const bTagsMatch = (b.tags || []).filter(tag => activeTags.includes(tag)).length;
-        
+        const aTagsMatch = (a.tags || []).filter((tag: string) => activeTags.includes(tag)).length;
+        const bTagsMatch = (b.tags || []).filter((tag: string) => activeTags.includes(tag)).length;
+
         // Sort by number of matching tags (descending)
         if (aTagsMatch !== bTagsMatch) {
           return bTagsMatch - aTagsMatch;
         }
-        
+
         // If same number of matches, sort alphabetically
         return `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`);
       });
@@ -194,17 +195,17 @@ const ConnectionsList: React.FC<ConnectionsListProps> = ({
 
   const handleSelectionToggle = (connectionId: string) => {
     if (!onSelectionChange) return;
-    
+
     const newSelection = selectedConnections.includes(connectionId)
       ? selectedConnections.filter(id => id !== connectionId)
       : [...selectedConnections, connectionId];
-    
+
     onSelectionChange(newSelection);
   };
 
   const handleTagClick = (tag: string) => {
-    setActiveTags(prev => 
-      prev.includes(tag) 
+    setActiveTags(prev =>
+      prev.includes(tag)
         ? prev.filter(t => t !== tag)
         : [...prev, tag]
     );
@@ -233,7 +234,7 @@ const ConnectionsList: React.FC<ConnectionsListProps> = ({
             </CardTitle>
             <div className="flex items-center gap-2">
               {/* Initialize Profile Database Button */}
-              <Button 
+              <Button
                 onClick={handleInitializeProfile}
                 disabled={isInitializing}
                 className="bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700 text-white"
@@ -255,8 +256,7 @@ const ConnectionsList: React.FC<ConnectionsListProps> = ({
 
   if (error) {
     // Show fake data with error message when there's an error
-    const fakeConnections = generateFakeConnections();
-    
+
     return (
       <Card className="bg-white/5 backdrop-blur-md border-white/10">
         <CardHeader>
@@ -267,7 +267,7 @@ const ConnectionsList: React.FC<ConnectionsListProps> = ({
             </CardTitle>
             <div className="flex items-center gap-2">
               {/* Initialize Profile Database Button */}
-              <Button 
+              <Button
                 onClick={handleInitializeProfile}
                 disabled={isInitializing}
                 className="bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700 text-white"
@@ -290,10 +290,10 @@ const ConnectionsList: React.FC<ConnectionsListProps> = ({
               Try Again
             </Button>
           </div>
-          
+
           <div className="bg-yellow-600/20 border border-yellow-500/30 rounded-lg p-3 mb-6">
             <p className="text-yellow-200 text-sm font-medium">
-              <strong>⚠️ Demo Mode:</strong> The data displayed below is sample data for demonstration purposes. 
+              <strong>⚠️ Demo Mode:</strong> The data displayed below is sample data for demonstration purposes.
               Fix the connection issue above to see your real LinkedIn connections.
             </p>
           </div>
@@ -339,7 +339,7 @@ const ConnectionsList: React.FC<ConnectionsListProps> = ({
               sortOrder="asc"
               showCheckboxes={true}
               selectedConnections={selectedConnections}
-              onCheckboxChange={(connectionId: string, checked: boolean) => handleSelectionToggle(connectionId)}
+              onCheckboxChange={(connectionId: string) => handleSelectionToggle(connectionId)}
             />
           </div>
         </CardContent>
@@ -357,7 +357,7 @@ const ConnectionsList: React.FC<ConnectionsListProps> = ({
           </CardTitle>
           <div className="flex items-center gap-2">
             {/* Initialize Profile Database Button */}
-            <Button 
+            <Button
               onClick={handleInitializeProfile}
               disabled={isInitializing}
               className="bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700 text-white"
@@ -381,7 +381,7 @@ const ConnectionsList: React.FC<ConnectionsListProps> = ({
         <CardDescription className="text-slate-300">
           Manage and interact with your LinkedIn connections
         </CardDescription>
-        
+
         {/* Status Messages */}
         {initializationMessage && (
           <div className="bg-green-600/20 border border-green-500/30 rounded-lg p-3 mt-4">
@@ -390,7 +390,7 @@ const ConnectionsList: React.FC<ConnectionsListProps> = ({
             </p>
           </div>
         )}
-        
+
         {initializationError && (
           <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 mt-4">
             <p className="text-red-300 text-sm font-medium">
@@ -424,11 +424,10 @@ const ConnectionsList: React.FC<ConnectionsListProps> = ({
                   <Badge
                     key={tag}
                     variant="outline"
-                    className={`cursor-pointer text-xs transition-all duration-200 hover:scale-105 ${
-                      activeTags.includes(tag)
-                        ? 'bg-blue-600 text-white border-blue-500 shadow-lg'
-                        : 'border-blue-400/30 text-blue-300 hover:bg-blue-600/20 hover:border-blue-400'
-                    }`}
+                    className={`cursor-pointer text-xs transition-all duration-200 hover:scale-105 ${activeTags.includes(tag)
+                      ? 'bg-blue-600 text-white border-blue-500 shadow-lg'
+                      : 'border-blue-400/30 text-blue-300 hover:bg-blue-600/20 hover:border-blue-400'
+                      }`}
                     onClick={() => handleTagClick(tag)}
                   >
                     {tag}
@@ -472,7 +471,7 @@ const ConnectionsList: React.FC<ConnectionsListProps> = ({
             sortOrder="asc"
             showCheckboxes={true}
             selectedConnections={selectedConnections}
-            onCheckboxChange={(connectionId: string, checked: boolean) => handleSelectionToggle(connectionId)}
+            onCheckboxChange={(connectionId: string) => handleSelectionToggle(connectionId)}
           />
         </div>
       </CardContent>
@@ -480,4 +479,4 @@ const ConnectionsList: React.FC<ConnectionsListProps> = ({
   );
 };
 
-export default ConnectionsList;
+export default ConnectionsTab;

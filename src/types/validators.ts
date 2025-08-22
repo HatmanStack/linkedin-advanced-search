@@ -17,8 +17,7 @@ import type {
   MessageSender,
   ValidationResult,
   TransformOptions,
-  ConnectionQueryParams,
-  UpdateConnectionParams,
+  // Removed unused database operation types
 } from './index';
 
 import {

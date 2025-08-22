@@ -20,8 +20,7 @@ interface HealAndRestoreModalProps {
 export const HealAndRestoreModal: React.FC<HealAndRestoreModalProps> = ({
   isOpen,
   onAuthorize,
-  onCancel,
-  sessionId,
+  onCancel
 }) => {
   const [autoApprove, setAutoApprove] = useState(false);
 

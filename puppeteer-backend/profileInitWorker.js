@@ -1,6 +1,6 @@
 import fs from 'fs/promises';
-import { logger } from './utils/logger.js';
-import { ProfileInitController } from './controllers/profileInitController.js';
+import { logger } from '@/utils/logger.js';
+import { ProfileInitController } from '@/controllers/profileInitController.js';
 
 /**
  * Profile Initialization Worker

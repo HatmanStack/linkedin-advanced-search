@@ -1,7 +1,7 @@
-import { logger } from '../utils/logger.js';
-import { ProfileInitStateManager } from '../utils/profileInitStateManager.js';
-import { profileInitMonitor } from '../utils/profileInitMonitor.js';
-import RandomHelpers from '../utils/randomHelpers.js';
+import { logger } from '@/utils/logger.js';
+import { ProfileInitStateManager } from '@/utils/profileInitStateManager.js';
+import { profileInitMonitor } from '@/utils/profileInitMonitor.js';
+import RandomHelpers from '@/utils/randomHelpers.js';
 import fs from 'fs/promises';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';

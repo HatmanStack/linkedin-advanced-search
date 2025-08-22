@@ -1,9 +1,9 @@
-import { PuppeteerService } from './puppeteerService.js';
-import { logger } from '../utils/logger.js';
-import config from '../config/index.js';
+import { PuppeteerService } from '@/services/puppeteerService.js';
+import { logger } from '@/utils/logger.js';
+import config from '@/config/index.js';
 // Removed human-like delay/behavior helpers for simplicity
-import LinkedInErrorHandler from '../utils/linkedinErrorHandler.js';
-import ConfigManager from '../utils/configManager.js';
+import LinkedInErrorHandler from '@/utils/linkedinErrorHandler.js';
+import ConfigManager from '@/utils/configManager.js';
 import DynamoDBService from './dynamoDBService.js';
 // edgeManager removed; using DynamoDBService.ensureEdge directly
 

@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { logger } from '../utils/logger.js';
+import { logger } from '@/utils/logger.js';
 
 const API_BASE_URL = process.env.API_GATEWAY_BASE_URL;
 
@@ -19,17 +19,7 @@ class DynamoDBService {
         });
     }
 
-    /**
-     * Public: Single entrypoint to upsert edge status (create if missing, update otherwise)
-     */
-    async upsertEdgeStatus(profileId, status, extraUpdates = {}) {
-        const now = new Date().toISOString();
-        return await this._post('edge', {
-            operation: 'upsert_status',
-            profileId,
-            updates: {status, ...extraUpdates, updatedAt: now}
-        });
-    }
+
 
     /**
      * Internal POST helper with unified headers and error handling
@@ -122,7 +112,7 @@ class DynamoDBService {
                 operation: 'create',
                 profileId: profileId,
                 updates: {
-                    status: 'processed',
+                    evaluated: true,
                     addedAt: new Date().toISOString(),
                     processedAt: new Date().toISOString(),
                 }
@@ -151,6 +141,18 @@ class DynamoDBService {
             throw error;
         }
     }
+
+        /**
+     * Public: Single entrypoint to upsert edge status (create if missing, update otherwise)
+     */
+        async upsertEdgeStatus(profileId, status, extraUpdates = {}) {
+            const now = new Date().toISOString();
+            return await this._post('edge', {
+                operation: 'upsert_status',
+                profileId,
+                updates: {status, ...extraUpdates, updatedAt: now}
+            });
+        }
 
     /**
      * Check if an edge relationship exists between user and connection profile

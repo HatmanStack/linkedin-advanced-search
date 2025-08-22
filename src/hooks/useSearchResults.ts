@@ -1,10 +1,10 @@
 import { useCallback } from 'react';
 import useLocalStorage from './useLocalStorage';
 import useApi from './useApi';
-import { puppeteerApiService } from '../services/puppeteerApiService';
-import type { SearchFormData } from '../utils/validation';
+import { puppeteerApiService } from '@/services/puppeteerApiService';
+import type { SearchFormData } from '@/utils/validation';
 import { STORAGE_KEYS } from '@/config/appConfig';
-import { connectionChangeTracker } from '../utils/connectionChangeTracker';
+import { connectionChangeTracker } from '@/utils/connectionChangeTracker';
 
 interface UseSearchResultsReturn {
   results: string[];

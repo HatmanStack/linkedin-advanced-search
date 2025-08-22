@@ -4,14 +4,14 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { workflowProgressService } from '../services/workflowProgressService';
+import { workflowProgressService } from '@/services/workflowProgressService';
 import type { 
   WorkflowProgressState, 
   WorkflowCompletionStats,
   ProgressUpdateCallback,
   CompletionCallback 
-} from '../services/workflowProgressService';
-import type { Connection } from '../types/index';
+} from '@/services/workflowProgressService';
+import type { Connection } from '@/types/index';
 
 export interface UseWorkflowProgressReturn {
   /** Current workflow progress state */

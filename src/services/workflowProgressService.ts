@@ -1,5 +1,5 @@
-import type { Connection } from '../types/index';
-import type { ProgressState, LoadingState } from '../types/errorTypes';
+import type { Connection } from '@/types/index';
+// Removed unused imports: ProgressState, LoadingState
 
 // =============================================================================
 // INTERFACES
@@ -219,9 +219,9 @@ export class WorkflowProgressService {
       return 0;
     }
 
-    const completed = this.progressState.processedConnections.length + 
-                     this.progressState.failedConnections.length + 
-                     this.progressState.skippedConnections.length;
+    const completed = this.progressState.processedConnections.length +
+      this.progressState.failedConnections.length +
+      this.progressState.skippedConnections.length;
 
     return Math.round((completed / this.progressState.totalConnections) * 100);
   }
@@ -255,7 +255,7 @@ export class WorkflowProgressService {
    */
   onProgressUpdate(callback: ProgressUpdateCallback): () => void {
     this.progressCallbacks.push(callback);
-    
+
     return () => {
       const index = this.progressCallbacks.indexOf(callback);
       if (index > -1) {
@@ -272,7 +272,7 @@ export class WorkflowProgressService {
    */
   onWorkflowComplete(callback: CompletionCallback): () => void {
     this.completionCallbacks.push(callback);
-    
+
     return () => {
       const index = this.completionCallbacks.indexOf(callback);
       if (index > -1) {
@@ -289,9 +289,9 @@ export class WorkflowProgressService {
       return undefined;
     }
 
-    const completedConnections = this.progressState.processedConnections.length + 
-                                this.progressState.failedConnections.length + 
-                                this.progressState.skippedConnections.length;
+    const completedConnections = this.progressState.processedConnections.length +
+      this.progressState.failedConnections.length +
+      this.progressState.skippedConnections.length;
 
     if (completedConnections === 0) {
       return undefined;
@@ -308,9 +308,9 @@ export class WorkflowProgressService {
    * Check if workflow is completed and notify callbacks
    */
   private checkWorkflowCompletion(): void {
-    const totalProcessed = this.progressState.processedConnections.length + 
-                          this.progressState.failedConnections.length + 
-                          this.progressState.skippedConnections.length;
+    const totalProcessed = this.progressState.processedConnections.length +
+      this.progressState.failedConnections.length +
+      this.progressState.skippedConnections.length;
 
     if (totalProcessed >= this.progressState.totalConnections) {
       this.progressState = {
@@ -345,7 +345,7 @@ export class WorkflowProgressService {
    */
   private notifyCompletion(): void {
     const stats = this.getCompletionStats();
-    
+
     this.completionCallbacks.forEach(callback => {
       try {
         callback(stats);
@@ -363,12 +363,12 @@ export class WorkflowProgressService {
     const failed = this.progressState.failedConnections.length;
     const skipped = this.progressState.skippedConnections.length;
     const totalProcessed = successful + failed + skipped;
-    
-    const totalTime = this.progressState.startTime 
+
+    const totalTime = this.progressState.startTime
       ? Math.round((Date.now() - this.progressState.startTime) / 1000)
       : 0;
 
-    const successRate = totalProcessed > 0 
+    const successRate = totalProcessed > 0
       ? Math.round((successful / totalProcessed) * 100)
       : 0;
 
@@ -390,13 +390,4 @@ export class WorkflowProgressService {
 // Create singleton instance
 export const workflowProgressService = new WorkflowProgressService();
 
-// Export the service class for testing
-export { WorkflowProgressService };
-
-// Export interfaces
-export type {
-  WorkflowProgressState,
-  WorkflowCompletionStats,
-  ProgressUpdateCallback,
-  CompletionCallback,
-};
+// Interfaces are already exported above with their declarations

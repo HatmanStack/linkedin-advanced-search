@@ -9,8 +9,7 @@ import {
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
+  AlertDialogTitle
 } from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -19,7 +18,7 @@ import { useToast } from "@/hooks/use-toast";
 import { lambdaApiService as dbConnector } from "@/services/lambdaApiService";
 import { puppeteerApiService } from "@/services/puppeteerApiService";
 import { transformErrorForUser, getToastVariant, ERROR_MESSAGES } from "@/utils/errorHandling";
-import type { Connection, NewConnectionCardProps } from '@/types';
+import type { NewConnectionCardProps } from '@/types';
 
 /**
  * NewConnectionCard Component
@@ -81,11 +80,6 @@ const NewConnectionCard: React.FC<NewConnectionCardProps> = ({
   const handleTagClick = (tag: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (onTagClick) onTagClick(tag);
-  };
-
-  const handleOpenTags = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setIsTagsOpen(true);
   };
 
   // Navigate to LinkedIn profile on card click (except when removing or clicking buttons)

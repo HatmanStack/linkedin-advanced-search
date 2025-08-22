@@ -2,7 +2,6 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { CognitoAuthService, type CognitoUserData } from '@/services/cognitoService';
 import { isCognitoConfigured } from '@/config/appConfig';
 import { generateUniqueUserId, validateUserForDatabase, securityUtils } from '@/utils/userUtils';
-import { puppeteerApiService } from '@/services/puppeteerApiService';
 
 export interface User {
   id: string;

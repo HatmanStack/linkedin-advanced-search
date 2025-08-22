@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { puppeteerApiService, Connection } from '@/services/puppeteerApiService';
+import { puppeteerApiService } from '@/services/puppeteerApiService';
 import { useAuth } from '@/contexts/AuthContext';
 
 export const useConnections = (filters?: {
@@ -8,7 +8,7 @@ export const useConnections = (filters?: {
   limit?: number;
 }) => {
   const { user } = useAuth();
-  const [connections, setConnections] = useState<Connection[]>([]);
+  const [connections, setConnections] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -22,9 +22,9 @@ export const useConnections = (filters?: {
     try {
       setLoading(true);
       setError(null);
-      
+
       const response = await puppeteerApiService.getConnections(filters);
-      
+
       if (response.success && response.data) {
         setConnections(response.data.connections || []);
       } else {
@@ -44,11 +44,11 @@ export const useConnections = (filters?: {
   }, [fetchConnections]);
 
   const createConnection = useCallback(async (
-    connectionData: Omit<Connection, 'connection_id' | 'user_id' | 'created_at' | 'updated_at'>
+    connectionData: any
   ): Promise<boolean> => {
     try {
       const response = await puppeteerApiService.createConnection(connectionData);
-      
+
       if (response.success && response.data) {
         setConnections(prev => [...prev, response.data!]);
         return true;
@@ -64,15 +64,15 @@ export const useConnections = (filters?: {
 
   const updateConnection = useCallback(async (
     connectionId: string,
-    updates: Partial<Connection>
+    updates: any
   ): Promise<boolean> => {
     try {
       const response = await puppeteerApiService.updateConnection(connectionId, updates);
-      
+
       if (response.success && response.data) {
-        setConnections(prev => 
-          prev.map(conn => 
-            conn.connection_id === connectionId 
+        setConnections(prev =>
+          prev.map(conn =>
+            conn.connection_id === connectionId
               ? { ...conn, ...response.data }
               : conn
           )

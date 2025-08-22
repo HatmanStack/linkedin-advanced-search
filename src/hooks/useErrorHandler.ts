@@ -7,7 +7,7 @@ import { useState, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { MessageGenerationError } from '@/services/messageGenerationService';
 import { ApiError } from '@/services/lambdaApiService';
-import type { WorkflowError, ErrorRecoveryOptions, UserFeedback, ErrorSeverity } from '@/types/errorTypes';
+import type { WorkflowError, ErrorRecoveryOptions, ErrorSeverity } from '@/types/errorTypes';
 
 export const useErrorHandler = () => {
   const { toast } = useToast();

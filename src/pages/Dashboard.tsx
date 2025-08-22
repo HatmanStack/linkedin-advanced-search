@@ -10,15 +10,17 @@ import { useSearchResults } from '@/hooks';
 import { useProfileInit } from '@/hooks/useProfileInit';
 import type { SearchFormData } from '@/utils/validation';
 import ConversationTopicPanel from '@/components/ConversationTopicPanel';
-import NewConnectionSearch from '@/components/NewConnectionSearch';
-import PostComposer from '@/components/PostComposer';
-import StatusPicker, { StatusValue, ConnectionCounts } from '@/components/StatusPicker';
+import NewConnectionsTab from '@/components/NewConnectionsTab';
+import NewPostTab from '@/components/NewPostTab';
+import StatusPicker from '@/components/StatusPicker';
+import type { StatusValue, ConnectionCounts } from '@/types';
 import VirtualConnectionList from '@/components/VirtualConnectionList';
 import MessageModal from '@/components/MessageModal';
 // import ConnectionFiltersComponent from '@/components/ConnectionFilters';
-import { lambdaApiService as dbConnector, Connection, Message, ApiError } from '@/services/lambdaApiService';
+import { lambdaApiService as dbConnector, ApiError } from '@/services/lambdaApiService';
+import type { Connection, Message } from '@/types';
 import { connectionCache } from '@/utils/connectionCache';
-import { connectionChangeTracker } from '../utils/connectionChangeTracker';
+import { connectionChangeTracker } from '@/utils/connectionChangeTracker';
 import { ConnectionListSkeleton } from '@/components/ConnectionCardSkeleton';
 import { NoConnectionsState } from '@/components/ui/empty-state';
 import { messageGenerationService } from '@/services/messageGenerationService';
@@ -85,11 +87,11 @@ const Dashboard = () => {
   } = useSearchResults();
 
   // Profile initialization functionality
-  const { 
-    isInitializing, 
-    initializationMessage, 
-    initializationError, 
-    initializeProfile 
+  const {
+    isInitializing,
+    initializationMessage,
+    initializationError,
+    initializeProfile
   } = useProfileInit();
 
   // Reset workflow state function - defined early to avoid temporal dead zone
@@ -319,6 +321,7 @@ const Dashboard = () => {
     try {
       // Fetch message history from database
       // const messages = await dbConnector.getMessageHistory(connection.id);
+      const messages: Message[] = []; // Placeholder until API is implemented
       setMessageHistory(messages);
     } catch (err: any) {
       console.error('Error fetching message history:', err);
@@ -375,18 +378,18 @@ const Dashboard = () => {
     }
 
     console.log('Starting message generation workflow for', selectedConnections.length, 'connections');
-    
+
     // Initialize progress tracking
     progressTracker.initializeProgress(selectedConnections.length);
     progressTracker.setLoadingMessage('Preparing message generation...', 0, true);
-    
+
     setWorkflowState('generating');
     setIsGeneratingMessages(true);
     setCurrentConnectionIndex(0);
     setGenerationError(null);
     errorHandler.clearError();
 
-      const selectedConnectionsData = connections.filter(conn => 
+    const selectedConnectionsData = connections.filter(conn =>
       selectedConnections.includes(conn.id) && conn.status === 'ally'
     );
 
@@ -403,12 +406,12 @@ const Dashboard = () => {
       setCurrentConnectionIndex(i);
       const connection = selectedConnectionsData[i];
       const connectionName = `${connection.first_name} ${connection.last_name}`;
-      
+
       // Update progress
       progressTracker.updateProgress(i, connectionName, 'generating');
-      progressTracker.setLoadingMessage(`Generating message for ${connectionName}...`, 
+      progressTracker.setLoadingMessage(`Generating message for ${connectionName}...`,
         Math.round((i / selectedConnectionsData.length) * 100), true);
-      
+
       console.log(`Processing connection ${i + 1}/${selectedConnectionsData.length}:`, connectionName);
 
       let retryCount = 0;
@@ -419,7 +422,7 @@ const Dashboard = () => {
           // Generate message for current connection
           const generatedMessage = await generateMessageForConnection(connection);
           console.log('Generated message for', connection.first_name, ':', generatedMessage.substring(0, 100) + '...');
-          
+
           // Cache the generated message
           setGeneratedMessages(prev => new Map(prev).set(connection.id, generatedMessage));
 
@@ -435,27 +438,27 @@ const Dashboard = () => {
 
         } catch (error) {
           console.error('Error generating message for connection:', connection.id, error);
-          
+
           // Use comprehensive error handling
           const recoveryAction = await errorHandler.handleError(
-            error, 
-            connection.id, 
-            connectionName, 
+            error,
+            connection.id,
+            connectionName,
             retryCount
           );
 
           switch (recoveryAction) {
             case 'retry':
               retryCount++;
-              progressTracker.setLoadingMessage(`Retrying message generation for ${connectionName}... (Attempt ${retryCount + 1})`, 
+              progressTracker.setLoadingMessage(`Retrying message generation for ${connectionName}... (Attempt ${retryCount + 1})`,
                 Math.round((i / selectedConnectionsData.length) * 100), true);
               continue; // Retry the same connection
-            
+
             case 'skip':
               errorHandler.showInfoFeedback(`Skipped ${connectionName} due to error.`, 'Connection Skipped');
               shouldContinue = false; // Move to next connection
               break;
-            
+
             case 'stop':
               progressTracker.resetProgress();
               setWorkflowState('error');
@@ -469,34 +472,34 @@ const Dashboard = () => {
     // Workflow completed successfully
     console.log('Message generation workflow completed');
     progressTracker.updateProgress(selectedConnectionsData.length, undefined, 'completed');
-    
+
     errorHandler.showSuccessFeedback(
       `Successfully generated messages for ${selectedConnectionsData.length} connections.`,
       'Generation Complete'
     );
-    
+
     setWorkflowState('completed');
-    
+
     // Reset after a short delay to show completion
     setTimeout(() => {
       resetWorkflowState();
       progressTracker.resetProgress();
     }, 2000);
-    
+
   }, [selectedConnections, conversationTopic, connections, workflowState, errorHandler, progressTracker]);
 
   const generateMessageForConnection = useCallback(async (connection: Connection): Promise<string> => {
     try {
       // Fetch message history for context
       // const messageHistory = await dbConnector.getMessageHistory(connection.id);
-      
+
       // Build request using shared context service for DRYness
       const cleanedTopic = connectionDataContextService.prepareConversationTopic(conversationTopic);
       const connectionWithHistory = { ...connection, message_history: messageHistory } as Connection;
       const context = connectionDataContextService.prepareMessageGenerationContext(
         connectionWithHistory,
         cleanedTopic,
-        user,
+        userProfile || undefined,
         { includeMessageHistory: true }
       );
       const request = connectionDataContextService.createMessageGenerationRequest(context);
@@ -528,10 +531,10 @@ const Dashboard = () => {
   const handleStopGeneration = useCallback(() => {
     setWorkflowState('stopping');
     setIsGeneratingMessages(false);
-    
+
     // Reset progress tracking
     progressTracker.resetProgress();
-    
+
     // Close modal if open
     if (messageModalOpen) {
       setMessageModalOpen(false);
@@ -573,7 +576,7 @@ const Dashboard = () => {
     const connection = connections.find(conn => conn.id === currentConnectionId);
     return connection ? `${connection.first_name} ${connection.last_name}` : undefined;
   }, [isGeneratingMessages, currentConnectionIndex, selectedConnections, connections]);
-   const filteredConnections = useMemo(() => {
+  const filteredConnections = useMemo(() => {
     // status filter first
     let list = connections.filter(connection => {
       if (selectedStatus === 'all') {
@@ -645,13 +648,14 @@ const Dashboard = () => {
         userId: filters.userId, // Include userId from filters
       };
       console.log('Search data (ciphertext will be attached automatically):', { ...searchData, hasCiphertext: !!linkedInCredsCiphertext });
-      // Use the existing search functionality
-      const resp = await searchLinkedIn(searchData);
 
-      // Only refresh when backend signals completion or healing explicitly
-      if (resp?.success || resp?.data?.status === 'healing' || resp?.status === 'healing') {
-        await fetchConnections();
-      }
+      // Use the existing search functionality - it returns void but updates hook state
+      await searchLinkedIn(searchData);
+
+      // Always refresh connections after search completes
+      // The hook handles the response internally and updates results state
+      await fetchConnections();
+
     } catch (error) {
       console.error('Error searching LinkedIn:', error);
       toast({
@@ -746,7 +750,7 @@ const Dashboard = () => {
                 </p>
               </div>
             )}
-            
+
             {initializationError && (
               <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3">
                 <p className="text-red-300 text-sm font-medium">
@@ -799,16 +803,16 @@ const Dashboard = () => {
                           {filteredConnections.length} of {connectionCounts.total} connections
                         </div>
                         {/* Initialize Profile Database Button */}
-                        <Button 
+                        <Button
                           onClick={handleInitializeProfile}
                           disabled={isInitializing}
                           className="bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700 text-white"
                         >
                           <Database className="h-4 w-4 mr-2" />
-                         {isInitializing 
-                             ? 'Initializing...' 
-                             : connectionCounts.ally > 0 
-                              ? 'Refresh' 
+                          {isInitializing
+                            ? 'Initializing...'
+                            : connectionCounts.ally > 0
+                              ? 'Refresh'
                               : 'Initialize Profile Database'
                           }
                         </Button>
@@ -876,7 +880,7 @@ const Dashboard = () => {
 
           <TabsContent value="new-connections" className="space-y-6">
             {/* New Connection Search with Virtual Scrolling */}
-            <NewConnectionSearch
+            <NewConnectionsTab
               searchResults={newConnections}
               onSearch={handleLinkedInSearch}
               isSearching={isSearchingLinkedIn || loading}
@@ -907,7 +911,7 @@ const Dashboard = () => {
           </TabsContent>
 
           <TabsContent value="new-post" className="space-y-6">
-            <PostComposer />
+            <NewPostTab />
           </TabsContent>
         </Tabs>
       </div>

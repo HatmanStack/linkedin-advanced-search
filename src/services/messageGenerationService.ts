@@ -1,6 +1,6 @@
-import { CognitoAuthService } from './cognitoService';
+import { CognitoAuthService } from '@/services/cognitoService';
 import { API_CONFIG } from '@/config/appConfig';
-import type { Connection, Message, UserProfile } from '../types/index';
+import type { Message, UserProfile } from '@/types/index';
 
 // =============================================================================
 // INTERFACES
@@ -389,8 +389,4 @@ export const messageGenerationService = new MessageGenerationService();
 // Export the service class for testing
 export { MessageGenerationService };
 
-// Export interfaces
-export type {
-  MessageGenerationRequest,
-  MessageGenerationResponse,
-};
+// Interfaces are already exported above with their declarations
