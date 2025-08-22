@@ -1,6 +1,6 @@
 import axios, { type AxiosInstance, type AxiosResponse, type AxiosError } from 'axios';
-import { CognitoAuthService } from './cognitoService';
-import { logError } from '../utils/errorHandling';
+import { CognitoAuthService } from '@/services/cognitoService';
+import { logError } from '@/utils/errorHandling';
 import type {
   Connection,
   Message,
@@ -12,8 +12,8 @@ import {
   validateMessage,
   sanitizeConnectionData,
   sanitizeMessageData,
-} from '../types/validators';
-import { isConnection, isMessage } from '../types/guards';
+} from '@/types/validators';
+import { isConnection, isMessage } from '@/types/guards';
 
 export class ApiError extends Error {
   status?: number;
@@ -617,31 +617,8 @@ class LambdaApiService {
   }
 }
 
-// Profile operations via Lambda-backed API
-export interface UserProfile {
-  user_id: string;
-  linkedin_id?: string;
-  first_name?: string;
-  last_name?: string;
-  email?: string;
-  headline?: string;
-  profile_url?: string;
-  profile_picture_url?: string;
-  location?: string;
-  summary?: string;
-  industry?: string;
-  current_position?: string;
-  company?: string;
-  interests?: string[];
-  linkedin_credentials?: string;
-  unpublished_post_content?: string,
-  ai_generated_ideas?: string [],
-  ai_generated_research?: string,
-  ai_generated_post_hook?: string,
-  ai_generated_post_reasoning?: string,
-  created_at?: string;
-  updated_at?: string;
-}
+// Profile operations via Lambda-backed API - using centralized UserProfile from @/types
+import type { UserProfile } from '@/types';
 
 class ExtendedLambdaApiService extends LambdaApiService {
   async getUserProfile(): Promise<{ success: boolean; data?: UserProfile; error?: string }> {

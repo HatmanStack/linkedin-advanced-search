@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { ApiError } from '../services/puppeteerApiService';
+import { ApiError } from '@/services/puppeteerApiService';
 
 interface UseApiState<T> {
   data: T | null;

@@ -18,14 +18,11 @@ import type {
   ConnectionFilters,
   ConnectionCounts,
   ApiResponse,
-  GetConnectionsResponse,
-  GetMessagesResponse,
-  UpdateMetadataResponse,
+  // Removed unused response interfaces
   ApiErrorInfo,
   UserErrorInfo,
   ErrorRecoveryAction,
-  ConnectionQueryParams,
-  UpdateConnectionParams,
+  // Removed unused database operation types
   ValidationResult,
 } from './index';
 
@@ -295,61 +292,7 @@ export function isApiResponse<T>(
   return true;
 }
 
-/**
- * Checks if a value is a valid GetConnectionsResponse object
- * 
- * @param value - The value to check
- * @returns True if value conforms to GetConnectionsResponse interface
- */
-export function isGetConnectionsResponse(value: unknown): value is GetConnectionsResponse {
-  if (typeof value !== 'object' || value === null) return false;
-  
-  const obj = value as Record<string, unknown>;
-  
-  return (
-    Array.isArray(obj.connections) &&
-    obj.connections.every(isConnection) &&
-    isValidNumber(obj.count) &&
-    obj.count >= 0
-  );
-}
-
-/**
- * Checks if a value is a valid GetMessagesResponse object
- * 
- * @param value - The value to check
- * @returns True if value conforms to GetMessagesResponse interface
- */
-export function isGetMessagesResponse(value: unknown): value is GetMessagesResponse {
-  if (typeof value !== 'object' || value === null) return false;
-  
-  const obj = value as Record<string, unknown>;
-  
-  return (
-    Array.isArray(obj.messages) &&
-    obj.messages.every(isMessage) &&
-    isValidNumber(obj.count) &&
-    obj.count >= 0
-  );
-}
-
-/**
- * Checks if a value is a valid UpdateMetadataResponse object
- * 
- * @param value - The value to check
- * @returns True if value conforms to UpdateMetadataResponse interface
- */
-export function isUpdateMetadataResponse(value: unknown): value is UpdateMetadataResponse {
-  if (typeof value !== 'object' || value === null) return false;
-  
-  const obj = value as Record<string, unknown>;
-  
-  return (
-    typeof obj.success === 'boolean' &&
-    typeof obj.updated === 'object' &&
-    obj.updated !== null
-  );
-}
+// Removed unused response type guards: isGetConnectionsResponse, isGetMessagesResponse, isUpdateMetadataResponse
 
 // =============================================================================
 // ERROR TYPE GUARDS
@@ -419,70 +362,7 @@ export function isUserErrorInfo(value: unknown): value is UserErrorInfo {
 // PARAMETER TYPE GUARDS
 // =============================================================================
 
-/**
- * Checks if a value is a valid ConnectionQueryParams object
- * 
- * @param value - The value to check
- * @returns True if value conforms to ConnectionQueryParams interface
- */
-export function isConnectionQueryParams(value: unknown): value is ConnectionQueryParams {
-  if (typeof value !== 'object' || value === null) return false;
-  
-  const obj = value as Record<string, unknown>;
-  
-  // All fields are optional
-  if (obj.userId !== undefined && !isNonEmptyString(obj.userId)) return false;
-  if (obj.status !== undefined && !isConnectionStatus(obj.status)) return false;
-  if (obj.limit !== undefined && !isPositiveInteger(obj.limit)) return false;
-  if (obj.offset !== undefined && 
-      !(typeof obj.offset === 'string' || isValidNumber(obj.offset))) return false;
-  if (obj.sortBy !== undefined && 
-      !['date_added', 'name', 'company', 'status'].includes(obj.sortBy as string)) return false;
-  if (obj.sortOrder !== undefined && 
-      !['asc', 'desc'].includes(obj.sortOrder as string)) return false;
-  
-  return true;
-}
-
-/**
- * Checks if a value is a valid UpdateConnectionParams object
- * 
- * @param value - The value to check
- * @returns True if value conforms to UpdateConnectionParams interface
- */
-export function isUpdateConnectionParams(value: unknown): value is UpdateConnectionParams {
-  if (typeof value !== 'object' || value === null) return false;
-  
-  const obj = value as Record<string, unknown>;
-  
-  if (!isNonEmptyString(obj.connectionId)) return false;
-  if (typeof obj.updates !== 'object' || obj.updates === null) return false;
-  if (obj.updateTimestamp !== undefined && typeof obj.updateTimestamp !== 'boolean') return false;
-  
-  // Validate updates object
-  const updates = obj.updates as Record<string, unknown>;
-  for (const [key, value] of Object.entries(updates)) {
-    switch (key) {
-      case 'status':
-        if (!isConnectionStatus(value)) return false;
-        break;
-      case 'tags':
-        if (!Array.isArray(value) || !value.every(item => typeof item === 'string')) return false;
-        break;
-      case 'last_action_summary':
-        if (typeof value !== 'string') return false;
-        break;
-      case 'conversion_likelihood':
-        if (!isValidNumber(value)) return false;
-        break;
-      default:
-        // Allow other fields but don't validate them strictly
-        break;
-    }
-  }
-  
-  return true;
-}
+// Removed unused database operation type guards: isConnectionQueryParams, isUpdateConnectionParams
 
 // =============================================================================
 // VALIDATION RESULT TYPE GUARDS

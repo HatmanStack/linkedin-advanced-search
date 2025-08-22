@@ -1,22 +1,22 @@
-import config from '../config/index.js';
-import { logger } from '../utils/logger.js';
-import FileHelpers from '../utils/fileHelpers.js';
-import PuppeteerService from '../services/puppeteerService.js';
-import LinkedInService from '../services/linkedinService.js';
-import LinkedInContactService from '../services/linkedinContactService.js';
-import DynamoDBService from '../services/dynamoDBService.js'
-import { SearchRequestValidator } from '../utils/searchRequestValidator.js';
-import { SearchStateManager } from '../utils/searchStateManager.js';
-import { LinkCollector } from '../utils/linkCollector.js';
-import { ContactProcessor } from '../utils/contactProcessor.js';
-import { HealingManager } from '../utils/healingManager.js';
+import config from '@/config/index.js';
+import { logger } from '@/utils/logger.js';
+import FileHelpers from '@/utils/fileHelpers.js';
+import PuppeteerService from '@/services/puppeteerService.js';
+import LinkedInService from '@/services/linkedinService.js';
+import LinkedInContactService from '@/services/linkedinContactService.js';
+import DynamoDBService from '@/services/dynamoDBService.js'
+import { SearchRequestValidator } from '@/utils/searchRequestValidator.js';
+import { SearchStateManager } from '@/utils/searchStateManager.js';
+import { LinkCollector } from '@/utils/linkCollector.js';
+import { ContactProcessor } from '@/utils/contactProcessor.js';
+import { HealingManager } from '@/utils/healingManager.js';
 import path from 'path';
 import fs from 'fs/promises';
 
 export class SearchController {
   async performSearch(req, res, opts = {}) {
     this._logRequestDetails(req);
-    
+
     const jwtToken = this._extractJwtToken(req);
     if (!jwtToken) {
       return res.status(401).json({
@@ -36,14 +36,14 @@ export class SearchController {
     // Do not decrypt or extract plaintext here; pass ciphertext through and decrypt at login
     const searchName = null;
     const searchPassword = null;
-    
+
     logger.info('Starting LinkedIn search request', {
       companyName,
       companyRole,
       companyLocation,
       username: searchName ? '[REDACTED]' : 'not provided'
     });
-    
+
     const state = SearchStateManager.buildInitialState({
       companyName,
       companyRole,
@@ -60,7 +60,7 @@ export class SearchController {
       await FileHelpers.writeJSON(config.paths.linksFile, []);
       await FileHelpers.writeJSON(config.paths.goodConnectionsFile, []);
     }
-    
+
     try {
       const result = await this.performSearchFromState(state);
 
@@ -83,10 +83,10 @@ export class SearchController {
     let searchData = {};
 
     try {
-      
-      
+
+
       await this._performLogin(services.linkedInService, state);
-      
+
       if (state.healPhase === 'profile-parsing') {
         searchData.uniqueLinks = await this._loadLinksFromFile(state.lastPartialLinksFile);
       } else {
@@ -95,7 +95,7 @@ export class SearchController {
       }
 
       const goodContacts = await this._processContacts(services, searchData.uniqueLinks, state);
-      
+
       return this._buildSearchResult(goodContacts, searchData.uniqueLinks);
 
     } catch (error) {
@@ -109,7 +109,7 @@ export class SearchController {
   async _initializeServices() {
     const puppeteerService = new PuppeteerService();
     await puppeteerService.initialize();
-    
+
     return {
       puppeteerService,
       linkedInService: new LinkedInService(puppeteerService),
@@ -128,7 +128,7 @@ export class SearchController {
       'search-controller'
     );
     logger.info('Login success.');
-    
+
     if (state.healPhase) {
       logger.info(`Heal Phase: ${state.healPhase}\nReason: ${state.healReason}`);
     }
@@ -154,7 +154,7 @@ export class SearchController {
 
   async _collectLinks(linkedInService, state, companyData) {
     const linkCollector = new LinkCollector(linkedInService, config);
-    
+
     if (state.healPhase === "link-collection") {
       const allLinks = await this._loadLinksFromFile(config.paths.linksFile);
       return { uniqueLinks: [...new Set(allLinks)] };
@@ -168,7 +168,7 @@ export class SearchController {
 
     const uniqueLinks = [...new Set(allLinks)];
     await FileHelpers.writeJSON(config.paths.linksFile, uniqueLinks);
-    
+
     return { uniqueLinks };
   }
 
@@ -192,7 +192,7 @@ export class SearchController {
   async _handleLinkCollectionHealing(state, companyData, pageNumber) {
     logger.warn(`Initiating self-healing restart.`);
     logger.info('Restarting with fresh Puppeteer instance..');
-    
+
     const healReasonText = '3 blank pages in a row';
     await this._initiateHealing({
       ...state,
@@ -207,7 +207,7 @@ export class SearchController {
   async _handleContactProcessingHealing(restartParams) {
     logger.warn(`All retry links failed. Initiating self-healing restart.`);
     logger.info('Restarting with fresh Puppeteer instance...');
-    
+
     await this._initiateHealing({
       ...restartParams,
       healPhase: 'profile-parsing',

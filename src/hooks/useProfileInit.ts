@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { puppeteerApiService } from '@/services/puppeteerApiService';
 import { useToast } from '@/hooks/use-toast';
-import { connectionChangeTracker } from '../utils/connectionChangeTracker';
+import { connectionChangeTracker } from '@/utils/connectionChangeTracker';
 
 interface UseProfileInitReturn {
   isInitializing: boolean;

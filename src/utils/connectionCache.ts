@@ -1,23 +1,4 @@
-interface Connection {
-  id: string;
-  first_name: string;
-  last_name: string;
-  position: string;
-  company: string;
-  location?: string;
-  headline?: string;
-  recent_activity?: string;
-  common_interests?: string[];
-  messages?: number;
-  date_added?: string;
-  linkedin_url?: string;
-  tags?: string[];
-  last_action_summary?: string;
-  isFakeData?: boolean;
-  last_activity_summary?: string;
-  status?: 'possible' | 'incoming' | 'outgoing' | 'ally';
-  conversion_likelihood?: number;
-}
+import type { Connection } from '@/types';
 
 interface CacheStats {
   hits: number;
@@ -338,5 +319,5 @@ export class ConnectionCache {
 // Create a singleton instance for global use
 export const connectionCache = new ConnectionCache(1000);
 
-// Export the Connection interface for use in other files
-export type { Connection, CacheStats };
+// Export the CacheStats interface for use in other files
+export type { CacheStats };

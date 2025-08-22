@@ -1,34 +1,11 @@
 // src/contexts/UserProfileContext.tsx
 import { createContext, useState, useContext, type ReactNode, useMemo, useEffect } from 'react';
-import { lambdaApiService } from '../services/lambdaApiService';
-import { useAuth } from './AuthContext';
+import { lambdaApiService } from '@/services/lambdaApiService';
+import { useAuth } from '@/contexts/AuthContext';
 
 type LinkedInCredentialsCiphertext = string | null; // sealbox_x25519:b64:<...>
 
-export interface UserProfile {
-  user_id?: string;
-  linkedin_id?: string;
-  first_name?: string;
-  last_name?: string;
-  email?: string;
-  headline?: string;
-  profile_url?: string;
-  profile_picture_url?: string;
-  location?: string;
-  summary?: string;
-  industry?: string;
-  current_position?: string;
-  company?: string;
-  interests?: string[];
-  linkedin_credentials?: string;
-  unpublished_post_content?: string,
-  ai_generated_ideas?: string [],
-  ai_generated_research?: string,
-  ai_generated_post_hook?: string,
-  ai_generated_post_reasoning?: string,
-  created_at?: string;
-  updated_at?: string;
-}
+import type { UserProfile } from '@/types';
 
 interface UserProfileContextType {
   // LinkedIn credentials

@@ -1,9 +1,9 @@
 import { createContext, useContext, type ReactNode, useState, useCallback, useMemo, useEffect, useRef } from 'react';
-import { postsService } from '../services/postsService';
-import { useAuth } from './AuthContext';
-import { useUserProfile } from './UserProfileContext';
-import { useToast } from '../hooks/use-toast';
-import { lambdaApiService } from '../services/lambdaApiService';
+import { postsService } from '@/services/postsService';
+import { useAuth } from '@/contexts/AuthContext';
+import { useUserProfile } from '@/contexts/UserProfileContext';
+import { useToast } from '@/hooks/use-toast';
+import { lambdaApiService } from '@/services/lambdaApiService';
 
 interface PostComposerContextValue {
   content: string;

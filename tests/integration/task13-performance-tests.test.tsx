@@ -116,14 +116,14 @@ describe('Task 13: Performance Tests', () => {
     it('should maintain smooth scrolling with large connection lists', async () => {
       render(<MockPerformanceComponent />);
 
-      const connectionsList = screen.getByRole('list', { name: /connections/i });
+      const connectionsTab = screen.getByRole('list', { name: /connections/i });
       
       const scrollStart = performance.now();
       
       // Simulate scroll events
-      connectionsList.scrollTop = 1000;
-      connectionsList.scrollTop = 2000;
-      connectionsList.scrollTop = 3000;
+      connectionsTab.scrollTop = 1000;
+      connectionsTab.scrollTop = 2000;
+      connectionsTab.scrollTop = 3000;
 
       const scrollEnd = performance.now();
       const scrollTime = scrollEnd - scrollStart;

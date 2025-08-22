@@ -191,11 +191,13 @@ Apache 2.0 - see the [LICENSE](https://www.apache.org/licenses/LICENSE-2.0.html)
 - [ ] **LinkedIn Messaging Route** - Validate LinkedIn interaction route for messaging functionality
 - [ ] **LinkedIn Posting Route** - Test LinkedIn interaction route for post publishing
 - [ ] **Pinecone Frontend Integration** - Wire up Pinecone search more prominently in the frontend interface
+- [ ] **Device Specific Solver** - A lightweight service to re-init messages on new devices to preserve client side encryption
 
 ### Data & Search Optimization
 - [ ] **Pinecone Ingestion Validation** - Validate and optimize the Pinecone data ingestion pipeline
 - [ ] **N*k* Search Results** - Optimize Pinecone search for returning N*k* results efficiently
 - [ ] **DynamoDB GS1 Pattern** - Implement GS1 pattern to optimize DynamoDB calls and reduce costs
+- [ ] **Websockets** - In the Heal & Restore workflow switch from Polling to Websockets
 
 ### Backend Infrastructure
 - [ ] **Message Retrieval Logic** - Build backend logic for efficient message retrieval and display

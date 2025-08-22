@@ -1,23 +1,23 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button } from "../components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
-import { Input } from "../components/ui/input";
-import { Textarea } from "../components/ui/textarea";
-import { Label } from "../components/ui/label";
-import { Badge } from "../components/ui/badge";
-import { Separator } from "../components/ui/separator";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
 import { MessageSquare, ArrowLeft, User, Building, MapPin, Save, Plus, X, Key, Eye, EyeOff } from 'lucide-react';
-import { useToast } from "../hooks/use-toast";
-import { useUserProfile } from '../contexts/UserProfileContext';
-// import { lambdaApiService } from '../services/lambdaApiService';
-import { encryptWithSealboxB64 } from '../utils/crypto';
+import { useToast } from "@/hooks/use-toast";
+import { useUserProfile } from '@/contexts/UserProfileContext';
+// import { lambdaApiService } from '@/services/lambdaApiService';
+import { encryptWithSealboxB64 } from '@/utils/crypto';
 
 const Profile = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { ciphertext, setCiphertext, userProfile, updateUserProfile } = useUserProfile();
-  
+
   const [profile, setProfile] = useState({
     name: 'Tom, Dick, And Harry',
     title: 'Senior Software Engineer',
@@ -176,8 +176,8 @@ const Profile = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-4">
             <div className="flex items-center space-x-4">
-              <Button 
-                variant="ghost" 
+              <Button
+                variant="ghost"
                 onClick={() => navigate('/dashboard')}
                 className="text-white hover:bg-white/10"
               >
@@ -300,12 +300,12 @@ const Profile = () => {
                     <Plus className="h-4 w-4" />
                   </Button>
                 </div>
-                
+
                 <div className="flex flex-wrap gap-2">
                   {profile.interests.map((interest, index) => (
-                    <Badge 
-                      key={index} 
-                      variant="secondary" 
+                    <Badge
+                      key={index}
+                      variant="secondary"
                       className="bg-blue-600/20 text-blue-300 hover:bg-blue-600/30"
                     >
                       {interest}

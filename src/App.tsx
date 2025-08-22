@@ -8,11 +8,11 @@ import { UserProfileProvider } from "@/contexts/UserProfileContext"; // Added
 import { HealAndRestoreProvider } from "@/contexts/HealAndRestoreContext"; // Added
 import { PostComposerProvider } from "@/contexts/PostComposerContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
-import Index from "./pages/Index";
-import Auth from "./pages/Auth";
-import Dashboard from "./pages/Dashboard";
-import Profile from "./pages/Profile";
-import NotFound from "./pages/NotFound";
+import Index from "@/pages/Index";
+import Auth from "@/pages/Auth";
+import Dashboard from "@/pages/Dashboard";
+import Profile from "@/pages/Profile";
+import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
 

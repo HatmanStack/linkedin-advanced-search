@@ -1,12 +1,12 @@
-import { logger } from '../utils/logger.js';
-import PuppeteerService from '../services/puppeteerService.js';
-import LinkedInService from '../services/linkedinService.js';
-import LinkedInContactService from '../services/linkedinContactService.js';
-import DynamoDBService from '../services/dynamoDBService.js';
-import ProfileInitService from '../services/profileInitService.js';
-import { HealingManager } from '../utils/healingManager.js';
-import { ProfileInitStateManager } from '../utils/profileInitStateManager.js';
-import { profileInitMonitor } from '../utils/profileInitMonitor.js';
+import { logger } from '@/utils/logger.js';
+import PuppeteerService from '@/services/puppeteerService.js';
+import LinkedInService from '@/services/linkedinService.js';
+import LinkedInContactService from '@/services/linkedinContactService.js';
+import DynamoDBService from '@/services/dynamoDBService.js';
+import ProfileInitService from '@/services/profileInitService.js';
+import { HealingManager } from '@/utils/healingManager.js';
+import { ProfileInitStateManager } from '@/utils/profileInitStateManager.js';
+import { profileInitMonitor } from '@/utils/profileInitMonitor.js';
 
 export class ProfileInitController {
   async performProfileInit(req, res, opts = {}) {

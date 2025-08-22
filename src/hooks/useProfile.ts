@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { puppeteerApiService, UserProfile } from '@/services/puppeteerApiService';
+import type { UserProfile } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 
 export const useProfile = () => {
@@ -19,14 +19,10 @@ export const useProfile = () => {
       setLoading(true);
       setError(null);
       
-      const response = await puppeteerApiService.getUserProfile();
-      
-      if (response.success && response.data) {
-        setProfile(response.data);
-      } else {
-        setError(response.error || 'Failed to fetch profile');
-        setProfile(null);
-      }
+      // Profile fetching removed - puppeteerApiService no longer handles profile endpoints
+      // Use lambdaApiService or UserProfileContext instead
+      setError('Profile fetching through puppeteerApiService is deprecated');
+      setProfile(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
       setProfile(null);
@@ -41,15 +37,10 @@ export const useProfile = () => {
 
   const updateProfile = useCallback(async (updates: Partial<UserProfile>): Promise<boolean> => {
     try {
-      const response = await puppeteerApiService.updateUserProfile(updates);
-      
-      if (response.success && response.data) {
-        setProfile(response.data);
-        return true;
-      } else {
-        setError(response.error || 'Failed to update profile');
-        return false;
-      }
+      // Profile updating removed - puppeteerApiService no longer handles profile endpoints
+      // Use lambdaApiService or UserProfileContext instead
+      setError('Profile updating through puppeteerApiService is deprecated');
+      return false;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
       return false;

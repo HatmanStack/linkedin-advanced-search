@@ -1,13 +1,13 @@
-import PostEditor from './PostEditor';
-import PostAIAssistant from './PostAIAssistant';
-import ResearchResultsCard from './ResearchResultsCard';
-import { usePostComposer } from '../contexts/PostComposerContext';
+import PostEditor from '@/components/PostEditor';
+import PostAIAssistant from '@/components/PostAIAssistant';
+import ResearchResultsCard from '@/components/ResearchResultsCard';
+import { usePostComposer } from '@/contexts/PostComposerContext';
 import { useEffect, useState } from 'react';
-import { useToast } from '../hooks/use-toast';
+import { useToast } from '@/hooks/use-toast';
 
 const RESEARCH_STORAGE_KEY = 'ai_research_content';
 
-const PostComposerInner = () => {
+const NewPostTabInner = () => {
   const {
     content,
     setContent,
@@ -29,31 +29,7 @@ const PostComposerInner = () => {
   } = usePostComposer();
 
   const { toast } = useToast();
-  const [hasSessionResearch, setHasSessionResearch] = useState<boolean>(false);
 
-  // Hydrate local flag from session storage so Synthesize is available after refresh
-  useEffect(() => {
-    try {
-      const stored = sessionStorage.getItem(RESEARCH_STORAGE_KEY);
-      setHasSessionResearch(Boolean(stored && stored.trim()));
-    } catch {
-      setHasSessionResearch(false);
-    }
-  }, []);
-
-  // Keep flag in sync when researchContent changes
-  useEffect(() => {
-    if (researchContent && researchContent.trim()) {
-      setHasSessionResearch(true);
-    } else {
-      try {
-        const stored = sessionStorage.getItem(RESEARCH_STORAGE_KEY);
-        setHasSessionResearch(Boolean(stored && stored.trim()));
-      } catch {
-        setHasSessionResearch(false);
-      }
-    }
-  }, [researchContent]);
 
   const handleGenerateIdeas = async (prompt?: string) => {
     try {
@@ -136,10 +112,8 @@ const PostComposerInner = () => {
   );
 };
 
-const PostComposer = () => {
-  return <PostComposerInner />;
+const NewPostTab = () => {
+  return <NewPostTabInner />;
 };
 
-export default PostComposer;
-
-
+export default NewPostTab;

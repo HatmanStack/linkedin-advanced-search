@@ -11,7 +11,7 @@ interface VirtualConnectionListProps {
   isNewConnection?: boolean;
   onSelect?: (connectionId: string) => void;
   onNewConnectionClick?: (connection: Connection) => void;
-  onRemove?: (connectionId: string, newStatus: ConnectionStatus) => void;
+  onRemove?: (connectionId: string, newStatus: string) => void;
   onTagClick?: (tag: string) => void;
   onMessageClick?: (connection: Connection) => void;
   activeTags?: string[];
@@ -37,7 +37,7 @@ interface ListItemProps {
     isNewConnection?: boolean;
     onSelect?: (connectionId: string) => void;
     onNewConnectionClick?: (connection: Connection) => void;
-    onRemove?: (connectionId: string, newStatus: ConnectionStatus) => void;
+    onRemove?: (connectionId: string, newStatus: string) => void;
     onTagClick?: (tag: string) => void;
     onMessageClick?: (connection: Connection) => void;
     activeTags?: string[];
@@ -133,7 +133,7 @@ const VirtualConnectionList: React.FC<VirtualConnectionListProps> = ({
       const rect = containerRef.getBoundingClientRect();
       const availableHeight = window.innerHeight - rect.top - 40; // Reduced margin for fuller viewport usage
       
-      // For both new and regular connections, use a generous viewport height similar to NewConnectionSearch
+      // For both new and regular connections, use a generous viewport height similar to NewConnectionsTab
       const minHeight = Math.max(window.innerHeight * 0.9, 700);
       setContainerHeight(Math.max(minHeight, availableHeight));
     }
@@ -165,7 +165,7 @@ const VirtualConnectionList: React.FC<VirtualConnectionListProps> = ({
   }, []);
 
   // Wrap onRemove to also update local removedIds so the list re-renders immediately
-  const handleRemoveInternal = useCallback((connectionId: string, newStatus: ConnectionStatus) => {
+  const handleRemoveInternal = useCallback((connectionId: string, newStatus: string) => {
     setRemovedIds(prev => {
       const next = new Set(prev);
       next.add(connectionId);

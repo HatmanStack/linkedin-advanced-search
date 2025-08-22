@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { HealAndRestoreModal } from '@/components/HealAndRestoreModal';
-import { healAndRestoreService, HealAndRestoreNotification } from '@/services/healAndRestoreService';
+import { healAndRestoreService } from '@/services/healAndRestoreService';
+import type { HealAndRestoreNotification } from '@/services/healAndRestoreService';
 
 interface HealAndRestoreContextType {
   isListening: boolean;
@@ -57,14 +58,14 @@ export const HealAndRestoreProvider: React.FC<HealAndRestoreProviderProps> = ({ 
         currentNotification.sessionId,
         autoApprove
       );
-      
+
       if (success) {
         console.log('Heal and restore authorized successfully');
       } else {
         console.error('Failed to authorize heal and restore');
       }
     }
-    
+
     setShowModal(false);
     setCurrentNotification(null);
   };
@@ -87,7 +88,7 @@ export const HealAndRestoreProvider: React.FC<HealAndRestoreProviderProps> = ({ 
       }}
     >
       {children}
-      
+
       {showModal && currentNotification && (
         <HealAndRestoreModal
           isOpen={showModal}

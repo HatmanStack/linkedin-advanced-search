@@ -1,6 +1,6 @@
-import type { Connection, Message } from '../types/index';
-import type { UserProfile } from './puppeteerApiService';
-import type { MessageGenerationRequest } from './messageGenerationService';
+import type { Connection, Message } from '@/types/index';
+import type { UserProfile } from '@/types';
+import type { MessageGenerationRequest } from '@/services/messageGenerationService';
 
 // =============================================================================
 // INTERFACES
@@ -152,7 +152,7 @@ export class ConnectionDataContextService {
       interests: userProfile.interests || [],
       created_at: userProfile.created_at,
       updated_at: userProfile.updated_at,
-      preferences: userProfile.preferences || {},
+      // Remove preferences field - not defined in UserProfile interface
     };
   }
 
@@ -321,8 +321,4 @@ export const connectionDataContextService = new ConnectionDataContextService();
 
 // The service class is already exported above with `export class ConnectionDataContextService`
 
-// Export interfaces
-export type {
-  MessageGenerationContext,
-  ContextPreparationOptions,
-};
+// Interfaces are already exported above with their declarations

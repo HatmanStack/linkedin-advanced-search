@@ -1,7 +1,7 @@
-import { puppeteerApiService } from './puppeteerApiService';
-import { lambdaApiService } from './lambdaApiService';
+import { puppeteerApiService } from '@/services/puppeteerApiService';
+import { lambdaApiService } from '@/services/lambdaApiService';
 import { v4 as uuidv4 } from 'uuid';
-import type { UserProfile } from '../contexts/UserProfileContext';
+import type { UserProfile } from '@/types';
 
 // Prevent concurrent or duplicate idea polling loops (e.g., accidental double clicks or re-renders)
 let ideasPollingInFlight = false;

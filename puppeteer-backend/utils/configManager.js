@@ -1,6 +1,6 @@
-import { logger } from './logger.js';
-import config from '../config/index.js';
-import ConfigValidator from './configValidator.js';
+import { logger } from '@/utils/logger.js';
+import config from '@/config/index.js';
+import ConfigValidator from '@/utils/configValidator.js';
 
 /**
  * Configuration Manager - Manages LinkedIn interaction configuration

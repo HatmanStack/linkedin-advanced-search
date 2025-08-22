@@ -3,7 +3,7 @@
  * Task 9: Comprehensive error handling and user feedback
  */
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import type { ProgressState, LoadingState } from '@/types/errorTypes';
 
 export const useProgressTracker = () => {
