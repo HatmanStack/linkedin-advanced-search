@@ -1,7 +1,7 @@
 import puppeteer from 'puppeteer';
-import config from '@/config/index.js';
-import { logger } from '@/utils/logger.js';
-import RandomHelpers from '@/utils/randomHelpers.js';
+import config from '../config/index.js';
+import { logger } from '../utils/logger.js';
+import RandomHelpers from '../utils/randomHelpers.js';
 
 export class PuppeteerService {
   constructor() {

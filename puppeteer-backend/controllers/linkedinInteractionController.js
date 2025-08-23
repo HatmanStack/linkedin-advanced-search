@@ -1,11 +1,11 @@
-import { logger } from '@/utils/logger.js';
-import config from '@/config/index.js';
-import { LinkedInInteractionService } from '@/services/linkedinInteractionService.js';
-import LinkedInService from '@/services/linkedinService.js';
-import LinkedInErrorHandler from '@/utils/linkedinErrorHandler.js';
-import LinkedInAuditLogger from '@/utils/linkedinAuditLogger.js';
+import { logger } from '../utils/logger.js';
+import config from '../config/index.js';
+import { LinkedInInteractionService } from '../services/linkedinInteractionService.js';
+import LinkedInService from '../services/linkedinService.js';
+import LinkedInErrorHandler from '../utils/linkedinErrorHandler.js';
+import LinkedInAuditLogger from '../utils/linkedinAuditLogger.js';
 import { v4 as uuidv4 } from 'uuid';
-import { linkedInInteractionQueue } from '@/utils/interactionQueue.js';
+import { linkedInInteractionQueue } from '../utils/interactionQueue.js';
 
 export class LinkedInInteractionController {
 

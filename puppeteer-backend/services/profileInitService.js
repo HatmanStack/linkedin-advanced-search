@@ -1,10 +1,10 @@
-import { logger } from '@/utils/logger.js';
-import { ProfileInitStateManager } from '@/utils/profileInitStateManager.js';
-import { profileInitMonitor } from '@/utils/profileInitMonitor.js';
-import RandomHelpers from '@/utils/randomHelpers.js';
+import { logger } from '../utils/logger.js';
+import { ProfileInitStateManager } from '../utils/profileInitStateManager.js';
+import { profileInitMonitor } from '../utils/profileInitMonitor.js';
+import RandomHelpers from '../utils/randomHelpers.js';
+import LinkedInErrorHandler from '../utils/linkedinErrorHandler.js';
 import fs from 'fs/promises';
 import path from 'path';
-import { v4 as uuidv4 } from 'uuid';
 
 
 export class ProfileInitService {
@@ -39,8 +39,14 @@ export class ProfileInitService {
       // Set auth token for DynamoDB operations
       this.dynamoDBService.setAuthToken(state.jwtToken);
 
-      // Perform LinkedIn login using existing service
-      await this._performLinkedInLogin(state);
+      // Perform LinkedIn login using existing LinkedInService
+      await this.linkedInService.login(
+        state.searchName,
+        state.searchPassword,
+        state.recursionCount > 0,
+        state.credentialsCiphertext,
+        'profile-init'
+      );
 
       // Process connection lists in batches
       const result = await this.processConnectionLists(state);
@@ -68,7 +74,7 @@ export class ProfileInitService {
 
     } catch (error) {
       const totalDuration = Date.now() - startTime;
-      const errorDetails = this._categorizeServiceError(error);
+      const errorDetails = LinkedInErrorHandler.categorizeError(error);
 
       logger.error('Profile initialization failed', {
         requestId,
@@ -103,84 +109,7 @@ export class ProfileInitService {
     }
   }
 
-  /**
-   * Perform LinkedIn login using existing LinkedInService patterns
-   * @param {Object} state - Profile initialization state
-   */
-  async _performLinkedInLogin(state) {
-    const requestId = state.requestId || 'unknown';
-    const startTime = Date.now();
 
-    try {
-      logger.info('Performing LinkedIn login for profile initialization', {
-        requestId,
-        username: state.searchName ? '[REDACTED]' : 'not provided',
-        recursionCount: state.recursionCount || 0,
-        isHealing: ProfileInitStateManager.isHealingState(state),
-        healPhase: state.healPhase
-      });
-
-      // Validate state before attempting login
-      ProfileInitStateManager.validateState(state);
-
-      // Decrypt just-in-time: prefer plaintext if present, otherwise decrypt ciphertext
-      await this.linkedInService.login(
-        state.searchName,
-        state.searchPassword,
-        state.recursionCount > 0,
-        state.credentialsCiphertext,
-        'profile-init'
-      );
-
-      const loginDuration = Date.now() - startTime;
-      logger.info('LinkedIn login successful for profile initialization', {
-        requestId,
-        loginDuration,
-        recursionCount: state.recursionCount || 0
-      });
-
-      // Log healing information if present
-      if (ProfileInitStateManager.isHealingState(state)) {
-        logger.info('Profile initialization healing context', {
-          requestId,
-          healPhase: state.healPhase,
-          healReason: state.healReason,
-          recursionCount: state.recursionCount
-        });
-      }
-
-    } catch (error) {
-      const loginDuration = Date.now() - startTime;
-      const errorDetails = this._categorizeServiceError(error);
-
-      logger.error('LinkedIn login failed during profile initialization', {
-        requestId,
-        loginDuration,
-        errorType: errorDetails.type,
-        errorCategory: errorDetails.category,
-        message: error.message,
-        isRecoverable: errorDetails.isRecoverable,
-        recursionCount: state.recursionCount || 0,
-        username: state.searchName ? '[REDACTED]' : 'not provided'
-      });
-
-      // Add context for better error tracking
-      const enhancedError = new Error(`LinkedIn authentication failed: ${error.message}`);
-      enhancedError.originalError = error;
-      enhancedError.context = {
-        requestId,
-        duration: loginDuration,
-        errorDetails,
-        state: {
-          recursionCount: state.recursionCount,
-          healPhase: state.healPhase,
-          healReason: state.healReason
-        }
-      };
-
-      throw enhancedError;
-    }
-  }
 
   /**
    * Process connection lists with batch processing
@@ -225,7 +154,18 @@ export class ProfileInitService {
         progressSummary: ProfileInitStateManager.getProgressSummary(state)
       };
 
+      // Track what we've processed in this run to prevent duplicates
+      const processedInThisRun = new Set();
+
       for (const connectionType of connectionTypes) {
+        // Skip if we've already processed this type in this run
+        if (processedInThisRun.has(connectionType)) {
+          logger.info(`Skipping ${connectionType} connections - already processed in this run`);
+          continue;
+        }
+
+
+
         // Skip if we're resuming from a specific list and this isn't it
         if (state.currentProcessingList && state.currentProcessingList !== connectionType) {
           logger.info(`Skipping ${connectionType} connections - resuming from ${state.currentProcessingList}`);
@@ -233,6 +173,9 @@ export class ProfileInitService {
         }
 
         logger.info(`Processing ${connectionType} connections`);
+
+        // Mark as being processed in this run
+        processedInThisRun.add(connectionType);
 
         try {
           const typeResult = await this._processConnectionType(
@@ -297,8 +240,8 @@ export class ProfileInitService {
       const timestamp = Date.now();
       const masterIndexFile = path.join('data', `profile-init-index-${timestamp}.json`);
 
-      // Simulate fetching connection counts (in real implementation, this would navigate to LinkedIn)
-      const connectionCounts = await this._getConnectionCounts();
+      // Use placeholder counts - actual counts will be determined during processing
+      const connectionCounts = { ally: 0, incoming: 0, outgoing: 0 };
 
       const masterIndex = {
         metadata: {
@@ -383,26 +326,14 @@ export class ProfileInitService {
       // Get connection list for this type
       let connections;
 
-      if (connectionType === 'incoming' || connectionType === 'outgoing') {
-        // Handle invitation collection
-        const invitationsData = await this._getSentInvitesList(state);
-
-        if (connectionType === 'incoming') {
-          connections = invitationsData.received;
-        } else if (connectionType === 'outgoing') {
-          connections = invitationsData.sent;
-        }
-
-        // Store invitation metadata for batch processing
-        result.invitationMetadata = {
-          totalReceived: invitationsData.totalReceived,
-          totalSent: invitationsData.totalSent,
-          totalInvitations: invitationsData.totalInvitations
-        };
-      } else {
-        // Handle regular connections (ally)
-        connections = await this._getConnectionList(connectionType, masterIndex, state);
-      }
+      // Get connections using LinkedInService
+      connections = await this.linkedInService.getConnections({
+        caller: 'profileinit',
+        connectionType: connectionType,
+        loadAll: true,
+        maxScrolls: 15,
+        timeoutMs: 20000
+      });
 
       if (!connections || connections.length === 0) {
         logger.info(`No ${connectionType} connections found`);
@@ -552,7 +483,7 @@ export class ProfileInitService {
       });
 
       // Process each connection in the batch
-      for (let i = 0; i < batchData.connections.length; i++) {
+      for (let i = 19; i < batchData.connections.length; i++) {
         // Skip if resuming from a specific index
         if (state.currentIndex && i < state.currentIndex) {
           logger.debug(`Skipping connection at index ${i} - resuming from index ${state.currentIndex}`, {
@@ -564,21 +495,8 @@ export class ProfileInitService {
           continue;
         }
 
-        const connectionData = batchData.connections[i];
-        const connectionStartTime = Date.now();
-
-        // Handle both invitation objects and simple profile ID strings
-        let connectionProfileId;
-        let connectionStatus = null;
-
-        if (typeof connectionData === 'object' && connectionData.profileId) {
-          // This is an invitation object with profileId and status
-          connectionProfileId = connectionData.profileId;
-          connectionStatus = connectionData.status;
-        } else {
-          // This is a simple profile ID string
-          connectionProfileId = connectionData;
-        }
+        let connectionProfileId = batchData.connections[i];
+        let connectionStatus = batchData.connectionType;
 
         try {
           // Update current processing index in state for recovery
@@ -591,30 +509,23 @@ export class ProfileInitService {
             profileId: connectionProfileId,
             status: connectionStatus
           });
-
           // Check if edge already exists to avoid reprocessing
-          const edgeExists = await this.checkEdgeExists(connectionProfileId);
+          const edgeExists = await this.dynamoDBService.checkEdgeExists(connectionProfileId);
 
           if (edgeExists) {
-            const connectionDuration = Date.now() - connectionStartTime;
-            logger.debug(`Skipping ${connectionProfileId}: Edge already exists`, {
-              requestId,
-              profileId: connectionProfileId,
-              connectionIndex: i,
-              duration: connectionDuration
-            });
+
+            logger.debug(`Skipping ${connectionProfileId}: Edge already exists`);
 
             result.skipped++;
             result.connections.push({
               profileId: connectionProfileId,
-              status: 'skipped',
+              action: 'skipped',
               reason: 'Edge already exists',
               index: i,
-              duration: connectionDuration
             });
 
             // Record skipped connection in monitoring
-            profileInitMonitor.recordConnection(requestId, connectionProfileId, 'skipped', connectionDuration, {
+            profileInitMonitor.recordConnection(requestId, connectionProfileId, 'skipped', {
               batchNumber: batchData.batchNumber,
               connectionIndex: i,
               reason: 'Edge already exists'
@@ -625,20 +536,19 @@ export class ProfileInitService {
 
           // Process the connection (create database entry)
           // Extract connection type from batch data or connection status
-          const connectionType = batchData.connectionType || connectionStatus || 'ally';
-          await this._processConnection(connectionProfileId, state, connectionType);
 
-          const connectionDuration = Date.now() - connectionStartTime;
+          await this._processConnection(connectionProfileId, state, connectionStatus);
+
+
           result.processed++;
           result.connections.push({
             profileId: connectionProfileId,
-            status: 'processed',
+            action: 'processed',
             index: i,
-            duration: connectionDuration
           });
 
           // Record successful connection processing in monitoring
-          profileInitMonitor.recordConnection(requestId, connectionProfileId, 'processed', connectionDuration, {
+          profileInitMonitor.recordConnection(requestId, connectionProfileId, 'processed', {
             batchNumber: batchData.batchNumber,
             connectionIndex: i,
             batchProgress: `${i + 1}/${batchData.connections.length}`
@@ -648,22 +558,16 @@ export class ProfileInitService {
             requestId,
             profileId: connectionProfileId,
             connectionIndex: i,
-            duration: connectionDuration,
             batchProgress: `${i + 1}/${batchData.connections.length}`
           });
 
-          // Add delay between connections to respect rate limits
-          await RandomHelpers.randomDelay(1000, 3000);
-
         } catch (error) {
-          const connectionDuration = Date.now() - connectionStartTime;
-          const errorDetails = this._categorizeServiceError(error);
+          const errorDetails = LinkedInErrorHandler.categorizeError(error);
 
           logger.error(`Failed to process connection ${connectionProfileId} at index ${i}`, {
             requestId,
             profileId: connectionProfileId,
             connectionIndex: i,
-            duration: connectionDuration,
             errorType: errorDetails.type,
             errorCategory: errorDetails.category,
             message: error.message,
@@ -679,11 +583,10 @@ export class ProfileInitService {
             errorType: errorDetails.type,
             errorCategory: errorDetails.category,
             index: i,
-            duration: connectionDuration
           });
 
           // Record error connection in monitoring
-          profileInitMonitor.recordConnection(requestId, connectionProfileId, 'error', connectionDuration, {
+          profileInitMonitor.recordConnection(requestId, connectionProfileId, 'error', {
             batchNumber: batchData.batchNumber,
             connectionIndex: i,
             errorType: errorDetails.type,
@@ -809,7 +712,6 @@ export class ProfileInitService {
   async _processConnection(connectionProfileId, state, connectionType) {
     const requestId = state.requestId || 'unknown';
     const startTime = Date.now();
-    let tempDir = null;
 
     try {
       logger.debug(`Processing connection: ${connectionProfileId}`, {
@@ -819,10 +721,6 @@ export class ProfileInitService {
         currentIndex: state.currentIndex
       });
 
-      // Create temporary directory for screenshots
-      tempDir = path.join('backend', 'screenshots', `linkedin-screenshots${uuidv4().substring(0, 6)}`);
-      await fs.mkdir(tempDir, { recursive: true });
-
       let screenshotResult = null;
       let databaseResult = null;
 
@@ -830,11 +728,10 @@ export class ProfileInitService {
         // Capture screenshots for required pages per status
         logger.debug(`Capturing screenshot for connection: ${connectionProfileId}`, {
           requestId,
-          profileId: connectionProfileId,
-          tempDir
+          profileId: connectionProfileId
         });
 
-        screenshotResult = await this.captureProfileScreenshot(connectionProfileId, tempDir, connectionType);
+        screenshotResult = await this.captureProfileScreenshot(connectionProfileId, connectionType);
 
         if (screenshotResult && screenshotResult.success) {
           logger.debug(`Screenshot captured successfully for ${connectionProfileId}`, {
@@ -870,7 +767,7 @@ export class ProfileInitService {
 
       } catch (processingError) {
         const processingDuration = Date.now() - startTime;
-        const errorDetails = this._categorizeServiceError(processingError);
+        const errorDetails = LinkedInErrorHandler.categorizeError(processingError);
 
         logger.error(`Failed to process connection ${connectionProfileId}`, {
           requestId,
@@ -908,7 +805,6 @@ export class ProfileInitService {
         totalDuration,
         message: error.message,
         stack: error.stack,
-        tempDir,
         currentState: {
           batch: state.currentBatch,
           index: state.currentIndex,
@@ -918,57 +814,22 @@ export class ProfileInitService {
 
       throw error;
 
-    } finally {
-      // Clean up temporary directory with enhanced error handling
-      if (tempDir) {
-        try {
-          await fs.rm(tempDir, { recursive: true, force: true });
-          logger.debug(`Cleaned up temp directory: ${tempDir}`, {
-            requestId,
-            profileId: connectionProfileId
-          });
-        } catch (cleanupError) {
-          logger.warn(`Failed to cleanup temp directory ${tempDir}`, {
-            requestId,
-            profileId: connectionProfileId,
-            cleanupError: cleanupError.message,
-            tempDir
-          });
-
-          // Don't throw cleanup errors, just log them
-        }
-      }
     }
   }
 
-  /**
-   * Check if edge exists between user and connection profile
-   * The user ID is extracted from the JWT token in the Lambda function
-   * @param {string} connectionProfileId - Connection profile ID
-   * @returns {Promise<boolean>} True if edge exists
-   */
-  async checkEdgeExists(connectionProfileId) {
-    try {
-      return await this.dynamoDBService.checkEdgeExists(connectionProfileId);
-    } catch (error) {
-      logger.error(`Failed to check edge existence for ${connectionProfileId}:`, error);
-      // Return false to allow processing if check fails
-      return false;
-    }
-  }
 
   /**
    * Capture profile screenshot using existing LinkedInContactService patterns
    * @param {string} profileId - LinkedIn profile ID
-   * @param {string} tempDir - Temporary directory for screenshots
+   * @param {string} status - Connection status (ally, incoming, outgoing, possible)
    * @returns {Promise<Object>} Screenshot capture result
    */
-  async captureProfileScreenshot(profileId, tempDir, status = 'ally') {
+  async captureProfileScreenshot(profileId, status = 'ally') {
     try {
       logger.info(`Capturing profile screenshot for: ${profileId}`);
 
       // Use existing LinkedInContactService method
-      const result = await this.linkedInContactService.takeScreenShotAndUploadToS3(profileId, tempDir, status);
+      const result = await this.linkedInContactService.takeScreenShotAndUploadToS3(profileId, status);
 
       logger.info(`Profile screenshot captured successfully for: ${profileId}`);
       return result;
@@ -979,142 +840,9 @@ export class ProfileInitService {
     }
   }
 
-  /**
-   * Get connection counts for different types by navigating to LinkedIn
-   * @returns {Promise<Object>} Connection counts
-   */
-  async _getConnectionCounts() {
-    try {
-      logger.info('Getting connection counts from LinkedIn');
 
-      const counts = {
-        ally: 0,
-        incoming: 0,
-        outgoing: 0
-      };
 
-      // Navigate to LinkedIn connections page
-      const connectionsUrl = 'https://www.linkedin.com/mynetwork/invite-connect/connections/';
-      await this.puppeteer.goto(connectionsUrl);
-      await RandomHelpers.randomDelay(3000, 5000);
 
-      try {
-        // Extract total connections count from the page
-        const allConnectionsCount = await this.puppeteer.getPage().evaluate(() => {
-          // Look for connection count indicators on the page
-          const countSelectors = [
-            '[data-test-id="connections-count"]',
-            '.mn-connections__header-count',
-            '.mn-connections__header h1',
-            'h1[data-test-id="connections-header"]'
-          ];
-
-          for (const selector of countSelectors) {
-            const element = document.querySelector(selector);
-            if (element) {
-              const text = element.textContent || element.innerText;
-              const match = text.match(/(\d+(?:,\d+)*)/);
-              if (match) {
-                return parseInt(match[1].replace(/,/g, ''));
-              }
-            }
-          }
-
-          // Fallback: count visible connection items
-          const connectionItems = document.querySelectorAll('[data-test-id="connection-card"], .mn-connection-card');
-          return connectionItems.length;
-        });
-
-        counts.ally = allConnectionsCount || 0;
-        logger.info(`Found ${counts.ally} total ally connections`);
-
-      } catch (error) {
-        logger.warn('Could not extract connection count from page:', error.message);
-      }
-
-      // Navigate to pending invitations
-      try {
-        const pendingUrl = 'https://www.linkedin.com/mynetwork/invitation-manager/';
-        await this.puppeteer.goto(pendingUrl);
-        await RandomHelpers.randomDelay(2000, 4000);
-
-        const pendingCount = await this.puppeteer.getPage().evaluate(() => {
-          const pendingItems = document.querySelectorAll('[data-test-id="invitation-card"], .invitation-card');
-          return pendingItems.length;
-        });
-
-        counts.incoming = pendingCount || 0;
-        logger.info(`Found ${counts.incoming} incoming connections`);
-
-      } catch (error) {
-        logger.warn('Could not get pending connections count:', error.message);
-      }
-
-      // Navigate to sent invitations
-      try {
-        const sentUrl = 'https://www.linkedin.com/mynetwork/invitation-manager/sent/';
-        await this.puppeteer.goto(sentUrl);
-        await RandomHelpers.randomDelay(2000, 4000);
-
-        const sentCount = await this.puppeteer.getPage().evaluate(() => {
-          const sentItems = document.querySelectorAll('[data-test-id="sent-invitation-card"], .sent-invitation-card');
-          return sentItems.length;
-        });
-
-        counts.outgoing = sentCount || 0;
-        logger.info(`Found ${counts.outgoing} outgoing connections`);
-
-      } catch (error) {
-        logger.warn('Could not get sent connections count:', error.message);
-      }
-
-      logger.info('Connection counts retrieved:', counts);
-      return counts;
-
-    } catch (error) {
-      logger.error('Failed to get connection counts:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Get connection list for a specific type by navigating to LinkedIn and extracting profile IDs
-   * @param {string} connectionType - Type of connections (ally)
-   * @param {Object} masterIndex - Master index for file management
-   * @returns {Promise<Array>} Array of connection profile IDs
-   */
-  async _getConnectionList(connectionType, masterIndex, state) {
-    try {
-      logger.info(`Getting ${connectionType} connection list from LinkedIn`);
-
-      // Navigate directly to the connections page
-      const connectionsUrl = 'https://www.linkedin.com/mynetwork/invite-connect/connections/';
-      await this.puppeteer.goto(connectionsUrl);
-      await RandomHelpers.randomDelay(1500, 2500);
-
-      // Use puppeteerService.extractLinks to gather all profile IDs with autoscroll
-      const profileIds = await this.puppeteer.extractLinks(null, {
-        autoScroll: true,
-        maxScrolls: 10,
-        timeoutMs: 15000
-      });
-
-      logger.info(`Extracted ${profileIds.length} ${connectionType} connection profile IDs`);
-
-      if (profileIds.length > 0) {
-        const sampleIds = profileIds.slice(0, 3).map(id => id.substring(0, 5) + '...');
-        logger.debug(`Sample profile IDs: ${sampleIds.join(', ')}`);
-      }
-
-      return profileIds;
-
-    } catch (error) {
-      logger.error(`Failed to get ${connectionType} connection list:`, error);
-      throw error;
-    }
-  }
-
-  // Removed custom link collection in favor of puppeteerService.extractLinks
 
   /**
    * Load existing links from saved files for healing recovery
@@ -1133,7 +861,7 @@ export class ProfileInitService {
           const filePath = path.join('data', fileRef.fileName || fileRef);
           const fileContent = await fs.readFile(filePath, 'utf8');
           const fileData = JSON.parse(fileContent);
-          
+
           if (fileData.links) {
             allLinks.push(...fileData.links);
           } else if (fileData.invitations) {
@@ -1191,7 +919,7 @@ export class ProfileInitService {
    */
   async _handleListCreationHealing(state, connectionType, expansionAttempt, currentFileIndex, masterIndex, error) {
     const requestId = state.requestId || 'unknown';
-    
+
     logger.warn(`List creation failed for ${connectionType}. Initiating healing.`, {
       requestId,
       connectionType,
@@ -1369,161 +1097,9 @@ export class ProfileInitService {
     }
   }
 
-  /**
-   * Collect sent invites from LinkedIn invitation manager
-   * @returns {Promise<Object>} Object containing received and sent invitations with status labels
-   */
-  async _getSentInvitesList(state) {
-    try {
-      logger.info('Getting sent and received invites from LinkedIn');
 
-      // Received invitations (default invitation manager)
-      const receivedUrl = 'https://www.linkedin.com/mynetwork/invitation-manager/';
-      await this.puppeteer.goto(receivedUrl);
-      await RandomHelpers.randomDelay(1500, 2500);
-      const receivedIds = await this.puppeteer.extractLinks(null, {
-        autoScroll: true,
-        maxScrolls: 10,
-        timeoutMs: 15000
-      });
 
-      // Sent invitations
-      const sentUrl = 'https://www.linkedin.com/mynetwork/invitation-manager/sent/';
-      await this.puppeteer.goto(sentUrl);
-      await RandomHelpers.randomDelay(1500, 2500);
-      const sentIds = await this.puppeteer.extractLinks(null, {
-        autoScroll: true,
-        maxScrolls: 10,
-        timeoutMs: 15000
-      });
 
-      const receivedInvitations = receivedIds.map(id => ({ profileId: id, status: 'incoming' }));
-      const sentInvitations = sentIds.map(id => ({ profileId: id, status: 'outgoing' }));
-
-      const result = {
-        received: receivedInvitations,
-        sent: sentInvitations,
-        totalReceived: receivedInvitations.length,
-        totalSent: sentInvitations.length,
-        totalInvitations: receivedInvitations.length + sentInvitations.length
-      };
-
-      logger.info('Collected invitations summary:', {
-        received: result.totalReceived,
-        sent: result.totalSent,
-        total: result.totalInvitations
-      });
-
-      return result;
-
-    } catch (error) {
-      logger.error('Failed to get sent invites list:', error);
-      throw error;
-    }
-  }
-  // Removed custom invitation link collection and scrolling helpers in favor of puppeteerService.extractLinks
-
-  /**
-   * Categorize service-level errors for better handling and logging
-   * @param {Error} error - The error to categorize
-   * @returns {Object} Error categorization details
-   */
-  _categorizeServiceError(error) {
-    const errorMessage = error.message || error.toString();
-    const errorStack = error.stack || '';
-
-    // Authentication errors
-    if (/login.*failed|authentication.*failed|invalid.*credentials|unauthorized|captcha|checkpoint/i.test(errorMessage)) {
-      return {
-        type: 'AuthenticationError',
-        category: 'authentication',
-        isRecoverable: true,
-        severity: 'high',
-        retryable: true,
-        maxRetries: 3
-      };
-    }
-
-    // Network and connectivity errors
-    if (/network.*error|connection.*reset|timeout|ECONNRESET|ENOTFOUND|ETIMEDOUT|ERR_NETWORK/i.test(errorMessage)) {
-      return {
-        type: 'NetworkError',
-        category: 'network',
-        isRecoverable: true,
-        severity: 'medium',
-        retryable: true,
-        maxRetries: 5
-      };
-    }
-
-    // LinkedIn rate limiting and restrictions
-    if (/rate.*limit|too.*many.*requests|linkedin.*error|blocked|restricted/i.test(errorMessage)) {
-      return {
-        type: 'LinkedInRateLimitError',
-        category: 'linkedin',
-        isRecoverable: true,
-        severity: 'high',
-        retryable: true,
-        maxRetries: 2,
-        backoffMultiplier: 2
-      };
-    }
-
-    // Database operation errors
-    if (/dynamodb|database|aws.*error|ValidationException|ResourceNotFoundException|ConditionalCheckFailedException/i.test(errorMessage)) {
-      return {
-        type: 'DatabaseError',
-        category: 'database',
-        isRecoverable: false,
-        severity: 'high',
-        retryable: false
-      };
-    }
-
-    // Browser/Puppeteer errors
-    if (/puppeteer|browser|page.*crashed|navigation.*failed|target.*closed|protocol.*error/i.test(errorMessage)) {
-      return {
-        type: 'BrowserError',
-        category: 'browser',
-        isRecoverable: true,
-        severity: 'medium',
-        retryable: true,
-        maxRetries: 3
-      };
-    }
-
-    // File system errors
-    if (/ENOENT|EACCES|EMFILE|file.*not.*found|permission.*denied|disk.*full/i.test(errorMessage)) {
-      return {
-        type: 'FileSystemError',
-        category: 'filesystem',
-        isRecoverable: false,
-        severity: 'medium',
-        retryable: false
-      };
-    }
-
-    // Connection-level errors (profile-specific)
-    if (/profile.*not.*found|profile.*private|profile.*unavailable|screenshot.*failed|invalid.*profile/i.test(errorMessage)) {
-      return {
-        type: 'ConnectionError',
-        category: 'connection',
-        isRecoverable: false,
-        severity: 'low',
-        retryable: false,
-        skipConnection: true
-      };
-    }
-
-    // Default categorization
-    return {
-      type: 'UnknownError',
-      category: 'unknown',
-      isRecoverable: false,
-      severity: 'high',
-      retryable: false
-    };
-  }
 
   /**
    * Enhanced error handling with retry logic and detailed logging
