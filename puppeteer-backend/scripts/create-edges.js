@@ -1,6 +1,6 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, PutCommand, GetCommand } from "@aws-sdk/lib-dynamodb";
-import { logger } from '@/utils/logger.js';
+import { logger } from '../utils/logger.js';
 import dotenv from 'dotenv';
 import { writeFile, readFile } from 'fs/promises';
 

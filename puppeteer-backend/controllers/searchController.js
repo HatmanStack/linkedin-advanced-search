@@ -1,15 +1,15 @@
-import config from '@/config/index.js';
-import { logger } from '@/utils/logger.js';
-import FileHelpers from '@/utils/fileHelpers.js';
-import PuppeteerService from '@/services/puppeteerService.js';
-import LinkedInService from '@/services/linkedinService.js';
-import LinkedInContactService from '@/services/linkedinContactService.js';
-import DynamoDBService from '@/services/dynamoDBService.js'
-import { SearchRequestValidator } from '@/utils/searchRequestValidator.js';
-import { SearchStateManager } from '@/utils/searchStateManager.js';
-import { LinkCollector } from '@/utils/linkCollector.js';
-import { ContactProcessor } from '@/utils/contactProcessor.js';
-import { HealingManager } from '@/utils/healingManager.js';
+import config from '../config/index.js';
+import { logger } from '../utils/logger.js';
+import FileHelpers from '../utils/fileHelpers.js';
+import PuppeteerService from '../services/puppeteerService.js';
+import LinkedInService from '../services/linkedinService.js';
+import LinkedInContactService from '../services/linkedinContactService.js';
+import DynamoDBService from '../services/dynamoDBService.js'
+import { SearchRequestValidator } from '../utils/searchRequestValidator.js';
+import { SearchStateManager } from '../utils/searchStateManager.js';
+import { LinkCollector } from '../utils/linkCollector.js';
+import { ContactProcessor } from '../utils/contactProcessor.js';
+import { HealingManager } from '../utils/healingManager.js';
 import path from 'path';
 import fs from 'fs/promises';
 

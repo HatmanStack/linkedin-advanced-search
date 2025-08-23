@@ -1,12 +1,13 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import config from '@/config/index.js';
-import { logger } from '@/utils/logger.js';
+import config from '../config/index.js';
+import { logger } from '../utils/logger.js';
 // sharp import removed; this service no longer saves screenshots directly
-import RandomHelpers from '@/utils/randomHelpers.js';
+import RandomHelpers from '../utils/randomHelpers.js';
 import DynamoDBService from './dynamoDBService.js';
+import LinkedInContactService from './linkedinContactService.js';
 // edgeManager removed; using DynamoDBService unified methods
 // fs and path imports removed; temp directories are now managed by LinkedInContactService
-import { decryptSealboxB64Tag } from '@/utils/crypto.js';
+import { decryptSealboxB64Tag } from '../utils/crypto.js';
 
 
 export class LinkedInService {
@@ -18,6 +19,7 @@ export class LinkedInService {
     this.model = this.genAI ?
       this.genAI.getGenerativeModel({ model: "gemini-2.0-flash" }) : null;
     this.dynamoDBService = new DynamoDBService();
+    this.linkedInContactService = new LinkedInContactService(puppeteerService);
   }
 
 
@@ -145,7 +147,7 @@ export class LinkedInService {
       // Press Enter
       await this.puppeteer.getPage().keyboard.press('ArrowDown');
       await this.puppeteer.getPage().keyboard.press('Enter');
-      
+
 
       // Click on company result
       const companyLinkSelector = `a[aria-label*="${companyName}"], div.search-nec__hero-kcard-v2-content a`;
@@ -187,7 +189,7 @@ export class LinkedInService {
       }
       logger.info('Clicked Jobs tab successfully.');
 
-      
+
       logger.info('Waited after clicking Jobs tab.');
 
       // Click "Show all jobs"
@@ -334,7 +336,7 @@ export class LinkedInService {
       let urlParts = ['https://www.linkedin.com/search/results/people/?'];
       let queryParams = [];
       queryParams.push(`currentCompany=%5B162479%5D`);
-      
+
       if (extractedCompanyNumber) {
         queryParams.push(`currentCompany=%5B"${extractedCompanyNumber}"%5D`);
       }
@@ -479,14 +481,132 @@ export class LinkedInService {
     }
   }
 
-  async createDynamoDBEntryForContact(profileId) {
+  /**
+   * Scroll to load connections with intelligent detection of when to stop
+   * @param {string} connectionType - Type of connections being loaded
+   * @param {number} maxScrolls - Maximum number of scroll attempts
+   * @returns {Promise<number>} Number of connections found after scrolling
+   */
+  async scrollToLoadConnections(connectionType, maxScrolls = 5) {
+    const page = this.puppeteer.getPage();
+    let previousConnectionCount = 0;
+    let stableCount = 0;
+    const stableLimit = 5; // Stop after 5 consecutive stable iterations
+
+    logger.info(`Starting intelligent scroll for ${connectionType} connections (max ${maxScrolls} scrolls)`);
+
+    for (let i = 0; i < maxScrolls; i++) {
+      try {
+        // Check current connection count
+        const currentConnectionCount = await page.evaluate(() => {
+          // Different selectors for different connection types
+          const selectors = [
+            'a[href*="/in/"]', // General LinkedIn profile links
+            '.mn-connection-card', // Connection cards
+            '.invitation-card', // Invitation cards
+            '.artdeco-entity-lockup', // Entity lockup cards
+            '[data-test-id="connection-card"]' // Test ID based cards
+          ];
+
+          let totalCount = 0;
+          selectors.forEach(selector => {
+            const elements = document.querySelectorAll(selector);
+            totalCount = Math.max(totalCount, elements.length);
+          });
+
+          return totalCount;
+        });
+
+        // Check if we found new connections
+        if (currentConnectionCount > previousConnectionCount) {
+          logger.debug(`Scroll ${i + 1}: Found ${currentConnectionCount} connections (+${currentConnectionCount - previousConnectionCount})`);
+          previousConnectionCount = currentConnectionCount;
+          stableCount = 0;
+        } else {
+          stableCount++;
+          logger.debug(`Scroll ${i + 1}: No new connections found (${currentConnectionCount} total, stable count: ${stableCount})`);
+        }
+
+        // Stop if we've been stable for too long
+        if (stableCount >= stableLimit) {
+          logger.info(`Stopping scroll - no new connections found for ${stableLimit} attempts`);
+          break;
+        }
+
+        // Skip "Show more" button clicking since it doesn't work - use mouse wheel scroll
+        // Use mouse wheel scroll which actually works to load more connections
+        await page.mouse.wheel({ deltaY: 1000 });
+        await RandomHelpers.randomDelay(800, 1500); // Wait for content to load
+
+      } catch (error) {
+        logger.warn(`Error during scroll ${i + 1}:`, error.message);
+        break;
+      }
+    }
+
+    logger.info(`Scroll completed. Final connection count: ${previousConnectionCount}`);
+    return previousConnectionCount;
+  }
+
+  /**
+   * Generic method to get connections from LinkedIn
+   * @param {Object} options - Configuration options
+   * @param {string} options.connectionType - 'ally', 'incoming', 'outgoing' (optional, default: 'ally')
+   * @param {number} options.maxScrolls - Maximum number of scrolls (optional, default: 50)
+   * @returns {Promise<Array>} Array of connection profile IDs
+   */
+  async getConnections(options = {}) {
+    const {
+      connectionType = 'ally',
+      maxScrolls = 5
+    } = options;
+
     try {
-      const activityUrl = `https://www.linkedin.com/in/${profileId}/`;
-      logger.debug(`Analyzing contact activity: ${activityUrl}`);
+      logger.info(`Getting ${connectionType} connections`, {
+        connectionType,
+        maxScrolls
+      });
+
+      // Navigate to connections page based on type
+      let targetUrl;
+      switch (connectionType) {
+        case 'ally':
+          targetUrl = 'https://www.linkedin.com/mynetwork/invite-connect/connections/';
+          break;
+        case 'incoming':
+          targetUrl = 'https://www.linkedin.com/mynetwork/invitation-manager/';
+          break;
+        case 'outgoing':
+          targetUrl = 'https://www.linkedin.com/mynetwork/invitation-manager/sent/';
+          break;
+        default:
+          throw new Error(`Unknown connection type: ${connectionType}`);
+      }
+
+      await this.puppeteer.goto(targetUrl);
+      await this.puppeteer.waitForSelector('body', { timeout: 10000 });
+
+      // Scroll to load all connections dynamically
+      await this.scrollToLoadConnections(connectionType, maxScrolls);
+
+      // Extract profile links after scrolling is complete
+      const profileIds = await this.puppeteer.extractLinks();
+
+      logger.info(`Extracted ${profileIds.length} ${connectionType} connections`);
+
+      if (profileIds.length > 0) {
+        const sampleIds = profileIds.slice(0, 3).map(id => id.substring(0, 5) + '...');
+        logger.debug(`Sample profile IDs: ${sampleIds.join(', ')}`);
+      }
+
+      return profileIds;
+
     } catch (error) {
-      logger.error(`Faled to add contact to DynamoDB for ${profileID}: `, error)
+      logger.error(`Failed to get ${connectionType} connections:`, error);
+      throw error;
     }
   }
+
 }
 
 export default LinkedInService;

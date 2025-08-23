@@ -10,11 +10,12 @@ import sharp from 'sharp';
 export class LinkedInContactService {
   constructor(puppeteerService) {
     this.puppeteer = puppeteerService;
-    this.s3Client = new S3Client({ 
-      region: process.env.AWS_REGION || "us-west-2" 
+    this.s3Client = new S3Client({
+      region: process.env.AWS_REGION || "us-west-2"
     });
     this.bucketName = process.env.S3_SCREENSHOT_BUCKET_NAME || "";
     this.cloudFrontDomain = process.env.CLOUDFRONT_DOMAIN || "";
+    this.screenshotsBaseDir = process.env.SCREENSHOTS_DIR || path.join(process.cwd(), 'screenshots');
   }
 
   /**
@@ -48,7 +49,7 @@ export class LinkedInContactService {
 
         previousHeight = height;
         previousTextLength = textLength;
-        await page.waitForTimeout(500);
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
     } catch (err) {
       logger.debug(`Stability check skipped/failed: ${err.message}`);
@@ -59,29 +60,23 @@ export class LinkedInContactService {
       await page.evaluate(() => {
         window.scrollTo(0, 0);
       });
-      await page.waitForTimeout(300);
+      await new Promise(resolve => setTimeout(resolve, 300));
     } catch (err) {
       logger.debug(`Scroll-to-top before screenshot failed: ${err.message}`);
     }
   }
 
-  async takeScreenShotAndUploadToS3(profileId, tempDir, status = 'ally', options = {}) {
+  async takeScreenShotAndUploadToS3(profileId, status = 'ally', options = {}) {
     const s3UploadedObjects = [];
-    // Ensure a working temp directory; manage lifecycle locally
-    let workingTempDir = tempDir;
-    let createdTempDir = false;
-    
+    let workingTempDir;
+
     try {
       logger.info(`Taking screenshots for profile: ${profileId} (status=${status})`);
-      if (!workingTempDir) {
-        const base = path.join(process.cwd(), 'screenshots');
-        try { await fs.mkdir(base, { recursive: true }); } catch {}
-        workingTempDir = await fs.mkdtemp(path.join(base, 'linkedin-screenshots-'));
-        createdTempDir = true;
-      }
+      workingTempDir = await this._createSessionDirectory(profileId);
+
       // Capture the required set of screenshots based on status and optional selection
       await this.captureRequiredScreenshots(profileId, workingTempDir, status, options);
-      
+
       // Collect all PNG screenshots from temp directory
       const allScreenshots = await fs.readdir(workingTempDir);
       const screenshotPaths = allScreenshots
@@ -96,10 +91,10 @@ export class LinkedInContactService {
       s3UploadedObjects.push(...uploadResults);
 
       logger.info(`Successfully captured ${s3UploadedObjects.length} screenshots`);
-      
+
       return {
         success: true,
-        message: `Screenshots captured and uploaded (${s3UploadedObjects.length} parts)` ,
+        message: `Screenshots captured and uploaded (${s3UploadedObjects.length} parts)`,
         data: {
           cloudFrontUrls: s3UploadedObjects.map(obj => obj.cloudFrontUrl),
           s3ObjectUrls: s3UploadedObjects.map(obj => obj.s3ObjectUrl),
@@ -120,6 +115,20 @@ export class LinkedInContactService {
   }
 
   /**
+   * Creates a session-specific temporary directory for screenshots
+   */
+  async _createSessionDirectory(profileId) {
+    try {
+      await fs.mkdir(this.screenshotsBaseDir, { recursive: true });
+    } catch (error) {
+      // Directory might already exist, ignore error
+    }
+
+    const sessionDir = await fs.mkdtemp(path.join(this.screenshotsBaseDir, `linkedin-screenshots-${profileId}-`));
+    return sessionDir;
+  }
+
+  /**
    * Capture the required screenshots for a profile depending on the connection status.
    * - ally: Reactions, Profile, Recent Activity, About This Profile, Message History
    * - incoming/outgoing: Reactions, Profile, Recent Activity, About This Profile
@@ -129,140 +138,96 @@ export class LinkedInContactService {
     const page = this.puppeteer.getPage();
     // Determine default screens by status; options.screens can override
     let defaultScreens;
-    if (status === 'incoming' || status === 'outgoing') {
+    if (status === 'incoming' || status === 'outgoing' || status == 'ally') {
       defaultScreens = ['Reactions', 'Profile', 'Activity', 'Recent-Activity', 'About-This-Profile'];
     } else if (status === 'possible') {
       defaultScreens = ['Reactions', 'Profile', 'Recent-Activity'];
     } else {
-      // ally or general: include messages
-      defaultScreens = ['Reactions', 'Profile', 'Activity', 'Recent-Activity', 'About-This-Profile', 'Messages'];
+      // ally or general: include messages and about profile
+      return null;
     }
-    const desired = Array.isArray(options.screens) && options.screens.length > 0
-      ? new Set(options.screens)
-      : new Set(defaultScreens);
 
-    // 0) Reactions (do this first to reuse current page from analysis)
-    try {
-      if (desired && !desired.has('Reactions')) { throw new Error('skip'); }
-      const reactionsUrl = `https://www.linkedin.com/in/${profileId}/recent-activity/reactions/`;
-      const currentUrl = page.url();
-      if (!currentUrl.includes(`/in/${profileId}/recent-activity/reactions/`)) {
-        await this.puppeteer.goto(reactionsUrl);
+   
+      try {
+          const reactionsUrl = `https://www.linkedin.com/in/${profileId}/recent-activity/reactions/`;
+          await this.puppeteer.goto(reactionsUrl);
+          await RandomHelpers.randomDelay(1200, 2000);
+          await this._autoScroll();
+          await this._captureSingleScreenshot(tempDir, profileId, 'Reactions');
+        
+      } catch (err) {
+        logger.warn(`Reactions screenshot failed for ${profileId}: ${err.message}`);
       }
-      await RandomHelpers.randomDelay(1200, 2000);
-      await this._autoScroll();
-      await this._captureSingleScreenshot(tempDir, profileId, 'Reactions');
-    } catch (err) {
-      if (err.message !== 'skip') logger.warn(`Reactions screenshot failed for ${profileId}: ${err.message}`);
-    }
-
-    // 1) Profile page
+  
+   
     try {
-      if (desired && !desired.has('Profile')) { throw new Error('skip'); }
+      
       const profileUrl = `https://www.linkedin.com/in/${profileId}/`;
       await this.puppeteer.goto(profileUrl);
       await RandomHelpers.randomDelay(1500, 2500);
       await this._expandAllContent();
       await this._captureSingleScreenshot(tempDir, profileId, 'Profile');
-    } catch (err) {
-      if (err.message !== 'skip') logger.warn(`Profile page screenshot failed for ${profileId}: ${err.message}`);
+    } 
+      catch (err){
+      logger.warn(`Profile page screenshot failed for ${profileId}: ${err.message}`);
     }
-
-    // 2) Activity (Posts)
+  
     try {
-      if (desired && !desired.has('Activity')) { throw new Error('skip'); }
-      const activityPostsUrl = `https://www.linkedin.com/in/${profileId}/recent-activity/posts/`;
-      await this.puppeteer.goto(activityPostsUrl);
-      await RandomHelpers.randomDelay(1500, 2500);
-      await this._autoScroll();
-      await this._captureSingleScreenshot(tempDir, profileId, 'Activity');
-    } catch (err) {
-      if (err.message !== 'skip') logger.warn(`Activity (posts) screenshot failed for ${profileId}: ${err.message}`);
-    }
-
-    // 3) Recent activity (All)
-    try {
-      if (desired && !desired.has('Recent-Activity')) { throw new Error('skip'); }
+      
       const activityUrl = `https://www.linkedin.com/in/${profileId}/recent-activity/all/`;
       await this.puppeteer.goto(activityUrl);
       await RandomHelpers.randomDelay(1500, 2500);
       await this._autoScroll();
       await this._captureSingleScreenshot(tempDir, profileId, 'Recent-Activity');
     } catch (err) {
-      if (err.message !== 'skip') logger.warn(`Recent activity (all) screenshot failed for ${profileId}: ${err.message}`);
+      logger.warn(`Recent activity (all) screenshot failed for ${profileId}: ${err.message}`);
     }
 
-    // 4) About This Profile overlay
+    
+    if (defaultScreens.includes('Activity')) { 
+      try {
+        const activityPostsUrl = `https://www.linkedin.com/in/${profileId}/recent-activity/posts/`;
+        await this.puppeteer.goto(activityPostsUrl);
+        await RandomHelpers.randomDelay(1500, 2500);
+        await this._autoScroll();
+        await this._captureSingleScreenshot(tempDir, profileId, 'Activity');
+      } catch (err) {
+        logger.warn(`Activity (posts) screenshot failed for ${profileId}: ${err.message}`);
+      }
+    }
+
+   
+
+    
+    if (defaultScreens.includes('About-This-Profile')) {
     try {
-      if (desired && !desired.has('About-This-Profile')) { throw new Error('skip'); }
+      
+     
+      logger.debug(`Capturing About-This-Profile for ${profileId}`);
       const aboutUrl = `https://www.linkedin.com/in/${profileId}/overlay/about-this-profile/`;
       await this.puppeteer.goto(aboutUrl);
       await RandomHelpers.randomDelay(1500, 2500);
       // Wait briefly to allow overlay to render
-      await page.waitForTimeout(800);
+      await new Promise(resolve => setTimeout(resolve, 800));
       await this._captureSingleScreenshot(tempDir, profileId, 'About-This-Profile');
-    } catch (err) {
-      if (err.message !== 'skip') logger.warn(`About This Profile screenshot failed for ${profileId}: ${err.message}`);
+      logger.debug(`Successfully captured About-This-Profile for ${profileId}`);
+     
+  }catch (err) {
+      
+        logger.warn(`About This Profile screenshot failed for ${profileId}: ${err.message}`);
+        logger.debug(`About This Profile error details:`, { profileId, error: err.stack });
     }
+  }
+    
 
-    // 5) Message History (only for ally)
-    if (status !== 'incoming' && status !== 'outgoing') {
-      try {
-        if (desired && !desired.has('Messages')) { throw new Error('skip'); }
-        const profileUrl = `https://www.linkedin.com/in/${profileId}/`;
-        await this.puppeteer.goto(profileUrl);
-        await RandomHelpers.randomDelay(1500, 2500);
-
-        // Attempt to click the Message button and wait for the overlay
-        await page.evaluate(() => {
-          const isVisible = el => {
-            if (!el) return false;
-            const style = window.getComputedStyle(el);
-            const rect = el.getBoundingClientRect();
-            return style && style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
-          };
-          const candidates = Array.from(document.querySelectorAll('a,button'));
-          for (const el of candidates) {
-            const text = (el.textContent || '').trim().toLowerCase();
-            const aria = (el.getAttribute('aria-label') || '').trim().toLowerCase();
-            if (isVisible(el) && (text === 'message' || aria.includes('message'))) {
-              el.click();
-              return true;
-            }
-          }
-          return false;
-        });
-
-        // Wait for any of the message overlay containers
-        const overlaySelectors = [
-          '.msg-overlay-conversation-bubble',
-          '[data-control-name="overlay.close_conversation_window"]',
-          '.msg-conversations-container',
-          '.msg-s-message-list',
-          'div[role="dialog"] .msg-s-message-list'
-        ];
-        const timeoutMs = 5000;
-        let found = false;
-        for (const sel of overlaySelectors) {
-          try { await page.waitForSelector(sel, { timeout: timeoutMs }); found = true; break; } catch(_) {}
-        }
-        if (!found) {
-          logger.debug('Message overlay not detected with standard selectors; proceeding with page screenshot');
-        }
-
-        await this._captureSingleScreenshot(tempDir, profileId, 'Messages');
-      } catch (err) {
-        if (err.message !== 'skip') logger.warn(`Message history screenshot failed for ${profileId}: ${err.message}`);
-      }
-    }
   }
 
   async _expandAllContent() {
     logger.info('Expanding all "see more" content...');
-    
+
     // Initial scroll to load content
     await this._autoScroll();
-    
+
     // Find and click "see more" buttons
     const seeMoreSelectors = [
       '::-p-aria(…see more)',
@@ -303,13 +268,12 @@ export class LinkedInContactService {
     logger.info(`Content expansion completed after ${attempts} attempts`);
   }
 
-  async _autoScroll() {
-    await this.puppeteer.getPage().evaluate(async () => {
+  async _autoScroll(maxScrolls = 20) {
+    await this.puppeteer.getPage().evaluate(async (maxScrolls) => {
       await new Promise((resolve) => {
         let totalHeight = 0;
         const distance = 100;
         const delay = 100;
-        const maxScrolls = 20;
         let scrolls = 0;
 
         const timer = setInterval(() => {
@@ -324,10 +288,7 @@ export class LinkedInContactService {
           }
         }, delay);
       });
-        
-    
-    });
-
+    }, maxScrolls);
   }
 
   async _captureSingleScreenshot(tempDir, profileId, label = 'Profile') {
@@ -348,11 +309,11 @@ export class LinkedInContactService {
     logger.info('Captured single screenshot.');
 
     // Crop the screenshot to width 850, left 0, top 0, keep original height
-    
+
     const sanitized = String(label).replace(/[^a-z0-9\-]/gi, '-');
     // Keep filename without timestamp here; timestamp applied at upload
     const croppedPath = path.join(tempDir, `${profileId}-${sanitized}.png`);
-    
+
     const image = sharp(screenshotPath);
     const metadata = await image.metadata();
     // Preserve original analyzeContact sizing for Reactions; keep existing for others
@@ -368,7 +329,7 @@ export class LinkedInContactService {
     await fs.unlink(screenshotPath);
 
     return [croppedPath];
-}
+  }
 
   async _uploadToS3(screenshotPaths, profileId, sessionTimestamp) {
     logger.info(`Uploading ${screenshotPaths.length} screenshots to S3...`);
@@ -412,7 +373,7 @@ export class LinkedInContactService {
 
   async _cleanup(tempDir) {
     try {
-      await fs.rm(tempDir, { recursive: true, force: true });
+      //await fs.rm(tempDir, { recursive: true, force: true });
       logger.debug(`Cleaned up temporary directory: ${tempDir}`);
     } catch (error) {
       logger.error(`Cleanup failed for ${tempDir}:`, error);

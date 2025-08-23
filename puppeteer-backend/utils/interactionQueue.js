@@ -1,5 +1,5 @@
-import { logger } from '@/utils/logger.js';
-import config from '@/config/index.js';
+import { logger } from './logger.js';
+import config from '../config/index.js';
 
 /**
  * Simple in-memory FIFO queue with configurable concurrency.
