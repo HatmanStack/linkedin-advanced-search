@@ -20,7 +20,7 @@ Parameters:
     Default: /process
   NodeRoutePath:
     Type: String
-    Default: /pinecone-search
+    Default: /search
   UserPoolId:
     Type: String
   UserPoolClientId:

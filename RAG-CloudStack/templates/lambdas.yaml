@@ -19,19 +19,6 @@ Parameters:
   DynamoTableName:
     Type: String
     Description: DynamoDB table name the lambdas can access
-  PineconeApiKey:
-    Type: String
-    Default: ''
-    NoEcho: true
-    Description: Optional Pinecone API key for Node Lambda
-  PineconeHost:
-    Type: String
-    Default: ''
-    Description: Optional Pinecone host URL for Node Lambda
-  PineconeIndexName:
-    Type: String
-    Default: ''
-    Description: Optional Pinecone index name for Node Lambda
 
 Resources:
   LambdaExecutionRole:
@@ -93,9 +80,6 @@ Resources:
         Variables:
           DYNAMODB_TABLE: !Ref DynamoTableName
           DYNAMODB_TABLE_NAME: !Ref DynamoTableName
-          PINECONE_API_KEY: !Ref PineconeApiKey
-          PINECONE_HOST: !Ref PineconeHost
-          PINECONE_INDEX_NAME: !Ref PineconeIndexName
 
 Outputs:
   PythonLambdaArn:
