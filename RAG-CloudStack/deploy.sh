@@ -21,10 +21,7 @@ LOGOUT_URLS=${LOGOUT_URLS:-"http://localhost:5173"}
 GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-""}
 GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-""}
 PYTHON_ROUTE_PATH=${PYTHON_ROUTE_PATH:-"/process"}
-NODE_ROUTE_PATH=${NODE_ROUTE_PATH:-"/pinecone-search"}
-PINECONE_API_KEY=${PINECONE_API_KEY:-""}
-PINECONE_HOST=${PINECONE_HOST:-""}
-PINECONE_INDEX_NAME=${PINECONE_INDEX_NAME:-""}
+NODE_ROUTE_PATH=${NODE_ROUTE_PATH:-"/search"}
 
 ROOT_DIR=$(cd "$(dirname "$0")" && pwd)
 TPL_DIR="$ROOT_DIR/templates"
@@ -64,9 +61,6 @@ aws cloudformation deploy \
     PythonLambdaKey="$PYTHON_KEY" \
     NodeLambdaKey="$NODE_KEY" \
     DynamoTableName="$TABLE_NAME" \
-    PineconeApiKey="$PINECONE_API_KEY" \
-    PineconeHost="$PINECONE_HOST" \
-    PineconeIndexName="$PINECONE_INDEX_NAME" \
   --capabilities CAPABILITY_NAMED_IAM \
   --region "$REGION"
 
