@@ -216,13 +216,21 @@ feat(extraction): create text extraction service
 
 **Implementation Steps:**
 
-1. **Research LinkedIn selectors:**
-   - Manually inspect LinkedIn profile pages to identify CSS selectors
+1. **Review LinkedIn HTML snapshot from Phase 0.5:**
+   - Open `Migration/docs/linkedin-html-snapshot.html` (created in Phase 0.5)
+   - Review `Migration/docs/linkedin-selectors.md` for documented selectors
+   - Verify selectors are still valid against current LinkedIn HTML
+   - Test documented fallback strategies
+   - If snapshot is stale or selectors don't match, update documentation
+
+2. **Research additional LinkedIn selectors (if needed):**
+   - If selectors from Phase 0.5 are incomplete, manually inspect LinkedIn profiles
    - Note: LinkedIn frequently changes class names, so use resilient selectors
    - Prefer data attributes or stable class patterns over random class names
    - Document selectors with comments explaining what they target
+   - Update `linkedin-selectors.md` with any new findings
 
-2. **Implement basic info extraction:**
+3. **Implement basic info extraction:**
    - Extract name from profile header (usually h1 tag)
    - Extract headline (tagline below name)
    - Extract location (city/region)
@@ -230,7 +238,7 @@ feat(extraction): create text extraction service
    - Handle cases where elements don't exist
    - Return structured object
 
-3. **Implement current position extraction:**
+4. **Implement current position extraction:**
    - Identify "Experience" section on profile
    - Extract first (current) position:
      - Company name
@@ -241,14 +249,14 @@ feat(extraction): create text extraction service
      - Description (if visible)
    - Parse dates into consistent format (YYYY-MM or "Present")
 
-4. **Implement experience history extraction:**
+5. **Implement experience history extraction:**
    - Extract all past positions from Experience section
    - For each position, extract same fields as current position
    - Handle multi-role experiences (same company, different titles)
    - Return array of experience objects
    - Handle "Show more" buttons to reveal all experiences
 
-5. **Implement education extraction:**
+6. **Implement education extraction:**
    - Extract all education entries
    - For each entry, extract:
      - School name
@@ -257,19 +265,19 @@ feat(extraction): create text extraction service
      - Dates (start year - end year)
    - Return array of education objects
 
-6. **Implement skills extraction:**
+7. **Implement skills extraction:**
    - Navigate to or expand Skills section
    - Extract skill names (limit to top 20-30 if many)
    - Optionally extract endorsement counts
    - Return array of skill objects or simple string array
 
-7. **Implement about/summary extraction:**
+8. **Implement about/summary extraction:**
    - Extract "About" section text
    - Handle "Show more" button if text is truncated
    - Clean up formatting (remove extra whitespace)
    - Return as plain text string
 
-8. **Create fulltext concatenation:**
+9. **Create fulltext concatenation:**
    - Combine all extracted fields into a single searchable text:
      - Name, headline, location
      - Current position description
@@ -280,7 +288,7 @@ feat(extraction): create text extraction service
    - Join with newlines or spaces
    - Store in `fulltext` field for future search
 
-9. **Add selector fallback logic:**
+10. **Add selector fallback logic:**
    - Implement multiple selector strategies for resilience
    - If primary selector fails, try alternate selectors
    - Log when fallback selectors are used
