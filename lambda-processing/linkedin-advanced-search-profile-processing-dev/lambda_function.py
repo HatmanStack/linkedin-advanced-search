@@ -33,12 +33,6 @@ import os
 AWS_REGION = os.environ.get('AWS_REGION', 'us-west-2')
 AI_MODEL_ID = os.environ.get('AI_MODEL_ID', 'us.meta.llama3-2-90b-instruct-v1:0')
 DYNAMODB_TABLE_NAME = os.environ.get('DYNAMODB_TABLE_NAME', 'linkedin-advanced-search')
-PINECONE_API_KEY = os.environ.get('PINECONE_API_KEY')
-
-# Validate required environment variables
-if not PINECONE_API_KEY:
-    logger.error("PINECONE_API_KEY environment variable is not set")
-    raise ValueError("PINECONE_API_KEY is required but not found in environment variables")
 
 # Initialize AWS clients
 s3_client = boto3.client('s3', region_name=AWS_REGION)
