@@ -187,17 +187,20 @@ The refactored application will:
 | Phase | Goal | Token Estimate | Dependencies |
 |-------|------|----------------|--------------|
 | [Phase 0](./Phase-0.md) | Foundation & Architecture | N/A | None |
-| [Phase 1](./Phase-1.md) | Code Cleanup & Dead Code Removal | ~25,000 | Phase 0 |
+| [Phase 0.5](./Phase-0.5.md) | Codebase Exploration & Validation | ~5,000 | Phase 0 |
+| [Phase 1](./Phase-1.md) | Code Cleanup & Dead Code Removal | ~25,000 | Phase 0.5 |
 | [Phase 2](./Phase-2.md) | Puppeteer Refactor for Text Extraction | ~30,000 | Phase 1 |
 | [Phase 3](./Phase-3.md) | S3 Integration & Upload | ~25,000 | Phase 2 |
 | [Phase 4](./Phase-4.md) | Placeholder Search API Implementation | ~15,000 | Phase 1 (parallel) |
 | [Phase 5](./Phase-5.md) | Frontend Integration & Testing | ~25,000 | Phases 3 & 4 |
-| **Total** | **Complete Refactor** | **~120,000** | - |
+| **Total** | **Complete Refactor** | **~125,000** | - |
 
 ### Phase Dependency Graph
 
 ```
 Phase 0 (Foundation)
+    ↓
+Phase 0.5 (Codebase Exploration) ← NEW: Validate assumptions
     ↓
 Phase 1 (Dead Code Removal) ← MUST complete first
     ↓
@@ -216,6 +219,17 @@ Phase 1 (Dead Code Removal) ← MUST complete first
 - **Goal:** Establish architectural decisions and shared conventions
 - **Key Deliverables:** ADRs, tech stack, data flow diagrams, testing strategy
 - **Status:** Documentation only (no code changes)
+
+#### Phase 0.5: Codebase Exploration & Validation (~5,000 tokens)
+- **Goal:** Map existing codebase and validate all assumptions before implementation
+- **Key Tasks:**
+  - Map Puppeteer backend structure (services, controllers, routes)
+  - Map frontend structure (hooks, components, services)
+  - Capture LinkedIn HTML structure for selector development
+  - Validate all file path assumptions from Phases 1-5
+  - Create codebase map, selector strategy, and validation report
+- **Key Deliverables:** codebase-map.md, linkedin-selectors.md, prerequisite-validation.md
+- **Success Metric:** All file locations verified, no critical blockers found
 
 #### Phase 1: Code Cleanup & Dead Code Removal (~25,000 tokens)
 - **Goal:** Remove ALL Pinecone-related code and infrastructure
@@ -278,7 +292,7 @@ Phase 1 (Dead Code Removal) ← MUST complete first
 
 1. **DRY (Don't Repeat Yourself):** Reuse existing services and utilities where possible
 2. **YAGNI (You Aren't Gonna Need It):** Don't over-engineer the placeholder API
-3. **TDD (Test-Driven Development):** Write tests for critical new functionality
+3. **Test After Implementation:** Write comprehensive tests after implementing new functionality
 4. **Frequent Commits:** Make atomic commits with clear conventional commit messages
 5. **Incremental Progress:** Complete one phase fully before moving to the next
 
@@ -328,21 +342,29 @@ test(search): update frontend tests for placeholder API
 ### Phase Files
 
 - [Phase 0: Foundation & Architecture](./Phase-0.md)
+- [Phase 0.5: Codebase Exploration & Validation](./Phase-0.5.md) ← **NEW: Start here after Phase 0**
 - [Phase 1: Code Cleanup & Dead Code Removal](./Phase-1.md)
 - [Phase 2: Puppeteer Refactor for Text Extraction](./Phase-2.md)
 - [Phase 3: S3 Integration & Upload](./Phase-3.md)
 - [Phase 4: Placeholder Search API Implementation](./Phase-4.md)
 - [Phase 5: Frontend Integration & Testing](./Phase-5.md)
 
+### Supporting Documentation
+
+- [Environment Variables Reference](../environment-variables.md)
+- [Codebase Map](../codebase-map.md) (to be completed in Phase 0.5)
+- [Rollback Procedures](../rollback-procedures.md)
+
 ### How to Use This Plan
 
 1. **Read Phase 0** to understand architectural decisions and conventions
-2. **Start with Phase 1** (dead code removal) - MUST be completed first
-3. **Follow each phase sequentially** (except Phase 4 can run parallel to 2/3)
-4. **Complete all tasks in a phase** before moving to the next phase
-5. **Commit work frequently** with conventional commit messages
-6. **Verify phase completion** using the verification checklist in each phase
-7. **Document any deviations** from the plan with rationale
+2. **Complete Phase 0.5** (codebase exploration) - Map structure and validate assumptions
+3. **Start with Phase 1** (dead code removal) - MUST be completed before Phases 2-5
+4. **Follow each phase sequentially** (except Phase 4 can run parallel to 2/3)
+5. **Complete all tasks in a phase** before moving to the next phase
+6. **Commit work frequently** with conventional commit messages
+7. **Verify phase completion** using the verification checklist in each phase
+8. **Document any deviations** from the plan with rationale
 
 ### Task Structure
 
