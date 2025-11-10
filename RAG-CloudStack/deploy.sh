@@ -13,8 +13,10 @@ API_NAME=${API_NAME:-"${STACK_PREFIX}-api"}
 STAGE_NAME=${STAGE_NAME:-prod}
 PYTHON_KEY=${PYTHON_KEY:-lambdas/python-handler.zip}
 NODE_KEY=${NODE_KEY:-lambdas/node-handler.zip}
+PLACEHOLDER_SEARCH_KEY=${PLACEHOLDER_SEARCH_KEY:-lambdas/placeholder-search.zip}
 PYTHON_ZIP_PATH=${PYTHON_ZIP_PATH:-"./lambda-src/python/lambda_function.zip"}
 NODE_ZIP_PATH=${NODE_ZIP_PATH:-"./lambda-src/node/index.zip"}
+PLACEHOLDER_SEARCH_ZIP_PATH=${PLACEHOLDER_SEARCH_ZIP_PATH:-"../lambda-processing/linkedin-advanced-search-placeholder-search-prod/placeholder-search.zip"}
 COGNITO_DOMAIN=${COGNITO_DOMAIN:-"${STACK_PREFIX}-domain"}
 CALLBACK_URLS=${CALLBACK_URLS:-"http://localhost:5173"}
 LOGOUT_URLS=${LOGOUT_URLS:-"http://localhost:5173"}
@@ -43,6 +45,10 @@ fi
 if [ -f "$NODE_ZIP_PATH" ]; then
   aws s3 cp "$NODE_ZIP_PATH" "s3://$ARTIFACTS_BUCKET/$NODE_KEY" --region "$REGION"
 fi
+if [ -f "$PLACEHOLDER_SEARCH_ZIP_PATH" ]; then
+  echo "Uploading placeholder search Lambda..."
+  aws s3 cp "$PLACEHOLDER_SEARCH_ZIP_PATH" "s3://$ARTIFACTS_BUCKET/$PLACEHOLDER_SEARCH_KEY" --region "$REGION"
+fi
 
 echo "Deploy DynamoDB stack"
 aws cloudformation deploy \
@@ -60,12 +66,14 @@ aws cloudformation deploy \
     ArtifactsBucketName="$ARTIFACTS_BUCKET" \
     PythonLambdaKey="$PYTHON_KEY" \
     NodeLambdaKey="$NODE_KEY" \
+    PlaceholderSearchLambdaKey="$PLACEHOLDER_SEARCH_KEY" \
     DynamoTableName="$TABLE_NAME" \
   --capabilities CAPABILITY_NAMED_IAM \
   --region "$REGION"
 
 PY_ARN=$(aws cloudformation describe-stacks --stack-name "${STACK_PREFIX}-lambdas" --region "$REGION" --query "Stacks[0].Outputs[?OutputKey=='PythonLambdaArn'].OutputValue" --output text)
 NODE_ARN=$(aws cloudformation describe-stacks --stack-name "${STACK_PREFIX}-lambdas" --region "$REGION" --query "Stacks[0].Outputs[?OutputKey=='NodeLambdaArn'].OutputValue" --output text)
+PLACEHOLDER_SEARCH_ARN=$(aws cloudformation describe-stacks --stack-name "${STACK_PREFIX}-lambdas" --region "$REGION" --query "Stacks[0].Outputs[?OutputKey=='PlaceholderSearchLambdaArn'].OutputValue" --output text)
 
 echo "Deploy Cognito stack"
 aws cloudformation deploy \
@@ -93,8 +101,10 @@ aws cloudformation deploy \
     StageName="$STAGE_NAME" \
     PythonLambdaArn="$PY_ARN" \
     NodeLambdaArn="$NODE_ARN" \
+    PlaceholderSearchLambdaArn="$PLACEHOLDER_SEARCH_ARN" \
     PythonRoutePath="$PYTHON_ROUTE_PATH" \
     NodeRoutePath="$NODE_ROUTE_PATH" \
+    PlaceholderSearchRoutePath="/search" \
     UserPoolId="$USER_POOL_ID" \
     UserPoolClientId="$USER_POOL_CLIENT_ID" \
   --region "$REGION"
@@ -102,12 +112,14 @@ aws cloudformation deploy \
 API_BASE=$(aws cloudformation describe-stacks --stack-name "${STACK_PREFIX}-api" --region "$REGION" --query "Stacks[0].Outputs[?OutputKey=='BaseUrl'].OutputValue" --output text)
 
 echo "\nDeployment complete.\n"
-echo "Artifacts bucket: s3://$ARTIFACTS_BUCKET"
-echo "DynamoDB table:   $TABLE_NAME"
-echo "Python Lambda:    $PY_ARN"
-echo "Node Lambda:      $NODE_ARN"
-echo "API Base URL:     $API_BASE"
-echo "Cognito UserPool: $USER_POOL_ID"
-echo "UserPool Client:  $USER_POOL_CLIENT_ID"
+echo "Artifacts bucket:        s3://$ARTIFACTS_BUCKET"
+echo "DynamoDB table:          $TABLE_NAME"
+echo "Python Lambda:           $PY_ARN"
+echo "Node Lambda:             $NODE_ARN"
+echo "Placeholder Search:      $PLACEHOLDER_SEARCH_ARN"
+echo "API Base URL:            $API_BASE"
+echo "Search Endpoint:         $API_BASE/search"
+echo "Cognito UserPool:        $USER_POOL_ID"
+echo "UserPool Client:         $USER_POOL_CLIENT_ID"
 
 
