@@ -811,6 +811,248 @@ feat(config): add text extraction configuration
 
 ---
 
+## Review Feedback
+
+**Review Date:** 2025-11-10
+**Reviewer:** Senior Engineer (Code Review)
+**Status:** ⚠️ Implementation Not Started
+
+### Verification Results
+
+When reviewing the codebase against Phase 2's success criteria and task list, several questions arose:
+
+**Prerequisite Check:**
+
+1. **Phase 1 Completion:**
+   - ✅ Phase 1 is complete - verified with `grep -ri "pinecone"` returning 0 results
+   - ✅ No Pinecone Lambda directories exist
+   - ✅ Ready to proceed with Phase 2
+
+**Task 1: Design Text Extraction Data Schema**
+
+2. **Schema File Creation:**
+   - The plan specifies creating `puppeteer-backend/schemas/profileTextSchema.js`
+   - When running `find . -name "profileTextSchema.js"`, what results appear?
+   - Does the `puppeteer-backend/schemas/` directory exist?
+   - Have you created the schema file with all required fields (profile_id, url, name, headline, location, current_position, experience, education, skills, about, fulltext, extracted_at)?
+
+3. **Documentation:**
+   - The plan requires `Migration/docs/text-extraction-schema.md`
+   - When checking `ls Migration/docs/ | grep text-extraction-schema`, does the file exist?
+   - Have you documented the schema with field descriptions, data types, required vs optional fields, and example JSON output?
+
+4. **Validation Utility:**
+   - The plan specifies creating a validation function to check extracted data against schema
+   - When reading `puppeteer-backend/schemas/profileTextSchema.js`, is there a `validateProfileData` function exported?
+   - Does the validation cover type checking and required field verification?
+
+**Task 2: Create Text Extraction Service**
+
+5. **Service File:**
+   - The plan requires `puppeteer-backend/services/textExtractionService.js`
+   - When running `ls puppeteer-backend/services/ | grep textExtraction`, what appears?
+   - Have you created the TextExtractionService class?
+
+6. **Service Implementation:**
+   - When reading the service file, does it accept a Puppeteer page object as constructor parameter?
+   - Are there separate extraction methods for each profile section (basic info, current position, experience, education, skills, about)?
+   - Is error handling implemented with try-catch blocks for missing/private fields?
+   - Does it integrate with existing `humanBehaviorManager.js` for bot detection avoidance?
+
+**Task 3: Implement Profile Field Extractors**
+
+7. **Field Extractor Methods:**
+   - Have you implemented extractors for all fields mentioned in the schema?
+   - When reading `textExtractionService.js`, do you see methods like:
+     - `extractBasicInfo()` - name, headline, location
+     - `extractCurrentPosition()` - company, title, employment type, dates
+     - `extractExperience()` - past positions array
+     - `extractEducation()` - schools array
+     - `extractSkills()` - skills array
+     - `extractAbout()` - bio text
+
+8. **LinkedIn Selectors:**
+   - The plan recommends reviewing Phase 0.5's HTML snapshot and `linkedin-selectors.md`
+   - Have you consulted these documents before implementing selectors?
+   - Are your CSS selectors defensive with fallback strategies for different LinkedIn layouts?
+
+**Task 4: Integrate with LinkedInContactService**
+
+9. **Service Integration:**
+   - When reading `puppeteer-backend/services/linkedinContactService.js`, have you modified it to call text extraction?
+   - Does the `takeScreenShotAndUploadToS3` method now also extract profile text?
+   - Is the extracted text being saved to DynamoDB alongside screenshot metadata?
+
+10. **Data Flow:**
+    - When reviewing `linkedinContactService.js`, does it:
+      - Create TextExtractionService instance
+      - Call text extraction after successful screenshot
+      - Handle extraction errors without breaking screenshot workflow
+      - Store extracted text in DynamoDB with proper field names
+
+**Task 5: Add Text Formatting and Sanitization**
+
+11. **Formatter Utility:**
+    - The plan requires `puppeteer-backend/utils/textFormatter.js`
+    - When checking `ls puppeteer-backend/utils/ | grep textFormatter`, does the file exist?
+    - Have you implemented functions for:
+      - `sanitizeText()` - remove special characters, normalize whitespace
+      - `generateFulltext()` - concatenate all fields into searchable text
+      - `formatExperience()` - format experience array into readable text
+      - `formatEducation()` - format education array into readable text
+
+12. **Sanitization Quality:**
+    - When reading the formatter code, does it handle:
+      - Unicode characters properly
+      - HTML entities (if any slip through)
+      - Extra whitespace and newlines
+      - Empty or null values gracefully
+
+**Task 6: Add Configuration for Text Extraction**
+
+13. **Configuration File:**
+    - Have you added text extraction configuration to `puppeteer-backend/config/index.js`?
+    - When reading the config file, is there a section for:
+      - LinkedIn CSS selectors (with fallback options)
+      - Extraction timeouts
+      - Retry logic parameters
+      - Feature flags for text extraction
+
+14. **Selector Management:**
+    - Are selectors centralized in config rather than hardcoded in service files?
+    - Is there documentation for updating selectors when LinkedIn changes?
+
+**Git History:**
+
+15. **Commits:**
+    - When running `git log --oneline --all | grep -i "schema\|extraction\|text"`, do any Phase 2 commits appear?
+    - The plan specifies commit message templates for each task - have they been followed?
+    - Expected commits should include:
+      - `feat(schema): define profile text extraction schema`
+      - `feat(extraction): create text extraction service`
+      - `feat(extractors): implement profile field extractors`
+      - `refactor(contact): integrate text extraction with LinkedInContactService`
+      - `feat(format): add text formatting and sanitization utilities`
+      - `config(extraction): add text extraction configuration`
+
+16. **Working Directory:**
+    - When running `git status`, are there uncommitted changes for Phase 2?
+    - Are you working on the correct branch: `claude/create-plan-branch-011CUxxjrkvYFvyvfjgRUodq`?
+
+**Testing & Verification:**
+
+17. **Tests:**
+    - When running `find tests/ -name "*extraction*" -o -name "*schema*"`, do any test files appear?
+    - The plan mentions testing with sample LinkedIn profiles - have tests been created?
+    - Are there tests for:
+      - Schema validation with valid/invalid data
+      - Text extraction with different profile types (full, minimal, private)
+      - Formatter utilities
+      - Error handling for missing fields
+
+18. **Manual Testing:**
+    - Have you manually tested text extraction with a real or mocked LinkedIn profile?
+    - When importing and running TextExtractionService, does it successfully extract data?
+    - Does the extracted data match the schema structure?
+
+**Success Criteria Review:**
+
+19. **Text Extraction Service:**
+    - ✅ or ❌ Is the text extraction service created and functional?
+
+20. **Profile HTML Parsing:**
+    - ✅ or ❌ Is profile HTML parsing logic implemented for all key fields?
+
+21. **Structured JSON Format:**
+    - ✅ or ❌ Is extracted data formatted as structured JSON matching the schema?
+
+22. **LinkedInContactService Integration:**
+    - ✅ or ❌ Is text extraction integrated with existing LinkedInContactService?
+
+23. **Testing:**
+    - ✅ or ❌ Has text extraction been tested with sample LinkedIn profiles?
+
+24. **No Regression:**
+    - ✅ or ❌ Does existing screenshot functionality still work without issues?
+
+### Questions to Consider
+
+Before proceeding or continuing with Phase 2 implementation:
+
+- Have you started working on Phase 2, or are you ready to begin?
+- If you haven't started, have you reviewed Phase 0.5 documentation (linkedin-selectors.md, codebase-map.md)?
+- If you have started, where are the implementation files? Are they on a different branch?
+- Should you begin with Task 1 (schema design) before implementing the extraction service?
+- Have you confirmed Phase 1 is complete by verifying zero Pinecone references?
+- Do you understand the existing LinkedInContactService workflow before modifying it?
+
+### Next Steps
+
+To move forward with Phase 2:
+
+1. **Start with Task 1:** Create the schema files first
+   - Create `puppeteer-backend/schemas/` directory if it doesn't exist
+   - Design and document the profile text schema
+   - Implement validation utility
+
+2. **Proceed to Task 2:** Implement the extraction service
+   - Review existing services (linkedinService.js, linkedinContactService.js)
+   - Understand current Puppeteer workflow
+   - Create TextExtractionService with proper error handling
+
+3. **Continue sequentially through Tasks 3-6**
+   - Implement field extractors with defensive selectors
+   - Integrate with LinkedInContactService carefully to avoid breaking screenshots
+   - Add formatting utilities
+   - Centralize configuration
+
+4. **Commit after each task** using the provided commit message templates
+
+5. **Test thoroughly:**
+   - Create test files for each component
+   - Manual test with real LinkedIn profiles
+   - Verify no regression in existing functionality
+
+### Evidence Required for Approval
+
+For Phase 2 to be marked as complete, the following evidence is needed:
+
+- [ ] `find . -name "profileTextSchema.js"` returns the schema file
+- [ ] `find . -name "textExtractionService.js"` returns the service file
+- [ ] `find . -name "textFormatter.js"` returns the formatter utility
+- [ ] `ls Migration/docs/ | grep text-extraction-schema` shows documentation file
+- [ ] `git log --oneline | grep -E "schema|extraction|format"` shows at least 6 commits for Phase 2 tasks
+- [ ] Reading `puppeteer-backend/services/linkedinContactService.js` shows text extraction integration
+- [ ] Reading `puppeteer-backend/config/index.js` shows extraction configuration section
+- [ ] Manual test demonstrates successful text extraction from a LinkedIn profile
+- [ ] Extracted JSON matches the schema structure
+- [ ] Tests exist for schema validation and text extraction
+- [ ] Existing screenshot functionality still works (no regression)
+
+### Implementation Guidance
+
+**Key architectural considerations from Phase 0:**
+
+> **Remember:** The plan emphasizes preserving existing Puppeteer architecture. When integrating text extraction:
+> - Don't break existing screenshot workflow
+> - Reuse human behavior simulation from `humanBehaviorManager.js`
+> - Follow existing error handling patterns in LinkedIn services
+> - Store extracted text in DynamoDB alongside screenshot metadata
+
+**From Task 2 Implementation Steps:**
+
+> **Think about:** Before implementing selectors, review Phase 0.5's `linkedin-html-snapshot.html` and `linkedin-selectors.md`. Have you captured recent LinkedIn HTML? LinkedIn frequently changes class names, so defensive selectors with fallbacks are critical.
+
+**From Task 4 Integration:**
+
+> **Consider:** The LinkedInContactService's `takeScreenShotAndUploadToS3` method is central to the profile workflow. When adding text extraction:
+> - Should extraction happen before or after screenshot?
+> - What if extraction fails - should the screenshot still be saved?
+> - How do you pass extracted text to DynamoDB service?
+> - Are you maintaining backward compatibility?
+
+---
+
 **Previous Phase:** [Phase 1: Code Cleanup & Dead Code Removal](./Phase-1.md)
 
 **Next Phase:** [Phase 3: S3 Integration & Upload](./Phase-3.md)
