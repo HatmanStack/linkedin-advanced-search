@@ -1,6 +1,7 @@
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import extractionConfig from './extractionConfig.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -161,6 +162,9 @@ export const config = {
     linksFile: process.env.LINKS_FILE || './data/possible-links.json',
     goodConnectionsFile: process.env.GOOD_CONNECTIONS_FILE || './data/good-connections-links.json',
   },
+
+  // Text Extraction Configuration
+  extraction: extractionConfig,
 };
 
 export default config;
