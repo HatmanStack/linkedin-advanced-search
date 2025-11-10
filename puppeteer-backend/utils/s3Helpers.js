@@ -8,6 +8,26 @@ import { S3Client, HeadObjectCommand, GetObjectCommand, DeleteObjectCommand, Lis
 import { logger } from './logger.js';
 
 /**
+ * Cache of S3 clients by region
+ * Reusing clients improves performance and reduces resource usage
+ */
+const clientCache = new Map();
+
+/**
+ * Get or create a cached S3Client for the specified region
+ * @private
+ * @param {string} region - AWS region
+ * @returns {S3Client} - Cached or new S3Client instance
+ */
+function getS3Client(region) {
+  if (!clientCache.has(region)) {
+    logger.debug(`Creating new S3Client for region: ${region}`);
+    clientCache.set(region, new S3Client({ region }));
+  }
+  return clientCache.get(region);
+}
+
+/**
  * Check if a file exists in S3
  * @param {string} bucket - S3 bucket name
  * @param {string} key - S3 object key
@@ -16,7 +36,7 @@ import { logger } from './logger.js';
  * @throws {Error} - For non-404 S3 errors
  */
 export async function checkFileExists(bucket, key, region) {
-  const client = new S3Client({ region });
+  const client = getS3Client(region);
   try {
     const command = new HeadObjectCommand({ Bucket: bucket, Key: key });
     await client.send(command);
@@ -44,7 +64,7 @@ export async function checkFileExists(bucket, key, region) {
  * @throws {Error} - For S3 or JSON parsing errors
  */
 export async function downloadProfileText(bucket, key, region) {
-  const client = new S3Client({ region });
+  const client = getS3Client(region);
   try {
     const command = new GetObjectCommand({ Bucket: bucket, Key: key });
     const response = await client.send(command);
@@ -87,7 +107,7 @@ async function streamToString(stream) {
  * @throws {Error} - For S3 errors
  */
 export async function deleteProfileText(bucket, key, region) {
-  const client = new S3Client({ region });
+  const client = getS3Client(region);
   try {
     const command = new DeleteObjectCommand({ Bucket: bucket, Key: key });
     await client.send(command);
@@ -111,7 +131,7 @@ export async function deleteProfileText(bucket, key, region) {
  * @throws {Error} - For S3 errors
  */
 export async function listProfileTexts(bucket, prefix, region, maxKeys = 1000) {
-  const client = new S3Client({ region });
+  const client = getS3Client(region);
   try {
     const command = new ListObjectsV2Command({
       Bucket: bucket,
@@ -173,7 +193,7 @@ export async function verifyUploads(bucket, keys, region) {
  * @returns {Promise<Object|null>} - S3 object metadata or null if not found
  */
 export async function getFileMetadata(bucket, key, region) {
-  const client = new S3Client({ region });
+  const client = getS3Client(region);
   try {
     const command = new HeadObjectCommand({ Bucket: bucket, Key: key });
     const response = await client.send(command);

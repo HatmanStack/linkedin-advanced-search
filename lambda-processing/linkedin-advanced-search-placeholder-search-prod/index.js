@@ -8,6 +8,8 @@
  * @version 1.0.0
  */
 
+import { randomUUID } from 'crypto';
+
 /**
  * Lambda handler for placeholder search API
  *
@@ -57,8 +59,8 @@ export const handler = async (event) => {
     // Extract user ID from Cognito JWT (if available)
     const userId = event.requestContext?.authorizer?.claims?.sub || 'anonymous';
 
-    // Generate unique search ID
-    const searchId = `search-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    // Generate unique search ID using cryptographically secure random UUID
+    const searchId = `search-${Date.now()}-${randomUUID()}`;
 
     // Log search query for debugging and future analysis
     const searchLog = {
