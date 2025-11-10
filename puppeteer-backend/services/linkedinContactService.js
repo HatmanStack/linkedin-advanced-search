@@ -6,6 +6,7 @@ import { logger } from '../utils/logger.js';
 import RandomHelpers from '../utils/randomHelpers.js';
 import sharp from 'sharp';
 import TextExtractionService from './textExtractionService.js';
+import S3TextUploadService from './s3TextUploadService.js';
 
 
 export class LinkedInContactService {
@@ -18,6 +19,7 @@ export class LinkedInContactService {
     this.cloudFrontDomain = process.env.CLOUDFRONT_DOMAIN || "";
     this.screenshotsBaseDir = process.env.SCREENSHOTS_DIR || path.join(process.cwd(), 'screenshots');
     this.textExtractionService = new TextExtractionService(puppeteerService);
+    this.s3TextUploadService = new S3TextUploadService();
   }
 
   /**
@@ -72,6 +74,7 @@ export class LinkedInContactService {
     const s3UploadedObjects = [];
     let workingTempDir;
     let profileText = null;
+    let s3TextUpload = null;
 
     try {
       logger.info(`Taking screenshots for profile: ${profileId} (status=${status})`);
@@ -108,6 +111,41 @@ export class LinkedInContactService {
         };
       }
 
+      // Upload profile text to S3 (Phase 3)
+      if (profileText && !profileText.extraction_failed) {
+        try {
+          logger.info(`Uploading profile text to S3 for ${profileId}`);
+          const uploadData = {
+            ...profileText,
+            status,
+          };
+          s3TextUpload = await this.s3TextUploadService.uploadProfileText(uploadData);
+
+          if (s3TextUpload.success) {
+            logger.info(`Profile text uploaded to S3: ${s3TextUpload.s3Key}`, {
+              fileSize: s3TextUpload.fileSize,
+              duration: `${s3TextUpload.uploadDuration}ms`
+            });
+          } else {
+            logger.error(`S3 text upload failed for ${profileId}: ${s3TextUpload.error}`);
+          }
+        } catch (uploadError) {
+          logger.error(`Failed to upload profile text to S3 for ${profileId}:`, uploadError);
+          s3TextUpload = {
+            success: false,
+            error: uploadError.message,
+            uploadFailed: true
+          };
+        }
+      } else if (profileText && profileText.extraction_failed) {
+        logger.warn(`Skipping S3 upload for ${profileId} due to extraction failure`);
+        s3TextUpload = {
+          success: false,
+          error: 'Text extraction failed',
+          skipped: true
+        };
+      }
+
       // Collect all PNG screenshots from temp directory
       const allScreenshots = await fs.readdir(workingTempDir);
       const screenshotPaths = allScreenshots
@@ -131,7 +169,8 @@ export class LinkedInContactService {
           s3ObjectUrls: s3UploadedObjects.map(obj => obj.s3ObjectUrl),
           profileId
         },
-        profileText
+        profileText,
+        s3TextUpload
       };
 
     } catch (error) {
@@ -139,7 +178,8 @@ export class LinkedInContactService {
       return {
         success: false,
         message: `Failed to capture screenshots: ${error.message}`,
-        profileText
+        profileText,
+        s3TextUpload
       };
     } finally {
       // Always clean up the working temp directory after upload is attempted
