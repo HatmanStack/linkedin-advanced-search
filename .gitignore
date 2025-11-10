@@ -20,6 +20,9 @@ dist
 backend/data
 *.tsbuildinfo
 
+# Lambda deployment packages
+*.zip
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
