@@ -4,10 +4,12 @@
  * Handles uploading extracted LinkedIn profile text to S3 with error handling and retry logic
  */
 
-import { S3Client, PutObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { createHash } from 'crypto';
 import { logger } from '../utils/logger.js';
 import config from '../config/index.js';
 import { UploadMetrics } from '../utils/uploadMetrics.js';
+import { checkFileExists } from '../utils/s3Helpers.js';
 
 export class S3TextUploadService {
   constructor() {
@@ -255,9 +257,11 @@ export class S3TextUploadService {
       return match[1];
     }
 
-    // Fallback: use timestamp-based ID
-    const fallbackId = `profile-${Date.now()}`;
-    logger.warn(`Could not extract profile ID from URL: ${urlOrId}, using fallback: ${fallbackId}`);
+    // Fallback: use hash-based ID for deterministic fallback
+    // This ensures same URL always generates same ID (idempotent)
+    const hash = createHash('md5').update(urlOrId).digest('hex').substring(0, 8);
+    const fallbackId = `profile-${hash}`;
+    logger.warn(`Could not extract profile ID from URL: ${urlOrId}, using hash-based fallback: ${fallbackId}`);
     return fallbackId;
   }
 
@@ -284,23 +288,12 @@ export class S3TextUploadService {
 
   /**
    * Check if file exists in S3
+   * Uses the shared checkFileExists utility from s3Helpers
    * @param {string} s3Key - S3 object key
    * @returns {Promise<boolean>} - True if file exists
    */
   async checkFileExists(s3Key) {
-    try {
-      const command = new HeadObjectCommand({
-        Bucket: this.bucket,
-        Key: s3Key
-      });
-      await this.s3Client.send(command);
-      return true;
-    } catch (error) {
-      if (error.name === 'NotFound' || error.$metadata?.httpStatusCode === 404) {
-        return false;
-      }
-      throw error;
-    }
+    return checkFileExists(this.bucket, s3Key, config.s3.profileText.region);
   }
 
   /**
