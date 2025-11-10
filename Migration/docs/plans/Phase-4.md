@@ -687,6 +687,251 @@ deploy(search): deploy placeholder search API
 
 ---
 
+## Review Feedback
+
+**Review Date:** 2025-11-10
+**Reviewer:** Senior Engineer (Code Review)
+**Status:** ⚠️ Implementation Not Started
+
+### Verification Results
+
+When reviewing the codebase against Phase 4's success criteria and task list, several questions arose:
+
+**Prerequisite Check:**
+
+1. **Phase 1 Completion:**
+   - ✅ Phase 1 is complete - Pinecone code removed
+   - ✅ CloudFormation templates cleaned up
+   - ✅ Ready to proceed with Phase 4
+
+2. **Phase Independence:**
+   - Phase 4 can be developed in parallel with Phases 2-3 (per plan note)
+   - Phase 2 (Text Extraction) - ✅ Complete and approved
+   - Phase 3 (S3 Upload) - ✅ Complete and approved
+   - Ready to implement Phase 4
+
+**Task 1: Design Placeholder Search API**
+
+3. **API Specification Document:**
+   - The plan specifies creating `Migration/docs/search-api-specification.md`
+   - When running `find Migration/docs/ -name "search-api-specification.md"`, what results appear?
+   - Have you documented the API contract with request/response formats?
+   - Does the specification define error response formats?
+
+4. **API Endpoint Design:**
+   - Have you reviewed the existing CloudFormation template at `RAG-CloudStack/templates/apigw-http.yaml`?
+   - Note: There's already a `/search` route configured with NodeIntegration (lines 60-84)
+   - Have you verified the route path matches the specification?
+   - Is the authentication strategy (Cognito JWT) clearly documented?
+
+5. **Request/Response Format:**
+   - Have you defined the request schema with required and optional fields?
+   - Is the placeholder response format documented (empty results array, success message)?
+   - Are error response codes specified (400 Bad Request, 401 Unauthorized, 500 Internal Error)?
+
+**Task 2: Create Placeholder Search Lambda Function**
+
+6. **Lambda Directory:**
+   - The plan requires `lambda-processing/linkedin-advanced-search-placeholder-search-prod/`
+   - When running `ls lambda-processing/ | grep placeholder`, what results appear?
+   - Have you created the Lambda directory structure?
+
+7. **Lambda Implementation Files:**
+   - When checking for the Lambda handler file, does `index.js` exist in the Lambda directory?
+   - Have you created `package.json` with dependencies?
+   - Does the Lambda have a `README.md` for documentation?
+
+8. **Handler Implementation:**
+   - Does the Lambda handler parse the request body correctly?
+   - Is input validation implemented (checking for required `query` field)?
+   - Does it return the correct response format matching the specification?
+   - Are search queries logged with sufficient detail for monitoring?
+
+9. **Error Handling:**
+   - Does the Lambda handle missing or invalid query parameters?
+   - Are errors returned in the correct format (status code + JSON body)?
+   - Is exception handling comprehensive (try-catch blocks)?
+   - Are Lambda errors logged for debugging?
+
+**Task 3: Update CloudFormation Templates**
+
+10. **Lambda Resource:**
+    - When reading `RAG-CloudStack/templates/lambdas.yaml`, is there a resource for the placeholder search Lambda?
+    - Does the Lambda definition specify:
+      - Function name (e.g., `linkedin-advanced-search-placeholder-search-prod`)
+      - Runtime (Node.js 20 or Python 3.x)
+      - Handler (`index.handler`)
+      - Timeout and memory settings
+      - Environment variables (if needed)
+
+11. **API Gateway Integration:**
+    - The plan notes that `/search` route already exists in `apigw-http.yaml`
+    - Have you verified the route points to the correct Lambda ARN?
+    - Is the `NodeLambdaArn` parameter correctly set to the new placeholder search Lambda?
+    - Is the `AuthorizationType: JWT` configured for the search route?
+
+12. **IAM Permissions:**
+    - Does the Lambda have necessary IAM execution role permissions?
+    - Are CloudWatch Logs permissions included for logging?
+    - Is the Lambda permission configured for API Gateway to invoke it?
+
+13. **CloudFormation Outputs:**
+    - Have you added an output for the search Lambda ARN?
+    - Is the search endpoint URL included in outputs?
+    - Are outputs named clearly (e.g., `PlaceholderSearchLambdaArn`, `SearchEndpoint`)?
+
+**Task 4: Deploy and Test**
+
+14. **Deployment Verification:**
+    - Have you deployed the CloudFormation stack with the new resources?
+    - Does `aws cloudformation describe-stacks` show the search Lambda resource?
+    - Can you invoke the Lambda directly with `aws lambda invoke`?
+
+15. **API Testing:**
+    - Have you tested the POST /search endpoint with a valid JWT token?
+    - Does the endpoint return the expected placeholder response?
+    - Have you tested without authentication (should return 401)?
+    - Have you tested with invalid requests (missing query field)?
+
+16. **Logging Verification:**
+    - Are search queries appearing in CloudWatch Logs?
+    - Is the log format helpful for debugging and monitoring?
+    - Are error logs captured with sufficient context?
+
+**Git History:**
+
+17. **Commits:**
+    - When running `git log --oneline --all | grep -i "search\|placeholder"`, do any Phase 4 commits appear?
+    - The plan specifies commit message templates for each task - have they been followed?
+    - Expected commits should include:
+      - `docs(search): design placeholder search API specification`
+      - `feat(lambda): create placeholder search Lambda function`
+      - `chore(cfn): update CloudFormation for placeholder search API`
+      - `test(search): deploy and test placeholder search endpoint`
+
+18. **Working Directory:**
+    - When running `git status`, are there uncommitted changes for Phase 4?
+    - Are you working on the correct branch: `claude/create-plan-branch-011CUxxjrkvYFvyvfjgRUodq`?
+
+**Success Criteria Review:**
+
+19. **Lambda Function Created:**
+    - ✅ or ❌ Is the placeholder search Lambda function implemented?
+
+20. **API Gateway Route:**
+    - ✅ or ❌ Is POST /search configured in API Gateway?
+
+21. **Query Logging:**
+    - ✅ or ❌ Does the Lambda accept and log search queries?
+
+22. **Placeholder Response:**
+    - ✅ or ❌ Does the Lambda return structured placeholder responses?
+
+23. **Frontend Compatibility:**
+    - ✅ or ❌ Can the frontend successfully call the search endpoint?
+
+24. **Authentication:**
+    - ✅ or ❌ Is Cognito JWT authentication preserved and working?
+
+25. **CloudFormation Updated:**
+    - ✅ or ❌ Are CloudFormation templates updated with Lambda and route?
+
+### Questions to Consider
+
+Before proceeding with Phase 4 implementation:
+
+- Have you started working on Phase 4, or are you ready to begin?
+- Have you reviewed the existing CloudFormation templates to understand the current infrastructure?
+- Have you verified that Phases 1, 2, and 3 are complete (Phase 4 can run in parallel, but Phase 1 is required)?
+- Should you begin with Task 1 (API specification) before implementing the Lambda?
+- Do you have AWS access to deploy and test Lambda functions?
+- Have you reviewed the existing `/search` route in `apigw-http.yaml` (lines 23, 60-84)?
+
+### Next Steps
+
+To move forward with Phase 4:
+
+1. **Start with Task 1:** Design and document the search API
+   - Create `Migration/docs/search-api-specification.md`
+   - Define request format (query, filters, limit, offset)
+   - Define response format (empty results, placeholder message)
+   - Document error responses (400, 401, 500)
+
+2. **Proceed to Task 2:** Implement the Lambda function
+   - Create `lambda-processing/linkedin-advanced-search-placeholder-search-prod/`
+   - Implement `index.js` handler
+   - Add `package.json` and `README.md`
+   - Include comprehensive error handling and logging
+
+3. **Continue with Task 3:** Update CloudFormation templates
+   - Add Lambda resource to `RAG-CloudStack/templates/lambdas.yaml`
+   - Verify `/search` route configuration in `apigw-http.yaml`
+   - Ensure `NodeLambdaArn` parameter points to new Lambda
+   - Add CloudFormation outputs for Lambda ARN and endpoint
+
+4. **Complete Task 4:** Deploy and test
+   - Deploy CloudFormation stack
+   - Test with `curl` or Postman
+   - Verify authentication requirements
+   - Confirm query logging in CloudWatch
+
+5. **Commit after each task** using the provided commit message templates
+
+6. **Test thoroughly:**
+   - Test with valid JWT token
+   - Test without authentication (expect 401)
+   - Test with invalid requests (missing query)
+   - Verify CloudWatch logs show queries
+
+### Evidence Required for Approval
+
+For Phase 4 to be marked as complete, the following evidence is needed:
+
+- [ ] `find Migration/docs/ -name "search-api-specification.md"` shows the API spec file
+- [ ] `ls lambda-processing/ | grep placeholder` shows the Lambda directory
+- [ ] `find lambda-processing/linkedin-advanced-search-placeholder-search-prod/ -name "index.js"` returns the handler
+- [ ] `git log --oneline | grep -E "search|placeholder"` shows at least 4 commits for Phase 4 tasks
+- [ ] Reading `RAG-CloudStack/templates/lambdas.yaml` shows placeholder search Lambda resource
+- [ ] Reading `RAG-CloudStack/templates/apigw-http.yaml` confirms `/search` route configuration
+- [ ] `aws lambda list-functions | grep placeholder-search` shows deployed Lambda (if deployed)
+- [ ] Manual test: `curl -X POST {api-url}/search` with JWT token returns placeholder response
+- [ ] CloudWatch logs show search query logging
+- [ ] Authentication test: Request without JWT returns 401
+- [ ] Error handling test: Request without query field returns 400
+
+### Implementation Guidance
+
+**Key architectural considerations:**
+
+> **Remember:** The plan emphasizes creating a minimal placeholder that serves as a hook for future search integration. The Lambda should:
+> - Return empty results (`results: []`, `total: 0`)
+> - Include informational message about placeholder status
+> - Log queries for future analysis
+> - Maintain Cognito JWT authentication
+> - Return proper HTTP status codes
+
+**From Task 2 Implementation Steps:**
+
+> **Think about:** The Lambda handler should be simple and focused. What's the minimal implementation needed to:
+> - Parse the request body
+> - Validate the query field is present
+> - Log the query with context (user ID from JWT, timestamp)
+> - Return the placeholder response format
+> - Handle errors gracefully
+
+**From Task 3 CloudFormation Updates:**
+
+> **Consider:** The `/search` route already exists in `apigw-http.yaml` with `NodeIntegration` and `NodeRoute` (lines 60-84). You need to:
+> - Add the new Lambda definition to `lambdas.yaml`
+> - Ensure the `NodeLambdaArn` parameter in the main stack points to your new Lambda
+> - Verify the route has `AuthorizationType: JWT` and `AuthorizerId: !Ref Authorizer`
+
+**AWS Best Practices:**
+
+> **Logging:** Always log sufficient context for debugging (request ID, user, query, timestamp). Use structured JSON logging for easier CloudWatch Insights queries. Set appropriate log retention policies to manage costs.
+
+---
+
 **Previous Phase:** [Phase 3: S3 Integration & Upload](./Phase-3.md)
 
 **Next Phase:** [Phase 5: Frontend Integration & Testing](./Phase-5.md)
