@@ -1,6 +1,7 @@
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import extractionConfig from './extractionConfig.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -161,6 +162,24 @@ export const config = {
     linksFile: process.env.LINKS_FILE || './data/possible-links.json',
     goodConnectionsFile: process.env.GOOD_CONNECTIONS_FILE || './data/good-connections-links.json',
   },
+
+  // S3 Storage Configuration
+  s3: {
+    screenshots: {
+      bucket: process.env.S3_SCREENSHOT_BUCKET_NAME || '',
+      region: process.env.AWS_REGION || 'us-west-2',
+    },
+    profileText: {
+      bucket: process.env.S3_PROFILE_TEXT_BUCKET_NAME ||
+              process.env.S3_SCREENSHOT_BUCKET_NAME || '',
+      prefix: process.env.S3_PROFILE_TEXT_PREFIX || 'linkedin-profiles/',
+      region: process.env.S3_PROFILE_TEXT_REGION ||
+              process.env.AWS_REGION || 'us-west-2',
+    },
+  },
+
+  // Text Extraction Configuration
+  extraction: extractionConfig,
 };
 
 export default config;

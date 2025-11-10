@@ -16,22 +16,13 @@ Parameters:
     Type: String
     Default: lambdas/node-handler.zip
     Description: S3 object key for Node lambda zip under lambdas/ prefix
+  PlaceholderSearchLambdaKey:
+    Type: String
+    Default: lambdas/placeholder-search.zip
+    Description: S3 object key for placeholder search lambda zip
   DynamoTableName:
     Type: String
     Description: DynamoDB table name the lambdas can access
-  PineconeApiKey:
-    Type: String
-    Default: ''
-    NoEcho: true
-    Description: Optional Pinecone API key for Node Lambda
-  PineconeHost:
-    Type: String
-    Default: ''
-    Description: Optional Pinecone host URL for Node Lambda
-  PineconeIndexName:
-    Type: String
-    Default: ''
-    Description: Optional Pinecone index name for Node Lambda
 
 Resources:
   LambdaExecutionRole:
@@ -93,14 +84,32 @@ Resources:
         Variables:
           DYNAMODB_TABLE: !Ref DynamoTableName
           DYNAMODB_TABLE_NAME: !Ref DynamoTableName
-          PINECONE_API_KEY: !Ref PineconeApiKey
-          PINECONE_HOST: !Ref PineconeHost
-          PINECONE_INDEX_NAME: !Ref PineconeIndexName
+
+  PlaceholderSearchLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-placeholder-search'
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Runtime: nodejs20.x
+      Handler: index.handler
+      Code:
+        S3Bucket: !Ref ArtifactsBucketName
+        S3Key: !Ref PlaceholderSearchLambdaKey
+      Timeout: 30
+      MemorySize: 512
+      Environment:
+        Variables:
+          LOG_LEVEL: INFO
 
 Outputs:
   PythonLambdaArn:
     Value: !GetAtt PythonFunction.Arn
   NodeLambdaArn:
     Value: !GetAtt NodeFunction.Arn
+  PlaceholderSearchLambdaArn:
+    Description: ARN of Placeholder Search Lambda
+    Value: !GetAtt PlaceholderSearchLambda.Arn
+    Export:
+      Name: !Sub '${ProjectName}-placeholder-search-arn'
 
 
