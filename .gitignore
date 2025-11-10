@@ -18,6 +18,10 @@ dist-ssr
 build
 dist
 backend/data
+*.tsbuildinfo
+
+# Lambda deployment packages
+*.zip
 
 # Editor directories and files
 .vscode/*

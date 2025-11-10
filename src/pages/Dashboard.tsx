@@ -80,6 +80,7 @@ const Dashboard = () => {
     visitedLinks,
     loading,
     error,
+    infoMessage,
     searchLinkedIn,
     markAsVisited,
     clearResults,
@@ -887,6 +888,7 @@ const Dashboard = () => {
               userId={user?.id || ''}
               connectionsLoading={connectionsLoading}
               connectionsError={connectionsError}
+              searchInfoMessage={infoMessage}
               onRefresh={fetchConnections}
               onRemoveConnection={(connectionId: string, newStatus: 'processed' | 'outgoing') => {
                 // Update status accordingly in state and cache to trigger list re-render

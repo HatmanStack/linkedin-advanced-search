@@ -3,7 +3,8 @@ import { useState, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { UserPlus, Building, User, Search, X, Loader2, AlertCircle } from 'lucide-react';
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { UserPlus, Building, User, Search, X, Loader2, AlertCircle, Info } from 'lucide-react';
 import VirtualConnectionList from '@/components/VirtualConnectionList';
 import { connectionCache } from '@/utils/connectionCache';
 import type { Connection } from '@/types';
@@ -15,6 +16,7 @@ interface NewConnectionsTabProps {
     userId: string;
     connectionsLoading?: boolean;
     connectionsError?: string | null;
+    searchInfoMessage?: string | null;
     onRefresh?: () => void;
     onRemoveConnection?: (connectionId: string, newStatus: 'processed' | 'outgoing') => void;
 }
@@ -26,6 +28,7 @@ const NewConnectionsTab = ({
     userId,
     connectionsLoading = false,
     connectionsError = null,
+    searchInfoMessage = null,
     onRefresh,
     onRemoveConnection
 }: NewConnectionsTabProps) => {
@@ -145,7 +148,7 @@ const NewConnectionsTab = ({
                             <div className="relative">
                                 <Building className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
                                 <Input
-                                    placeholder="Company"
+                                    placeholder="Company (coming soon)"
                                     value={searchFilters.company}
                                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchFilters(prev => ({ ...prev, company: e.target.value }))}
                                     className="pl-10 bg-white/5 border-white/20 text-white placeholder-slate-400"
@@ -154,7 +157,7 @@ const NewConnectionsTab = ({
                             <div className="relative">
                                 <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
                                 <Input
-                                    placeholder="Job Title"
+                                    placeholder="Job Title (coming soon)"
                                     value={searchFilters.job}
                                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchFilters(prev => ({ ...prev, job: e.target.value }))}
                                     className="pl-10 bg-white/5 border-white/20 text-white placeholder-slate-400"
@@ -163,13 +166,23 @@ const NewConnectionsTab = ({
                             <div className="relative">
                                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
                                 <Input
-                                    placeholder="Location"
+                                    placeholder="Location (coming soon)"
                                     value={searchFilters.location}
                                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchFilters(prev => ({ ...prev, location: e.target.value }))}
                                     className="pl-10 bg-white/5 border-white/20 text-white placeholder-slate-400"
                                 />
                             </div>
                         </div>
+
+                        {/* Search Info Message Banner */}
+                        {searchInfoMessage && (
+                            <Alert className="mt-4 bg-blue-500/10 border-blue-500/30">
+                                <Info className="h-4 w-4 text-blue-400" />
+                                <AlertDescription className="text-blue-200">
+                                    {searchInfoMessage}
+                                </AlertDescription>
+                            </Alert>
+                        )}
                     </CardHeader>
                     <CardContent className="p-2 pt-4">
                         {/* Loading State */}
