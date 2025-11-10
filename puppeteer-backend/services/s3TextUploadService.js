@@ -7,6 +7,7 @@
 import { S3Client, PutObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
 import { logger } from '../utils/logger.js';
 import config from '../config/index.js';
+import { UploadMetrics } from '../utils/uploadMetrics.js';
 
 export class S3TextUploadService {
   constructor() {
@@ -17,6 +18,7 @@ export class S3TextUploadService {
     this.prefix = config.s3.profileText.prefix;
     this.maxRetries = 3;
     this.retryDelay = 1000; // Initial delay in ms
+    this.metrics = new UploadMetrics();
 
     logger.debug('S3TextUploadService initialized', {
       bucket: this.bucket,
@@ -32,13 +34,18 @@ export class S3TextUploadService {
    */
   async uploadProfileText(profileData) {
     const startTime = Date.now();
+    let success = false;
+    let bytes = 0;
+    let retries = 0;
+    let profileId = null;
+    let errorMessage = null;
 
     try {
       // Validate profile data
       this.validateProfileData(profileData);
 
       // Extract profile ID and build S3 key
-      const profileId = this.extractProfileId(profileData.url || profileData.profile_id);
+      profileId = this.extractProfileId(profileData.url || profileData.profile_id);
       const s3Key = `${this.prefix}${profileId}/${profileId}.json`;
 
       logger.info(`Uploading profile text to S3: ${profileId}`);
@@ -53,6 +60,7 @@ export class S3TextUploadService {
       // Convert to JSON
       const jsonContent = JSON.stringify(enrichedData, null, 2);
       const contentBuffer = Buffer.from(jsonContent, 'utf-8');
+      bytes = contentBuffer.length;
 
       // Prepare S3 upload parameters
       const params = {
@@ -71,17 +79,20 @@ export class S3TextUploadService {
       };
 
       // Upload with retry logic
-      const response = await this.uploadWithRetry(params);
+      const uploadResult = await this.uploadWithRetry(params);
+      const response = uploadResult.response;
+      retries = uploadResult.retries;
 
       const duration = Date.now() - startTime;
-      const fileSize = contentBuffer.length;
+      success = true;
 
       logger.info(`Successfully uploaded profile text to S3`, {
         profileId,
         s3Key,
-        fileSize,
+        fileSize: bytes,
         duration: `${duration}ms`,
-        etag: response.ETag
+        etag: response.ETag,
+        retries
       });
 
       // Return upload metadata
@@ -90,25 +101,30 @@ export class S3TextUploadService {
         profileId,
         s3Key,
         s3Url: this.buildS3Url(s3Key),
-        fileSize,
+        fileSize: bytes,
         etag: response.ETag,
         uploadDuration: duration,
-        uploadedAt: enrichedData.uploaded_at
+        uploadedAt: enrichedData.uploaded_at,
+        retries
       };
 
     } catch (error) {
       const duration = Date.now() - startTime;
+      errorMessage = error.message;
       logger.error(`Failed to upload profile text to S3:`, {
-        profileId: profileData.profile_id || profileData.url,
-        error: error.message,
+        profileId: profileId || profileData.profile_id || profileData.url,
+        error: errorMessage,
         duration: `${duration}ms`
       });
 
       return {
         success: false,
-        error: error.message,
+        error: errorMessage,
         uploadDuration: duration
       };
+    } finally {
+      const duration = Date.now() - startTime;
+      this.metrics.recordUpload(success, duration, bytes, retries, profileId, errorMessage);
     }
   }
 
@@ -116,16 +132,22 @@ export class S3TextUploadService {
    * Upload with exponential backoff retry logic
    * @private
    * @param {Object} params - S3 PutObjectCommand parameters
-   * @returns {Promise<Object>} - S3 response
+   * @returns {Promise<Object>} - Object with response and retries count
    */
   async uploadWithRetry(params) {
     let lastError;
+    let retries = 0;
 
     for (let attempt = 1; attempt <= this.maxRetries; attempt++) {
       try {
         const command = new PutObjectCommand(params);
         const response = await this.s3Client.send(command);
-        return response;
+
+        // Return response and retry count
+        return {
+          response,
+          retries
+        };
 
       } catch (error) {
         lastError = error;
@@ -147,6 +169,9 @@ export class S3TextUploadService {
           });
           throw error;
         }
+
+        // Increment retry counter
+        retries++;
 
         // Calculate backoff delay
         const delay = this.retryDelay * Math.pow(2, attempt - 1);
@@ -286,6 +311,29 @@ export class S3TextUploadService {
    */
   sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Get current upload metrics
+   * @returns {Object} - Current metrics snapshot
+   */
+  getMetrics() {
+    return this.metrics.getMetrics();
+  }
+
+  /**
+   * Reset upload metrics
+   */
+  resetMetrics() {
+    this.metrics.resetMetrics();
+  }
+
+  /**
+   * Get metrics summary
+   * @returns {Object} - Summary statistics
+   */
+  getMetricsSummary() {
+    return this.metrics.getSummary();
   }
 }
 
