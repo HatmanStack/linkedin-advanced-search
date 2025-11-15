@@ -100,7 +100,9 @@ class PuppeteerApiService {
 
         const original = options.body ? JSON.parse(options.body as string) : {};
         augmentedBody = JSON.stringify({ ...original, linkedinCredentialsCiphertext: ciphertextTag });
-        console.log('[puppeteerApiService] Credentials attached, request body keys:', Object.keys(JSON.parse(augmentedBody)));
+        if (import.meta.env.DEV) {
+          console.log('[puppeteerApiService] Credentials attached, request body keys:', Object.keys(JSON.parse(augmentedBody)));
+        }
       }
 
       const response = await fetch(`${PUPPETEER_BACKEND_URL}${endpoint}`, {

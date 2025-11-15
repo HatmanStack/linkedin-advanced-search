@@ -17,7 +17,15 @@ export class SearchController {
   async performSearch(req, res, opts = {}) {
     logger.info('=== SEARCH REQUEST RECEIVED ===');
     logger.info(`Request path: ${req.path}, method: ${req.method}`);
-    logger.info(`Headers: ${JSON.stringify(req.headers)}`);
+
+    // Sanitize headers to remove sensitive data before logging
+    const sanitizedHeaders = { ...req.headers };
+    ['authorization', 'Authorization', 'cookie', 'Cookie'].forEach(key => {
+      if (sanitizedHeaders[key]) {
+        sanitizedHeaders[key] = '[REDACTED]';
+      }
+    });
+    logger.info(`Headers: ${JSON.stringify(sanitizedHeaders)}`);
     logger.info(`Body keys: ${req.body ? Object.keys(req.body).join(', ') : 'no body'}`);
 
     this._logRequestDetails(req);

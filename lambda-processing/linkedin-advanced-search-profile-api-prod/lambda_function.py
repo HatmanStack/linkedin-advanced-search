@@ -61,7 +61,7 @@ def _extract_user_id(event):
     logger.error("No authentication found and DEV_MODE is not enabled")
     return None
 
-def lambda_handler(event, context):
+def lambda_handler(event, _context):
     """Main Lambda handler for profile API operations"""
     # HTTP API v2 uses requestContext.http.method instead of httpMethod
     http_method = event.get('httpMethod') or event.get('requestContext', {}).get('http', {}).get('method', '')
@@ -88,7 +88,7 @@ def lambda_handler(event, context):
             return build_error_response(405, f"Method {http_method} not allowed")
 
     except Exception as e:
-        logger.error(f"Error processing request: {e}", exc_info=True)
+        logger.exception("Error processing profile request")
         return build_error_response(500, "Internal server error")
 
 
@@ -133,15 +133,21 @@ def handle_get_profile(user_id):
         return build_success_response(profile)
 
     except ClientError as e:
-        logger.error(f"DynamoDB error: {e}")
+        logger.exception("DynamoDB error")
         return build_error_response(500, "Database error")
 
 
 def handle_update_profile(event, user_id):
     """Handle POST /profiles - Update user profile"""
     try:
-        # Parse request body
-        body = json.loads(event.get('body', '{}'))
+        # Parse request body (handles both string and dict)
+        raw_body = event.get('body', '{}')
+        if isinstance(raw_body, str):
+            body = json.loads(raw_body or '{}')
+        elif raw_body is None:
+            body = {}
+        else:
+            body = raw_body
 
         # Extract operation
         operation = body.get('operation', 'update_user_settings')
@@ -177,7 +183,8 @@ def handle_update_profile(event, user_id):
             return build_error_response(400, "No valid fields to update")
 
         # Always update the updatedAt timestamp
-        update_fields['updatedAt'] = datetime.utcnow().isoformat()
+        now_iso = datetime.utcnow().isoformat()
+        update_fields['updatedAt'] = now_iso
 
         # Build update expression
         update_expr_parts = []
@@ -190,7 +197,7 @@ def handle_update_profile(event, user_id):
 
         # If profile doesn't exist, set createdAt
         expression_attribute_names['#createdAt'] = 'createdAt'
-        expression_attribute_values[':createdAt'] = datetime.utcnow().isoformat()
+        expression_attribute_values[':createdAt'] = now_iso
         update_expr_parts.append("#createdAt = if_not_exists(#createdAt, :createdAt)")
 
         update_expression = "SET " + ", ".join(update_expr_parts)
@@ -227,7 +234,7 @@ def handle_update_profile(event, user_id):
     except json.JSONDecodeError:
         return build_error_response(400, "Invalid JSON in request body")
     except ClientError as e:
-        logger.error(f"DynamoDB error: {e}")
+        logger.exception("DynamoDB error")
         return build_error_response(500, "Database error")
 
 

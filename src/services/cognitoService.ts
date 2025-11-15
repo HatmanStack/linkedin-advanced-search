@@ -13,6 +13,24 @@ const userPool = new CognitoUserPool({
   ClientId: cognitoConfig.userPoolWebClientId,
 });
 
+// Helper function to extract user data from Cognito attributes
+function extractUserData(session: CognitoUserSession, attributes: any[], email: string): CognitoUserData {
+  const userAttributes: { [key: string]: string } = {};
+  attributes?.forEach((attr) => {
+    userAttributes[attr.getName()] = attr.getValue();
+  });
+
+  return {
+    id: session.getIdToken().payload.sub,
+    email: userAttributes.email || email,
+    firstName: userAttributes.given_name,
+    lastName: userAttributes.family_name,
+    emailVerified: userAttributes.email_verified === 'true',
+  };
+}
+
+
+
 export interface CognitoUserData {
   id: string;
   email: string;
@@ -97,18 +115,7 @@ export class CognitoAuthService {
               return;
             }
 
-            const userAttributes: { [key: string]: string } = {};
-            attributes?.forEach((attr) => {
-              userAttributes[attr.getName()] = attr.getValue();
-            });
-
-            const user: CognitoUserData = {
-              id: session.getIdToken().payload.sub,
-              email: userAttributes.email || email,
-              firstName: userAttributes.given_name,
-              lastName: userAttributes.family_name,
-              emailVerified: userAttributes.email_verified === 'true',
-            };
+            const user = extractUserData(session, attributes || [], email);
 
             resolve({ error: null, user });
           });
@@ -122,7 +129,14 @@ export class CognitoAuthService {
           // This happens when Cognito puts users in FORCE_CHANGE_PASSWORD status
           console.log('Completing new password challenge with same password');
 
-          cognitoUser.completeNewPasswordChallenge(password, userAttributes, {
+          // Filter out read-only Cognito attributes before completing challenge
+          const writableAttributes = { ...userAttributes };
+          delete writableAttributes.email;
+          delete writableAttributes.email_verified;
+          delete writableAttributes.phone_number;
+          delete writableAttributes.phone_number_verified;
+
+          cognitoUser.completeNewPasswordChallenge(password, writableAttributes, {
             onSuccess: (session: CognitoUserSession) => {
               // Successfully completed password challenge
               cognitoUser.getUserAttributes((err, attributes) => {
@@ -131,18 +145,7 @@ export class CognitoAuthService {
                   return;
                 }
 
-                const userAttrs: { [key: string]: string } = {};
-                attributes?.forEach((attr) => {
-                  userAttrs[attr.getName()] = attr.getValue();
-                });
-
-                const user: CognitoUserData = {
-                  id: session.getIdToken().payload.sub,
-                  email: userAttrs.email || email,
-                  firstName: userAttrs.given_name,
-                  lastName: userAttrs.family_name,
-                  emailVerified: userAttrs.email_verified === 'true',
-                };
+                const user = extractUserData(session, attributes || [], email);
 
                 resolve({ error: null, user });
               });
