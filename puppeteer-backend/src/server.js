@@ -11,20 +11,33 @@ import ConfigInitializer from '../utils/configInitializer.js';
 
 const app = express();
 
-// CORS configuration - Dynamic origin with development localhost support
+// CORS configuration - Secure origin validation
 app.use(cors({
   origin: function (origin, callback) {
-    // Allow requests with no origin (mobile apps, Postman, curl)
-    if (!origin) return callback(null, true);
+    // Allow requests with no origin only in development (Postman, curl, etc.)
+    if (!origin) {
+      if (config.nodeEnv === 'development') {
+        return callback(null, true);
+      }
+      logger.warn('CORS: Rejecting request with no origin in production');
+      return callback(new Error('Origin header required'));
+    }
 
     // Get configured origins from env
     const allowedOrigins = config.frontendUrls || [];
 
-    // In development, allow any localhost or 127.0.0.1 origin
+    // In development, allow localhost/127.0.0.1 with proper hostname validation
     if (config.nodeEnv === 'development') {
-      if (origin.startsWith('http://localhost') || origin.startsWith('http://127.0.0.1')) {
-        logger.debug(`CORS: Allowing development origin: ${origin}`);
-        return callback(null, true);
+      try {
+        const originUrl = new URL(origin);
+        const hostname = originUrl.hostname;
+        if (hostname === 'localhost' || hostname === '127.0.0.1') {
+          logger.debug(`CORS: Allowing development origin: ${origin}`);
+          return callback(null, true);
+        }
+      } catch (err) {
+        logger.warn(`CORS: Invalid origin URL format: ${origin}`);
+        return callback(new Error('Invalid origin format'));
       }
     }
 
