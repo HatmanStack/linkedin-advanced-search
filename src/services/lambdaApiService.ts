@@ -100,6 +100,8 @@ export interface ApiResponse<T = any> {
  */
 class LambdaApiService {
   protected apiClient: AxiosInstance;
+  // Stored for potential future use
+  // @ts-expect-error - Reserved for future authentication enhancement
   private authToken: string | null = null;
   private readonly maxRetries: number = 3;
   private readonly retryDelay: number = 1000; // Base delay in milliseconds

@@ -87,7 +87,7 @@ export async function encryptWithSealboxB64(plaintext: string, publicKeyB64: str
   }
   const sealed = sodium.crypto_box_seal(messageBytes, pkBytes);
   // Convert to base64
-  const sealedB64 = arrayBufferToBase64(sealed.buffer.slice(sealed.byteOffset, sealed.byteOffset + sealed.byteLength));
+  const sealedB64 = arrayBufferToBase64(sealed.buffer.slice(sealed.byteOffset, sealed.byteOffset + sealed.byteLength) as ArrayBuffer);
   return sealedB64;
 }
 

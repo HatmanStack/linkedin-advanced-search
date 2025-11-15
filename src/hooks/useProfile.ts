@@ -35,7 +35,7 @@ export const useProfile = () => {
     fetchProfile();
   }, [fetchProfile]);
 
-  const updateProfile = useCallback(async (updates: Partial<UserProfile>): Promise<boolean> => {
+  const updateProfile = useCallback(async (_updates: Partial<UserProfile>): Promise<boolean> => {
     try {
       // Profile updating removed - puppeteerApiService no longer handles profile endpoints
       // Use lambdaApiService or UserProfileContext instead

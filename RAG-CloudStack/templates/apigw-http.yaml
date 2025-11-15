@@ -18,6 +18,12 @@ Parameters:
   PlaceholderSearchLambdaArn:
     Type: String
     Description: ARN of the placeholder search Lambda function
+  EdgeProcessingLambdaArn:
+    Type: String
+    Description: ARN of the edge processing Lambda function
+  DynamoDBApiLambdaArn:
+    Type: String
+    Description: ARN of the DynamoDB API Lambda function
   PythonRoutePath:
     Type: String
     Default: /process
@@ -28,6 +34,14 @@ Parameters:
     Type: String
     Default: /search
     Description: Route path for placeholder search endpoint
+  EdgeRoutePath:
+    Type: String
+    Default: /edge
+    Description: Route path for edge processing endpoint
+  DynamoDBApiRoutePath:
+    Type: String
+    Default: /dynamodb
+    Description: Route path for DynamoDB API endpoint
   UserPoolId:
     Type: String
   UserPoolClientId:
@@ -80,6 +94,22 @@ Resources:
       IntegrationUri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${PlaceholderSearchLambdaArn}/invocations'
       PayloadFormatVersion: '2.0'
 
+  EdgeProcessingIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref HttpApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${EdgeProcessingLambdaArn}/invocations'
+      PayloadFormatVersion: '2.0'
+
+  DynamoDBApiIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref HttpApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${DynamoDBApiLambdaArn}/invocations'
+      PayloadFormatVersion: '2.0'
+
   PythonRoute:
     Type: AWS::ApiGatewayV2::Route
     Properties:
@@ -104,6 +134,24 @@ Resources:
       ApiId: !Ref HttpApi
       RouteKey: !Sub 'POST ${PlaceholderSearchRoutePath}'
       Target: !Sub 'integrations/${PlaceholderSearchIntegration}'
+      AuthorizationType: JWT
+      AuthorizerId: !Ref Authorizer
+
+  EdgeProcessingRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: !Sub 'POST ${EdgeRoutePath}'
+      Target: !Sub 'integrations/${EdgeProcessingIntegration}'
+      AuthorizationType: JWT
+      AuthorizerId: !Ref Authorizer
+
+  DynamoDBApiRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: !Sub 'POST ${DynamoDBApiRoutePath}'
+      Target: !Sub 'integrations/${DynamoDBApiIntegration}'
       AuthorizationType: JWT
       AuthorizerId: !Ref Authorizer
 
@@ -137,6 +185,22 @@ Resources:
       FunctionName: !Ref PlaceholderSearchLambdaArn
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/POST${PlaceholderSearchRoutePath}'
+
+  LambdaPermissionEdgeProcessing:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref EdgeProcessingLambdaArn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/POST${EdgeRoutePath}'
+
+  LambdaPermissionDynamoDBApi:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref DynamoDBApiLambdaArn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/POST${DynamoDBApiRoutePath}'
 
 Outputs:
   HttpApiId:

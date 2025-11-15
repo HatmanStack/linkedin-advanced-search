@@ -1,7 +1,6 @@
 import { useCallback, useState } from 'react';
 import useLocalStorage from './useLocalStorage';
-import useApi from './useApi';
-import { lambdaApiService } from '@/services/lambdaApiService';
+import { puppeteerApiService } from '@/services/puppeteerApiService';
 import type { SearchFormData } from '@/utils/validation';
 import { STORAGE_KEYS } from '@/config/appConfig';
 import { connectionChangeTracker } from '@/utils/connectionChangeTracker';
@@ -30,42 +29,40 @@ function useSearchResults(): UseSearchResultsReturn {
     {}
   );
 
+  // State for loading and errors
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   // State for informational message from search API
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
 
-  // API hook for search functionality - using placeholder search API
-  const {
-    loading,
-    error,
-    execute: executeSearch,
-  } = useApi(async (query: string) => {
-    const response = await lambdaApiService.searchProfiles(query);
-
-    // Extract and store info message from response
-    if (response?.message) {
-      setInfoMessage(response.message);
-    }
-
-    return response;
-  });
-
-  // Update results when search completes
+  // LinkedIn search via puppeteer backend
   const searchLinkedIn = useCallback(
     async (searchFormData: SearchFormData) => {
-      // Convert SearchFormData to query string
-      const queryParts = [];
-      if (searchFormData.companyRole) queryParts.push(searchFormData.companyRole);
-      if (searchFormData.companyName) queryParts.push(`at ${searchFormData.companyName}`);
-      if (searchFormData.companyLocation) queryParts.push(`in ${searchFormData.companyLocation}`);
+      setLoading(true);
+      setError(null);
+      setInfoMessage(null);
 
-      const query = queryParts.join(' ') || 'professionals';
+      try {
+        // Call puppeteer backend for real LinkedIn automation
+        const response = await puppeteerApiService.performLinkedInSearch(searchFormData);
 
-      await executeSearch(query);
+        // Extract and store info message from response
+        if (response?.message) {
+          setInfoMessage(response.message);
+        }
 
-      // Mark that connections may have changed due to a search
-      connectionChangeTracker.markChanged('search');
+        // Mark that connections may have changed due to a search
+        connectionChangeTracker.markChanged('search');
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Search failed';
+        setError(errorMessage);
+        throw err; // Re-throw so Dashboard can handle it
+      } finally {
+        setLoading(false);
+      }
     },
-    [executeSearch]
+    []
   );
 
   // We no longer store backend search results locally; DynamoDB is the source of truth

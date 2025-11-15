@@ -2,10 +2,7 @@ import PostEditor from '@/components/PostEditor';
 import PostAIAssistant from '@/components/PostAIAssistant';
 import ResearchResultsCard from '@/components/ResearchResultsCard';
 import { usePostComposer } from '@/contexts/PostComposerContext';
-import { useEffect, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
-
-const RESEARCH_STORAGE_KEY = 'ai_research_content';
 
 const NewPostTabInner = () => {
   const {
@@ -16,7 +13,6 @@ const NewPostTabInner = () => {
     isGeneratingIdeas,
     isResearching,
     isSynthesizing,
-    researchContent,
     saveDraft,
     publish,
     generateIdeas,

@@ -111,16 +111,32 @@ const Profile = () => {
 
         // Optional client-side encryption if sealbox public key is provided.
         const sealboxPubB64 = (import.meta.env as any).VITE_CRED_SEALBOX_PUBLIC_KEY_B64 as string | undefined;
+        console.log('[Profile] Save credentials - public key check:', {
+          hasPublicKey: !!sealboxPubB64,
+          keyType: typeof sealboxPubB64,
+          keyLength: sealboxPubB64 ? sealboxPubB64.length : 0,
+          keyPreview: sealboxPubB64 ? sealboxPubB64.substring(0, 20) + '...' : 'undefined'
+        });
+
         if (sealboxPubB64 && typeof sealboxPubB64 === 'string') {
+          console.log('[Profile] Encrypting credentials with Sealbox...');
           const json = JSON.stringify({
             email: linkedinCredentials.email,
             password: linkedinCredentials.password,
           });
+          console.log('[Profile] JSON to encrypt length:', json.length);
+
           const ciphertextB64 = await encryptWithSealboxB64(json, sealboxPubB64);
+          console.log('[Profile] Encryption complete, ciphertext length:', ciphertextB64.length);
+
           payload.linkedin_credentials = `sealbox_x25519:b64:${ciphertextB64}`;
+          console.log('[Profile] Full credentials string length:', payload.linkedin_credentials.length);
+
           // Update context with ciphertext for app-wide usage
           setCiphertext(payload.linkedin_credentials);
+          console.log('[Profile] Credentials set in context');
         } else {
+          console.warn('[Profile] No public key found, using plaintext fallback');
           // Fallback: send JSON string and rely on backend to encrypt/de-identify and store securely with KMS
           payload.linkedin_credentials = JSON.stringify({
             email: linkedinCredentials.email,

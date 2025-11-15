@@ -16,6 +16,8 @@ class HealAndRestoreService {
   private eventSource: EventSource | null = null;
   private listeners: ((notification: HealAndRestoreNotification) => void)[] = [];
   private isPolling = false;
+  // Temporarily unused but kept for future use
+  // @ts-expect-error - Will be used when uncommenting line 65
   private isListening = false;
   private ignoredSessionIds: Set<string> = new Set();
 
@@ -95,6 +97,7 @@ class HealAndRestoreService {
   }
 
   // Simple polling implementation (can be replaced with WebSocket/SSE later)
+  // @ts-expect-error - Reserved for future polling functionality
   private startPolling(): void {
     if (this.isPolling) return;
     this.isPolling = true;
