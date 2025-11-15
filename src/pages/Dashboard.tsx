@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { MessageSquare, Users, Settings, UserPlus, FileText, LogOut, Loader2, AlertCircle, Database } from 'lucide-react';
+import { MessageSquare, Users, Settings, UserPlus, FileText, LogOut, AlertCircle, Database } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useHealAndRestore } from '@/contexts/HealAndRestoreContext'; // Added
@@ -71,20 +71,14 @@ const Dashboard = () => {
   const [isGeneratingMessages, setIsGeneratingMessages] = useState(false);
   const [currentConnectionIndex, setCurrentConnectionIndex] = useState(0);
   const [generatedMessages, setGeneratedMessages] = useState<Map<string, string>>(new Map());
-  const [generationError, setGenerationError] = useState<string | null>(null);
   const [workflowState, setWorkflowState] = useState<'idle' | 'generating' | 'awaiting_approval' | 'stopping' | 'completed' | 'error'>('idle');
 
   // Use existing search functionality
   const {
-    results,
-    visitedLinks,
     loading,
     error,
     infoMessage,
     searchLinkedIn,
-    markAsVisited,
-    clearResults,
-    clearVisitedLinks,
   } = useSearchResults();
 
   // Profile initialization functionality
@@ -100,7 +94,6 @@ const Dashboard = () => {
     setIsGeneratingMessages(false);
     setCurrentConnectionIndex(0);
     setGeneratedMessages(new Map());
-    setGenerationError(null);
     setWorkflowState('idle');
   }, []);
 
@@ -265,55 +258,6 @@ const Dashboard = () => {
     return counts;
   }, []);
 
-  const updateConnectionStatus = useCallback(async (connectionId: string, newStatus: 'possible' | 'incoming' | 'outgoing' | 'ally' | 'processed') => {
-    try {
-      // Optimistic update and count recalculation will be handled in the setConnections callback below
-
-      // Update cache; if processed, remove it so lists reflect immediately
-      if (newStatus === 'processed') {
-        connectionCache.delete(connectionId);
-      } else {
-        connectionCache.update(connectionId, { status: newStatus });
-      }
-
-      // Update database
-      // await dbConnector.updateConnectionStatus(connectionId, newStatus);
-
-      // Mark change so next dashboard mount can conditionally refresh
-      connectionChangeTracker.markChanged('interaction');
-
-      // Recalculate counts using the updated state
-      setConnections(prev => {
-        const updated = prev.map(conn =>
-          conn.id === connectionId ? { ...conn, status: newStatus } : conn
-        );
-        const counts = calculateConnectionCounts(updated);
-        setConnectionCounts(counts);
-        return updated;
-      });
-
-      toast({
-        title: "Connection Updated",
-        description: "Connection status has been updated successfully.",
-        variant: "default"
-      });
-    } catch (err: any) {
-      console.error('Error updating connection status:', err);
-
-      // Rollback optimistic update
-      setConnections(prev => prev.map(conn =>
-        conn.id === connectionId ? { ...conn, status: connections.find(c => c.id === connectionId)?.status || 'possible' } : conn
-      ));
-
-      const errorMessage = err instanceof ApiError ? err.message : 'Failed to update connection';
-      toast({
-        title: "Update Failed",
-        description: errorMessage,
-        variant: "destructive"
-      });
-    }
-  }, [connections, calculateConnectionCounts, toast]);
-
   // Message modal functions
   const handleMessageClick = useCallback(async (connection: Connection) => {
     setSelectedConnectionForMessages(connection);
@@ -387,7 +331,6 @@ const Dashboard = () => {
     setWorkflowState('generating');
     setIsGeneratingMessages(true);
     setCurrentConnectionIndex(0);
-    setGenerationError(null);
     errorHandler.clearError();
 
     const selectedConnectionsData = connections.filter(conn =>

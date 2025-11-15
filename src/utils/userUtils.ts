@@ -1,4 +1,4 @@
-import { User } from '@/contexts/AuthContext';
+import type { User } from '@/contexts/AuthContext';
 
 /**
  * Utility functions for user management and identification
