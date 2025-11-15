@@ -69,14 +69,29 @@ class PuppeteerApiService {
         endpoint.startsWith('/linkedin-interactions') ||
         endpoint.startsWith('/profile-init') ||
         endpoint.startsWith('/search');
+
+      console.log('[puppeteerApiService] Making request:', {
+        endpoint,
+        shouldAttach,
+        method: options.method || 'GET'
+      });
+
       if (shouldAttach) {
         let ciphertextTag = null as string | null;
         try {
           const fromSession = sessionStorage.getItem('li_credentials_ciphertext');
           ciphertextTag = (fromSession && fromSession.startsWith('sealbox_x25519:b64:')) ? fromSession : null;
-        } catch { }
+          console.log('[puppeteerApiService] Credentials check:', {
+            hasSessionStorage: !!fromSession,
+            hasValidPrefix: ciphertextTag ? true : false,
+            length: fromSession ? fromSession.length : 0
+          });
+        } catch (e) {
+          console.error('[puppeteerApiService] Error reading sessionStorage:', e);
+        }
 
         if (!ciphertextTag) {
+          console.error('[puppeteerApiService] No valid credentials found, aborting request');
           return {
             success: false,
             error: 'LinkedIn credentials are missing. Please add your encrypted LinkedIn credentials on the Profile page first.',
@@ -85,6 +100,7 @@ class PuppeteerApiService {
 
         const original = options.body ? JSON.parse(options.body as string) : {};
         augmentedBody = JSON.stringify({ ...original, linkedinCredentialsCiphertext: ciphertextTag });
+        console.log('[puppeteerApiService] Credentials attached, request body keys:', Object.keys(JSON.parse(augmentedBody)));
       }
 
       const response = await fetch(`${PUPPETEER_BACKEND_URL}${endpoint}`, {

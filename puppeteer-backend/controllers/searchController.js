@@ -15,16 +15,32 @@ import fs from 'fs/promises';
 
 export class SearchController {
   async performSearch(req, res, opts = {}) {
+    logger.info('=== SEARCH REQUEST RECEIVED ===');
+    logger.info(`Request path: ${req.path}, method: ${req.method}`);
+    logger.info(`Headers: ${JSON.stringify(req.headers)}`);
+    logger.info(`Body keys: ${req.body ? Object.keys(req.body).join(', ') : 'no body'}`);
+
     this._logRequestDetails(req);
 
-    const jwtToken = this._extractJwtToken(req);
+    let jwtToken = this._extractJwtToken(req);
+    logger.info(`JWT token extracted: ${jwtToken ? 'YES' : 'NO'}`);
+
+    // In development, allow requests without JWT for testing
+    if (!jwtToken && config.nodeEnv === 'development') {
+      logger.warn('No JWT token found, using development test token');
+      jwtToken = 'development-test-token';
+    }
+
     if (!jwtToken) {
+      logger.error('JWT token missing after fallback, rejecting request');
       return res.status(401).json({
         error: 'Missing or invalid Authorization header'
       });
     }
 
+    logger.info('Validating request with SearchRequestValidator...');
     const validationResult = SearchRequestValidator.validateRequest(req.body, jwtToken);
+    logger.info(`Validation result: ${validationResult.isValid ? 'VALID' : 'INVALID'}`);
     if (!validationResult.isValid) {
       return res.status(validationResult.statusCode).json({
         error: validationResult.error,

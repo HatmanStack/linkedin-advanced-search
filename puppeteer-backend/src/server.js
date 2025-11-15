@@ -11,12 +11,37 @@ import ConfigInitializer from '../utils/configInitializer.js';
 
 const app = express();
 
-// CORS configuration
+// CORS configuration - Dynamic origin with development localhost support
 app.use(cors({
-  origin: config.frontendUrls,
-  methods: ['POST', 'GET', 'OPTIONS'],
+  origin: function (origin, callback) {
+    // Allow requests with no origin (mobile apps, Postman, curl)
+    if (!origin) return callback(null, true);
+
+    // Get configured origins from env
+    const allowedOrigins = config.frontendUrls || [];
+
+    // In development, allow any localhost or 127.0.0.1 origin
+    if (config.nodeEnv === 'development') {
+      if (origin.startsWith('http://localhost') || origin.startsWith('http://127.0.0.1')) {
+        logger.debug(`CORS: Allowing development origin: ${origin}`);
+        return callback(null, true);
+      }
+    }
+
+    // Check if origin is in allowed list
+    if (allowedOrigins.includes(origin)) {
+      logger.debug(`CORS: Allowing configured origin: ${origin}`);
+      return callback(null, true);
+    }
+
+    // Reject all other origins
+    logger.warn(`CORS: Rejecting origin: ${origin}`);
+    callback(new Error(`Origin ${origin} not allowed by CORS`));
+  },
+  methods: ['POST', 'GET', 'OPTIONS', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true
+  credentials: true,
+  optionsSuccessStatus: 204 // Some legacy browsers (IE11) choke on 204
 }));
 
 // Body parser middleware

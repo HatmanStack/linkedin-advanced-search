@@ -93,10 +93,20 @@ export const UserProfileProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     try {
       const stored = sessionStorage.getItem('li_credentials_ciphertext');
+      console.log('[UserProfileContext] Loading credentials from sessionStorage:', {
+        hasStored: !!stored,
+        startsWithPrefix: stored ? stored.startsWith('sealbox_x25519:b64:') : false,
+        length: stored ? stored.length : 0
+      });
       if (stored && (stored.startsWith('sealbox_x25519:b64:'))) {
         setCiphertextState(stored);
+        console.log('[UserProfileContext] Credentials loaded successfully');
+      } else {
+        console.warn('[UserProfileContext] No valid credentials found in sessionStorage');
       }
-    } catch {}
+    } catch (err) {
+      console.error('[UserProfileContext] Error loading credentials:', err);
+    }
 
     if (user) {
       const alreadyFetched = (() => { try { return sessionStorage.getItem('profile_fetched') === 'true'; } catch { return false; } })();
@@ -113,12 +123,18 @@ export const UserProfileProvider = ({ children }: { children: ReactNode }) => {
   const contextValue = useMemo(() => ({
     ciphertext,
     setCiphertext: (value: LinkedInCredentialsCiphertext) => {
+      console.log('[UserProfileContext] setCiphertext called with:', {
+        hasValue: !!value,
+        startsWithPrefix: value ? value.startsWith('sealbox_x25519:b64:') : false
+      });
       setCiphertextState(value);
       try {
         if (value && value.startsWith('sealbox_x25519:b64:')) {
           sessionStorage.setItem('li_credentials_ciphertext', value);
+          console.log('[UserProfileContext] Credentials saved to sessionStorage');
         } else {
           sessionStorage.removeItem('li_credentials_ciphertext');
+          console.log('[UserProfileContext] Credentials removed from sessionStorage');
         }
       } catch {}
     },

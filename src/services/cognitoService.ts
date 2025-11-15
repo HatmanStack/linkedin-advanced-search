@@ -114,14 +114,42 @@ export class CognitoAuthService {
           });
         },
         onFailure: (err) => {
-          resolve({ error: { message: err.message } });
+          console.error('Cognito sign-in error:', err);
+          resolve({ error: { message: err.message, code: err.code } });
         },
-        newPasswordRequired: () => {
-          // Handle new password required scenario
-          resolve({
-            error: {
-              message: 'New password required. Please contact support.',
-              code: 'NEW_PASSWORD_REQUIRED',
+        newPasswordRequired: (userAttributes) => {
+          // For self-registered users, complete auth with the same password
+          // This happens when Cognito puts users in FORCE_CHANGE_PASSWORD status
+          console.log('Completing new password challenge with same password');
+
+          cognitoUser.completeNewPasswordChallenge(password, userAttributes, {
+            onSuccess: (session: CognitoUserSession) => {
+              // Successfully completed password challenge
+              cognitoUser.getUserAttributes((err, attributes) => {
+                if (err) {
+                  resolve({ error: { message: err.message } });
+                  return;
+                }
+
+                const userAttrs: { [key: string]: string } = {};
+                attributes?.forEach((attr) => {
+                  userAttrs[attr.getName()] = attr.getValue();
+                });
+
+                const user: CognitoUserData = {
+                  id: session.getIdToken().payload.sub,
+                  email: userAttrs.email || email,
+                  firstName: userAttrs.given_name,
+                  lastName: userAttrs.family_name,
+                  emailVerified: userAttrs.email_verified === 'true',
+                };
+
+                resolve({ error: null, user });
+              });
+            },
+            onFailure: (err) => {
+              console.error('New password challenge failed:', err);
+              resolve({ error: { message: err.message, code: err.code } });
             },
           });
         },
