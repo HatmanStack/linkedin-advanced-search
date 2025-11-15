@@ -1,5 +1,5 @@
 import { logger } from './logger.js';
-import ConfigManager from './configManager.js';
+import { ConfigManager } from './configManager.js';
 import ConfigValidator from './configValidator.js';
 
 /**

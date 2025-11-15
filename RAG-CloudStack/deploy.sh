@@ -14,9 +14,13 @@ STAGE_NAME=${STAGE_NAME:-prod}
 PYTHON_KEY=${PYTHON_KEY:-lambdas/python-handler.zip}
 NODE_KEY=${NODE_KEY:-lambdas/node-handler.zip}
 PLACEHOLDER_SEARCH_KEY=${PLACEHOLDER_SEARCH_KEY:-lambdas/placeholder-search.zip}
+EDGE_PROCESSING_KEY=${EDGE_PROCESSING_KEY:-lambdas/edge-processing.zip}
+DYNAMODB_API_KEY=${DYNAMODB_API_KEY:-lambdas/dynamodb-api.zip}
 PYTHON_ZIP_PATH=${PYTHON_ZIP_PATH:-"./lambda-src/python/lambda_function.zip"}
 NODE_ZIP_PATH=${NODE_ZIP_PATH:-"./lambda-src/node/index.zip"}
 PLACEHOLDER_SEARCH_ZIP_PATH=${PLACEHOLDER_SEARCH_ZIP_PATH:-"../lambda-processing/linkedin-advanced-search-placeholder-search-prod/placeholder-search.zip"}
+EDGE_PROCESSING_ZIP_PATH=${EDGE_PROCESSING_ZIP_PATH:-"../lambda-processing/linkedin-advanced-search-edge-processing-prod/edge-processing.zip"}
+DYNAMODB_API_ZIP_PATH=${DYNAMODB_API_ZIP_PATH:-"../lambda-processing/linkedin-advanced-search-dynamodb-api-prod/dynamodb-api.zip"}
 COGNITO_DOMAIN=${COGNITO_DOMAIN:-"${STACK_PREFIX}-domain"}
 CALLBACK_URLS=${CALLBACK_URLS:-"http://localhost:5173"}
 LOGOUT_URLS=${LOGOUT_URLS:-"http://localhost:5173"}
@@ -49,6 +53,14 @@ if [ -f "$PLACEHOLDER_SEARCH_ZIP_PATH" ]; then
   echo "Uploading placeholder search Lambda..."
   aws s3 cp "$PLACEHOLDER_SEARCH_ZIP_PATH" "s3://$ARTIFACTS_BUCKET/$PLACEHOLDER_SEARCH_KEY" --region "$REGION"
 fi
+if [ -f "$EDGE_PROCESSING_ZIP_PATH" ]; then
+  echo "Uploading edge processing Lambda..."
+  aws s3 cp "$EDGE_PROCESSING_ZIP_PATH" "s3://$ARTIFACTS_BUCKET/$EDGE_PROCESSING_KEY" --region "$REGION"
+fi
+if [ -f "$DYNAMODB_API_ZIP_PATH" ]; then
+  echo "Uploading DynamoDB API Lambda..."
+  aws s3 cp "$DYNAMODB_API_ZIP_PATH" "s3://$ARTIFACTS_BUCKET/$DYNAMODB_API_KEY" --region "$REGION"
+fi
 
 echo "Deploy DynamoDB stack"
 aws cloudformation deploy \
@@ -67,6 +79,8 @@ aws cloudformation deploy \
     PythonLambdaKey="$PYTHON_KEY" \
     NodeLambdaKey="$NODE_KEY" \
     PlaceholderSearchLambdaKey="$PLACEHOLDER_SEARCH_KEY" \
+    EdgeProcessingLambdaKey="$EDGE_PROCESSING_KEY" \
+    DynamoDBApiLambdaKey="$DYNAMODB_API_KEY" \
     DynamoTableName="$TABLE_NAME" \
   --capabilities CAPABILITY_NAMED_IAM \
   --region "$REGION"
@@ -74,6 +88,8 @@ aws cloudformation deploy \
 PY_ARN=$(aws cloudformation describe-stacks --stack-name "${STACK_PREFIX}-lambdas" --region "$REGION" --query "Stacks[0].Outputs[?OutputKey=='PythonLambdaArn'].OutputValue" --output text)
 NODE_ARN=$(aws cloudformation describe-stacks --stack-name "${STACK_PREFIX}-lambdas" --region "$REGION" --query "Stacks[0].Outputs[?OutputKey=='NodeLambdaArn'].OutputValue" --output text)
 PLACEHOLDER_SEARCH_ARN=$(aws cloudformation describe-stacks --stack-name "${STACK_PREFIX}-lambdas" --region "$REGION" --query "Stacks[0].Outputs[?OutputKey=='PlaceholderSearchLambdaArn'].OutputValue" --output text)
+EDGE_PROCESSING_ARN=$(aws cloudformation describe-stacks --stack-name "${STACK_PREFIX}-lambdas" --region "$REGION" --query "Stacks[0].Outputs[?OutputKey=='EdgeProcessingLambdaArn'].OutputValue" --output text)
+DYNAMODB_API_ARN=$(aws cloudformation describe-stacks --stack-name "${STACK_PREFIX}-lambdas" --region "$REGION" --query "Stacks[0].Outputs[?OutputKey=='DynamoDBApiLambdaArn'].OutputValue" --output text)
 
 echo "Deploy Cognito stack"
 aws cloudformation deploy \
@@ -102,9 +118,13 @@ aws cloudformation deploy \
     PythonLambdaArn="$PY_ARN" \
     NodeLambdaArn="$NODE_ARN" \
     PlaceholderSearchLambdaArn="$PLACEHOLDER_SEARCH_ARN" \
+    EdgeProcessingLambdaArn="$EDGE_PROCESSING_ARN" \
+    DynamoDBApiLambdaArn="$DYNAMODB_API_ARN" \
     PythonRoutePath="$PYTHON_ROUTE_PATH" \
     NodeRoutePath="$NODE_ROUTE_PATH" \
     PlaceholderSearchRoutePath="/search" \
+    EdgeRoutePath="/edge" \
+    DynamoDBApiRoutePath="/dynamodb" \
     UserPoolId="$USER_POOL_ID" \
     UserPoolClientId="$USER_POOL_CLIENT_ID" \
   --region "$REGION"
@@ -117,8 +137,13 @@ echo "DynamoDB table:          $TABLE_NAME"
 echo "Python Lambda:           $PY_ARN"
 echo "Node Lambda:             $NODE_ARN"
 echo "Placeholder Search:      $PLACEHOLDER_SEARCH_ARN"
+echo "Edge Processing:         $EDGE_PROCESSING_ARN"
+echo "DynamoDB API:            $DYNAMODB_API_ARN"
 echo "API Base URL:            $API_BASE"
-echo "Search Endpoint:         $API_BASE/search"
+echo "Endpoints:"
+echo "  - Search:              $API_BASE/search"
+echo "  - Edge Processing:     $API_BASE/edge"
+echo "  - DynamoDB API:        $API_BASE/dynamodb"
 echo "Cognito UserPool:        $USER_POOL_ID"
 echo "UserPool Client:         $USER_POOL_CLIENT_ID"
 

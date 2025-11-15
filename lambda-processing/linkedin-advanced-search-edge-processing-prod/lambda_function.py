@@ -18,6 +18,7 @@ import boto3
 import logging
 import base64
 import time
+import os
 from datetime import datetime, timezone
 from botocore.exceptions import ClientError
 
@@ -55,17 +56,20 @@ def _extract_user_id(event):
     if sub:
         return sub
     # Simple fallback for local testing when Authorization present
-    auth_header = event.get('headers', {}).get('Authorization', '')
+    auth_header = event.get('headers', {}).get('Authorization', '') or event.get('headers', {}).get('authorization', '')
     if auth_header:
         return 'test-user-id'
-    return None
+    # Default test user when no auth (for development/testing only)
+    logger.warning("No authentication found, using default test user")
+    return 'test-user-development'
 
 # Configure logging
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-# Configuration
-DYNAMODB_TABLE_NAME = "linkedin-advanced-search"
+# Configuration - read from environment variables
+DYNAMODB_TABLE_NAME = os.environ.get('DYNAMODB_TABLE_NAME', 'linkedin-advanced-search')
+logger.info(f"Using DynamoDB table: {DYNAMODB_TABLE_NAME}")
 
 # Initialize AWS clients
 dynamodb = boto3.resource('dynamodb')
