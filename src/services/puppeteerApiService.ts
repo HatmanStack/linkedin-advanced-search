@@ -20,16 +20,16 @@ const PUPPETEER_BACKEND_URL =
 // Service for interacting with the local puppeteer backend that handles LinkedIn automation
 class PuppeteerApiService {
 
-  private getAuthHeaders(): HeadersInit {
+  private async getAuthHeaders(): Promise<HeadersInit> {
     // Get JWT token from Cognito session
-    const token = this.getCognitoToken();
+    const token = await this.getCognitoToken();
     return {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${token}`,
     };
   }
 
-  private getCognitoToken(): string {
+  private async getCognitoToken(): Promise<string> {
     try {
       // Get current Cognito user session
       const userPool = new CognitoUserPool({
@@ -40,17 +40,17 @@ class PuppeteerApiService {
       const cognitoUser = userPool.getCurrentUser();
       if (!cognitoUser) return '';
 
-      // This is synchronous for demo purposes - in production you'd want to handle this asynchronously
-      let token = '';
-      cognitoUser.getSession((err: any, session: CognitoUserSession) => {
-        if (err || !session.isValid()) {
-          console.warn('No valid Cognito session found');
-          return;
-        }
-        token = session.getIdToken().getJwtToken();
+      // Properly handle async getSession
+      return new Promise<string>((resolve) => {
+        cognitoUser.getSession((err: any, session: CognitoUserSession) => {
+          if (err || !session.isValid()) {
+            console.warn('No valid Cognito session found');
+            resolve('');
+            return;
+          }
+          resolve(session.getIdToken().getJwtToken());
+        });
       });
-
-      return token;
     } catch (error) {
       console.warn('Error getting Cognito token:', error);
       return '';
@@ -106,7 +106,7 @@ class PuppeteerApiService {
       const response = await fetch(`${PUPPETEER_BACKEND_URL}${endpoint}`, {
         ...options,
         headers: {
-          ...this.getAuthHeaders(),
+          ...(await this.getAuthHeaders()),
           ...options.headers,
         },
         body: augmentedBody,

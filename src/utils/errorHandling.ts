@@ -43,7 +43,7 @@ export function transformErrorForUser(
       recoveryActions = [
         {
           label: 'Sign In',
-          action: () => window.location.href = '/auth',
+          action: () => { window.location.href = '/auth'; },
           primary: true
         },
         ...recoveryActions

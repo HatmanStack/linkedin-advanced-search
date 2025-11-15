@@ -37,22 +37,29 @@ class DecimalEncoder(json.JSONEncoder):
 
 
 def _extract_user_id(event):
-    """Extract user ID from Cognito JWT claims or Authorization header"""
+    """Extract user ID from Cognito JWT claims - requires authentication"""
+    import os
+    
     # Try Cognito authorizer claims first
     sub = event.get('requestContext', {}).get('authorizer', {}).get('claims', {}).get('sub')
     if sub:
         return sub
 
-    # Fallback: if Authorization header present but no claims (development)
-    auth_header = event.get('headers', {}).get('Authorization', '') or event.get('headers', {}).get('authorization', '')
-    if auth_header:
-        logger.warning("Authorization header present but no Cognito claims, using development user ID")
+    # Check if DEV_MODE environment variable is explicitly set
+    dev_mode = os.environ.get('DEV_MODE', 'false').lower() == 'true'
+    
+    if dev_mode:
+        # Only in development mode: allow fallback for testing
+        auth_header = event.get('headers', {}).get('Authorization', '') or event.get('headers', {}).get('authorization', '')
+        if auth_header:
+            logger.warning("DEV_MODE: Authorization header present but no Cognito claims, using development user ID")
+            return 'test-user-development'
+        logger.warning("DEV_MODE: No authentication found, using default test user")
         return 'test-user-development'
-
-    # No authentication
-    logger.warning("No authentication found, using default test user")
-    return 'test-user-development'
-
+    
+    # Production: No authentication means unauthorized
+    logger.error("No authentication found and DEV_MODE is not enabled")
+    return None
 
 def lambda_handler(event, context):
     """Main Lambda handler for profile API operations"""
@@ -63,6 +70,11 @@ def lambda_handler(event, context):
 
     # Extract user ID from JWT
     user_id = _extract_user_id(event)
+    
+    # Check if authentication succeeded
+    if user_id is None:
+        return build_error_response(401, "Authentication required")
+    
     logger.info(f"User ID: {user_id}")
 
     # Route based on HTTP method
