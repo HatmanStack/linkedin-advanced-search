@@ -5,11 +5,9 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { workflowProgressService } from '@/services/workflowProgressService';
-import type { 
-  WorkflowProgressState, 
-  WorkflowCompletionStats,
-  ProgressUpdateCallback,
-  CompletionCallback 
+import type {
+  WorkflowProgressState,
+  CompletionCallback
 } from '@/services/workflowProgressService';
 import type { Connection } from '@/types/index';
 

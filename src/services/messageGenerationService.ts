@@ -289,7 +289,7 @@ class MessageGenerationService {
     await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
 
     const { connectionProfile, conversationTopic } = request;
-    const { firstName, lastName, position, company } = connectionProfile;
+    const { firstName, position, company } = connectionProfile;
 
     // Generate realistic mock message based on the conversation topic
     const mockMessages = [

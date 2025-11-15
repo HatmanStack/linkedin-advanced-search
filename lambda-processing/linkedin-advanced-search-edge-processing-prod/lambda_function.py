@@ -18,6 +18,7 @@ import boto3
 import logging
 import base64
 import time
+import os
 from datetime import datetime, timezone
 from botocore.exceptions import ClientError
 
@@ -51,21 +52,37 @@ def _parse_body(event):
 
 
 def _extract_user_id(event):
+    """Extract user ID from Cognito JWT claims - requires authentication"""
+    import os
+
+    # Try Cognito authorizer claims first
     sub = event.get('requestContext', {}).get('authorizer', {}).get('claims', {}).get('sub')
     if sub:
         return sub
-    # Simple fallback for local testing when Authorization present
-    auth_header = event.get('headers', {}).get('Authorization', '')
-    if auth_header:
-        return 'test-user-id'
+
+    # Check if DEV_MODE environment variable is explicitly set
+    dev_mode = os.environ.get('DEV_MODE', 'false').lower() == 'true'
+
+    if dev_mode:
+        # Only in development mode: allow fallback for testing
+        auth_header = event.get('headers', {}).get('Authorization', '') or event.get('headers', {}).get('authorization', '')
+        if auth_header:
+            logger.warning("DEV_MODE: Authorization header present but no Cognito claims, using development user ID")
+            return 'test-user-development'
+        logger.warning("DEV_MODE: No authentication found, using default test user")
+        return 'test-user-development'
+
+    # Production: No authentication means unauthorized
+    logger.error("No authentication found and DEV_MODE is not enabled")
     return None
 
 # Configure logging
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-# Configuration
-DYNAMODB_TABLE_NAME = "linkedin-advanced-search"
+# Configuration - read from environment variables
+DYNAMODB_TABLE_NAME = os.environ.get('DYNAMODB_TABLE_NAME', 'linkedin-advanced-search')
+logger.info(f"Using DynamoDB table: {DYNAMODB_TABLE_NAME}")
 
 # Initialize AWS clients
 dynamodb = boto3.resource('dynamodb')

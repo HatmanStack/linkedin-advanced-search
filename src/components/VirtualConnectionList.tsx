@@ -4,7 +4,7 @@ import ConnectionCard from './ConnectionCard';
 import NewConnectionCard from './NewConnectionCard';
 import ConnectionFiltersComponent from './ConnectionFilters';
 import { filterConnections, sortConnections } from '@/utils/connectionFiltering';
-import type { Connection, ConnectionFilters, ConnectionStatus } from '@/types';
+import type { Connection, ConnectionFilters } from '@/types';
 
 interface VirtualConnectionListProps {
   connections: Connection[];

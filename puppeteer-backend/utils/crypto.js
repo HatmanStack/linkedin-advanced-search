@@ -18,15 +18,25 @@ async function readPrivateKeyB64() {
 
 export async function decryptSealboxB64Tag(ciphertextTag) {
   try {
-    if (typeof ciphertextTag !== 'string') return null;
+    logger.info('Attempting sealbox decryption');
+
+    if (typeof ciphertextTag !== 'string') {
+      logger.error('Ciphertext tag is not a string');
+      return null;
+    }
+
     const prefix = 'sealbox_x25519:b64:';
-    if (!ciphertextTag.startsWith(prefix)) return null;
+    if (!ciphertextTag.startsWith(prefix)) {
+      logger.error('Ciphertext tag missing required prefix');
+      return null;
+    }
+
     const b64 = ciphertextTag.substring(prefix.length);
     const sealed = Buffer.from(b64, 'base64');
 
     const privB64 = await readPrivateKeyB64();
     if (!privB64) {
-      logger.warn('Private key not configured for sealbox decryption');
+      logger.error('Private key not configured for sealbox decryption');
       return null;
     }
 
@@ -41,9 +51,15 @@ export async function decryptSealboxB64Tag(ciphertextTag) {
       new Uint8Array(pk),
       new Uint8Array(sk)
     );
-    return Buffer.from(plaintext).toString('utf8');
+
+    const result = Buffer.from(plaintext).toString('utf8');
+    logger.info('Decryption successful');
+    return result;
   } catch (err) {
-    logger.error('Failed to decrypt sealed-box ciphertext', { error: err.message });
+    logger.error('Failed to decrypt sealed-box ciphertext', {
+      error: err.message,
+      stack: err.stack
+    });
     return null;
   }
 }
@@ -55,23 +71,26 @@ export async function decryptSealboxB64Tag(ciphertextTag) {
  */
 export async function extractLinkedInCredentials(body = {}) {
   try {
+    logger.info('Attempting to extract LinkedIn credentials');
+
     // Preferred: ciphertext
     if (body.linkedinCredentialsCiphertext) {
       const decrypted = await decryptSealboxB64Tag(body.linkedinCredentialsCiphertext);
+
       if (decrypted) {
         const obj = JSON.parse(decrypted);
+
         if (obj?.email && obj?.password) {
+          logger.info('Credentials extracted successfully from encrypted payload');
           return { searchName: obj.email, searchPassword: obj.password };
+        } else {
+          logger.warn('Decrypted object missing required fields');
         }
+      } else {
+        logger.error('Decryption failed');
       }
-    }
-    // Fallback: plaintext
-    if (body.linkedinCredentials && body.linkedinCredentials.email && body.linkedinCredentials.password) {
-      return { searchName: body.linkedinCredentials.email, searchPassword: body.linkedinCredentials.password };
-    }
-    // Legacy fields
-    if (body.searchName && body.searchPassword) {
-      return { searchName: body.searchName, searchPassword: body.searchPassword };
+    } else {
+      logger.error('No encrypted credentials provided - plaintext fallbacks have been removed for security');
     }
     return null;
   } catch (err) {
