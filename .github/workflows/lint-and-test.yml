@@ -28,9 +28,6 @@ jobs:
   backend-lint:
     name: Backend Linting
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./puppeteer-backend
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -43,9 +40,11 @@ jobs:
           cache-dependency-path: puppeteer-backend/package-lock.json
 
       - name: Install dependencies
+        working-directory: ./puppeteer-backend
         run: npm ci
 
       - name: Run ESLint
+        working-directory: ./puppeteer-backend
         run: npm run lint
 
   python-lint:
