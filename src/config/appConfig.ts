@@ -1,5 +1,8 @@
 // Unified application configuration
 // Combines Cognito, API, and UI-related constants in one place
+import { createLogger } from '@/shared/utils/logger';
+
+const logger = createLogger('AppConfig');
 
 export const cognitoConfig = {
   region: import.meta.env.VITE_AWS_REGION || 'us-east-1',
@@ -12,8 +15,8 @@ export const validateCognitoConfig = () => {
   const requiredFields = ['userPoolId', 'userPoolWebClientId'];
   const missing = requiredFields.filter((field) => !cognitoConfig[field as keyof typeof cognitoConfig]);
   if (missing.length > 0) {
-    console.warn('Missing Cognito configuration fields:', missing);
-    console.warn('Using mock authentication. Please configure AWS Cognito environment variables.');
+    logger.warn('Missing Cognito configuration fields', { missing });
+    logger.warn('Using mock authentication. Please configure AWS Cognito environment variables');
     return false;
   }
   return true;

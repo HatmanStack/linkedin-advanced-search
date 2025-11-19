@@ -5,13 +5,13 @@
 
 import { renderHook, act } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
-import { useErrorHandler } from '@/hooks/useErrorHandler';
-import { MessageGenerationError } from '@/services/messageGenerationService';
-import { ApiError } from '@/services/lambdaApiService';
+import { useErrorHandler } from '@/shared/hooks';
+import { MessageGenerationError } from '@/features/messages';
+import { ApiError } from '@/shared/services';
 
 // Mock the toast hook
 const mockToast = vi.fn();
-vi.mock('@/hooks/use-toast', () => ({
+vi.mock('@/shared/hooks/use-toast', () => ({
   useToast: () => ({ toast: mockToast })
 }));
 
@@ -25,11 +25,8 @@ describe('useErrorHandler Hook', () => {
       const { result } = renderHook(() => useErrorHandler());
       const error = new MessageGenerationError({ message: 'Unauthorized', status: 401 });
 
-      let recoveryAction: string | undefined;
       act(() => {
-        result.current.handleError(error, 'conn1', 'John Doe').then(action => {
-          recoveryAction = action;
-        });
+        result.current.handleError(error, 'conn1', 'John Doe');
       });
 
       expect(result.current.currentError?.type).toBe('authentication');

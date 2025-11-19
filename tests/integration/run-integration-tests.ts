@@ -143,7 +143,7 @@ class IntegrationTestRunner {
           } : undefined
         };
       }
-    } catch (error) {
+    } catch {
       console.warn('Failed to parse test output, using fallback parsing');
     }
 

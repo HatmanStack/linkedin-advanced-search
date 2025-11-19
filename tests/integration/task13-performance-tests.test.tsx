@@ -278,9 +278,8 @@ describe('Task 13: Performance Tests', () => {
     });
 
     it('should cancel pending API calls on workflow stop', async () => {
-      let cancelCalled = false;
       const mockAbortController = {
-        abort: vi.fn(() => { cancelCalled = true; }),
+        abort: vi.fn(),
         signal: { aborted: false }
       };
 
