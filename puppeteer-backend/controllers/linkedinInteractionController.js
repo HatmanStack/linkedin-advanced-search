@@ -464,10 +464,10 @@ export class LinkedInInteractionController {
       // Extract and validate request parameters
       const { profileData, conversationTopic, messageHistory } = req.body;
 
-      // TODO: Implement request validation
+      // Validate required parameters
       if (!profileData || !conversationTopic) {
         const error = new Error('Missing required parameters: profileData and conversationTopic are required');
-        const { response, httpStatus } = LinkedInErrorHandler.createErrorResponse(
+        const { response, httpStatus} = LinkedInErrorHandler.createErrorResponse(
           error,
           { operation: 'generatePersonalizedMessage', validation: 'required_fields' },
           requestId
@@ -475,10 +475,10 @@ export class LinkedInInteractionController {
         return res.status(httpStatus).json(response);
       }
 
-      // TODO: Extract user ID from JWT token
+      // Extract user ID from JWT token
       const userId = this._extractUserIdFromToken(req.jwtToken);
 
-      // TODO: Implement personalized message generation logic via service layer
+      // NOTE: Personalized message generation not yet implemented
       logger.info('Personalized message generation not yet implemented', {
         requestId,
         hasProfileData: !!profileData,

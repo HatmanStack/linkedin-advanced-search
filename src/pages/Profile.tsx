@@ -10,7 +10,6 @@ import { Separator } from "@/components/ui/separator";
 import { MessageSquare, ArrowLeft, User, Building, MapPin, Save, Plus, X, Key, Eye, EyeOff } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { useUserProfile } from '@/contexts/UserProfileContext';
-// import { lambdaApiService } from '@/services/lambdaApiService';
 import { encryptWithSealboxB64 } from '@/utils/crypto';
 
 const Profile = () => {

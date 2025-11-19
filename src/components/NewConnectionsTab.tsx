@@ -42,15 +42,6 @@ const NewConnectionsTab = ({
     // Use real data from props instead of fake data, filtering for 'possible' status only
     const displayResults = searchResults.filter(connection => connection.status === 'possible');
 
-    // Get all unique tags from connections (reserved for future filter UI)
-    // const allTags = useMemo(() => {
-    //   const tagSet = new Set<string>();
-    //   displayResults.forEach(connection => {
-    //     (connection.tags || connection.common_interests || []).forEach(tag => tagSet.add(tag));
-    //   });
-    //   return Array.from(tagSet).sort();
-    // }, [displayResults]);
-
     // Sort connections based on active tags
     const sortedConnections = useMemo(() => {
         if (activeTags.length === 0) {
