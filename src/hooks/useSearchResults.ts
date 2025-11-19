@@ -3,7 +3,7 @@ import useLocalStorage from './useLocalStorage';
 import { puppeteerApiService } from '@/services/puppeteerApiService';
 import type { SearchFormData } from '@/utils/validation';
 import { STORAGE_KEYS } from '@/config/appConfig';
-import { connectionChangeTracker } from '@/utils/connectionChangeTracker';
+import { connectionChangeTracker } from '@/features/connections';
 
 interface UseSearchResultsReturn {
   results: string[];
