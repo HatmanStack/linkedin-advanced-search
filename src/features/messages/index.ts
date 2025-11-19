@@ -8,4 +8,4 @@ export { ConversationTopicPanel } from './components/ConversationTopicPanel';
 export { useMessages } from './hooks/useMessages';
 
 // Services
-export { messageGenerationService } from './services/messageGenerationService';
+export { messageGenerationService, MessageGenerationError } from './services/messageGenerationService';

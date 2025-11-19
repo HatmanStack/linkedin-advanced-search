@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { renderHook } from '@testing-library/react';
-import { useDrafts } from '@/hooks/useDrafts';
+import { useDrafts } from '@/features/posts';
 
 // Mock the AuthContext
 vi.mock('@/contexts/AuthContext', () => ({

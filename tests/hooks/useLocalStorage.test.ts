@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { renderHook } from '@testing-library/react';
-import useLocalStorage from '@/hooks/useLocalStorage';
+import useLocalStorage from '@/shared/hooks';
 
 const mockLocalStorage = {
   getItem: vi.fn(),

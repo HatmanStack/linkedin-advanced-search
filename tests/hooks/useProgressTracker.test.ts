@@ -5,7 +5,7 @@
 
 import { renderHook, act } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
-import { useProgressTracker } from '@/hooks/useProgressTracker';
+import { useProgressTracker } from '@/features/workflow';
 
 describe('useProgressTracker Hook', () => {
   beforeEach(() => {

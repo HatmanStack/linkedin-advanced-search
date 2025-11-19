@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { WorkflowProgressService } from '@/services/workflowProgressService';
-import type { Connection } from '@/types/index';
+import { WorkflowProgressService } from '@/features/workflow';
+import type { Connection } from '@/shared/types/index';
 
 describe('WorkflowProgressService', () => {
   let service: WorkflowProgressService;

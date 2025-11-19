@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { renderHook } from '@testing-library/react';
-import { useToast } from '@/hooks/use-toast';
+import { useToast } from '@/shared/hooks';
 
 describe('useToast', () => {
   it('should show toast notifications', () => {
