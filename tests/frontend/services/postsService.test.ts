@@ -151,8 +151,8 @@ describe('postsService', () => {
         () => new Promise(() => {}) // Never resolves
       );
 
-      // Start first request
-      const promise1 = postsService.generateIdeas('prompt1');
+      // Start first request (intentionally not awaited to test concurrency)
+      postsService.generateIdeas('prompt1');
 
       // Try to start second request immediately
       await expect(postsService.generateIdeas('prompt2')).rejects.toThrow(
