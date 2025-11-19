@@ -35,6 +35,6 @@ describe('useProfile', () => {
 
   it('should handle profile loading state', () => {
     const { result } = renderHook(() => useProfile());
-    expect(result.current.isLoading).toBeDefined();
+    expect(result.current.loading).toBeDefined();
   });
 });
