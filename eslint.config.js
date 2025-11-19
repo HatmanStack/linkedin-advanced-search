@@ -5,7 +5,7 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import tseslint from 'typescript-eslint'
 
 export default tseslint.config(
-  { ignores: ['dist'] },
+  { ignores: ['dist', '*.config.ts', '*.config.js'] },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ['**/*.{ts,tsx}'],
@@ -23,6 +23,14 @@ export default tseslint.config(
         'warn',
         { allowConstantExport: true },
       ],
+    },
+  },
+  {
+    // Allow 'any' in test files and UI component library
+    files: ['**/*.test.{ts,tsx}', '**/tests/**/*.{ts,tsx}', '**/ui/*.{ts,tsx}', '**/ui/**/*.{ts,tsx}', '**/setupTests.ts', '**/mockFactories.ts', '**/testHelpers.tsx'],
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-empty-object-type': 'off',
     },
   },
 )

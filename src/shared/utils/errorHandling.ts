@@ -124,7 +124,7 @@ export const ERROR_MESSAGES = {
 /**
  * Log errors with context for debugging
  */
-export function logError(error: unknown, context: string, additionalData?: any): void {
+export function logError(error: unknown, context: string, additionalData?: unknown): void {
   const errorInfo = {
     timestamp: new Date().toISOString(),
     context,

@@ -8,7 +8,7 @@ export const useConnections = (filters?: {
   limit?: number;
 }) => {
   const { user } = useAuth();
-  const [connections, setConnections] = useState<any[]>([]);
+  const [connections, setConnections] = useState<unknown[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -44,7 +44,7 @@ export const useConnections = (filters?: {
   }, [fetchConnections]);
 
   const createConnection = useCallback(async (
-    connectionData: any
+    connectionData: unknown
   ): Promise<boolean> => {
     try {
       const response = await puppeteerApiService.createConnection(connectionData);
@@ -64,7 +64,7 @@ export const useConnections = (filters?: {
 
   const updateConnection = useCallback(async (
     connectionId: string,
-    updates: any
+    updates: unknown
   ): Promise<boolean> => {
     try {
       const response = await puppeteerApiService.updateConnection(connectionId, updates);

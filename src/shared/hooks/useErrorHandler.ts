@@ -14,7 +14,7 @@ export const useErrorHandler = () => {
   const [currentError, setCurrentError] = useState<WorkflowError | null>(null);
   const [errorHistory, setErrorHistory] = useState<WorkflowError[]>([]);
 
-  const categorizeError = useCallback((error: any): WorkflowError['type'] => {
+  const categorizeError = useCallback((error: unknown): WorkflowError['type'] => {
     if (error instanceof MessageGenerationError) {
       if (error.status === 401) return 'authentication';
       if (error.status === 429) return 'rate_limit';
@@ -68,7 +68,7 @@ export const useErrorHandler = () => {
   }, []);
 
   const createWorkflowError = useCallback((
-    error: any,
+    error: unknown,
     connectionId?: string,
     connectionName?: string,
     retryCount: number = 0
@@ -88,7 +88,7 @@ export const useErrorHandler = () => {
   }, [categorizeError, getRecoveryOptions]);
 
   const handleError = useCallback((
-    error: any,
+    error: unknown,
     connectionId?: string,
     connectionName?: string,
     retryCount: number = 0

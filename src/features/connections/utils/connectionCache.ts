@@ -53,8 +53,8 @@ export class ConnectionCache {
       if (!Array.isArray(parsed)) return;
       this.cache.clear();
       for (const connection of parsed) {
-        if (connection && (connection as any).id) {
-          this.cache.set((connection as any).id, connection);
+        if (connection && (connection as unknown).id) {
+          this.cache.set((connection as unknown).id, connection);
         }
       }
       this.stats.size = this.cache.size;

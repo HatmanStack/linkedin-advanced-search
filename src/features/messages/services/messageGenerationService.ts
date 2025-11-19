@@ -354,7 +354,7 @@ class MessageGenerationService {
   /**
    * Format the request payload for the API
    */
-  private formatRequestPayload(request: MessageGenerationRequest): Record<string, any> {
+  private formatRequestPayload(request: MessageGenerationRequest): Record<string, unknown> {
     return {
       connectionId: request.connectionId,
       connectionProfile: {

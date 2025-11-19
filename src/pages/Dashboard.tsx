@@ -157,7 +157,7 @@ const Dashboard = () => {
           connectionChangeTracker.clearChanged();
           // Mark initialized for this session so subsequent navigations don't refetch unnecessarily
           sessionStorage.setItem(sessionInitKey, 'true');
-        } catch (err: any) {
+        } catch (err: unknown) {
           const errorMessage = err instanceof ApiError ? err.message : 'Failed to fetch connections';
           setConnectionsError(errorMessage);
         } finally {
@@ -217,7 +217,7 @@ const Dashboard = () => {
       connectionChangeTracker.clearChanged();
 
       logger.info('Connections fetched successfully', { count: fetchedConnections.length });
-    } catch (err: any) {
+    } catch (err: unknown) {
       logger.error('Error fetching connections', { error: err });
       const errorMessage = err instanceof ApiError ? err.message : 'Failed to fetch connections';
       setConnectionsError(errorMessage);
@@ -270,7 +270,7 @@ const Dashboard = () => {
       // const messages = await dbConnector.getMessageHistory(connection.id);
       const messages: Message[] = []; // Placeholder until API is implemented
       setMessageHistory(messages);
-    } catch (err: any) {
+    } catch (err: unknown) {
       logger.error('Error fetching message history', { error: err });
       const errorMessage = err instanceof ApiError ? err.message : 'Failed to load message history';
 

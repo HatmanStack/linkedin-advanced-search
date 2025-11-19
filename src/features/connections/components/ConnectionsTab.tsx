@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Search, Users, Filter, X, Database } from 'lucide-react';
 
 // Fake data for when server is unavailable
-const generateFakeConnections = (): any[] => [
+const generateFakeConnections = (): unknown[] => [
   {
     connection_id: 'fake-1',
     user_id: 'fake-user',
@@ -103,7 +103,7 @@ const generateFakeConnections = (): any[] => [
 ];
 
 interface ConnectionsTabProps {
-  onConnectionSelect?: (connection: any) => void;
+  onConnectionSelect?: (connection: unknown) => void;
   selectedConnections?: string[];
   onSelectionChange?: (connectionIds: string[]) => void;
 }

@@ -7,12 +7,12 @@ interface UseApiState<T> {
   error: string | null;
 }
 
-interface UseApiReturn<T, P extends any[]> extends UseApiState<T> {
+interface UseApiReturn<T, P extends unknown[]> extends UseApiState<T> {
   execute: (...params: P) => Promise<void>;
   reset: () => void;
 }
 
-function useApi<T, P extends any[]>(
+function useApi<T, P extends unknown[]>(
   apiFunction: (...params: P) => Promise<T>
 ): UseApiReturn<T, P> {
   const [state, setState] = useState<UseApiState<T>>({
