@@ -1,4 +1,4 @@
-import type { Connection, Message } from '@/types/index';
+import type { Connection, Message } from '@/shared/types/index';
 import type { UserProfile } from '@/types';
 import type { MessageGenerationRequest } from '@/features/messages';
 

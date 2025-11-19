@@ -10,7 +10,7 @@ import { Separator } from "@/components/ui/separator";
 import { MessageSquare, ArrowLeft, User, Building, MapPin, Save, Plus, X, Key, Eye, EyeOff } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { useUserProfile } from '@/features/profile';
-import { encryptWithSealboxB64 } from '@/utils/crypto';
+import { encryptWithSealboxB64 } from '@/shared/utils/crypto';
 
 const Profile = () => {
   const navigate = useNavigate();

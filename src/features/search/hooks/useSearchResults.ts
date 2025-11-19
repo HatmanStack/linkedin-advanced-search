@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
 import useLocalStorage from './useLocalStorage';
-import { puppeteerApiService } from '@/services/puppeteerApiService';
-import type { SearchFormData } from '@/utils/validation';
+import { puppeteerApiService } from '@/shared/services';
+import type { SearchFormData } from '@/shared/utils/validation';
 import { STORAGE_KEYS } from '@/config/appConfig';
 import { connectionChangeTracker } from '@/features/connections';
 

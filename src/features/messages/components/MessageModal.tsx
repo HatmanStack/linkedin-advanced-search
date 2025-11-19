@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { Button } from '@/shared/components/ui/button';
+import { Input } from '@/shared/components/ui/input';
+import { ScrollArea } from '@/shared/components/ui/scroll-area';
 import {
   Dialog,
   DialogContent,
@@ -9,13 +9,13 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
+} from '@/shared/components/ui/dialog';
 import { Send, MessageSquare, Loader2, AlertCircle, Sparkles, Check, SkipForward } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { useToast } from '@/hooks/use-toast';
-import { transformErrorForUser, getToastVariant, ERROR_MESSAGES } from '@/utils/errorHandling';
-import { NoMessagesState } from '@/components/ui/empty-state';
-import LoadingOverlay from '@/components/ui/loading-overlay';
+import { cn } from '@/shared/lib/utils';
+import { useToast } from '@/shared/hooks';
+import { transformErrorForUser, getToastVariant, ERROR_MESSAGES } from '@/shared/utils/errorHandling';
+import { NoMessagesState } from '@/shared/components/ui/empty-state';
+import LoadingOverlay from '@/shared/components/ui/loading-overlay';
 import type { MessageModalProps } from '@/types';
 
 /**

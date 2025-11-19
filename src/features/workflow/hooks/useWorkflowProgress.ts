@@ -9,7 +9,7 @@ import type {
   WorkflowProgressState,
   CompletionCallback
 } from '@/features/workflow';
-import type { Connection } from '@/types/index';
+import type { Connection } from '@/shared/types/index';
 
 export interface UseWorkflowProgressReturn {
   /** Current workflow progress state */

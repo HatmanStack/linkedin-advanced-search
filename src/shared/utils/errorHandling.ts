@@ -1,4 +1,4 @@
-import { ApiError } from '@/services/lambdaApiService';
+import { ApiError } from '@/shared/services';
 
 /**
  * Error handling utilities for the connection management system

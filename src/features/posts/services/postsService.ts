@@ -1,5 +1,5 @@
-import { puppeteerApiService } from '@/services/puppeteerApiService';
-import { lambdaApiService } from '@/services/lambdaApiService';
+import { puppeteerApiService } from '@/shared/services';
+import { lambdaApiService } from '@/shared/services';
 import { v4 as uuidv4 } from 'uuid';
 import type { UserProfile } from '@/types';
 

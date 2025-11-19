@@ -1,6 +1,6 @@
 import { CognitoAuthService } from '@/features/auth';
 import { API_CONFIG } from '@/config/appConfig';
-import type { Message, UserProfile } from '@/types/index';
+import type { Message, UserProfile } from '@/shared/types/index';
 
 // =============================================================================
 // INTERFACES

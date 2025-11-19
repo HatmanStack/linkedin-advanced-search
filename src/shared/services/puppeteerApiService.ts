@@ -1,7 +1,7 @@
 import { CognitoUserPool, CognitoUserSession } from 'amazon-cognito-identity-js';
 import { cognitoConfig } from '@/config/appConfig';
 import { connectionChangeTracker } from '@/features/connections';
-import type { SearchFormData } from '@/utils/validation';
+import type { SearchFormData } from '@/shared/utils/validation';
 import type {
   PuppeteerApiResponse
 } from '@/types';

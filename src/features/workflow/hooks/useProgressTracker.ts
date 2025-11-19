@@ -4,7 +4,7 @@
  */
 
 import { useState, useCallback } from 'react';
-import type { ProgressState, LoadingState } from '@/types/index';
+import type { ProgressState, LoadingState } from '@/shared/types/index';
 
 export const useProgressTracker = () => {
   const [progressState, setProgressState] = useState<ProgressState>({
