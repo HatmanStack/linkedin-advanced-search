@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { MessageSquare, ArrowLeft, User, Building, MapPin, Save, Plus, X, Key, Eye, EyeOff } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
-import { useUserProfile } from '@/contexts/UserProfileContext';
+import { useUserProfile } from '@/features/profile';
 import { encryptWithSealboxB64 } from '@/utils/crypto';
 
 const Profile = () => {

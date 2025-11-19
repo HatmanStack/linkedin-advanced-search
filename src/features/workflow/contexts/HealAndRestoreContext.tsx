@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { HealAndRestoreModal } from '@/components/HealAndRestoreModal';
-import { healAndRestoreService } from '@/services/healAndRestoreService';
-import type { HealAndRestoreNotification } from '@/services/healAndRestoreService';
+import { HealAndRestoreModal } from '@/features/workflow';
+import { healAndRestoreService } from '@/features/workflow';
+import type { HealAndRestoreNotification } from '@/features/workflow';
 
 interface HealAndRestoreContextType {
   isListening: boolean;

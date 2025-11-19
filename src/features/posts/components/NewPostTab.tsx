@@ -1,6 +1,6 @@
 import PostEditor from '@/features/posts';
 import PostAIAssistant from '@/features/posts';
-import ResearchResultsCard from '@/components/ResearchResultsCard';
+import ResearchResultsCard from '@/features/search';
 import { usePostComposer } from '@/features/posts';
 import { useToast } from '@/hooks/use-toast';
 
