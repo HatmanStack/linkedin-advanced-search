@@ -2,6 +2,7 @@ import { render, RenderOptions } from '@testing-library/react';
 import { ReactElement } from 'react';
 import { BrowserRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { AuthProvider } from '@/features/auth';
 
 /**
  * Create a QueryClient for testing with retry disabled
@@ -29,9 +30,11 @@ export const AllTheProviders = ({ children }: { children: React.ReactNode }) => 
 
   return (
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        {children}
-      </BrowserRouter>
+      <AuthProvider>
+        <BrowserRouter>
+          {children}
+        </BrowserRouter>
+      </AuthProvider>
     </QueryClientProvider>
   );
 };

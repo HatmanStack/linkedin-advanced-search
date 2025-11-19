@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
-describe('${comp}', () => {
+describe('SearchInterface', () => {
   it('should render successfully', () => {
     expect(true).toBe(true);
   });

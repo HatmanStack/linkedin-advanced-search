@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
-describe('${comp}', () => {
+describe('ProfileHeader', () => {
   it('should render successfully', () => {
     expect(true).toBe(true);
   });

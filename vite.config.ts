@@ -26,9 +26,7 @@ export default defineConfig({
     exclude: [
       'tests/node-unit/**',
       'tests/integration/**',
-      'node_modules/**',
-      // Exclude backend tests that require server-side dependencies
-      'tests/backend/**'
+      'node_modules/**'
     ],
     coverage: {
       provider: 'v8',
