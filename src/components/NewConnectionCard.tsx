@@ -60,10 +60,10 @@ const NewConnectionCard: React.FC<NewConnectionCardProps> = ({
       const pref = localStorage.getItem(REMOVE_CONFIRM_PREF_KEY) === 'true';
       setDontShowAgain(pref);
       setSkipRemoveConfirm(pref);
-    } catch (e) {
+    } catch {
       // ignore storage errors
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [connection?.id]);
 
   // Build a LinkedIn profile URL from either a full URL, profile id, or fallback to id
@@ -132,7 +132,9 @@ const NewConnectionCard: React.FC<NewConnectionCardProps> = ({
       try {
         const { connectionCache } = await import('@/utils/connectionCache');
         connectionCache.update(connection.id, { status: 'processed' });
-      } catch {}
+      } catch {
+        // Ignore cache update failures
+      }
 
       // Show success feedback with animation
       toast({
@@ -192,7 +194,7 @@ const NewConnectionCard: React.FC<NewConnectionCardProps> = ({
     setSkipRemoveConfirm(value);
     try {
       localStorage.setItem(REMOVE_CONFIRM_PREF_KEY, String(value));
-    } catch (e) {
+    } catch {
       // ignore storage errors
     }
   };
@@ -268,13 +270,17 @@ const NewConnectionCard: React.FC<NewConnectionCardProps> = ({
       // Update status to 'outgoing' in DB for consistency
       try {
         await dbConnector.updateConnectionStatus(connection.id, 'outgoing', { profileId });
-      } catch {}
+      } catch {
+        // Ignore DB update failures
+      }
 
       // Update local cache with new status to trigger re-render
       try {
         const { connectionCache } = await import('@/utils/connectionCache');
         connectionCache.update(connection.id, { status: 'outgoing' });
-      } catch {}
+      } catch {
+        // Ignore cache update failures
+      }
 
       // Regardless of response status (sent/pending/outgoing), show success and remove from UI
       toast({
