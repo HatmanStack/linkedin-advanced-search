@@ -765,3 +765,409 @@ Once this phase is complete and verified, proceed to [Phase 4: Duplication, Patt
 ---
 
 **Estimated Total Tokens**: ~45,000
+
+---
+
+## Review Feedback (Iteration 1)
+
+### Progress Summary
+
+**Excellent structural reorganization with critical Task 6 incompletion!** The implementer completed 5 out of 6 tasks with outstanding quality, but Task 6 (Update All Imports) was only ~20% complete, leaving the codebase in a broken state.
+
+**Task Completion Status**:
+- ✅ Task 1: Audit Current Structure and Design New Organization - COMPLETE (exceptional quality)
+- ✅ Task 2: Reorganize Frontend by Feature - COMPLETE (methodical execution)
+- ✅ Task 3: Reorganize Backend Services and Controllers - COMPLETE (clean domain structure)
+- ✅ Task 4: Standardize Lambda Function Structure - COMPLETE (consistent structure)
+- ✅ Task 5: Consolidate Configuration and Constants - COMPLETE (good centralization)
+- ❌ Task 6: Update All Imports and Verify - **CRITICALLY INCOMPLETE** (only backend updated)
+
+**Commits Made**:
+1. `71e0d10` - docs(refactor): audit structure and design reorganization plan ✅
+2. `f196a11` - refactor(frontend): migrate auth feature to features/auth ✅
+3. `9c400a8` - refactor(frontend): migrate connections feature to features/connections ✅
+4. `6983ab2` - refactor(frontend): migrate messages feature to features/messages ✅
+5. `7aea7fd` - refactor(frontend): migrate posts feature to features/posts ✅
+6. `8f61e28` - refactor(frontend): migrate profile, search, and workflow features ✅
+7. `a9f6d4b` - refactor(frontend): organize shared/common code ✅
+8. `18b0863` - refactor(backend): reorganize by domain structure ✅
+9. `4fbe66f` - refactor(lambda): standardize function structure and create shared utilities ✅
+10. `d64509b` - refactor: consolidate configuration and constants ✅
+11. `f08f20e` - refactor(backend): update all imports after domain reorganization ⚠️
+
+### Critical Issues Preventing Approval
+
+> **Consider:** Task 6 (lines 586-682) is titled "Update All Imports and Verify" and specifies updating imports across frontend, backend, Lambda, and tests. Your commit `f08f20e` says "refactor(backend): update all imports after domain reorganization". Do you see the word "backend" in your commit message? What about frontend, tests, and Lambda?
+>
+> **Tool Evidence**:
+> - `git show f08f20e --stat`: Only 18 backend files changed
+> - `npm test`: 21 test files failing with import resolution errors
+> - `npm run build`: 39 TypeScript compilation errors
+> - `grep "@/services/" tests`: 21 occurrences of old imports still present
+> - `grep "@/hooks/" tests`: 13 occurrences of old imports still present
+
+> **Consider:** The plan's Task 6 verification checklist (lines 650-661) states:
+> - [ ] All imports updated across frontend
+> - [ ] All imports updated across backend
+> - [ ] All imports updated across Lambda functions
+> - [ ] TypeScript compilation succeeds (`tsc --noEmit`)
+> - [ ] Build succeeds (`npm run build`)
+> - [ ] All tests passing
+>
+> **Current reality**:
+> - [x] Backend imports updated (18 files)
+> - [ ] Frontend imports NOT updated
+> - [ ] Test imports NOT updated
+> - [ ] TypeScript compilation: 39 errors
+> - [ ] Build: Failed
+> - [ ] Tests: 21 failing / 51 total (41% failure rate)
+>
+> **Reflect:** How many of the 6 verification criteria are actually met?
+
+### Task-Specific Issues
+
+#### Task 6: Update All Imports and Verify - CRITICALLY INCOMPLETE
+
+> **Consider:** The phase success criteria (line 736) states "✅ All tests passing (100% pass rate)". Running `npm test` shows:
+> ```
+> Test Files  21 failed | 30 passed (51)
+> Tests  102 passed (102)
+> ```
+>
+> **Think about:** We had 282 tests passing before Phase 3. Now we have only 102 tests even running. What happened to the other 180 tests? Are they not running because their imports are broken?
+
+> **Consider:** TypeScript compilation shows 39 errors like:
+> ```typescript
+> src/shared/components/ui/toast.tsx(6,20): Cannot find module '@/lib/utils'
+> src/shared/components/ui/toaster.tsx(1,26): Cannot find module '@/hooks/use-toast'
+> src/shared/services/lambdaApiService.ts(2,10): '"@/features/auth"' has no exported member named 'CognitoAuthService'
+> ```
+>
+> **Reflect:** You moved `lib/utils.ts` to `shared/lib/utils.ts` and `hooks/use-toast.ts` to `shared/hooks/use-toast.ts`. Did you update the imports in files that use them? Running `grep -r "@/lib/utils" src` shows files still using the old path.
+
+> **Consider:** Looking at `tsconfig.app.json`, the path aliases are:
+> ```json
+> "paths": { "@/*": ["src/*", "puppeteer-backend/*"] }
+> ```
+>
+> **The plan (lines 604-617) explicitly shows what they should be:**
+> ```json
+> "paths": {
+>   "@/*": ["./src/*"],
+>   "@/features/*": ["./src/features/*"],
+>   "@/shared/*": ["./src/shared/*"],
+>   "@/config/*": ["./src/config/*"],
+>   "@/constants/*": ["./src/constants/*"]
+> }
+> ```
+>
+> **Think about:** Without updated path aliases, how can TypeScript resolve imports like `import { postsService } from '@/features/posts'`?
+
+> **Consider:** Test files are using old import paths. Example from `tests/frontend/services/postsService.test.ts`:
+> ```typescript
+> import { postsService } from '@/services/postsService';
+> ```
+>
+> **The file was moved to:** `src/features/posts/services/postsService.ts`
+>
+> **Barrel export exists at:** `src/features/posts/index.ts` which exports `postsService`
+>
+> **Import should be:**
+> ```typescript
+> import { postsService } from '@/features/posts';
+> ```
+>
+> **Reflect:** Running `grep "@/services/" tests -r` shows 21 files still using old paths. Were test files forgotten entirely?
+
+> **Consider:** Some barrel exports have issues. Looking at `src/shared/services/index.ts`:
+> ```typescript
+> export { lambdaApiService } from './lambdaApiService';
+> export { puppeteerApiService } from './puppeteerApiService';
+> ```
+>
+> **But TypeScript error shows:**
+> ```
+> src/shared/hooks/useApi.ts(2,10): Module '"@/shared/services"' has no exported member 'ApiError'
+> ```
+>
+> **Think about:** The file `lambdaApiService.ts` defines and exports `ApiError` class. Why isn't it re-exported from the barrel file? Did you verify what each module exports before creating barrel exports?
+
+> **Consider:** Looking at `src/features/auth/index.ts`:
+> ```typescript
+> export { cognitoService } from './services/cognitoService';
+> export { AuthProvider, useAuth } from './contexts/AuthContext';
+> export { ProtectedRoute } from './components/ProtectedRoute';
+> ```
+>
+> **But TypeScript error shows:**
+> ```
+> src/shared/services/lambdaApiService.ts(2,10): '"@/features/auth"' has no exported member named 'CognitoAuthService'
+> src/shared/utils/userUtils.ts(1,15): '"@/features/auth"' has no exported member 'User'
+> ```
+>
+> **Reflect:** Files are trying to import `CognitoAuthService` and `User` types from `@/features/auth`, but the barrel export doesn't export them. Did you check what types and classes each feature needs to export?
+
+> **Consider:** The plan (lines 619-621) states:
+> "Leverage Barrel Exports:
+> - Update imports to use barrel exports where created
+> - Example: `import { ConnectionList } from '@/features/connections'` instead of `import { ConnectionList } from '@/features/connections/components/ConnectionList'`"
+>
+> **Checking source files, many still use direct file paths:**
+> ```typescript
+> // Still in code:
+> import { ConnectionCard } from '@/features/connections/components/ConnectionCard';
+>
+> // Should be:
+> import { ConnectionCard } from '@/features/connections';
+> ```
+>
+> **Think about:** You created barrel exports in Task 2-5. Were they ever actually used in Task 6?
+
+### Verification Against Success Criteria
+
+The Phase 3 success criteria (lines 732-739) specifies **8 requirements**. Let's verify each:
+
+> **Consider:**
+>
+> 1. ❌ "Consistent directory structure across all layers" - Structure created but broken imports prevent use
+>
+> 2. ✅ "Logical file grouping by feature or domain" - Files grouped correctly (Tasks 2-4 done well)
+>
+> 3. ✅ "Clear separation of concerns" - Separation achieved in structure
+>
+> 4. ❌ "All imports updated and resolving correctly" - Only 18 backend files updated, 50+ files with broken imports
+>
+> 5. ❌ "All tests passing (100% pass rate)" - 21 failing / 51 total (41% failure rate, only 102 tests even running vs 282 before)
+>
+> 6. ❌ "Build succeeds with no warnings" - Build fails with 39 TypeScript errors
+>
+> 7. ❌ "Application runs without errors" - Cannot run with broken imports
+>
+> 8. ✅ "Improved developer experience" - Structure is better, but broken state negates improvement
+>
+> **Score: 3/8 criteria met**
+
+### Tool-Based Evidence of Issues
+
+**Test Failures (npm test):**
+```
+FAIL  tests/frontend/services/connectionDataContextService.test.ts
+Error: Failed to resolve import "@/services/connectionDataContextService"
+
+FAIL  tests/frontend/services/healAndRestoreService.test.ts
+Error: Failed to resolve import "@/services/healAndRestoreService"
+
+FAIL  tests/frontend/services/postsService.test.ts
+Error: Failed to resolve import "@/services/postsService"
+
+FAIL  tests/frontend/services/puppeteerApiService.test.ts
+Error: Failed to resolve import "@/services/puppeteerApiService"
+
+FAIL  tests/frontend/services/workflowProgressService.test.ts
+Error: Failed to resolve import "@/services/workflowProgressService"
+
+(+16 more similar failures)
+```
+
+**TypeScript Errors (npm run build):**
+```
+src/shared/components/ui/toast.tsx(6,20): Cannot find module '@/lib/utils'
+src/shared/components/ui/toaster.tsx(1,26): Cannot find module '@/hooks/use-toast'
+src/shared/components/ui/toaster.tsx(9,8): Cannot find module '@/components/ui/toast'
+src/shared/hooks/useApi.ts(2,10): Module '"@/shared/services"' has no exported member 'ApiError'
+src/shared/hooks/useErrorHandler.ts(8,10): '"@/features/messages"' has no exported member named 'MessageGenerationError'
+src/shared/services/lambdaApiService.ts(2,10): '"@/features/auth"' has no exported member named 'CognitoAuthService'
+src/shared/utils/userUtils.ts(1,15): '"@/features/auth"' has no exported member 'User'
+
+(+32 more errors)
+```
+
+**Grep Evidence:**
+```bash
+$ grep -r "@/services/" tests | wc -l
+21  # 21 test files still using old service imports
+
+$ grep -r "@/hooks/" tests | wc -l
+13  # 13 test files still using old hook imports
+
+$ grep -r "@/types" src | wc -l
+19  # 19 source files still using old type imports (should be @/shared/types)
+
+$ grep -r "@/lib/utils" src | wc -l
+4   # 4 files still using old lib path (should be @/shared/lib/utils)
+
+$ grep -r "@/components/ui" src | wc -l
+7   # 7 files still using old UI component path (should be @/shared/components/ui)
+```
+
+### Positive Achievements to Acknowledge
+
+Despite Task 6 being incomplete, Tasks 1-5 were executed exceptionally well:
+
+✅ **Outstanding Planning (Task 1)**:
+- Created 491-line structure audit (`structure-audit.md`)
+- Created 732-line proposed structure (`proposed-structure.md`)
+- Comprehensive analysis of current state
+- Clear rationale for all organizational decisions
+- Identified all 100+ files needing relocation
+
+✅ **Methodical Frontend Reorganization (Task 2)**:
+- Created 7 feature directories (auth, connections, messages, posts, profile, search, workflow)
+- Created `src/shared/` for truly shared code
+- Created barrel exports (`index.ts`) for each feature
+- Moved files incrementally with 6 separate commits
+- Clean feature-based structure achieved
+
+✅ **Clean Backend Domain Structure (Task 3)**:
+- Created 6 domain directories (linkedin, profile, storage, automation, search, workflow)
+- Created `src/shared/` for backend shared code
+- Grouped services, controllers, and utilities by domain
+- All backend files relocated correctly
+
+✅ **Lambda Standardization (Task 4)**:
+- Created `lambda-processing/shared/` with Python utilities
+- Moved tests to `tests/` subdirectories within each Lambda
+- Created shared utilities (`response_builder.py`, `aws_config.py`)
+- Consistent structure across all Lambda functions
+
+✅ **Configuration Consolidation (Task 5)**:
+- Created frontend `config/` and `constants/` directories
+- Created backend `src/shared/config/` and `src/shared/constants/`
+- Centralized API config, AWS config, app config
+- Extracted constants for HTTP status, routes, limits, LinkedIn selectors
+
+✅ **Commit Quality**:
+- 11 well-structured commits
+- Conventional commit format followed
+- Incremental approach (one feature/domain at a time)
+- Clear, descriptive commit messages
+
+### Required Fixes for Approval
+
+> **To achieve APPROVED status, you must complete Task 6 fully**:
+>
+> 1. **Update TypeScript Path Aliases** (lines 604-617):
+>    - Edit `tsconfig.app.json` and `tsconfig.json`
+>    - Add path aliases for `@/features/*`, `@/shared/*`, `@/config/*`, `@/constants/*`
+>    - Remove `puppeteer-backend/*` from `@/*` mapping (backend has separate structure)
+>
+> 2. **Fix All Test File Imports** (21 files):
+>    - `@/services/postsService` → `@/features/posts`
+>    - `@/services/connectionDataContextService` → `@/features/connections`
+>    - `@/services/healAndRestoreService` → `@/features/workflow`
+>    - `@/services/workflowProgressService` → `@/features/workflow`
+>    - `@/services/messageGenerationService` → `@/features/messages`
+>    - `@/services/lambdaApiService` → `@/shared/services`
+>    - `@/services/puppeteerApiService` → `@/shared/services`
+>    - `@/hooks/useConnections` → `@/features/connections`
+>    - `@/hooks/useMessages` → `@/features/messages`
+>    - `@/hooks/useDrafts` → `@/features/posts`
+>    - `@/hooks/useProfile` → `@/features/profile`
+>    - `@/hooks/useProfileInit` → `@/features/profile`
+>    - `@/hooks/useWorkflowProgress` → `@/features/workflow`
+>    - `@/hooks/useProgressTracker` → `@/features/workflow`
+>    - `@/hooks/useApi` → `@/shared/hooks`
+>    - `@/hooks/useErrorHandler` → `@/shared/hooks`
+>    - `@/hooks/useLocalStorage` → `@/shared/hooks`
+>    - `@/hooks/use-mobile` → `@/shared/hooks`
+>    - `@/hooks/use-toast` → `@/shared/hooks`
+>
+> 3. **Fix All Source File Imports** (50+ files):
+>    - `@/types` → `@/shared/types` (19 files)
+>    - `@/lib/utils` → `@/shared/lib/utils` (4 files)
+>    - `@/hooks/use-toast` → `@/shared/hooks/use-toast` (multiple files)
+>    - `@/components/ui/*` → `@/shared/components/ui/*` (7 files)
+>    - Direct file paths → Barrel exports where available
+>
+> 4. **Fix Barrel Export Issues**:
+>    - Add to `src/shared/services/index.ts`: `export { ApiError } from './lambdaApiService'`
+>    - Add to `src/features/messages/index.ts`: `export { MessageGenerationError } from './services/messageGenerationService'`
+>    - Add to `src/features/auth/index.ts`: `export type { User } from './contexts/AuthContext'`
+>    - Add to `src/features/auth/index.ts`: `export { CognitoAuthService } from './services/cognitoService'`
+>    - Fix `src/shared/hooks/index.ts`: Change `export { default as useErrorHandler }` to proper named export
+>    - Verify all barrel exports match what files actually export
+>
+> 5. **Use Barrel Exports Consistently** (lines 619-621):
+>    - Replace direct file imports with barrel exports
+>    - Example: `import { ConnectionCard } from '@/features/connections'` instead of full path
+>    - Apply across all source files
+>
+> 6. **Run Full Verification** (lines 650-661):
+>    - Run `tsc --noEmit` → Must show 0 errors (not 39)
+>    - Run `npm run build` → Must succeed with 0 errors
+>    - Run `npm test` → Must show 282 tests passing, 0 failures (not 21 failures)
+>    - Run `npm run lint` → Should still show 216 problems (type safety issues from Phase 2, acceptable)
+>    - Manually start application → Must run without import errors
+>
+> 7. **Create Proper Task 6 Commit**:
+>    ```
+>    refactor: update all imports after restructuring (Task 6 complete)
+>
+>    - Update TypeScript path aliases in tsconfig files
+>    - Fix all test file imports (21 files updated)
+>    - Fix all source file imports (50+ files updated)
+>    - Add missing exports to barrel files (4 features updated)
+>    - Replace direct imports with barrel exports where available
+>    - Verify all imports resolve correctly
+>
+>    Verification:
+>    - TypeScript compilation: 0 errors ✓
+>    - Build: Successful ✓
+>    - Tests: 282/282 passing ✓
+>    - Application: Runs without errors ✓
+>
+>    Task 6 complete - all imports updated and verified.
+>    ```
+
+### Why This Matters
+
+> **Consider:** The plan (line 8) states the phase goal is to "improve logical organization" and "establish consistent patterns". You've created an excellent organizational structure in Tasks 1-5. But with 21 failing tests and a broken build, can developers actually use this new structure?
+>
+> **Think about:** Phase 3 is meant to make the codebase "easier to find files" and improve "developer experience" (lines 755-759). With imports pointing to non-existent paths, is the developer experience actually improved or degraded?
+>
+> **Reflect:** The success criteria (line 739) explicitly requires "Application runs without errors". With 39 TypeScript compilation errors, can the application even start?
+
+### Assessment
+
+**Status**: **NOT APPROVED** - Task 6 critically incomplete
+
+**Completion Estimate**: ~60% complete (5 complete tasks + 20% of Task 6)
+
+**Strengths**:
+- Exceptional planning and documentation (Task 1) ✅
+- Clean, logical file organization (Tasks 2-4) ✅
+- Good configuration consolidation (Task 5) ✅
+- Methodical, incremental commits ✅
+- Well-structured directories and barrel exports ✅
+
+**Critical Blockers**:
+- Task 6 only ~20% complete (only backend updated) ❌
+- 21 test files failing (41% failure rate) ❌
+- 39 TypeScript compilation errors ❌
+- Build broken ❌
+- Application cannot run ❌
+- TypeScript path aliases not updated ❌
+- Test imports not updated ❌
+- Source file imports not updated ❌
+- Barrel export issues not fixed ❌
+
+**Evidence of Incomplete Verification**:
+> **Consider:** Every commit from Tasks 2-5 includes "All tests passing" or "build successful" in the commit message. Commit `f08f20e` for Task 6 does NOT mention tests or build.
+>
+> **Think about:** If you had run `npm test` or `npm run build` after Task 6, would you have seen 21 failing tests and 39 errors? Would you have committed with those failures?
+>
+> **Reflect:** The plan's Task 6 verification checklist (lines 650-661) has 12 items. How many were actually checked before committing?
+
+**Next Steps**:
+1. Complete all Task 6 requirements listed above
+2. Update path aliases in tsconfig files
+3. Fix all test file imports (21 files)
+4. Fix all source file imports (50+ files)
+5. Fix barrel export issues (4 features)
+6. Verify 0 TypeScript errors
+7. Verify 282/282 tests passing
+8. Verify application runs
+9. Create proper Task 6 completion commit
+10. Request another review
+
+**Note**: The work completed in Tasks 1-5 is excellent quality and will serve as a solid foundation once Task 6 is completed. The organizational structure designed is sound. The only issue is incomplete execution of the final task.
