@@ -1,4 +1,4 @@
-import { logger } from '../utils/logger.js';
+import { logger } from '../../shared/utils/logger.js';
 import PuppeteerService from '../services/puppeteerService.js';
 import LinkedInService from '../services/linkedinService.js';
 import LinkedInContactService from '../services/linkedinContactService.js';

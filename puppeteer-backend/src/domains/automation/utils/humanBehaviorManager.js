@@ -1,6 +1,6 @@
 import { logger } from './logger.js';
 import RandomHelpers from './randomHelpers.js';
-import config from '../config/index.js';
+import config from '../../shared/config/index.js';
 
 /**
  * Human Behavior Manager - Tracks activity and manages human-like behavior patterns

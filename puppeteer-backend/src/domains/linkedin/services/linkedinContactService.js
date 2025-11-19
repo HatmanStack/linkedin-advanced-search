@@ -2,11 +2,11 @@ import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { v4 as uuidv4 } from 'uuid';
 import fs from 'fs/promises';
 import path from 'path';
-import { logger } from '../utils/logger.js';
-import RandomHelpers from '../utils/randomHelpers.js';
+import { logger } from '../../shared/utils/logger.js';
+import RandomHelpers from '../../shared/utils/randomHelpers.js';
 import sharp from 'sharp';
-import TextExtractionService from './textExtractionService.js';
-import S3TextUploadService from './s3TextUploadService.js';
+import TextExtractionService from '../services/textExtractionService.js';
+import S3TextUploadService from '../../storage/services/s3TextUploadService.js';
 
 
 export class LinkedInContactService {

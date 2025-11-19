@@ -1,7 +1,7 @@
-import { logger } from '../utils/logger.js';
+import { logger } from '../../shared/utils/logger.js';
 import { ProfileInitStateManager } from '../utils/profileInitStateManager.js';
 import { profileInitMonitor } from '../utils/profileInitMonitor.js';
-import RandomHelpers from '../utils/randomHelpers.js';
+import RandomHelpers from '../../shared/utils/randomHelpers.js';
 import LinkedInErrorHandler from '../utils/linkedinErrorHandler.js';
 import fs from 'fs/promises';
 import path from 'path';
