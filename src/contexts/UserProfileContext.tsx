@@ -48,9 +48,9 @@ export const UserProfileProvider = ({ children }: { children: ReactNode }) => {
           setCiphertextState(response.data.linkedin_credentials);
           try {
             sessionStorage.setItem('li_credentials_ciphertext', response.data.linkedin_credentials);
-          } catch {}
+          } catch { // Ignore storage errors }
         }
-        try { sessionStorage.setItem('profile_fetched', 'true'); } catch {}
+        try { sessionStorage.setItem('profile_fetched', 'true'); } catch { // Ignore storage errors }
         fetchedFlag = true;
       }
     } catch (error) {
@@ -70,7 +70,7 @@ export const UserProfileProvider = ({ children }: { children: ReactNode }) => {
       if (response.success) {
         // Refresh the profile to get updated data
         await fetchUserProfile();
-        try { sessionStorage.setItem('profile_fetched', 'true'); } catch {}
+        try { sessionStorage.setItem('profile_fetched', 'true'); } catch { // Ignore storage errors }
         fetchedFlag = true;
       } else {
         throw new Error(response.error || 'Failed to update profile');
@@ -114,7 +114,7 @@ export const UserProfileProvider = ({ children }: { children: ReactNode }) => {
         // Guarded fetch for non-dashboard entry points
         fetchUserProfile();
         fetchedFlag = true;
-        try { sessionStorage.setItem('profile_fetched', 'true'); } catch {}
+        try { sessionStorage.setItem('profile_fetched', 'true'); } catch { // Ignore storage errors }
       }
     }
   }, [user]);
@@ -136,7 +136,7 @@ export const UserProfileProvider = ({ children }: { children: ReactNode }) => {
           sessionStorage.removeItem('li_credentials_ciphertext');
           console.log('[UserProfileContext] Credentials removed from sessionStorage');
         }
-      } catch {}
+      } catch { // Ignore storage errors }
     },
     userProfile,
     updateUserProfile,

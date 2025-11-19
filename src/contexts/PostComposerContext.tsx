@@ -185,7 +185,7 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
     try {
       const ideas = await postsService.generateIdeas(prompt, userProfile || undefined);
       // Persist locally in session storage for repopulation across reloads
-      try { sessionStorage.setItem(IDEAS_STORAGE_KEY, JSON.stringify(ideas)); } catch {}
+      try { sessionStorage.setItem(IDEAS_STORAGE_KEY, JSON.stringify(ideas)); } catch { // Ignore storage errors }
       
       setIdeas(ideas);
       return ideas;
@@ -221,7 +221,7 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
         const parsed = JSON.parse(si);
         if (Array.isArray(parsed) && parsed.length > 0) selectedIdeas = parsed;
       }
-    } catch {}
+    } catch { // Ignore storage errors }
 
 
     console.log('[PostComposer] synthesize: start', { sourceLen: source.length, hasResearch: !!researchContent, ideasCount: selectedIdeas?.length || 0 });
@@ -235,16 +235,16 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
       if (synthesized) {
         // Set the main content in the editor
         setContent(synthesized.content);
-        try { sessionStorage.setItem(RESEARCH_STORAGE_KEY, synthesized.content); } catch {}
+        try { sessionStorage.setItem(RESEARCH_STORAGE_KEY, synthesized.content); } catch { // Ignore storage errors }
         
         // Save reasoning and hook to session storage and state
         if (synthesized.reasoning) {
           setPostReasoning(synthesized.reasoning);
-          try { sessionStorage.setItem(REASONING_STORAGE_KEY, synthesized.reasoning); } catch {}
+          try { sessionStorage.setItem(REASONING_STORAGE_KEY, synthesized.reasoning); } catch { // Ignore storage errors }
         }
         if (synthesized.hook) {
           setPostHook(synthesized.hook);
-          try { sessionStorage.setItem(HOOK_STORAGE_KEY, synthesized.hook); } catch {}
+          try { sessionStorage.setItem(HOOK_STORAGE_KEY, synthesized.hook); } catch { // Ignore storage errors }
         }
       }
     } finally {
@@ -255,7 +255,7 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
   const clearResearch = useCallback(async () => {
     console.log('[PostComposer] clearResearch');
     setResearchContent(null);
-    try { sessionStorage.removeItem(RESEARCH_STORAGE_KEY); } catch {}
+    try { sessionStorage.removeItem(RESEARCH_STORAGE_KEY); } catch { // Ignore storage errors }
     
     // Update user profile to clear research content
     try {
@@ -275,7 +275,7 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
     try { 
       sessionStorage.removeItem(REASONING_STORAGE_KEY);
       sessionStorage.removeItem(HOOK_STORAGE_KEY);
-    } catch {}
+    } catch { // Ignore storage errors }
     
     // Update user profile to clear synthesis content
     try {

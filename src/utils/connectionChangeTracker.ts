@@ -11,13 +11,13 @@ export const connectionChangeTracker = {
         at: new Date().toISOString(),
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
-    } catch {}
+    } catch { // Ignore storage errors }
   },
 
   clearChanged(): void {
     try {
       localStorage.removeItem(STORAGE_KEY);
-    } catch {}
+    } catch { // Ignore storage errors }
   },
 
   hasChanged(): boolean {
