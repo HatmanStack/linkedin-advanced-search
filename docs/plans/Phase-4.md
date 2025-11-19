@@ -49,12 +49,18 @@ This phase is organized into 7 tasks:
 **Implementation Steps**:
 
 1. **Use Static Analysis Tools**:
-   - Use jscpd (JavaScript Copy-Paste Detector) for automated detection:
+   - Install jscpd (JavaScript Copy-Paste Detector):
      ```bash
-     npx jscpd src/ puppeteer-backend/
+     npm install -g jscpd
+     # Or use without installing: npx jscpd
+     ```
+   - Run detection across codebase:
+     ```bash
+     npx jscpd src/ puppeteer-backend/ --min-lines 5 --min-tokens 50
      ```
    - Review output for duplicated blocks exceeding 5 lines
-   - Generate report for reference
+   - Generate HTML report: `npx jscpd src/ puppeteer-backend/ --format html`
+   - Save report to `docs/refactoring/duplication-report.html`
 
 2. **Manual Code Review for Common Patterns**:
    - Look for duplicated utility functions across files

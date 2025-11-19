@@ -248,6 +248,15 @@ class TestLambdaFunctionName:
 - **AWS Services**: Use `moto` library for DynamoDB, S3, Cognito
 - **Environment variables**: Mock via `os.environ` or `monkeypatch`
 - **External APIs**: Use `responses` library for HTTP mocks
+- **Credentials for mocking**: Set fake credentials in test setup:
+  ```python
+  # In conftest.py or test file
+  import os
+  os.environ['AWS_ACCESS_KEY_ID'] = 'testing'
+  os.environ['AWS_SECRET_ACCESS_KEY'] = 'testing'
+  os.environ['AWS_DEFAULT_REGION'] = 'us-east-1'
+  ```
+  When using moto decorators, these fake credentials allow tests to run without real AWS access.
 
 ### Test Coverage Targets
 
@@ -327,6 +336,46 @@ lambda-processing/            # AWS Lambda functions
     index.js                  # Node.js Lambda handler
     requirements.txt          # Python dependencies
 ```
+
+### Current Directory Structure (Pre-Refactoring)
+
+**Frontend** (approximate):
+```
+src/
+├── components/          # ~60 React components (mixed organization)
+│   └── ui/             # Radix UI wrappers
+├── hooks/              # ~12 custom hooks
+├── services/           # ~8 API/business logic services
+├── contexts/           # React context providers
+├── types/              # TypeScript definitions
+├── utils/              # ~40 utility functions
+└── pages/              # Route pages
+```
+
+**Backend** (approximate):
+```
+puppeteer-backend/
+├── src/
+│   ├── controllers/    # ~8 Express controllers
+│   ├── services/       # ~15 business logic services
+│   ├── routes/         # Express routes
+│   ├── utils/          # ~20 helper functions
+│   └── config/         # Configuration files
+└── tests/              # Existing tests
+```
+
+**Lambda** (approximate):
+```
+lambda-processing/
+├── linkedin-advanced-search-edge-processing-prod/
+├── linkedin-advanced-search-dynamodb-api-prod/
+├── linkedin-advanced-search-llm-prod/
+├── linkedin-advanced-search-placeholder-search-prod/
+├── linkedin-advanced-search-profile-api-prod/
+└── openai-webhook-handler/
+```
+
+Note: These are approximate structures. In Phase 3, Task 1, you will audit the exact structure.
 
 ### Code Style Conventions
 

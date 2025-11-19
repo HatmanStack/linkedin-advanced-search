@@ -290,11 +290,24 @@ refactor: remove unused functions and classes
    - Check for old test files that no longer have corresponding source files
    - Look for deprecated or old versions of files (e.g., `serviceOld.js`)
 
-2. **Check Root Directory**:
-   - Review root directory for utility scripts no longer needed
-   - Look for repair scripts: `repair-dynamodb-edges.js`, `restore-contacts.cjs`
-   - Check if scripts are referenced in documentation or README
-   - Move to `scripts/` directory if still needed, or delete if obsolete
+2. **Check Root Directory with Verification**:
+   - List files in root: `ls -la *.js *.cjs *.mjs 2>/dev/null`
+   - For each script file found:
+
+     **Verification Process**:
+     a. Search for imports/references: `grep -r "filename" src/ puppeteer-backend/`
+     b. Check if mentioned in docs: `grep -r "filename" docs/ README.md`
+     c. Check git history: `git log --oneline --all -- filename | head -5`
+     d. Check last modified: `git log -1 --format="%ai" -- filename`
+
+     **Decision Matrix**:
+     - ✅ Safe to delete: No references, not in docs, >6 months old
+     - ⚠️ Move to scripts/deprecated/: Some references but unclear usage
+     - ❌ Keep: Referenced in code or docs, or recently modified
+
+   - Examples from codebase:
+     - `repair-dynamodb-edges.js`: Check if used in deployment/maintenance
+     - `restore-contacts.cjs`: Check if referenced in recovery procedures
 
 3. **Check for Empty Directories**:
    - After file removal, check for empty directories
