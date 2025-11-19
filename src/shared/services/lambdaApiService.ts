@@ -620,7 +620,7 @@ class LambdaApiService {
 }
 
 // Profile operations via Lambda-backed API - using centralized UserProfile from @/types
-import type { UserProfile } from '@/types';
+import type { UserProfile } from '@/shared/types';
 
 /**
  * Search API response format

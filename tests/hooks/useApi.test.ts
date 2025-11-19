@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { renderHook } from '@testing-library/react';
-import useApi from '@/hooks/useApi';
+import useApi from '@/shared/hooks';
 
 describe('useApi', () => {
   it('should handle API calls', () => {

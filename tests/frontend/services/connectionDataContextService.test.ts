@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ConnectionDataContextService } from '@/services/connectionDataContextService';
+import { ConnectionDataContextService } from '@/features/connections';
 import type { Connection, UserProfile } from '@/types';
 
 describe('ConnectionDataContextService', () => {

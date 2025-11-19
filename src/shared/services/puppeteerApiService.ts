@@ -4,7 +4,7 @@ import { connectionChangeTracker } from '@/features/connections';
 import type { SearchFormData } from '@/shared/utils/validation';
 import type {
   PuppeteerApiResponse
-} from '@/types';
+} from '@/shared/types';
 
 // API Configuration
 // This service calls the local puppeteer backend for LinkedIn automation

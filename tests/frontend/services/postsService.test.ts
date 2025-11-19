@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { postsService } from '@/services/postsService';
+import { postsService } from '@/features/posts';
 
 // Mock dependencies
 vi.mock('@/services/puppeteerApiService', () => ({
@@ -20,8 +20,8 @@ vi.mock('uuid', () => ({
   v4: vi.fn(() => 'test-job-id-123'),
 }));
 
-import { puppeteerApiService } from '@/services/puppeteerApiService';
-import { lambdaApiService } from '@/services/lambdaApiService';
+import { puppeteerApiService } from '@/shared/services';
+import { lambdaApiService } from '@/shared/services';
 
 describe('postsService', () => {
   beforeEach(() => {

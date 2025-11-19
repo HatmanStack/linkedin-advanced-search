@@ -5,9 +5,9 @@
 
 import { renderHook, act } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
-import { useErrorHandler } from '@/hooks/useErrorHandler';
+import { useErrorHandler } from '@/shared/hooks';
 import { MessageGenerationError } from '@/services/messageGenerationService';
-import { ApiError } from '@/services/lambdaApiService';
+import { ApiError } from '@/shared/services';
 
 // Mock the toast hook
 const mockToast = vi.fn();
