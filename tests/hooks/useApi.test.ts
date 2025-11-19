@@ -1,10 +1,13 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { renderHook } from '@testing-library/react';
-import { useApi } from '@/hooks/useApi';
+import useApi from '@/hooks/useApi';
 
 describe('useApi', () => {
   it('should handle API calls', () => {
-    const { result } = renderHook(() => useApi());
+    const mockApiFunction = vi.fn().mockResolvedValue({ data: 'test' });
+    const { result } = renderHook(() => useApi(mockApiFunction));
     expect(result.current).toBeDefined();
+    expect(result.current.execute).toBeDefined();
+    expect(result.current.reset).toBeDefined();
   });
 });

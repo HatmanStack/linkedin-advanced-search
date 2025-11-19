@@ -23,7 +23,13 @@ export default defineConfig({
     setupFiles: ['./tests/setupTests.ts'],
     css: true,
     include: ['tests/**/*.test.{js,ts,tsx}'],
-    exclude: ['tests/node-unit/**', 'tests/integration/**', 'node_modules/**'],
+    exclude: [
+      'tests/node-unit/**',
+      'tests/integration/**',
+      'node_modules/**',
+      // Exclude backend tests that require server-side dependencies
+      'tests/backend/**'
+    ],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html', 'lcov'],

@@ -78,9 +78,9 @@ global.IntersectionObserver = vi.fn().mockImplementation(() => ({
 vi.mock('@/config/appConfig', () => ({
   cognitoConfig: {
     region: 'us-west-2',
-    userPoolId: 'test-user-pool-id',
-    userPoolWebClientId: 'test-client-id',
-    identityPoolId: 'test-identity-pool-id',
+    userPoolId: 'us-west-2_TestPool123',
+    userPoolWebClientId: '1234567890abcdefghijklmn',
+    identityPoolId: 'us-west-2:12345678-1234-1234-1234-123456789012',
   },
   validateCognitoConfig: vi.fn(() => true),
   isCognitoConfigured: true,
@@ -107,9 +107,9 @@ Object.defineProperty(import.meta, 'env', {
   value: {
     ...import.meta.env,
     VITE_AWS_REGION: 'us-west-2',
-    VITE_COGNITO_USER_POOL_ID: 'test-user-pool-id',
-    VITE_COGNITO_USER_POOL_WEB_CLIENT_ID: 'test-client-id',
-    VITE_COGNITO_IDENTITY_POOL_ID: 'test-identity-pool-id',
+    VITE_COGNITO_USER_POOL_ID: 'us-west-2_TestPool123',
+    VITE_COGNITO_USER_POOL_WEB_CLIENT_ID: '1234567890abcdefghijklmn',
+    VITE_COGNITO_IDENTITY_POOL_ID: 'us-west-2:12345678-1234-1234-1234-123456789012',
     VITE_API_GATEWAY_URL: 'http://localhost:3001',
     VITE_PUPPETEER_BACKEND_URL: 'http://localhost:3001',
     MODE: 'test',
