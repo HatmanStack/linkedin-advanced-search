@@ -4,9 +4,9 @@ import { Textarea } from "./ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Label } from "./ui/label";
 import { FileText, Save, Send, X } from 'lucide-react';
-import { usePostComposer } from '@/contexts/PostComposerContext';
+import { usePostComposer } from '@/features/posts';
 import { useState, useMemo, useEffect } from 'react';
-import { postsService } from '@/services/postsService';
+import { postsService } from '@/features/posts';
 
 const REASONING_STORAGE_KEY = 'ai_generated_post_reasoning';
 const HOOK_STORAGE_KEY = 'ai_generated_post_hook';

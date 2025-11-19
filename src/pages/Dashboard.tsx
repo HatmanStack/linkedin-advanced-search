@@ -11,7 +11,7 @@ import { useProfileInit } from '@/hooks/useProfileInit';
 import type { SearchFormData } from '@/utils/validation';
 import ConversationTopicPanel from '@/features/messages';
 import NewConnectionsTab from '@/features/connections';
-import NewPostTab from '@/components/NewPostTab';
+import NewPostTab from '@/features/posts';
 import StatusPicker from '@/components/StatusPicker';
 import type { StatusValue, ConnectionCounts } from '@/types';
 import VirtualConnectionList from '@/features/connections';
