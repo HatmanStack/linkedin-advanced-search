@@ -5,6 +5,9 @@ import type { SearchFormData } from '@/shared/utils/validation';
 import type {
   PuppeteerApiResponse
 } from '@/shared/types';
+import { createLogger } from '@/shared/utils/logger';
+
+const logger = createLogger('PuppeteerApiService');
 
 // API Configuration
 // This service calls the local puppeteer backend for LinkedIn automation
@@ -44,7 +47,7 @@ class PuppeteerApiService {
       return new Promise<string>((resolve) => {
         cognitoUser.getSession((err: any, session: CognitoUserSession) => {
           if (err || !session.isValid()) {
-            console.warn('No valid Cognito session found');
+            logger.warn('No valid Cognito session found');
             resolve('');
             return;
           }
@@ -52,7 +55,7 @@ class PuppeteerApiService {
         });
       });
     } catch (error) {
-      console.warn('Error getting Cognito token:', error);
+      logger.warn('Error getting Cognito token', { error });
       return '';
     }
   }
@@ -70,7 +73,7 @@ class PuppeteerApiService {
         endpoint.startsWith('/profile-init') ||
         endpoint.startsWith('/search');
 
-      console.log('[puppeteerApiService] Making request:', {
+      logger.debug('Making request', {
         endpoint,
         shouldAttach,
         method: options.method || 'GET'
@@ -81,17 +84,17 @@ class PuppeteerApiService {
         try {
           const fromSession = sessionStorage.getItem('li_credentials_ciphertext');
           ciphertextTag = (fromSession && fromSession.startsWith('sealbox_x25519:b64:')) ? fromSession : null;
-          console.log('[puppeteerApiService] Credentials check:', {
+          logger.debug('Credentials check', {
             hasSessionStorage: !!fromSession,
             hasValidPrefix: ciphertextTag ? true : false,
             length: fromSession ? fromSession.length : 0
           });
         } catch (e) {
-          console.error('[puppeteerApiService] Error reading sessionStorage:', e);
+          logger.error('Error reading sessionStorage', { error: e });
         }
 
         if (!ciphertextTag) {
-          console.error('[puppeteerApiService] No valid credentials found, aborting request');
+          logger.error('No valid credentials found, aborting request');
           return {
             success: false,
             error: 'LinkedIn credentials are missing. Please add your encrypted LinkedIn credentials on the Profile page first.',
@@ -101,7 +104,7 @@ class PuppeteerApiService {
         const original = options.body ? JSON.parse(options.body as string) : {};
         augmentedBody = JSON.stringify({ ...original, linkedinCredentialsCiphertext: ciphertextTag });
         if (import.meta.env.DEV) {
-          console.log('[puppeteerApiService] Credentials attached, request body keys:', Object.keys(JSON.parse(augmentedBody)));
+          logger.debug('Credentials attached', { bodyKeys: Object.keys(JSON.parse(augmentedBody)) });
         }
       }
 

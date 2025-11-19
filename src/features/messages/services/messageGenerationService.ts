@@ -1,6 +1,9 @@
 import { CognitoAuthService } from '@/features/auth';
 import { API_CONFIG } from '@/config/appConfig';
 import type { Message, UserProfile } from '@/shared/types/index';
+import { createLogger } from '@/shared/utils/logger';
+
+const logger = createLogger('MessageGenerationService');
 
 // =============================================================================
 // INTERFACES
@@ -113,7 +116,7 @@ class MessageGenerationService {
       }
       return null;
     } catch (error) {
-      console.error('Error getting auth token:', error);
+      logger.error('Error getting auth token', { error });
       return null;
     }
   }

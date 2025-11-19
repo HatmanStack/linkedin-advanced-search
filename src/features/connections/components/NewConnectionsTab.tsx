@@ -8,6 +8,9 @@ import { UserPlus, Building, User, Search, X, Loader2, AlertCircle, Info } from 
 import VirtualConnectionList from '@/features/connections';
 import { connectionCache } from '@/features/connections';
 import type { Connection } from '@/types';
+import { createLogger } from '@/shared/utils/logger';
+
+const logger = createLogger('NewConnectionsTab');
 
 interface NewConnectionsTabProps {
     searchResults: Connection[];
@@ -63,7 +66,7 @@ const NewConnectionsTab = ({
     }, [displayResults, activeTags]);
 
     const handleSearch = () => {
-        console.log("Your Linkedin Credentials are not persistent for Security.  For now, add them each time the application is Initiated.");
+        logger.info("LinkedIn credentials are not persistent for security. Please add them each time the application is initiated");
         onSearch({
             ...searchFilters,
             userId
@@ -89,7 +92,7 @@ const NewConnectionsTab = ({
                 onRemoveConnection(connectionId, newStatus as 'processed' | 'outgoing');
             }
         } catch (error) {
-            console.error('Error removing connection:', error);
+            logger.error('Error removing connection', { error });
         }
     }, [onRemoveConnection]);
 

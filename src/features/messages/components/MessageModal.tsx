@@ -13,6 +13,9 @@ import {
 import { Send, MessageSquare, Loader2, AlertCircle, Sparkles, Check, SkipForward } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
 import { useToast } from '@/shared/hooks';
+import { createLogger } from '@/shared/utils/logger';
+
+const logger = createLogger('MessageModal');
 import { transformErrorForUser, getToastVariant, ERROR_MESSAGES } from '@/shared/utils/errorHandling';
 import { NoMessagesState } from '@/shared/components/ui/empty-state';
 import LoadingOverlay from '@/shared/components/ui/loading-overlay';
@@ -176,7 +179,7 @@ export const MessageModal: React.FC<MessageModalProps> = ({
         variant: "default",
       });
     } catch (error) {
-      console.error('Error sending message:', error);
+      logger.error('Error sending message', { error });
 
       // Transform error for user-friendly display
       const errorInfo = transformErrorForUser(

@@ -18,6 +18,9 @@ import VirtualConnectionList from '@/features/connections';
 import MessageModal from '@/features/messages';
 import { lambdaApiService as dbConnector, ApiError } from '@/shared/services';
 import type { Connection, Message } from '@/types';
+import { createLogger } from '@/shared/utils/logger';
+
+const logger = createLogger('Dashboard');
 import { connectionCache } from '@/features/connections';
 import { connectionChangeTracker } from '@/features/connections';
 import { ConnectionListSkeleton } from '@/features/connections';
@@ -186,7 +189,7 @@ const Dashboard = () => {
 
   // Handle workflow state transitions
   useEffect(() => {
-    console.log('Workflow state changed to:', workflowState);
+    logger.debug('Workflow state changed', { workflowState });
   }, [workflowState]);
 
   // Connection management functions
@@ -213,9 +216,9 @@ const Dashboard = () => {
       // Clear change flag after successful refresh of cache
       connectionChangeTracker.clearChanged();
 
-      console.log('Connections fetched successfully:', fetchedConnections.length);
+      logger.info('Connections fetched successfully', { count: fetchedConnections.length });
     } catch (err: any) {
-      console.error('Error fetching connections:', err);
+      logger.error('Error fetching connections', { error: err });
       const errorMessage = err instanceof ApiError ? err.message : 'Failed to fetch connections';
       setConnectionsError(errorMessage);
 
@@ -268,7 +271,7 @@ const Dashboard = () => {
       const messages: Message[] = []; // Placeholder until API is implemented
       setMessageHistory(messages);
     } catch (err: any) {
-      console.error('Error fetching message history:', err);
+      logger.error('Error fetching message history', { error: err });
       const errorMessage = err instanceof ApiError ? err.message : 'Failed to load message history';
 
       toast({
@@ -290,7 +293,7 @@ const Dashboard = () => {
 
   const handleSendMessage = useCallback(async (message: string): Promise<void> => {
     // Placeholder for future API integration
-    console.log('Sending message:', message, 'to connection:', selectedConnectionForMessages?.id);
+    logger.info('Sending message', { message, connectionId: selectedConnectionForMessages?.id });
 
     toast({
       title: "Message Sending Not Implemented",
@@ -321,7 +324,7 @@ const Dashboard = () => {
       return;
     }
 
-    console.log('Starting message generation workflow for', selectedConnections.length, 'connections');
+    logger.info('Starting message generation workflow', { connectionCount: selectedConnections.length });
 
     // Initialize progress tracking
     progressTracker.initializeProgress(selectedConnections.length);
@@ -336,12 +339,12 @@ const Dashboard = () => {
       selectedConnections.includes(conn.id) && conn.status === 'ally'
     );
 
-    console.log('Processing connections:', selectedConnectionsData.map(c => `${c.first_name} ${c.last_name}`));
+    logger.debug('Processing connections', { connections: selectedConnectionsData.map(c => `${c.first_name} ${c.last_name}`) });
 
     for (let i = 0; i < selectedConnectionsData.length; i++) {
       // Check if user requested to stop
       if (workflowState === 'stopping') {
-        console.log('Workflow stopped by user');
+        logger.info('Workflow stopped by user');
         progressTracker.resetProgress();
         break;
       }
@@ -355,7 +358,7 @@ const Dashboard = () => {
       progressTracker.setLoadingMessage(`Generating message for ${connectionName}...`,
         Math.round((i / selectedConnectionsData.length) * 100), true);
 
-      console.log(`Processing connection ${i + 1}/${selectedConnectionsData.length}:`, connectionName);
+      logger.debug(`Processing connection ${i + 1}/${selectedConnectionsData.length}`, { connectionName });
 
       let retryCount = 0;
       let shouldContinue = true;
@@ -364,7 +367,7 @@ const Dashboard = () => {
         try {
           // Generate message for current connection
           const generatedMessage = await generateMessageForConnection(connection);
-          console.log('Generated message for', connection.first_name, ':', generatedMessage.substring(0, 100) + '...');
+          logger.debug('Generated message', { name: connection.first_name, preview: generatedMessage.substring(0, 100) });
 
           // Cache the generated message
           setGeneratedMessages(prev => new Map(prev).set(connection.id, generatedMessage));
@@ -380,7 +383,7 @@ const Dashboard = () => {
           break; // Success, move to next connection
 
         } catch (error) {
-          console.error('Error generating message for connection:', connection.id, error);
+          logger.error('Error generating message for connection', { connectionId: connection.id, error });
 
           // Use comprehensive error handling
           const recoveryAction = await errorHandler.handleError(
@@ -413,7 +416,7 @@ const Dashboard = () => {
     }
 
     // Workflow completed successfully
-    console.log('Message generation workflow completed');
+    logger.info('Message generation workflow completed');
     progressTracker.updateProgress(selectedConnectionsData.length, undefined, 'completed');
 
     errorHandler.showSuccessFeedback(
@@ -452,7 +455,7 @@ const Dashboard = () => {
       return generatedMessage;
 
     } catch (error) {
-      console.error('Error in generateMessageForConnection:', error);
+      logger.error('Error in generateMessageForConnection', { error });
       throw error;
     }
   }, [conversationTopic, user]);
@@ -590,7 +593,7 @@ const Dashboard = () => {
         searchPassword: '',
         userId: filters.userId, // Include userId from filters
       };
-      console.log('Search data (ciphertext will be attached automatically):', { ...searchData, hasCiphertext: !!linkedInCredsCiphertext });
+      logger.debug('Search data prepared', { hasCiphertext: !!linkedInCredsCiphertext, searchDataKeys: Object.keys(searchData) });
 
       // Use the existing search functionality - it returns void but updates hook state
       await searchLinkedIn(searchData);
@@ -600,7 +603,7 @@ const Dashboard = () => {
       await fetchConnections();
 
     } catch (error) {
-      console.error('Error searching LinkedIn:', error);
+      logger.error('Error searching LinkedIn', { error });
       toast({
         title: "Search Failed",
         description: "Failed to search LinkedIn. Please try again.",

@@ -1,4 +1,7 @@
 import { puppeteerApiService } from '@/shared/services';
+import { createLogger } from '@/shared/utils/logger';
+
+const logger = createLogger('HealAndRestoreService');
 
 export interface HealAndRestoreSession {
   sessionId: string;
@@ -44,7 +47,7 @@ class HealAndRestoreService {
       this.ignoredSessionIds.delete(sessionId);
       return response.success;
     } catch (error) {
-      console.error('Failed to authorize heal and restore:', error);
+      logger.error('Failed to authorize heal and restore', { error });
       return false;
     }
   }
@@ -56,7 +59,7 @@ class HealAndRestoreService {
       const response = await puppeteerApiService.cancelHealAndRestore(sessionId);
       return response.success;
     } catch (error) {
-      console.error('Failed to cancel heal and restore:', error);
+      logger.error('Failed to cancel heal and restore', { error });
       // Even if backend fails, keep ignoring this session locally to prevent UI loop
       return false;
     }
@@ -119,7 +122,7 @@ class HealAndRestoreService {
           }
         }
       } catch (error) {
-        console.error('Error polling for heal and restore status:', error);
+        logger.error('Error polling for heal and restore status', { error });
       }
 
       // Poll every 5 seconds

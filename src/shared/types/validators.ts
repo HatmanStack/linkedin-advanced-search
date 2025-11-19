@@ -1,13 +1,17 @@
 /**
  * @fileoverview Data validation functions for the Connection Management System
- * 
+ *
  * This file contains validation functions that check data integrity, sanitize input,
  * and provide detailed validation results. These functions work alongside type guards
  * to ensure data quality throughout the application.
- * 
+ *
  * @author Connection Management System
  * @version 1.0.0
  */
+
+import { createLogger } from '@/shared/utils/logger';
+
+const logger = createLogger('Validators');
 
 import type {
   Connection,
@@ -454,7 +458,7 @@ export function sanitizeConnectionData(data: unknown): Connection | null {
 
     return connection;
   } catch (error) {
-    console.warn('Error sanitizing connection data:', error);
+    logger.warn('Error sanitizing connection data', { error });
     return null;
   }
 }
@@ -485,7 +489,7 @@ export function sanitizeMessageData(data: unknown): Message | null {
       sender,
     };
   } catch (error) {
-    console.warn('Error sanitizing message data:', error);
+    logger.warn('Error sanitizing message data', { error });
     return null;
   }
 }

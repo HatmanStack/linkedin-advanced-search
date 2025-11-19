@@ -3,6 +3,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Sparkles, Search, X } from 'lucide-react';
+import { createLogger } from '@/shared/utils/logger';
+
+const logger = createLogger('PostAIAssistant');
 
 interface PostAIAssistantProps {
   onGenerateIdeas: (prompt?: string) => Promise<void>;
@@ -53,7 +56,7 @@ const PostAIAssistant = ({
         if (indices.size > 0) setSelectedIdeas(indices);
       }
     } catch (error) {
-      console.error('Failed to load ideas/selection from session storage:', error);
+      logger.error('Failed to load ideas/selection from session storage', { error });
     }
   }, []);
 
@@ -65,7 +68,7 @@ const PostAIAssistant = ({
       try {
         sessionStorage.setItem(IDEAS_STORAGE_KEY, JSON.stringify(ideas));
       } catch (error) {
-        console.error('Failed to save ideas to session storage:', error);
+        logger.error('Failed to save ideas to session storage', { error });
       }
     }
   }, [ideas]);
@@ -76,7 +79,7 @@ const PostAIAssistant = ({
       const selectedTexts = Array.from(selectedIdeas).map(idx => localIdeas[idx]).filter(Boolean);
       sessionStorage.setItem(SELECTED_IDEAS_STORAGE_KEY, JSON.stringify(selectedTexts));
     } catch (e) {
-      console.error('Failed to persist selected ideas:', e);
+      logger.error('Failed to persist selected ideas', { error: e });
     }
   }, [selectedIdeas, localIdeas]);
 
@@ -100,7 +103,7 @@ const PostAIAssistant = ({
     try {
       sessionStorage.setItem(IDEAS_STORAGE_KEY, JSON.stringify(newIdeas));
     } catch (error) {
-      console.error('Failed to update ideas in session storage:', error);
+      logger.error('Failed to update ideas in session storage', { error });
     }
     
     // Clear selection if deleted idea was selected and shift indices
