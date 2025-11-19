@@ -2,6 +2,9 @@
 import { createContext, useState, useContext, type ReactNode, useMemo, useEffect } from 'react';
 import { lambdaApiService } from '@/shared/services';
 import { useAuth } from '@/features/auth';
+import { createLogger } from '@/shared/utils/logger';
+
+const logger = createLogger('UserProfileContext');
 
 type LinkedInCredentialsCiphertext = string | null; // sealbox_x25519:b64:<...>
 
@@ -58,7 +61,7 @@ export const UserProfileProvider = ({ children }: { children: ReactNode }) => {
         fetchedFlag = true;
       }
     } catch (error) {
-      console.error('Failed to fetch user profile:', error);
+      logger.error('Failed to fetch user profile', { error });
     } finally {
       setIsLoading(false);
     }
@@ -82,7 +85,7 @@ export const UserProfileProvider = ({ children }: { children: ReactNode }) => {
         throw new Error(response.error || 'Failed to update profile');
       }
     } catch (error) {
-      console.error('Failed to update user profile:', error);
+      logger.error('Failed to update user profile', { error });
       throw error;
     } finally {
       setIsLoading(false);
@@ -99,19 +102,19 @@ export const UserProfileProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     try {
       const stored = sessionStorage.getItem('li_credentials_ciphertext');
-      console.log('[UserProfileContext] Loading credentials from sessionStorage:', {
+      logger.debug('Loading credentials from sessionStorage', {
         hasStored: !!stored,
         startsWithPrefix: stored ? stored.startsWith('sealbox_x25519:b64:') : false,
         length: stored ? stored.length : 0
       });
       if (stored && (stored.startsWith('sealbox_x25519:b64:'))) {
         setCiphertextState(stored);
-        console.log('[UserProfileContext] Credentials loaded successfully');
+        logger.debug('Credentials loaded successfully');
       } else {
-        console.warn('[UserProfileContext] No valid credentials found in sessionStorage');
+        logger.warn('No valid credentials found in sessionStorage');
       }
     } catch (err) {
-      console.error('[UserProfileContext] Error loading credentials:', err);
+      logger.error('Error loading credentials', { error: err });
     }
 
     if (user) {
@@ -131,7 +134,7 @@ export const UserProfileProvider = ({ children }: { children: ReactNode }) => {
   const contextValue = useMemo(() => ({
     ciphertext,
     setCiphertext: (value: LinkedInCredentialsCiphertext) => {
-      console.log('[UserProfileContext] setCiphertext called with:', {
+      logger.debug('setCiphertext called', {
         hasValue: !!value,
         startsWithPrefix: value ? value.startsWith('sealbox_x25519:b64:') : false
       });
@@ -139,10 +142,10 @@ export const UserProfileProvider = ({ children }: { children: ReactNode }) => {
       try {
         if (value && value.startsWith('sealbox_x25519:b64:')) {
           sessionStorage.setItem('li_credentials_ciphertext', value);
-          console.log('[UserProfileContext] Credentials saved to sessionStorage');
+          logger.debug('Credentials saved to sessionStorage');
         } else {
           sessionStorage.removeItem('li_credentials_ciphertext');
-          console.log('[UserProfileContext] Credentials removed from sessionStorage');
+          logger.debug('Credentials removed from sessionStorage');
         }
       } catch {
         // Ignore storage errors

@@ -2,6 +2,9 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { CognitoAuthService, type CognitoUserData } from '@/features/auth';
 import { isCognitoConfigured } from '@/config/appConfig';
 import { generateUniqueUserId, validateUserForDatabase, securityUtils } from '@/shared/utils/userUtils';
+import { createLogger } from '@/shared/utils/logger';
+
+const logger = createLogger('AuthContext');
 
 export interface User {
   id: string;
@@ -62,13 +65,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           // Validate user data before setting
           if (validateUserForDatabase(userData)) {
             setUser(userData);
-            console.log('Cognito user authenticated:', securityUtils.maskUserForLogging(userData));
+            logger.info('Cognito user authenticated', { user: securityUtils.maskUserForLogging(userData) });
           } else {
-            console.error('Invalid user data from Cognito');
+            logger.error('Invalid user data from Cognito');
           }
         }
       } catch (error) {
-        console.error('Error initializing Cognito auth:', error);
+        logger.error('Error initializing Cognito auth', { error });
       }
     } else {
       // Fallback to localStorage mock authentication
@@ -78,7 +81,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const parsedUser = JSON.parse(storedUser);
           if (validateUserForDatabase(parsedUser)) {
             setUser(parsedUser);
-            console.log('Mock user authenticated:', securityUtils.maskUserForLogging(parsedUser));
+            logger.info('Mock user authenticated', { user: securityUtils.maskUserForLogging(parsedUser) });
           } else {
             localStorage.removeItem(LOCAL_STORAGE_KEY);
           }
@@ -95,7 +98,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         return await CognitoAuthService.getCurrentUserToken();
       } catch (error) {
-        console.error('Error getting token:', error);
+        logger.error('Error getting token', { error });
         return null;
       }
     } else {
@@ -129,7 +132,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
           if (validateUserForDatabase(userData)) {
             setUser(userData);
-            console.log('User signed in:', securityUtils.maskUserForLogging(userData));
+            logger.info('User signed in', { user: securityUtils.maskUserForLogging(userData) });
           } else {
             return { error: { message: 'Invalid user data received' } };
           }
@@ -153,7 +156,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (validateUserForDatabase(mockUser)) {
           setUser(mockUser);
           localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(mockUser));
-          console.log('Mock user signed in:', securityUtils.maskUserForLogging(mockUser));
+          logger.info('Mock user signed in', { user: securityUtils.maskUserForLogging(mockUser) });
           return { error: null };
         }
       }
@@ -177,7 +180,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         // For Cognito, user needs to verify email before they can sign in
         // Don't set user state here, they need to verify first
-        console.log('User registered with Cognito, verification required');
+        logger.info('User registered with Cognito, verification required');
         return {
           error: null,
           message: 'Registration successful! Please check your email for verification code.',
@@ -200,7 +203,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (validateUserForDatabase(mockUser)) {
           setUser(mockUser);
           localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(mockUser));
-          console.log('Mock user registered:', securityUtils.maskUserForLogging(mockUser));
+          logger.info('Mock user registered', { user: securityUtils.maskUserForLogging(mockUser) });
           return { error: null };
         }
       }
@@ -210,7 +213,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signOut = async () => {
     if (user) {
-      console.log('User signing out:', securityUtils.maskUserForLogging(user));
+      logger.info('User signing out', { user: securityUtils.maskUserForLogging(user) });
     }
 
     // Clear JWT token from session storage
@@ -223,7 +226,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         await CognitoAuthService.signOut();
       } catch (error) {
-        console.error('Error signing out from Cognito:', error);
+        logger.error('Error signing out from Cognito', { error });
       }
     } else {
       // Fallback to localStorage cleanup
@@ -238,7 +241,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         const result = await CognitoAuthService.confirmSignUp(email, code);
         if (!result.error) {
-          console.log('User email verified:', email);
+          logger.info('User email verified', { email });
         }
         return result;
       } catch {
