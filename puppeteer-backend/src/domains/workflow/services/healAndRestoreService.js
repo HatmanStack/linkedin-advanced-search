@@ -1,6 +1,6 @@
 import fs from 'fs/promises';
 import path from 'path';
-import { logger } from '../utils/logger.js';
+import { logger } from '../../shared/utils/logger.js';
 
 const SESSIONS_FILE = path.join(process.cwd(), 'data', 'heal-restore-sessions.json');
 

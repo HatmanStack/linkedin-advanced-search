@@ -1,5 +1,5 @@
 import express from 'express';
-import { authorizeHealAndRestore, getPendingAuthorizations, cancelHealAndRestore } from '../services/healAndRestoreService.js';
+import { authorizeHealAndRestore, getPendingAuthorizations, cancelHealAndRestore } from '../src/domains/workflow/services/healAndRestoreService.js';
 
 const router = express.Router();
 

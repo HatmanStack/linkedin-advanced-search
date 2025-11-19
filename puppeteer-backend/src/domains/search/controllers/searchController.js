@@ -1,5 +1,5 @@
-import config from '../config/index.js';
-import { logger } from '../utils/logger.js';
+import config from '../../shared/config/index.js';
+import { logger } from '../../shared/utils/logger.js';
 import FileHelpers from '../utils/fileHelpers.js';
 import PuppeteerService from '../services/puppeteerService.js';
 import LinkedInService from '../services/linkedinService.js';

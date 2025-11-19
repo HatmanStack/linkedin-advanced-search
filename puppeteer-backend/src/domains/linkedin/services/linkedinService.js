@@ -1,9 +1,9 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import config from '../config/index.js';
-import { logger } from '../utils/logger.js';
+import config from '../../shared/config/index.js';
+import { logger } from '../../shared/utils/logger.js';
 // sharp import removed; this service no longer saves screenshots directly
-import RandomHelpers from '../utils/randomHelpers.js';
-import DynamoDBService from './dynamoDBService.js';
+import RandomHelpers from '../../shared/utils/randomHelpers.js';
+import DynamoDBService from '../../storage/services/dynamoDBService.js';
 import LinkedInContactService from './linkedinContactService.js';
 // edgeManager removed; using DynamoDBService unified methods
 // fs and path imports removed; temp directories are now managed by LinkedInContactService
