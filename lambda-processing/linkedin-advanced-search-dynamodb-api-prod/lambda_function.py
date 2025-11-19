@@ -33,7 +33,7 @@ def _get_origin_from_event(event: Dict[str, Any]) -> Optional[str]:
 def preflight_response(event: Dict[str, Any]) -> Dict[str, Any]:
     """Return a proper CORS preflight (OPTIONS) response without requiring auth."""
     origin = _get_origin_from_event(event)
-    allow_origin = origin if origin in ALLOWED_ORIGINS or '*' in ALLOWED_ORIGINS else (ALLOWED_ORIGINS[0] if ALLOWED_ORIGINS else '*')
+    allow_origin = origin if origin in ALLOWED_ORIGINS else (ALLOWED_ORIGINS[0] if ALLOWED_ORIGINS else '*')
     return {
         'statusCode': 204,
         'headers': {
@@ -179,6 +179,32 @@ def get_user_settings(user_id: str) -> Dict[str, Any]:
         logger.error(f"DynamoDB error (get_user_settings): {str(e)}")
         return create_response(500, {'error': 'Database error'})
 
+def validate_profile_field(field: str, value: Any) -> bool:
+    """Validate profile field values for type and length constraints."""
+    validators = {
+        'first_name': lambda v: isinstance(v, str) and 1 <= len(v) <= 100,
+        'last_name': lambda v: isinstance(v, str) and 1 <= len(v) <= 100,
+        'headline': lambda v: isinstance(v, str) and len(v) <= 220,  # LinkedIn max
+        'profile_url': lambda v: isinstance(v, str) and len(v) <= 500 and v.startswith('http'),
+        'profile_picture_url': lambda v: isinstance(v, str) and len(v) <= 500 and v.startswith('http'),
+        'location': lambda v: isinstance(v, str) and len(v) <= 100,
+        'summary': lambda v: isinstance(v, str) and len(v) <= 2600,  # LinkedIn max
+        'industry': lambda v: isinstance(v, str) and len(v) <= 100,
+        'current_position': lambda v: isinstance(v, str) and len(v) <= 100,
+        'company': lambda v: isinstance(v, str) and len(v) <= 100,
+        'interests': lambda v: isinstance(v, (str, list)) and len(str(v)) <= 1000,
+        'unpublished_post_content': lambda v: isinstance(v, str) and len(v) <= 3000,
+        'linkedin_credentials': lambda v: isinstance(v, (str, dict)),
+        'ai_generated_ideas': lambda v: isinstance(v, (str, list, dict)),
+        'ai_generated_research': lambda v: isinstance(v, (str, list, dict)),
+        'ai_generated_post_hook': lambda v: isinstance(v, str) and len(v) <= 500,
+        'ai_generated_post_reasoning': lambda v: isinstance(v, str) and len(v) <= 2000,
+    }
+    validator = validators.get(field)
+    if not validator:
+        return True  # Unknown fields allowed by default
+    return validator(value)
+
 def update_user_settings(user_id: str, body: Dict[str, Any]) -> Dict[str, Any]:
     """Update user profile info and/or linkedin_credentials.
     - Profile fields are stored under PK=USER#{sub}, SK=#PROFILE
@@ -200,9 +226,12 @@ def update_user_settings(user_id: str, body: Dict[str, Any]) -> Dict[str, Any]:
         ]
         for field in allowed_profile_fields:
             if field in body and body[field] is not None:
+                if not validate_profile_field(field, body[field]):
+                    logger.warning(f'Invalid value for field: {field}')
+                    return create_response(400, {'error': f'Invalid value for field: {field}'})
                 profile_updates[field] = body[field]
-        
-        print(f'THIS IS THE PROFILE UPDATES:  {profile_updates}')
+
+        logger.info('Profile updates validated', {'user_id': user_id, 'fields': list(profile_updates.keys())})
 
         # If any profile fields provided, upsert profile item
         if profile_updates:
@@ -262,7 +291,7 @@ def get_profile_metadata(profile_id_b64: str) -> Optional[Dict[str, Any]]:
 
 def create_response(status_code: int, body: Dict[str, Any], origin: Optional[str] = None) -> Dict[str, Any]:
     """Create standardized API response"""
-    allow_origin = origin if origin in ALLOWED_ORIGINS or '*' in ALLOWED_ORIGINS else (ALLOWED_ORIGINS[0] if ALLOWED_ORIGINS else '*')
+    allow_origin = origin if origin in ALLOWED_ORIGINS else (ALLOWED_ORIGINS[0] if ALLOWED_ORIGINS else '*')
     return {
         'statusCode': status_code,
         'headers': {
