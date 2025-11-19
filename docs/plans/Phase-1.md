@@ -60,17 +60,85 @@ Each task includes specific guidance on test patterns, mocking strategies, and v
 
 **Implementation Steps**:
 
+0. **Install Test Dependencies**:
+   ```bash
+   # Frontend/Backend testing
+   npm install -D vitest @testing-library/react @testing-library/jest-dom
+   npm install -D @testing-library/user-event jsdom @vitest/ui
+
+   # Python Lambda testing
+   cd lambda-processing
+   pip install pytest pytest-cov moto responses
+   # Or create requirements-test.txt first, then: pip install -r requirements-test.txt
+   cd ..
+   ```
+
 1. **Configure Vitest for Frontend/Backend**:
-   - Update `vite.config.ts` to include test configuration
-   - Configure jsdom environment for React component testing
-   - Set up coverage reporting with appropriate thresholds
-   - Configure global mocks for browser APIs (localStorage, sessionStorage)
+   - Open `vite.config.ts` and add test configuration:
+   ```typescript
+   import { defineConfig } from 'vite'
+   import react from '@vitejs/plugin-react-swc'
+
+   export default defineConfig({
+     plugins: [react()],
+     test: {
+       globals: true,
+       environment: 'jsdom',
+       setupFiles: './tests/setupTests.ts',
+       coverage: {
+         provider: 'v8',
+         reporter: ['text', 'html', 'lcov'],
+         exclude: ['node_modules/', 'tests/', '**/*.test.{ts,tsx}'],
+         thresholds: {
+           global: {
+             lines: 60,
+             functions: 60,
+             branches: 60,
+             statements: 60
+           }
+         }
+       }
+     }
+   })
+   ```
 
 2. **Create Testing Library Setup**:
-   - Configure @testing-library/react with custom render function
-   - Set up query extensions for common patterns
-   - Configure cleanup after each test
-   - Add jest-dom matchers for improved assertions
+   - Create `tests/setupTests.ts`:
+   ```typescript
+   import '@testing-library/jest-dom'
+   import { cleanup } from '@testing-library/react'
+   import { afterEach, vi } from 'vitest'
+
+   // Cleanup after each test
+   afterEach(() => {
+     cleanup()
+     vi.clearAllMocks()
+   })
+
+   // Mock window.matchMedia
+   Object.defineProperty(window, 'matchMedia', {
+     writable: true,
+     value: vi.fn().mockImplementation(query => ({
+       matches: false,
+       media: query,
+       onchange: null,
+       addListener: vi.fn(),
+       removeListener: vi.fn(),
+       addEventListener: vi.fn(),
+       removeEventListener: vi.fn(),
+       dispatchEvent: vi.fn(),
+     })),
+   })
+
+   // Mock localStorage
+   const localStorageMock = {
+     getItem: vi.fn(),
+     setItem: vi.fn(),
+     removeItem: vi.fn(),
+     clear: vi.fn(),
+   }
+   global.localStorage = localStorageMock as any
+   ```
 
 3. **Create Test Fixtures**:
    - Generate realistic mock LinkedIn profile data (10-15 samples)
@@ -79,16 +147,104 @@ Each task includes specific guidance on test patterns, mocking strategies, and v
    - Ensure fixture data covers edge cases (empty profiles, long text, special characters)
 
 4. **Build Shared Test Utilities**:
-   - Create custom render wrapper with common providers (React Query, Router, Auth context)
-   - Build mock factory functions for creating test data programmatically
-   - Create helper functions for common assertions
-   - Add utilities for async testing (waitFor helpers, promise utilities)
+   - Create `tests/utils/testHelpers.ts`:
+   ```typescript
+   import { render, RenderOptions } from '@testing-library/react'
+   import { ReactElement } from 'react'
+   import { BrowserRouter } from 'react-router-dom'
+   import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+
+   // Create wrapper with common providers
+   const AllTheProviders = ({ children }: { children: React.ReactNode }) => {
+     const queryClient = new QueryClient({
+       defaultOptions: {
+         queries: { retry: false },
+         mutations: { retry: false },
+       },
+     })
+
+     return (
+       <QueryClientProvider client={queryClient}>
+         <BrowserRouter>
+           {children}
+         </BrowserRouter>
+       </QueryClientProvider>
+     )
+   }
+
+   // Custom render function
+   export const renderWithProviders = (
+     ui: ReactElement,
+     options?: Omit<RenderOptions, 'wrapper'>
+   ) => render(ui, { wrapper: AllTheProviders, ...options })
+
+   // Re-export everything
+   export * from '@testing-library/react'
+   ```
+
+   - Create `tests/utils/mockFactories.ts`:
+   ```typescript
+   // Factory functions for creating test data
+   export const createMockProfile = (overrides = {}) => ({
+     id: '123',
+     name: 'Test User',
+     email: 'test@example.com',
+     ...overrides
+   })
+
+   export const createMockConnection = (overrides = {}) => ({
+     id: '456',
+     userId: '123',
+     connectedAt: new Date().toISOString(),
+     ...overrides
+   })
+   ```
 
 5. **Configure Python Testing**:
-   - Create `requirements-test.txt` with pytest, moto, pytest-cov, responses
-   - Configure pytest.ini with test discovery patterns and coverage settings
-   - Create conftest.py with fixtures for AWS service mocks (DynamoDB, S3, Cognito)
-   - Set up moto decorators for AWS service mocking
+   - Create `lambda-processing/requirements-test.txt`:
+   ```
+   pytest>=7.0.0
+   pytest-cov>=4.0.0
+   moto[all]>=4.0.0
+   responses>=0.23.0
+   boto3>=1.26.0
+   ```
+
+   - Create `lambda-processing/pytest.ini`:
+   ```ini
+   [pytest]
+   testpaths = .
+   python_files = test_*.py
+   python_classes = Test*
+   python_functions = test_*
+   addopts =
+       -v
+       --strict-markers
+       --tb=short
+   markers =
+       slow: marks tests as slow
+       integration: marks tests as integration tests
+   ```
+
+   - Create `lambda-processing/conftest.py` with AWS mocking fixtures:
+   ```python
+   import os
+   import pytest
+   from moto import mock_dynamodb, mock_s3, mock_cognitoidentity
+
+   # Set fake AWS credentials for all tests
+   @pytest.fixture(scope='session', autouse=True)
+   def aws_credentials():
+       os.environ['AWS_ACCESS_KEY_ID'] = 'testing'
+       os.environ['AWS_SECRET_ACCESS_KEY'] = 'testing'
+       os.environ['AWS_DEFAULT_REGION'] = 'us-east-1'
+
+   @pytest.fixture
+   def dynamodb_table():
+       with mock_dynamodb():
+           # Create mock table setup
+           yield
+   ```
 
 **Verification Checklist**:
 - [ ] Running `npm test` executes Vitest successfully (even with no tests yet)
@@ -138,30 +294,38 @@ test(infrastructure): set up comprehensive test framework
 
 **Implementation Steps**:
 
-1. **Mock External Dependencies**:
+1. **Discover Frontend Services**:
+   - Run: `find src -name "*Service.ts" -o -name "*service.ts"`
+   - Read each service file to understand:
+     - What external APIs it calls (axios, AWS SDK)
+     - What methods are exported
+     - What error handling exists
+   - Create list of services and their dependencies
+
+2. **Mock External Dependencies**:
    - Mock axios for HTTP requests using `vi.mock('axios')`
    - Create mock responses for each API endpoint
    - Consider using axios-mock-adapter for more complex scenarios
    - Mock AWS SDK clients (Cognito) where applicable
 
-2. **Test Service Methods**:
+3. **Test Service Methods**:
    - Test each public method in isolation
    - Cover success paths (happy path testing)
    - Cover error paths (network errors, API errors, validation errors)
    - Test edge cases (empty responses, malformed data, null values)
 
-3. **Focus on Business Logic**:
+4. **Focus on Business Logic**:
    - **High Priority (80%+ coverage)**: lambdaApiService, messageGenerationService, cognitoService
    - **Medium Priority (60-70% coverage)**: puppeteerApiService, workflowProgressService, healAndRestoreService
    - **Basic Priority (40-50% coverage)**: connectionDataContextService, postsService
 
-4. **Test Patterns to Use**:
+5. **Test Patterns to Use**:
    - Arrange-Act-Assert pattern for all tests
    - Use describe blocks to group tests by method
    - Use it/test blocks with descriptive names
    - Mock timers for any debouncing or throttling logic
 
-5. **Specific Service Considerations**:
+6. **Specific Service Considerations**:
    - **cognitoService**: Mock AWS Cognito SDK, test authentication flows
    - **lambdaApiService**: Test request construction, response parsing, error handling
    - **messageGenerationService**: Test message template logic and personalization
@@ -278,10 +442,10 @@ test(frontend): add comprehensive custom hook tests
 **Files to Modify/Create**:
 - `tests/frontend/components/Dashboard.test.tsx` (high priority)
 - `tests/frontend/components/ConnectionList.test.tsx` (high priority)
-- `tests/frontend/components/MessageModal.test.tsx` (already exists, expand)
+- `tests/frontend/components/MessageModal.test.tsx` (replace existing test)
 - `tests/frontend/components/ProfileView.test.tsx` (high priority)
 - `tests/frontend/components/SearchInterface.test.tsx` (high priority)
-- `tests/frontend/components/ConversationTopicPanel.test.tsx` (already exists, expand)
+- `tests/frontend/components/ConversationTopicPanel.test.tsx` (replace existing test)
 - Additional ~15-20 component tests for feature components
 - Basic tests for ~10-15 simple UI components
 
@@ -292,13 +456,30 @@ test(frontend): add comprehensive custom hook tests
 
 **Implementation Steps**:
 
-1. **Use Testing Library Best Practices**:
+1. **Handle Existing Tests**:
+   - Review existing tests to understand what they cover:
+     - Read `MessageModal.test.tsx` - note scenarios tested
+     - Read `ConversationTopicPanel.test.tsx` - note scenarios tested
+   - **Delete old test files** (they don't follow new structure/patterns)
+   - Write new tests from scratch in `tests/frontend/components/`
+   - Ensure new tests have equal or better coverage than old tests
+   - Existing integration tests in `tests/integration/` are PRESERVED (don't touch)
+
+2. **Discover Component Files**:
+   - Run: `find src/components -name "*.tsx" ! -path "*/ui/*"`
+   - Read key component files to understand:
+     - What props they accept
+     - What user interactions they support
+     - What external dependencies they have (hooks, services)
+   - Categorize components by priority (business-critical vs. UI-only)
+
+3. **Use Testing Library Best Practices**:
    - Query by role, label, or text (not by class or ID)
    - Use `screen` for queries
    - Use `userEvent` for interactions (not fireEvent)
    - Write tests from user perspective, not implementation
 
-2. **Tiered Testing Approach**:
+4. **Tiered Testing Approach**:
 
    **Tier 1 - High Priority Components (60-70% coverage)**:
    - Dashboard, ConnectionList, ProfileView, SearchInterface
@@ -316,20 +497,20 @@ test(frontend): add comprehensive custom hook tests
    - Smoke tests only (render without crashing)
    - Test prop variations if complex
 
-3. **Component Test Patterns**:
+5. **Component Test Patterns**:
    - Render component with required props
    - Test initial render state
    - Simulate user interactions
    - Assert on DOM changes or side effects
    - Test accessibility (ARIA labels, keyboard navigation)
 
-4. **Mock Component Dependencies**:
+6. **Mock Component Dependencies**:
    - Mock child components that are complex (replace with simple divs)
    - Mock hooks using vi.mock()
    - Mock services and API calls
    - Mock router navigation
 
-5. **Avoid Over-Testing**:
+7. **Avoid Over-Testing**:
    - Don't test implementation details (internal state, private methods)
    - Don't test third-party libraries (Radix UI components)
    - Don't test CSS or styling
@@ -469,34 +650,76 @@ test(backend): add comprehensive service layer tests
 **Implementation Steps**:
 
 1. **Mock Express Request/Response**:
-   - Create mock req and res objects
-   - Use node-mocks-http or create manual mocks
-   - Mock req.body, req.params, req.query, req.headers
-   - Mock res.json, res.status, res.send methods
 
-2. **Test Controller Methods**:
+   **Option A - Using node-mocks-http** (recommended):
+   ```bash
+   npm install -D node-mocks-http @types/node-mocks-http
+   ```
+
+   ```javascript
+   import httpMocks from 'node-mocks-http'
+
+   const req = httpMocks.createRequest({
+     method: 'POST',
+     url: '/api/profiles',
+     body: { userId: '123' },
+     params: { id: '123' },
+     headers: { 'authorization': 'Bearer token' }
+   })
+
+   const res = httpMocks.createResponse()
+   ```
+
+   **Option B - Manual mocks** (if avoiding dependencies):
+   ```javascript
+   const createMockReq = (options = {}) => ({
+     body: {},
+     params: {},
+     query: {},
+     headers: {},
+     ...options
+   })
+
+   const createMockRes = () => {
+     const res = {}
+     res.status = vi.fn().mockReturnValue(res)
+     res.json = vi.fn().mockReturnValue(res)
+     res.send = vi.fn().mockReturnValue(res)
+     return res
+   }
+   ```
+
+2. **Discover Controller Files**:
+   - Run: `find puppeteer-backend -name "*Controller.js" -o -name "*controller.js"`
+   - Read each controller to understand:
+     - What routes/endpoints it handles
+     - What services it depends on
+     - What request validation it performs
+   - List controllers and their endpoints
+
+3. **Test Controller Methods**:
    - Test each API endpoint handler
    - Verify correct service methods are called
    - Verify response status codes and JSON structure
    - Test authentication/authorization logic (if present)
 
-3. **Test Request Validation**:
+4. **Test Request Validation**:
    - Test with valid request data
    - Test with invalid data (missing fields, wrong types)
    - Test with edge cases (empty strings, very long strings, special characters)
    - Verify appropriate error responses
 
-4. **Test Error Handling**:
+5. **Test Error Handling**:
    - Test when services throw errors
    - Verify error responses have correct status codes (400, 401, 500)
    - Verify error messages are appropriate and safe (no sensitive data leaked)
 
-5. **Mock Service Dependencies**:
+6. **Mock Service Dependencies**:
    - Mock all service calls (from Task 5)
    - Return realistic service responses
    - Simulate service errors to test error paths
 
-6. **Coverage Target**: 70-80% for all controllers
+7. **Coverage Target**: 70-80% for all controllers
 
 **Verification Checklist**:
 - [ ] All controller files have test coverage
