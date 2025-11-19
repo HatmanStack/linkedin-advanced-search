@@ -1,15 +1,12 @@
-import config from '../../shared/config/index.js';
-import { logger } from '../../shared/utils/logger.js';
-import FileHelpers from '../utils/fileHelpers.js';
-import PuppeteerService from '../services/puppeteerService.js';
-import LinkedInService from '../services/linkedinService.js';
-import LinkedInContactService from '../services/linkedinContactService.js';
-import DynamoDBService from '../services/dynamoDBService.js'
+import config from '../../../shared/config/index.js';
+import { logger } from '../../../shared/utils/logger.js';
+import { initializeLinkedInServices, cleanupLinkedInServices } from '../../../shared/utils/serviceFactory.js';
+import FileHelpers from '../../../shared/utils/fileHelpers.js';
 import { SearchRequestValidator } from '../utils/searchRequestValidator.js';
 import { SearchStateManager } from '../utils/searchStateManager.js';
-import { LinkCollector } from '../utils/linkCollector.js';
-import { ContactProcessor } from '../utils/contactProcessor.js';
-import { HealingManager } from '../utils/healingManager.js';
+import { LinkCollector } from '../../linkedin/utils/linkCollector.js';
+import { ContactProcessor } from '../../linkedin/utils/contactProcessor.js';
+import { HealingManager } from '../../automation/utils/healingManager.js';
 import path from 'path';
 import fs from 'fs/promises';
 
@@ -131,15 +128,7 @@ export class SearchController {
   }
 
   async _initializeServices() {
-    const puppeteerService = new PuppeteerService();
-    await puppeteerService.initialize();
-
-    return {
-      puppeteerService,
-      linkedInService: new LinkedInService(puppeteerService),
-      linkedInContactService: new LinkedInContactService(puppeteerService),
-      dynamoDBService: new DynamoDBService()
-    };
+    return await initializeLinkedInServices();
   }
 
   async _performLogin(linkedInService, state) {
@@ -254,11 +243,9 @@ export class SearchController {
   }
 
   async _cleanupServices(services) {
-    logger.info('In finally, closing browser:', !!services.puppeteerService);
-    if (services.puppeteerService) {
-      await services.puppeteerService.close();
-      logger.info('Closed browser in finally!');
-    }
+    logger.info('In finally, closing browser:', !!services?.puppeteerService);
+    await cleanupLinkedInServices(services);
+    logger.info('Closed browser in finally!');
   }
 
   _logRequestDetails(req) {

@@ -1,4 +1,5 @@
-import { logger } from './logger.js';
+import { logger } from '../../../shared/utils/logger.js';
+import { validateLinkedInCredentials } from '../../../shared/utils/credentialValidator.js';
 
 export class SearchRequestValidator {
   static validateRequest(body, jwtToken) {
@@ -13,32 +14,13 @@ export class SearchRequestValidator {
       hasJwtToken: !!jwtToken
     });
 
-    // Allow either plaintext credentials OR ciphertext/structured credentials to be present
-    const hasPlaintext = !!(searchName && searchPassword);
-    const hasCiphertext = typeof linkedinCredentialsCiphertext === 'string' && (
-      linkedinCredentialsCiphertext.startsWith('sealbox_x25519:b64:')
-    );
-    const hasStructured = !!(linkedinCredentials && linkedinCredentials.email && linkedinCredentials.password);
-
-    if (!hasPlaintext && !hasCiphertext && !hasStructured) {
-      return {
-        isValid: false,
-        statusCode: 400,
-        error: 'Missing credentials: provide searchName/searchPassword or linkedinCredentialsCiphertext'
-      };
-    }
-
-    if (!jwtToken) {
-      return {
-        isValid: false,
-        statusCode: 401,
-        error: 'Authentication required',
-        message: 'User ID is required to perform searches'
-      };
-    }
-
-    return { isValid: true };
+    return validateLinkedInCredentials({
+      searchName,
+      searchPassword,
+      linkedinCredentialsCiphertext,
+      linkedinCredentials,
+      jwtToken,
+      actionType: 'search'
+    });
   }
-
-  
 }

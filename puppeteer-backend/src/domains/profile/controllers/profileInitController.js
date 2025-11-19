@@ -1,10 +1,8 @@
-import { logger } from '../../shared/utils/logger.js';
-import PuppeteerService from '../services/puppeteerService.js';
-import LinkedInService from '../services/linkedinService.js';
-import LinkedInContactService from '../services/linkedinContactService.js';
-import DynamoDBService from '../services/dynamoDBService.js';
+import { logger } from '../../../shared/utils/logger.js';
+import { initializeLinkedInServices, cleanupLinkedInServices } from '../../../shared/utils/serviceFactory.js';
+import { validateLinkedInCredentials } from '../../../shared/utils/credentialValidator.js';
 import ProfileInitService from '../services/profileInitService.js';
-import { HealingManager } from '../utils/healingManager.js';
+import { HealingManager } from '../../automation/utils/healingManager.js';
 import { ProfileInitStateManager } from '../utils/profileInitStateManager.js';
 import { profileInitMonitor } from '../utils/profileInitMonitor.js';
 
@@ -163,15 +161,7 @@ export class ProfileInitController {
   }
 
   async _initializeServices() {
-    const puppeteerService = new PuppeteerService();
-    await puppeteerService.initialize();
-
-    return {
-      puppeteerService,
-      linkedInService: new LinkedInService(puppeteerService),
-      linkedInContactService: new LinkedInContactService(puppeteerService),
-      dynamoDBService: new DynamoDBService()
-    };
+    return await initializeLinkedInServices();
   }
 
 
@@ -333,11 +323,9 @@ export class ProfileInitController {
   }
 
   async _cleanupServices(services) {
-    logger.info('Cleaning up services for profile initialization:', !!services.puppeteerService);
-    if (services.puppeteerService) {
-      await services.puppeteerService.close();
-      logger.info('Closed browser for profile initialization!');
-    }
+    logger.info('Cleaning up services for profile initialization:', !!services?.puppeteerService);
+    await cleanupLinkedInServices(services);
+    logger.info('Closed browser for profile initialization!');
   }
 
   _validateRequest(body, jwtToken) {
@@ -349,28 +337,14 @@ export class ProfileInitController {
       hasJwtToken: !!jwtToken
     });
 
-    const hasPlaintext = !!(searchName && searchPassword);
-    const hasCiphertext = typeof linkedinCredentialsCiphertext === 'string' && linkedinCredentialsCiphertext.startsWith('sealbox_x25519:b64:');
-    const hasStructured = !!(linkedinCredentials && linkedinCredentials.email && linkedinCredentials.password);
-
-    if (!hasPlaintext && !hasCiphertext && !hasStructured) {
-      return {
-        isValid: false,
-        statusCode: 400,
-        error: 'Missing credentials: provide searchName/searchPassword or linkedinCredentialsCiphertext'
-      };
-    }
-
-    if (!jwtToken) {
-      return {
-        isValid: false,
-        statusCode: 401,
-        error: 'Authentication required',
-        message: 'User ID is required to perform profile initialization'
-      };
-    }
-
-    return { isValid: true };
+    return validateLinkedInCredentials({
+      searchName,
+      searchPassword,
+      linkedinCredentialsCiphertext,
+      linkedinCredentials,
+      jwtToken,
+      actionType: 'profile initialization'
+    });
   }
 
  
