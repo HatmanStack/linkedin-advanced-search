@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { ConnectionDataContextService } from '@/features/connections';
-import type { Connection, UserProfile } from '@/types';
+import type { Connection, UserProfile } from '@/shared/types';
 
 describe('ConnectionDataContextService', () => {
   const service = new ConnectionDataContextService();

@@ -6,12 +6,12 @@
 import { renderHook, act } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { useErrorHandler } from '@/shared/hooks';
-import { MessageGenerationError } from '@/services/messageGenerationService';
+import { MessageGenerationError } from '@/features/messages';
 import { ApiError } from '@/shared/services';
 
 // Mock the toast hook
 const mockToast = vi.fn();
-vi.mock('@/hooks/use-toast', () => ({
+vi.mock('@/shared/hooks/use-toast', () => ({
   useToast: () => ({ toast: mockToast })
 }));
 
