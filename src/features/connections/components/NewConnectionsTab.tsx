@@ -5,8 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { UserPlus, Building, User, Search, X, Loader2, AlertCircle, Info } from 'lucide-react';
-import VirtualConnectionList from '@/components/VirtualConnectionList';
-import { connectionCache } from '@/utils/connectionCache';
+import VirtualConnectionList from '@/features/connections';
+import { connectionCache } from '@/features/connections';
 import type { Connection } from '@/types';
 
 interface NewConnectionsTabProps {

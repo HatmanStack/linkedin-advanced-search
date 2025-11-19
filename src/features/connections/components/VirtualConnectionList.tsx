@@ -3,7 +3,7 @@ import { FixedSizeList as List } from 'react-window';
 import ConnectionCard from './ConnectionCard';
 import NewConnectionCard from './NewConnectionCard';
 import ConnectionFiltersComponent from './ConnectionFilters';
-import { filterConnections, sortConnections } from '@/utils/connectionFiltering';
+import { filterConnections, sortConnections } from '@/features/connections';
 import type { Connection, ConnectionFilters } from '@/types';
 
 interface VirtualConnectionListProps {
