@@ -82,7 +82,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           } else {
             localStorage.removeItem(LOCAL_STORAGE_KEY);
           }
-        } catch (error) {
+        } catch {
           localStorage.removeItem(LOCAL_STORAGE_KEY);
         }
       }
@@ -136,7 +136,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
 
         return { error: null };
-      } catch (error) {
+      } catch {
         return { error: { message: 'Authentication failed' } };
       }
     } else {
@@ -183,7 +183,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           message: 'Registration successful! Please check your email for verification code.',
           needsVerification: true
         };
-      } catch (error) {
+      } catch {
         return { error: { message: 'Registration failed' } };
       }
     } else {
@@ -241,7 +241,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           console.log('User email verified:', email);
         }
         return result;
-      } catch (error) {
+      } catch {
         return { error: { message: 'Verification failed' } };
       }
     }
@@ -251,7 +251,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     ? async (email: string) => {
       try {
         return await CognitoAuthService.resendConfirmationCode(email);
-      } catch (error) {
+      } catch {
         return { error: { message: 'Failed to resend code' } };
       }
     }
@@ -261,7 +261,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     ? async (email: string) => {
       try {
         return await CognitoAuthService.forgotPassword(email);
-      } catch (error) {
+      } catch {
         return { error: { message: 'Failed to initiate password reset' } };
       }
     }
@@ -271,7 +271,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     ? async (email: string, code: string, newPassword: string) => {
       try {
         return await CognitoAuthService.confirmPassword(email, code, newPassword);
-      } catch (error) {
+      } catch {
         return { error: { message: 'Failed to reset password' } };
       }
     }

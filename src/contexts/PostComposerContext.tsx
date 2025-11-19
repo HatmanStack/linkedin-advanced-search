@@ -85,30 +85,46 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
       try {
         const pResearch = (userProfile as any)?.ai_generated_research;
         if (typeof pResearch === 'string' && pResearch.trim()) {
-          try { sessionStorage.setItem(RESEARCH_STORAGE_KEY, pResearch); } catch {}
+          try { sessionStorage.setItem(RESEARCH_STORAGE_KEY, pResearch); } catch {
+            // Ignore storage errors (private browsing, quota exceeded)
+          }
         }
-      } catch {}
+      } catch {
+        // Ignore profile access errors
+      }
 
       try {
         const pResearch = (userProfile as any)?.unpublished_post_content;
         if (typeof pResearch === 'string' && pResearch.trim()) {
-          try { sessionStorage.setItem(CONTENT_STORAGE_KEY, pResearch); } catch {}
+          try { sessionStorage.setItem(CONTENT_STORAGE_KEY, pResearch); } catch {
+            // Ignore storage errors (private browsing, quota exceeded)
+          }
         }
-      } catch {}
+      } catch {
+        // Ignore profile access errors
+      }
 
       try {
         const pReasoning = (userProfile as any)?.ai_generated_post_reasoning;
         if (typeof pReasoning === 'string' && pReasoning.trim()) {
-          try { sessionStorage.setItem(REASONING_STORAGE_KEY, pReasoning); } catch {}
+          try { sessionStorage.setItem(REASONING_STORAGE_KEY, pReasoning); } catch {
+            // Ignore storage errors (private browsing, quota exceeded)
+          }
         }
-      } catch {}
+      } catch {
+        // Ignore profile access errors
+      }
 
       try {
         const pHook = (userProfile as any)?.ai_generated_post_hook;
         if (typeof pHook === 'string' && pHook.trim()) {
-          try { sessionStorage.setItem(HOOK_STORAGE_KEY, pHook); } catch {}
+          try { sessionStorage.setItem(HOOK_STORAGE_KEY, pHook); } catch {
+            // Ignore storage errors (private browsing, quota exceeded)
+          }
         }
-      } catch {}
+      } catch {
+        // Ignore profile access errors
+      }
 
       // Leave ideas hydration as-is; components handle their own session hydration too
       try {

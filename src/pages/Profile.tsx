@@ -72,7 +72,7 @@ const Profile = () => {
         if (data.linkedin_credentials) {
           setHasStoredCredentials(true);
         }
-      } catch (err) {
+      } catch {
         // Silent fail; do not block profile page if profile isn't initialized yet
       }
     })();
@@ -107,7 +107,7 @@ const Profile = () => {
       // Transmit over HTTPS/TLS and let backend encrypt with KMS before storing in DynamoDB
       // Never log or store plaintext locally beyond this session memory.
       if (linkedinCredentials.email && linkedinCredentials.password) {
-        let payload: { linkedin_credentials: string } = { linkedin_credentials: '' };
+        const payload: { linkedin_credentials: string } = { linkedin_credentials: '' };
 
         // Optional client-side encryption if sealbox public key is provided.
         const sealboxPubB64 = (import.meta.env as any).VITE_CRED_SEALBOX_PUBLIC_KEY_B64 as string | undefined;

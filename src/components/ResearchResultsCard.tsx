@@ -72,36 +72,36 @@ const ResearchResultsCard = ({
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 components={{
-                  p: ({ node, ...props }) => (
+                  p: (props) => (
                     <p {...props} />
                   ),
-                  h1: ({ node, ...props }) => (
+                  h1: (props) => (
                     <h1 {...props} className="text-center text-white -mb-2" />
                   ),
-                  h2: ({ node, ...props }) => (
+                  h2: (props) => (
                     <h2 {...props} className="text-center text-white -mb-2" />
                   ),
-                  h3: ({ node, ...props }) => (
+                  h3: (props) => (
                     <h3 {...props} className="text-white -mb-2" />
                   ),
-                  h4: ({ node, ...props }) => (
+                  h4: (props) => (
                     <h4 {...props} className="text-white -mb-2" />
                   ),
-                  ul: ({ node, ...props }) => (
+                  ul: (props) => (
                     <ul
                       {...props}
                       className="list-none pl-0 my-1 space-y-1"
                       style={{ listStyleType: 'none'}}
                     />
                   ),
-                  ol: ({ node, ...props }) => (
+                  ol: (props) => (
                     <ol
                       {...props}
                       className="list-none pl-0 my-1 space-y-1"
                       style={{ listStyleType: 'none'}}
                     />
                   ),
-                  li: ({ node, ...props }) => (
+                  li: (props) => (
                     <li
                       {...props}
                       className="pl-0 my-0.5 marker:text-transparent before:hidden"
