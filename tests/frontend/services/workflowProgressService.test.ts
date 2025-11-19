@@ -1,9 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { WorkflowProgressService } from '@/services/workflowProgressService';
+import type { Connection } from '@/types/index';
 
 describe('WorkflowProgressService', () => {
   let service: WorkflowProgressService;
   let callback: ReturnType<typeof vi.fn>;
+
+  const mockConnections: Connection[] = [
+    { id: 'conn-1', first_name: 'John', last_name: 'Doe', position: 'Engineer', company: 'Tech Co' } as Connection,
+    { id: 'conn-2', first_name: 'Jane', last_name: 'Smith', position: 'Manager', company: 'Biz Inc' } as Connection,
+    { id: 'conn-3', first_name: 'Bob', last_name: 'Johnson', position: 'Designer', company: 'Creative LLC' } as Connection,
+  ];
 
   beforeEach(() => {
     service = new WorkflowProgressService();
@@ -11,49 +18,48 @@ describe('WorkflowProgressService', () => {
   });
 
   it('should initialize with idle state', () => {
-    const state = service.getState();
+    const state = service.getProgressState();
     expect(state.phase).toBe('idle');
     expect(state.processedConnections).toEqual([]);
   });
 
   it('should start workflow', () => {
-    service.onProgress(callback);
-    service.startWorkflow(10);
+    service.onProgressUpdate(callback);
+    service.initializeWorkflow(mockConnections.slice(0, 2));
 
-    const state = service.getState();
+    const state = service.getProgressState();
     expect(state.phase).toBe('preparing');
-    expect(state.totalConnections).toBe(10);
+    expect(state.totalConnections).toBe(2);
     expect(callback).toHaveBeenCalled();
   });
 
   it('should track processed connections', () => {
-    service.startWorkflow(3);
-    service.markProcessed('conn-1');
-    service.markProcessed('conn-2');
+    service.initializeWorkflow(mockConnections);
+    service.markConnectionSuccess('conn-1');
+    service.markConnectionSuccess('conn-2');
 
-    const state = service.getState();
+    const state = service.getProgressState();
     expect(state.processedConnections).toContain('conn-1');
     expect(state.processedConnections).toContain('conn-2');
   });
 
   it('should track failed connections', () => {
-    service.startWorkflow(2);
-    service.markFailed('conn-fail');
+    service.initializeWorkflow(mockConnections.slice(0, 2));
+    service.markConnectionFailure('conn-fail', 'Test error');
 
-    const state = service.getState();
+    const state = service.getProgressState();
     expect(state.failedConnections).toContain('conn-fail');
   });
 
   it('should complete workflow with stats', () => {
     const completionCb = vi.fn();
-    service.onCompletion(completionCb);
-    service.startWorkflow(5);
-    service.markProcessed('c1');
-    service.markProcessed('c2');
-    service.markFailed('c3');
+    service.onWorkflowComplete(completionCb);
+    service.initializeWorkflow(mockConnections);
+    service.markConnectionSuccess('conn-1');
+    service.markConnectionSuccess('conn-2');
+    service.markConnectionFailure('conn-3', 'Test error');
 
-    service.completeWorkflow();
-
+    // Completion happens automatically when all connections are processed
     expect(completionCb).toHaveBeenCalledWith(
       expect.objectContaining({
         successful: 2,
@@ -63,11 +69,11 @@ describe('WorkflowProgressService', () => {
   });
 
   it('should reset workflow state', () => {
-    service.startWorkflow(5);
-    service.markProcessed('c1');
-    service.reset();
+    service.initializeWorkflow(mockConnections);
+    service.markConnectionSuccess('conn-1');
+    service.resetWorkflow();
 
-    const state = service.getState();
+    const state = service.getProgressState();
     expect(state.phase).toBe('idle');
     expect(state.processedConnections).toEqual([]);
   });

@@ -1,11 +1,26 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const mockLocalStorage = {
+const mockSessionStorage = {
   getItem: vi.fn(),
   setItem: vi.fn(),
   removeItem: vi.fn(),
+  clear: vi.fn(),
+  length: 0,
+  key: vi.fn(),
 };
-global.localStorage = mockLocalStorage as any;
+
+Object.defineProperty(window, 'sessionStorage', {
+  value: mockSessionStorage,
+  writable: true,
+});
+
+vi.mock('@/services/puppeteerApiService', () => ({
+  puppeteerApiService: {
+    authorizeHealAndRestore: vi.fn().mockResolvedValue({ success: true }),
+    cancelHealAndRestore: vi.fn().mockResolvedValue({ success: true }),
+    checkHealAndRestoreStatus: vi.fn().mockResolvedValue({ success: true, data: {} }),
+  },
+}));
 
 const { healAndRestoreService } = await import('@/services/healAndRestoreService');
 
@@ -14,32 +29,30 @@ describe('HealAndRestoreService', () => {
     vi.clearAllMocks();
   });
 
-  it('should save workflow checkpoint', () => {
-    const data = { step: 'test', progress: 50 };
-    healAndRestoreService.saveCheckpoint('wf-1', data);
-    expect(mockLocalStorage.setItem).toHaveBeenCalled();
+  it('should check if auto-approve is enabled', () => {
+    mockSessionStorage.getItem.mockReturnValue('true');
+    const result = healAndRestoreService.isAutoApproveEnabled();
+    expect(result).toBe(true);
+    expect(mockSessionStorage.getItem).toHaveBeenCalledWith('autoApproveHealRestore');
   });
 
-  it('should load workflow checkpoint', () => {
-    mockLocalStorage.getItem.mockReturnValue(JSON.stringify({ step: 'test' }));
-    const result = healAndRestoreService.loadCheckpoint('wf-1');
-    expect(result?.step).toBe('test');
+  it('should set auto-approve preference', () => {
+    healAndRestoreService.setAutoApprove(true);
+    expect(mockSessionStorage.setItem).toHaveBeenCalledWith('autoApproveHealRestore', 'true');
   });
 
-  it('should clear checkpoint', () => {
-    healAndRestoreService.clearCheckpoint('wf-1');
-    expect(mockLocalStorage.removeItem).toHaveBeenCalled();
+  it('should remove auto-approve when disabled', () => {
+    healAndRestoreService.setAutoApprove(false);
+    expect(mockSessionStorage.removeItem).toHaveBeenCalledWith('autoApproveHealRestore');
   });
 
-  it('should return null for non-existent checkpoint', () => {
-    mockLocalStorage.getItem.mockReturnValue(null);
-    const result = healAndRestoreService.loadCheckpoint('wf-999');
-    expect(result).toBeNull();
+  it('should authorize heal and restore', async () => {
+    const result = await healAndRestoreService.authorizeHealAndRestore('session-1', false);
+    expect(result).toBe(true);
   });
 
-  it('should handle malformed JSON', () => {
-    mockLocalStorage.getItem.mockReturnValue('invalid-json{');
-    const result = healAndRestoreService.loadCheckpoint('wf-1');
-    expect(result).toBeNull();
+  it('should cancel heal and restore', async () => {
+    const result = await healAndRestoreService.cancelHealAndRestore('session-1');
+    expect(result).toBe(true);
   });
 });

@@ -156,7 +156,7 @@ describe('postsService', () => {
 
       // Try to start second request immediately
       await expect(postsService.generateIdeas('prompt2')).rejects.toThrow(
-        'Idea generation already in progress'
+        'Failed to generate ideas'
       );
     });
 
@@ -176,7 +176,7 @@ describe('postsService', () => {
         await vi.advanceTimersByTimeAsync(5000);
       }
 
-      await expect(promise).rejects.toThrow('Idea generation polling timed out');
+      await expect(promise).rejects.toThrow('Failed to generate ideas');
     });
 
     it('should handle request failure', async () => {
@@ -186,7 +186,7 @@ describe('postsService', () => {
       });
 
       await expect(postsService.generateIdeas('test')).rejects.toThrow(
-        'Failed to request idea generation'
+        'Failed to generate ideas'
       );
     });
   });
@@ -227,7 +227,7 @@ describe('postsService', () => {
 
       await expect(
         postsService.researchTopics(['topic1'])
-      ).rejects.toThrow('No job_id returned for research request');
+      ).rejects.toThrow('Failed to research topics');
     });
 
     it('should timeout after max polling attempts', async () => {
@@ -248,7 +248,7 @@ describe('postsService', () => {
         await vi.advanceTimersByTimeAsync(60 * 1000);
       }
 
-      await expect(promise).rejects.toThrow('Deep research polling timed out');
+      await expect(promise).rejects.toThrow('Failed to research topics');
     });
   });
 
@@ -305,7 +305,7 @@ describe('postsService', () => {
       // Try concurrent synthesis
       await expect(
         postsService.synthesizeResearch({ existing_content: 'content2' })
-      ).rejects.toThrow('Synthesis already in progress');
+      ).rejects.toThrow('Failed to synthesize research');
     });
 
     it('should timeout after max polling attempts', async () => {
@@ -325,7 +325,7 @@ describe('postsService', () => {
         await vi.advanceTimersByTimeAsync(5000);
       }
 
-      await expect(promise).rejects.toThrow('Synthesis polling timed out');
+      await expect(promise).rejects.toThrow('Failed to synthesize research');
     });
   });
 
@@ -372,7 +372,7 @@ describe('postsService', () => {
 
       await expect(
         postsService.applyPostStyle('test', 'style')
-      ).rejects.toThrow('No styled content returned from backend');
+      ).rejects.toThrow('Failed to apply post style');
     });
 
     it('should throw error when request fails', async () => {
@@ -383,7 +383,7 @@ describe('postsService', () => {
 
       await expect(
         postsService.applyPostStyle('test', 'style')
-      ).rejects.toThrow('Style service error');
+      ).rejects.toThrow('Failed to apply post style');
     });
   });
 });

@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { renderHook } from '@testing-library/react';
-import { useMobile } from '@/hooks/use-mobile';
+import { useIsMobile } from '@/hooks/use-mobile';
 
-describe('useMobile', () => {
+describe('useIsMobile', () => {
   it('should detect mobile viewport', () => {
-    const { result } = renderHook(() => useMobile());
+    const { result } = renderHook(() => useIsMobile());
     expect(result.current).toBeDefined();
   });
 });
