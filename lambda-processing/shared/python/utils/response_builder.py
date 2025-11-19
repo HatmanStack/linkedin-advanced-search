@@ -1,13 +1,13 @@
 """Common response building utilities for Lambda functions."""
 import json
-from typing import Any, Dict, Optional
+from typing import Any
 
 
 def build_success_response(
     data: Any,
     status_code: int = 200,
-    headers: Optional[Dict[str, str]] = None
-) -> Dict[str, Any]:
+    headers: dict[str, str] | None = None
+) -> dict[str, Any]:
     """
     Build a standardized success response.
 
@@ -42,9 +42,9 @@ def build_success_response(
 def build_error_response(
     error_message: str,
     status_code: int = 500,
-    error_code: Optional[str] = None,
-    headers: Optional[Dict[str, str]] = None
-) -> Dict[str, Any]:
+    error_code: str | None = None,
+    headers: dict[str, str] | None = None
+) -> dict[str, Any]:
     """
     Build a standardized error response.
 

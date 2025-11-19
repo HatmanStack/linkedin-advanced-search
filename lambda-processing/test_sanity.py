@@ -1,8 +1,8 @@
 """
 Sanity test to verify Python test infrastructure is working
 """
-import pytest
 import os
+
 import boto3
 from moto import mock_aws
 

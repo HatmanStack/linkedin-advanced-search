@@ -2,12 +2,13 @@
 Unit tests for DynamoDB API Lambda function
 Tests CRUD operations, authentication, CORS, and error handling
 """
-import pytest
-import json
 import base64
-from unittest.mock import patch, MagicMock
-from moto import mock_aws
+import json
+from unittest.mock import patch
+
 import boto3
+import pytest
+from moto import mock_aws
 
 
 @pytest.fixture

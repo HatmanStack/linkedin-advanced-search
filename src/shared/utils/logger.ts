@@ -12,7 +12,7 @@
 type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
 interface LogContext {
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 interface LogEntry {
@@ -48,7 +48,7 @@ const isDevelopment = (): boolean => {
 /**
  * Mask sensitive data in objects
  */
-const maskSensitiveData = (data: any): any => {
+const maskSensitiveData = (data: unknown): unknown => {
   if (!data || typeof data !== 'object') {
     return data;
   }
@@ -57,7 +57,7 @@ const maskSensitiveData = (data: any): any => {
     return data.map(item => maskSensitiveData(item));
   }
 
-  const masked: any = {};
+  const masked: Record<string, unknown> = {};
 
   for (const [key, value] of Object.entries(data)) {
     const lowerKey = key.toLowerCase();

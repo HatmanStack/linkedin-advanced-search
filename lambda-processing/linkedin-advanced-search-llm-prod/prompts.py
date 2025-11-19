@@ -186,7 +186,7 @@ Provide:
 ## Quality Checks:
 Before finalizing, ensure the post:
 - [ ] Starts with a compelling hook
-- [ ] Provides genuine value to the target audience  
+- [ ] Provides genuine value to the target audience
 - [ ] Maintains professional credibility
 - [ ] Includes a clear call-to-action
 - [ ] Incorporates lessons from previous attempts

@@ -1,7 +1,6 @@
 """AWS resource configuration for Lambda functions."""
 import os
 
-
 # Environment
 ENVIRONMENT = os.environ.get('ENVIRONMENT', 'dev')
 AWS_REGION = os.environ.get('AWS_REGION', 'us-east-1')

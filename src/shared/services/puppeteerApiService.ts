@@ -13,8 +13,8 @@ const logger = createLogger('PuppeteerApiService');
 // This service calls the local puppeteer backend for LinkedIn automation
 // Note: Backend routes are rooted at '/', e.g., '/search', so do NOT append '/api' here.
 const PUPPETEER_BACKEND_URL =
-  (import.meta.env as any).VITE_PUPPETEER_BACKEND_URL ||
-  (import.meta.env as any).VITE_API_GATEWAY_URL || // fallback for legacy env var usage
+  (import.meta.env as unknown).VITE_PUPPETEER_BACKEND_URL ||
+  (import.meta.env as unknown).VITE_API_GATEWAY_URL || // fallback for legacy env var usage
   'http://localhost:3001';
 
 // This service handles raw API calls to the puppeteer backend
@@ -45,7 +45,7 @@ class PuppeteerApiService {
 
       // Properly handle async getSession
       return new Promise<string>((resolve) => {
-        cognitoUser.getSession((err: any, session: CognitoUserSession) => {
+        cognitoUser.getSession((err: Error | null, session: CognitoUserSession) => {
           if (err || !session.isValid()) {
             logger.warn('No valid Cognito session found');
             resolve('');
@@ -123,7 +123,7 @@ class PuppeteerApiService {
 
       // Non-OK still try to surface server message if any
       if (!response.ok) {
-        let parsedError: any = null;
+        let parsedError: unknown = null;
         try {
           parsedError = textBody && contentType.includes('application/json') ? JSON.parse(textBody) : null;
         } catch {
@@ -140,7 +140,7 @@ class PuppeteerApiService {
         return { success: true } as PuppeteerApiResponse<T>;
       }
 
-      let parsed: any = textBody;
+      let parsed: unknown = textBody;
       if (contentType.includes('application/json')) {
         try {
           parsed = JSON.parse(textBody);
@@ -172,7 +172,7 @@ class PuppeteerApiService {
     tags?: string[];
     limit?: number;
     lastKey?: string;
-  }): Promise<PuppeteerApiResponse<{ connections: any[]; lastKey?: string }>> {
+  }): Promise<PuppeteerApiResponse<{ connections: unknown[]; lastKey?: string }>> {
     const params = new URLSearchParams();
     if (filters?.status) params.append('status', filters.status);
     if (filters?.tags) params.append('tags', filters.tags.join(','));
@@ -180,20 +180,20 @@ class PuppeteerApiService {
     if (filters?.lastKey) params.append('lastKey', filters.lastKey);
 
     const queryString = params.toString();
-    return this.makeRequest<{ connections: any[]; lastKey?: string }>(
+    return this.makeRequest<{ connections: unknown[]; lastKey?: string }>(
       `/connections${queryString ? `?${queryString}` : ''}`
     );
   }
 
-  async createConnection(connection: any): Promise<PuppeteerApiResponse<any>> {
-    return this.makeRequest<any>('/connections', {
+  async createConnection(connection: unknown): Promise<PuppeteerApiResponse<unknown>> {
+    return this.makeRequest<unknown>('/connections', {
       method: 'POST',
       body: JSON.stringify(connection),
     });
   }
 
-  async updateConnection(connectionId: string, updates: any): Promise<PuppeteerApiResponse<any>> {
-    return this.makeRequest<any>(`/connections/${connectionId}`, {
+  async updateConnection(connectionId: string, updates: unknown): Promise<PuppeteerApiResponse<unknown>> {
+    return this.makeRequest<unknown>(`/connections/${connectionId}`, {
       method: 'PUT',
       body: JSON.stringify(updates),
     });
@@ -204,52 +204,52 @@ class PuppeteerApiService {
     connectionId?: string;
     isSent?: boolean;
     limit?: number;
-  }): Promise<PuppeteerApiResponse<{ messages: any[] }>> {
+  }): Promise<PuppeteerApiResponse<{ messages: unknown[] }>> {
     const params = new URLSearchParams();
     if (filters?.connectionId) params.append('connectionId', filters.connectionId);
     if (filters?.isSent !== undefined) params.append('isSent', filters.isSent.toString());
     if (filters?.limit) params.append('limit', filters.limit.toString());
 
     const queryString = params.toString();
-    return this.makeRequest<{ messages: any[] }>(
+    return this.makeRequest<{ messages: unknown[] }>(
       `/messages${queryString ? `?${queryString}` : ''}`
     );
   }
 
-  async createMessage(message: any): Promise<PuppeteerApiResponse<any>> {
-    return this.makeRequest<any>('/messages', {
+  async createMessage(message: unknown): Promise<PuppeteerApiResponse<unknown>> {
+    return this.makeRequest<unknown>('/messages', {
       method: 'POST',
       body: JSON.stringify(message),
     });
   }
 
   // Topic Operations
-  async getTopics(): Promise<PuppeteerApiResponse<any[]>> {
-    return this.makeRequest<any[]>('/topics');
+  async getTopics(): Promise<PuppeteerApiResponse<unknown[]>> {
+    return this.makeRequest<unknown[]>('/topics');
   }
 
-  async createTopic(topic: any): Promise<PuppeteerApiResponse<any>> {
-    return this.makeRequest<any>('/topics', {
+  async createTopic(topic: unknown): Promise<PuppeteerApiResponse<unknown>> {
+    return this.makeRequest<unknown>('/topics', {
       method: 'POST',
       body: JSON.stringify(topic),
     });
   }
 
   // Draft Operations
-  async getDrafts(): Promise<PuppeteerApiResponse<any[]>> {
-    return this.makeRequest<any[]>('/drafts');
+  async getDrafts(): Promise<PuppeteerApiResponse<unknown[]>> {
+    return this.makeRequest<unknown[]>('/drafts');
   }
 
-  async createDraft(draft: any): Promise<PuppeteerApiResponse<any>> {
-    return this.makeRequest<any>('/drafts', {
+  async createDraft(draft: unknown): Promise<PuppeteerApiResponse<unknown>> {
+    return this.makeRequest<unknown>('/drafts', {
       method: 'POST',
       body: JSON.stringify(draft),
     });
   }
 
   // LinkedIn Integration
-  async performLinkedInSearch(criteria: any): Promise<PuppeteerApiResponse<any>> {
-    return this.makeRequest<any>('/search', {
+  async performLinkedInSearch(criteria: unknown): Promise<PuppeteerApiResponse<unknown>> {
+    return this.makeRequest<unknown>('/search', {
       method: 'POST',
       body: JSON.stringify(criteria),
     });
@@ -354,8 +354,8 @@ class PuppeteerApiService {
   }
 
   // LinkedIn Search Operations
-  async searchLinkedIn(searchData: SearchFormData): Promise<any> {
-    const response = await this.makeRequest<any>(
+  async searchLinkedIn(searchData: SearchFormData): Promise<unknown> {
+    const response = await this.makeRequest<unknown>(
       '/search',
       {
         method: 'POST',

@@ -3,6 +3,7 @@ import { CognitoAuthService, type CognitoUserData } from '@/features/auth';
 import { isCognitoConfigured } from '@/config/appConfig';
 import { generateUniqueUserId, validateUserForDatabase, securityUtils } from '@/shared/utils/userUtils';
 import { createLogger } from '@/shared/utils/logger';
+import type { AuthError } from '../types';
 
 const logger = createLogger('AuthContext');
 
@@ -18,13 +19,13 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   getToken: () => Promise<string | null>;
-  signIn: (email: string, password: string) => Promise<{ error: any }>;
-  signUp: (email: string, password: string, firstName?: string, lastName?: string) => Promise<{ error: any }>;
+  signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
+  signUp: (email: string, password: string, firstName?: string, lastName?: string) => Promise<{ error: AuthError | null }>;
   signOut: () => Promise<void>;
-  confirmSignUp?: (email: string, code: string) => Promise<{ error: any }>;
-  resendConfirmationCode?: (email: string) => Promise<{ error: any }>;
-  forgotPassword?: (email: string) => Promise<{ error: any }>;
-  confirmPassword?: (email: string, code: string, newPassword: string) => Promise<{ error: any }>;
+  confirmSignUp?: (email: string, code: string) => Promise<{ error: AuthError | null }>;
+  resendConfirmationCode?: (email: string) => Promise<{ error: AuthError | null }>;
+  forgotPassword?: (email: string) => Promise<{ error: AuthError | null }>;
+  confirmPassword?: (email: string, code: string, newPassword: string) => Promise<{ error: AuthError | null }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);

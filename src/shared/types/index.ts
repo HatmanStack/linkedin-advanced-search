@@ -275,7 +275,7 @@ export interface ValidationResult {
   warnings?: string[];
 
   /** Sanitized data if sanitization was performed */
-  sanitizedData?: any;
+  sanitizedData?: unknown;
 }
 
 /**
@@ -489,7 +489,7 @@ export interface LoadingState {
  * @template T The type of the response body data
  * @description Wraps all API responses with consistent status and body structure.
  */
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
   /** HTTP status code */
   statusCode: number;
 
@@ -507,7 +507,7 @@ export interface ApiResponse<T = any> {
  * @template T The type of the response data
  * @description Standard response format from the puppeteer backend service.
  */
-export interface PuppeteerApiResponse<T = any> {
+export interface PuppeteerApiResponse<T = unknown> {
   /** Whether the operation was successful */
   success: boolean;
 
