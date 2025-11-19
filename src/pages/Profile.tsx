@@ -55,7 +55,7 @@ const Profile = () => {
     // When user profile context updates, hydrate this page's local editable fields
     (async () => {
       try {
-        const data: any = userProfile;
+        const data: unknown = userProfile;
         if (!data) return;
         const firstName = (data.first_name || '').trim();
         const lastName = (data.last_name || '').trim();
@@ -112,7 +112,7 @@ const Profile = () => {
         const payload: { linkedin_credentials: string } = { linkedin_credentials: '' };
 
         // Optional client-side encryption if sealbox public key is provided.
-        const sealboxPubB64 = (import.meta.env as any).VITE_CRED_SEALBOX_PUBLIC_KEY_B64 as string | undefined;
+        const sealboxPubB64 = (import.meta.env as unknown).VITE_CRED_SEALBOX_PUBLIC_KEY_B64 as string | undefined;
         logger.debug('Save credentials - public key check', {
           hasPublicKey: !!sealboxPubB64,
           keyType: typeof sealboxPubB64,
@@ -157,7 +157,7 @@ const Profile = () => {
       // Save non-sensitive profile info
       const [firstName, ...rest] = profile.name.trim().split(/\s+/);
       const lastName = rest.join(' ').trim();
-      const profilePayload: any = {
+      const profilePayload: unknown = {
         first_name: firstName || undefined,
         last_name: lastName || undefined,
         headline: profile.title || undefined,

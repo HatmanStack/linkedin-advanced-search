@@ -93,7 +93,7 @@ const ConnectionFiltersComponent: React.FC<ConnectionFiltersProps> = ({
   }, [connections]);
 
   // Handle filter updates
-  const updateFilter = useCallback((key: keyof ConnectionFilters, value: any) => {
+  const updateFilter = useCallback((key: keyof ConnectionFilters, value: unknown) => {
     onFiltersChange({
       ...filters,
       [key]: value

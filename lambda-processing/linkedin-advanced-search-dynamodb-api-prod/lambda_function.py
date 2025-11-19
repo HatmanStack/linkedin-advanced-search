@@ -1,11 +1,12 @@
-import json
-import boto3
 import base64
-from typing import Dict, Any, List, Optional
-from botocore.exceptions import ClientError
-import os
+import json
 import logging
-from datetime import datetime, timezone, timedelta
+import os
+from datetime import UTC, datetime
+from typing import Any
+
+import boto3
+from botocore.exceptions import ClientError
 
 # Configure logging
 logger = logging.getLogger()
@@ -25,12 +26,12 @@ table = dynamodb.Table(TABLE_NAME)
 ALLOWED_ORIGINS_ENV = os.environ.get('ALLOWED_ORIGINS', 'http://localhost:5173')
 ALLOWED_ORIGINS = [o.strip() for o in ALLOWED_ORIGINS_ENV.split(',') if o.strip()]
 
-def _get_origin_from_event(event: Dict[str, Any]) -> Optional[str]:
+def _get_origin_from_event(event: dict[str, Any]) -> str | None:
     headers = event.get('headers') or {}
     origin = headers.get('origin') or headers.get('Origin')
     return origin
 
-def preflight_response(event: Dict[str, Any]) -> Dict[str, Any]:
+def preflight_response(event: dict[str, Any]) -> dict[str, Any]:
     """Return a proper CORS preflight (OPTIONS) response without requiring auth."""
     origin = _get_origin_from_event(event)
     allow_origin = origin if origin in ALLOWED_ORIGINS else (ALLOWED_ORIGINS[0] if ALLOWED_ORIGINS else '*')
@@ -46,7 +47,7 @@ def preflight_response(event: Dict[str, Any]) -> Dict[str, Any]:
         'body': ''
     }
 
-def lambda_handler(event: Dict[str, Any], context) -> Dict[str, Any]:
+def lambda_handler(event: dict[str, Any], context) -> dict[str, Any]:
     """Main Lambda handler for DynamoDB API operations.
     Supports:
       - User settings (e.g., linkedin_credentials) via HTTP GET/PUT or operation-based calls
@@ -64,7 +65,7 @@ def lambda_handler(event: Dict[str, Any], context) -> Dict[str, Any]:
         # Handle CORS preflight without requiring auth
         if http_method == 'OPTIONS':
             return preflight_response(event)
-       
+
         # Safely unwrap requestContext.authorizer.claims in case any layer is present but null
         rc = event.get('requestContext') or {}
         auth = rc.get('authorizer') or {}
@@ -81,12 +82,12 @@ def lambda_handler(event: Dict[str, Any], context) -> Dict[str, Any]:
                 if not item:
                     return create_response(200, {'message': 'Profile not found', 'profile': None})
                 return create_response(200, {'profile': item})
-            
+
             # No profileId provided, return combined user profile for the authenticated user
             if not user_id:
                 logger.error("No user ID found in JWT token for profile GET")
                 return create_response(401, {'error': 'Unauthorized: Missing or invalid JWT token'}, _get_origin_from_event(event))
-            
+
             return get_user_settings(user_id)
 
         # Parse request body (if any)
@@ -111,17 +112,17 @@ def lambda_handler(event: Dict[str, Any], context) -> Dict[str, Any]:
         logger.error(f"Error processing request: {str(e)}")
         return create_response(500, {'error': 'Internal server error'})
 
-def create_bad_contact_profile(user_id: str, body: Dict[str, Any]) -> Dict[str, Any]:
+def create_bad_contact_profile(user_id: str, body: dict[str, Any]) -> dict[str, Any]:
     """Create a bad contact profile with processed status AND create edges"""
     try:
         profile_id = body.get('profileId')
         if not profile_id:
             return create_response(400, {'error': 'profileId is required'})
         profile_id_b64 = base64.urlsafe_b64encode(profile_id.encode()).decode()
-        
+
         updates = body.get('updates', {})
-        current_time = datetime.now(timezone.utc).isoformat()
-        
+        current_time = datetime.now(UTC).isoformat()
+
         print(f'THIS IS THE BAD CONTACT:   PROFILE#{profile_id_b64}')
         # Create or update profile metadata
         profile_metadata = {
@@ -145,24 +146,24 @@ def create_bad_contact_profile(user_id: str, body: Dict[str, Any]) -> Dict[str, 
             # Use evaluated flag (boolean) instead of status string for profile-level metadata
             'evaluated': True
         }
-        
+
         table.put_item(Item=profile_metadata)
-        
+
         # Do NOT create edges here anymore; puppeteer-backend owns edge creation
-        
+
         logger.info(f"Created/updated bad contact profile metadata (evaluated=True): {profile_id_b64} for user: {user_id}")
-        
+
         return create_response(201, {
             'message': 'Bad contact profile metadata updated successfully',
             'profileId': profile_id_b64,
             'evaluated': True
         })
-        
+
     except ClientError as e:
         logger.error(f"DynamoDB error: {str(e)}")
         return create_response(500, {'error': 'Database error'})
 
-def get_user_settings(user_id: str) -> Dict[str, Any]:
+def get_user_settings(user_id: str) -> dict[str, Any]:
     """Get user settings item (e.g., encrypted linkedin_credentials).
     Does not return plaintext and does not log secrets.
     Key: PK=USER#<sub>, SK=#SETTINGS
@@ -211,7 +212,7 @@ def update_user_settings(user_id: str, body: Dict[str, Any]) -> Dict[str, Any]:
     - linkedin_credentials is stored under PK=USER#{sub}, SK=#SETTINGS
     """
     try:
-        current_time = datetime.now(timezone.utc).isoformat()
+        current_time = datetime.now(UTC).isoformat()
 
         # Extract profile fields (exclude linkedin_credentials which belongs to SETTINGS)
         profile_updates = {}
@@ -267,14 +268,14 @@ def update_user_settings(user_id: str, body: Dict[str, Any]) -> Dict[str, Any]:
             )
         else:
             print(f"No profile fields provided for update: {body}")
-        
-        
+
+
         return create_response(200, {'success': True})
     except ClientError as e:
         logger.error(f"DynamoDB error (update_user_settings): {str(e)}")
         return create_response(500, {'error': 'Database error'})
 
-def get_profile_metadata(profile_id_b64: str) -> Optional[Dict[str, Any]]:
+def get_profile_metadata(profile_id_b64: str) -> dict[str, Any] | None:
     """Helper function to get profile metadata"""
     try:
         print(f'THIS IS THE PROFILE BEING CHECKED:  PROFILE#{profile_id_b64}')
@@ -289,7 +290,7 @@ def get_profile_metadata(profile_id_b64: str) -> Optional[Dict[str, Any]]:
         logger.error(f"Error getting profile metadata: {str(e)}")
         return None
 
-def create_response(status_code: int, body: Dict[str, Any], origin: Optional[str] = None) -> Dict[str, Any]:
+def create_response(status_code: int, body: dict[str, Any], origin: str | None = None) -> dict[str, Any]:
     """Create standardized API response"""
     allow_origin = origin if origin in ALLOWED_ORIGINS else (ALLOWED_ORIGINS[0] if ALLOWED_ORIGINS else '*')
     return {

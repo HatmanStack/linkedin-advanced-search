@@ -41,12 +41,9 @@ DYNAMODB_IMPLEMENTATION.md
 DYNAMODB_SCHEMA.md
 SUMMARY.md
 CLOUDFRONT_SETUP.md
-package-lock.json
-backend/package-lock.json
 LINKEDIN*.md
 HEAL*.md
 test
-backend/package-lock.json
 PINE*.md
 .*cpython-311.pyc
 

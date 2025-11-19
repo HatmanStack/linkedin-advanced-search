@@ -79,14 +79,14 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
       
       
       // Use the profile data from context instead of fetching again
-      const unsent = (userProfile as any).unpublished_post_content || (userProfile as any).unsent_post_content;
+      const unsent = (userProfile as unknown).unpublished_post_content || (userProfile as unknown).unsent_post_content;
       if (!cancelled && !hasHydratedContentRef.current) {
         setContent(unsent || "");
         hasHydratedContentRef.current = true;
       }
       // Mirror profile values into session storage for downstream component hydration
       try {
-        const pResearch = (userProfile as any)?.ai_generated_research;
+        const pResearch = (userProfile as unknown)?.ai_generated_research;
         if (typeof pResearch === 'string' && pResearch.trim()) {
           try { sessionStorage.setItem(RESEARCH_STORAGE_KEY, pResearch); } catch {
             // Ignore storage errors (private browsing, quota exceeded)
@@ -97,7 +97,7 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
       }
 
       try {
-        const pResearch = (userProfile as any)?.unpublished_post_content;
+        const pResearch = (userProfile as unknown)?.unpublished_post_content;
         if (typeof pResearch === 'string' && pResearch.trim()) {
           try { sessionStorage.setItem(CONTENT_STORAGE_KEY, pResearch); } catch {
             // Ignore storage errors (private browsing, quota exceeded)
@@ -108,7 +108,7 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
       }
 
       try {
-        const pReasoning = (userProfile as any)?.ai_generated_post_reasoning;
+        const pReasoning = (userProfile as unknown)?.ai_generated_post_reasoning;
         if (typeof pReasoning === 'string' && pReasoning.trim()) {
           try { sessionStorage.setItem(REASONING_STORAGE_KEY, pReasoning); } catch {
             // Ignore storage errors (private browsing, quota exceeded)
@@ -119,7 +119,7 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
       }
 
       try {
-        const pHook = (userProfile as any)?.ai_generated_post_hook;
+        const pHook = (userProfile as unknown)?.ai_generated_post_hook;
         if (typeof pHook === 'string' && pHook.trim()) {
           try { sessionStorage.setItem(HOOK_STORAGE_KEY, pHook); } catch {
             // Ignore storage errors (private browsing, quota exceeded)
@@ -140,7 +140,7 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
 
         } else {
           logger.debug('hydrate ideas: profile fallback');
-          const fromProfileIdeas = (userProfile as any)?.ai_generated_ideas;
+          const fromProfileIdeas = (userProfile as unknown)?.ai_generated_ideas;
           if (!cancelled && Array.isArray(fromProfileIdeas)) {
             logger.debug('hydrate ideas: using profile', { count: fromProfileIdeas.length });
             setIdeas(fromProfileIdeas);

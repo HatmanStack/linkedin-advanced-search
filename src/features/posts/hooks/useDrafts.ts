@@ -4,7 +4,7 @@ import { useAuth } from '@/features/auth';
 
 export const useDrafts = () => {
   const { user } = useAuth();
-  const [drafts, setDrafts] = useState<any[]>([]);
+  const [drafts, setDrafts] = useState<unknown[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -40,7 +40,7 @@ export const useDrafts = () => {
   }, [fetchDrafts]);
 
   const createDraft = useCallback(async (
-    draftData: any
+    draftData: unknown
   ): Promise<boolean> => {
     try {
       const response = await puppeteerApiService.createDraft(draftData);

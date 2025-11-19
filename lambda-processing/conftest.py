@@ -2,6 +2,7 @@
 Pytest configuration and fixtures for Lambda function testing
 """
 import os
+
 import pytest
 from moto import mock_aws
 
