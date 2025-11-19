@@ -1,0 +1,96 @@
+[
+  {
+    "id": "mock-profile-1",
+    "name": "John Doe",
+    "headline": "Senior Software Engineer at Tech Corp",
+    "location": "San Francisco, CA",
+    "connections": "500+",
+    "about": "Experienced software engineer with a passion for building scalable systems.",
+    "experience": [
+      {
+        "title": "Senior Software Engineer",
+        "company": "Tech Corp",
+        "duration": "2020 - Present",
+        "description": "Leading backend development team"
+      }
+    ],
+    "education": [
+      {
+        "school": "Stanford University",
+        "degree": "BS Computer Science",
+        "year": "2016"
+      }
+    ],
+    "skills": ["JavaScript", "TypeScript", "React", "Node.js", "AWS"]
+  },
+  {
+    "id": "mock-profile-2",
+    "name": "Jane Smith",
+    "headline": "Product Manager at Innovation Inc",
+    "location": "New York, NY",
+    "connections": "350",
+    "about": "Product leader focused on user-centric solutions.",
+    "experience": [
+      {
+        "title": "Product Manager",
+        "company": "Innovation Inc",
+        "duration": "2019 - Present",
+        "description": "Managing product roadmap and strategy"
+      }
+    ],
+    "education": [
+      {
+        "school": "MIT",
+        "degree": "MBA",
+        "year": "2018"
+      }
+    ],
+    "skills": ["Product Strategy", "Agile", "User Research", "Analytics"]
+  },
+  {
+    "id": "mock-profile-3",
+    "name": "Bob Johnson",
+    "headline": "Data Scientist | Machine Learning Expert",
+    "location": "Seattle, WA",
+    "connections": "1000+",
+    "about": "Passionate about AI and machine learning applications.",
+    "experience": [
+      {
+        "title": "Senior Data Scientist",
+        "company": "Data Insights Co",
+        "duration": "2018 - Present",
+        "description": "Building ML models for predictive analytics"
+      }
+    ],
+    "education": [
+      {
+        "school": "UC Berkeley",
+        "degree": "PhD in Computer Science",
+        "year": "2017"
+      }
+    ],
+    "skills": ["Python", "Machine Learning", "TensorFlow", "PyTorch", "SQL"]
+  },
+  {
+    "id": "mock-profile-empty",
+    "name": "Empty Profile",
+    "headline": "",
+    "location": "",
+    "connections": "0",
+    "about": "",
+    "experience": [],
+    "education": [],
+    "skills": []
+  },
+  {
+    "id": "mock-profile-special-chars",
+    "name": "María José O'Connor-Smith",
+    "headline": "Software Engineer @ Tech™ & Co. (Paris)",
+    "location": "São Paulo, Brazil 🇧🇷",
+    "connections": "500+",
+    "about": "Testing special characters: éàñü, emojis: 🚀💻, and symbols: @#$%",
+    "experience": [],
+    "education": [],
+    "skills": ["C++", "C#", "F#"]
+  }
+]

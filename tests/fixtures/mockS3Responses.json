@@ -1,0 +1,32 @@
+{
+  "uploadSuccess": {
+    "$metadata": {
+      "httpStatusCode": 200,
+      "requestId": "mock-s3-request-id",
+      "attempts": 1
+    },
+    "ETag": "\"mock-etag-12345\"",
+    "Location": "https://mock-bucket.s3.amazonaws.com/test-key",
+    "Bucket": "mock-bucket",
+    "Key": "test-key"
+  },
+  "getObjectSuccess": {
+    "$metadata": {
+      "httpStatusCode": 200
+    },
+    "Body": "Mock profile text content",
+    "ContentType": "text/plain",
+    "ContentLength": 25,
+    "ETag": "\"mock-etag-12345\"",
+    "LastModified": "2024-01-15T10:30:00Z"
+  },
+  "deleteSuccess": {
+    "$metadata": {
+      "httpStatusCode": 204
+    }
+  },
+  "error": {
+    "name": "NoSuchKey",
+    "message": "The specified key does not exist."
+  }
+}

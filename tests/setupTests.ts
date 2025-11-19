@@ -1,5 +1,12 @@
 import '@testing-library/jest-dom';
-import { vi } from 'vitest';
+import { cleanup } from '@testing-library/react';
+import { afterEach, vi } from 'vitest';
+
+// Cleanup after each test
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 
 // Mock environment variables
 Object.defineProperty(import.meta, 'env', {
@@ -12,6 +19,24 @@ Object.defineProperty(import.meta, 'env', {
 
 // Mock global fetch
 global.fetch = vi.fn();
+
+// Mock localStorage
+const localStorageMock = {
+  getItem: vi.fn(),
+  setItem: vi.fn(),
+  removeItem: vi.fn(),
+  clear: vi.fn(),
+};
+global.localStorage = localStorageMock as any;
+
+// Mock sessionStorage
+const sessionStorageMock = {
+  getItem: vi.fn(),
+  setItem: vi.fn(),
+  removeItem: vi.fn(),
+  clear: vi.fn(),
+};
+global.sessionStorage = sessionStorageMock as any;
 
 // Mock console methods to reduce noise in tests
 global.console = {
