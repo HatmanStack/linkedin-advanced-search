@@ -64,11 +64,7 @@ class HealAndRestoreService {
 
   // Start listening for heal and restore notifications
   startListening(): void {
-    //if (this.isListening) return; // Prevent multiple listeners/pollers
-    //this.isListening = true;
-    
-    // For now, we'll use polling instead of WebSocket/SSE for simplicity
-    //this.startPolling();
+    // Polling not yet implemented
   }
 
   // Stop listening for notifications

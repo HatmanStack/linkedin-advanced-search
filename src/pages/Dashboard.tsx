@@ -16,7 +16,6 @@ import StatusPicker from '@/components/StatusPicker';
 import type { StatusValue, ConnectionCounts } from '@/types';
 import VirtualConnectionList from '@/components/VirtualConnectionList';
 import MessageModal from '@/components/MessageModal';
-// import ConnectionFiltersComponent from '@/components/ConnectionFilters';
 import { lambdaApiService as dbConnector, ApiError } from '@/services/lambdaApiService';
 import type { Connection, Message } from '@/types';
 import { connectionCache } from '@/utils/connectionCache';
