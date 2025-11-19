@@ -20,9 +20,22 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'jsdom',
-    setupFiles: ['./tests/setup.ts'],
+    setupFiles: ['./tests/setupTests.ts'],
     css: true,
     include: ['tests/**/*.test.{js,ts,tsx}'],
-    exclude: ['tests/node-unit/**'],
+    exclude: ['tests/node-unit/**', 'tests/integration/**', 'node_modules/**'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'html', 'lcov'],
+      exclude: ['node_modules/', 'tests/', '**/*.test.{ts,tsx,js}', '**/*.config.{ts,js}', '**/ui/**'],
+      thresholds: {
+        global: {
+          lines: 60,
+          functions: 60,
+          branches: 60,
+          statements: 60
+        }
+      }
+    }
   },
 })

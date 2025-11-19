@@ -1,0 +1,57 @@
+{
+  "getProfileSuccess": {
+    "Item": {
+      "userId": "test-user-123",
+      "profileId": "mock-profile-1",
+      "name": "John Doe",
+      "headline": "Senior Software Engineer at Tech Corp",
+      "connectionStatus": "CONNECTED",
+      "createdAt": "2024-01-15T10:30:00Z",
+      "updatedAt": "2024-01-15T10:30:00Z"
+    }
+  },
+  "listProfilesSuccess": {
+    "Items": [
+      {
+        "userId": "test-user-123",
+        "profileId": "mock-profile-1",
+        "name": "John Doe"
+      },
+      {
+        "userId": "test-user-123",
+        "profileId": "mock-profile-2",
+        "name": "Jane Smith"
+      }
+    ],
+    "Count": 2,
+    "ScannedCount": 2
+  },
+  "putProfileSuccess": {
+    "$metadata": {
+      "httpStatusCode": 200,
+      "requestId": "mock-request-id",
+      "attempts": 1,
+      "totalRetryDelay": 0
+    }
+  },
+  "queryByGSISuccess": {
+    "Items": [
+      {
+        "userId": "test-user-123",
+        "profileId": "mock-profile-1",
+        "status": "ACTIVE"
+      }
+    ],
+    "Count": 1,
+    "ScannedCount": 1
+  },
+  "emptyResult": {
+    "Items": [],
+    "Count": 0,
+    "ScannedCount": 0
+  },
+  "error": {
+    "name": "ResourceNotFoundException",
+    "message": "Requested resource not found"
+  }
+}
