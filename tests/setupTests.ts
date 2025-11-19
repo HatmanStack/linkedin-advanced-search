@@ -82,9 +82,23 @@ vi.mock('@/config/appConfig', () => ({
     userPoolWebClientId: 'test-client-id',
     identityPoolId: 'test-identity-pool-id',
   },
-  apiConfig: {
-    apiGatewayUrl: 'http://localhost:3000/test',
-    puppeteerBackendUrl: 'http://localhost:3001',
+  validateCognitoConfig: vi.fn(() => true),
+  isCognitoConfigured: true,
+  API_CONFIG: {
+    BASE_URL: 'http://localhost:3001',
+    ENDPOINTS: {
+      SEARCH: '/',
+      MESSAGE_GENERATION: '/ai/generate-message',
+    },
+    TIMEOUT: 100000000,
+  },
+  STORAGE_KEYS: {
+    VISITED_LINKS: 'visitedLinks',
+    SEARCH_RESULTS: 'searchResults',
+  },
+  UI_CONFIG: {
+    DEBOUNCE_DELAY: 300,
+    MAX_RETRIES: 3,
   },
 }));
 
