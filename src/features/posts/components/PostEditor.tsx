@@ -7,6 +7,9 @@ import { FileText, Save, Send, X } from 'lucide-react';
 import { usePostComposer } from '@/features/posts';
 import { useState, useMemo, useEffect } from 'react';
 import { postsService } from '@/features/posts';
+import { createLogger } from '@/shared/utils/logger';
+
+const logger = createLogger('PostEditor');
 
 const REASONING_STORAGE_KEY = 'ai_generated_post_reasoning';
 const HOOK_STORAGE_KEY = 'ai_generated_post_hook';
@@ -94,7 +97,7 @@ const PostEditor = ({
     const raw = sessionStorage.getItem(STYLE_CACHE_KEY);
     
     const parsed = JSON.parse(raw ?? '{}');
-    console.log('Parsed',  parsed);
+    logger.debug('Parsed style cache', { parsed });
     if (parsed[value]) {
       onContentChange(parsed[value]);
       return;
@@ -110,7 +113,7 @@ const PostEditor = ({
       sessionStorage.setItem(STYLE_CACHE_KEY, JSON.stringify(parsed));  
     } catch (err) {
       // Ignore failure and keep original content
-      console.error('Failed to apply post style', err);
+      logger.error('Failed to apply post style', { error: err });
     } 
   };
 
@@ -212,7 +215,7 @@ const PostEditor = ({
                     sessionStorage.setItem(STYLE_CACHE_KEY, "{}");  
                     await clearSynthesis();
                   } catch (error) {
-                    console.error('Failed to clear synthesis:', error);
+                    logger.error('Failed to clear synthesis', { error });
                   }
                 }}
                 title="Clear synthesis"

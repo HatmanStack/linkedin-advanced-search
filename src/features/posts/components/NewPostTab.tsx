@@ -3,6 +3,9 @@ import PostAIAssistant from '@/features/posts';
 import ResearchResultsCard from '@/features/search';
 import { usePostComposer } from '@/features/posts';
 import { useToast } from '@/shared/hooks';
+import { createLogger } from '@/shared/utils/logger';
+
+const logger = createLogger('NewPostTab');
 
 const NewPostTabInner = () => {
   const {
@@ -32,7 +35,7 @@ const NewPostTabInner = () => {
       const generatedIdeas = await generateIdeas(prompt);
       setIdeas(generatedIdeas);
     } catch (error) {
-      console.error('Failed to generate ideas:', error);
+      logger.error('Failed to generate ideas', { error });
       // Ideas will remain empty, so textarea will be shown
     }
   };
@@ -41,7 +44,7 @@ const NewPostTabInner = () => {
     try {
       await clearResearch();
     } catch (error) {
-      console.error('Failed to clear research:', error);
+      logger.error('Failed to clear research', { error });
       toast({
         title: 'Error',
         description: 'Failed to clear research. Please try again.',
@@ -54,7 +57,7 @@ const NewPostTabInner = () => {
     try {
       await clearIdea(newIdeas);
     } catch (error) {
-      console.error('Failed to update ideas:', error);
+      logger.error('Failed to update ideas', { error });
       toast({
         title: 'Error',
         description: 'Failed to update ideas. Please try again.',

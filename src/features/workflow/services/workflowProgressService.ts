@@ -1,5 +1,8 @@
 import type { Connection } from '@/shared/types/index';
 // Removed unused imports: ProgressState, LoadingState
+import { createLogger } from '@/shared/utils/logger';
+
+const logger = createLogger('WorkflowProgressService');
 
 // =============================================================================
 // INTERFACES
@@ -335,7 +338,7 @@ export class WorkflowProgressService {
       try {
         callback(this.getProgressState());
       } catch (error) {
-        console.error('Error in progress update callback:', error);
+        logger.error('Error in progress update callback', { error });
       }
     });
   }
@@ -350,7 +353,7 @@ export class WorkflowProgressService {
       try {
         callback(stats);
       } catch (error) {
-        console.error('Error in completion callback:', error);
+        logger.error('Error in completion callback', { error });
       }
     });
   }

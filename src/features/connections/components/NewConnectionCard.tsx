@@ -18,6 +18,9 @@ import { useToast } from "@/hooks/use-toast";
 import { lambdaApiService as dbConnector } from "@/services/lambdaApiService";
 import { puppeteerApiService } from "@/services/puppeteerApiService";
 import { transformErrorForUser, getToastVariant, ERROR_MESSAGES } from "@/utils/errorHandling";
+import { createLogger } from '@/shared/utils/logger';
+
+const logger = createLogger('NewConnectionCard');
 import type { NewConnectionCardProps } from '@/types';
 
 /**
@@ -153,7 +156,7 @@ const NewConnectionCard: React.FC<NewConnectionCardProps> = ({
         onRemove(connection.id, 'processed');
       }
     } catch (error) {
-      console.error('Error removing connection:', error);
+      logger.error('Error removing connection', { error });
 
       // Transform error for user-friendly display
       const errorInfo = transformErrorForUser(
@@ -295,7 +298,7 @@ const NewConnectionCard: React.FC<NewConnectionCardProps> = ({
       });
       if (onRemove) onRemove(connection.id, 'outgoing');
     } catch (error) {
-      console.error('Error connecting:', error);
+      logger.error('Error connecting', { error });
 
       // Transform error for user-friendly display
       const errorInfo = transformErrorForUser(

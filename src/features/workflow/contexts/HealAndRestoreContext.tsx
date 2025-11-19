@@ -2,6 +2,9 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { HealAndRestoreModal } from '@/features/workflow';
 import { healAndRestoreService } from '@/features/workflow';
 import type { HealAndRestoreNotification } from '@/features/workflow';
+import { createLogger } from '@/shared/utils/logger';
+
+const logger = createLogger('HealAndRestoreContext');
 
 interface HealAndRestoreContextType {
   isListening: boolean;
@@ -60,9 +63,9 @@ export const HealAndRestoreProvider: React.FC<HealAndRestoreProviderProps> = ({ 
       );
 
       if (success) {
-        console.log('Heal and restore authorized successfully');
+        logger.info('Heal and restore authorized successfully');
       } else {
-        console.error('Failed to authorize heal and restore');
+        logger.error('Failed to authorize heal and restore');
       }
     }
 

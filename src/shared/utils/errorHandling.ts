@@ -1,4 +1,7 @@
 import { ApiError } from '@/shared/services';
+import { createLogger } from '@/shared/utils/logger';
+
+const logger = createLogger('ErrorHandling');
 
 /**
  * Error handling utilities for the connection management system
@@ -135,7 +138,7 @@ export function logError(error: unknown, context: string, additionalData?: any):
     url: window.location.href
   };
   
-  console.error(`[${context}] Error occurred:`, errorInfo);
+  logger.error(`[${context}] Error occurred`, { errorInfo });
   
   // In production, you might want to send this to an error tracking service
   // Example: Sentry.captureException(error, { extra: errorInfo });

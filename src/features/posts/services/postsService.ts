@@ -2,6 +2,9 @@ import { puppeteerApiService } from '@/shared/services';
 import { lambdaApiService } from '@/shared/services';
 import { v4 as uuidv4 } from 'uuid';
 import type { UserProfile } from '@/types';
+import { createLogger } from '@/shared/utils/logger';
+
+const logger = createLogger('PostsService');
 
 // Prevent concurrent or duplicate idea polling loops (e.g., accidental double clicks or re-renders)
 let ideasPollingInFlight = false;
@@ -66,7 +69,7 @@ export const postsService = {
           if (poll && (poll.success === true || poll.status === 'ok')) {
             const ideas = (poll as any).ideas || (poll as any).data?.ideas;
             if (Array.isArray(ideas) && ideas.length > 0) {
-              console.log('ideas', ideas);
+              logger.debug('Ideas generated', { ideas });
               ideasPollingInFlight = false;
               return ideas as string[];
             }
@@ -78,7 +81,7 @@ export const postsService = {
       }
       throw new Error('Idea generation polling timed out');
     } catch (error) {
-      console.error('Error generating ideas:', error);
+      logger.error('Error generating ideas', { error });
       throw new Error('Failed to generate ideas');
     }
     finally {
@@ -131,7 +134,7 @@ export const postsService = {
       }
       throw new Error('Deep research polling timed out');
     } catch (error) {
-      console.error('Error researching topics:', error);
+      logger.error('Error researching topics', { error });
       throw new Error('Failed to research topics');
     }
   },
@@ -195,7 +198,7 @@ export const postsService = {
       }
       throw new Error('Synthesis polling timed out');
     } catch (error) {
-      console.error('Error synthesizing research:', error);
+      logger.error('Error synthesizing research', { error });
       throw new Error('Failed to synthesize research');
     } finally {
       synthPollingInFlight = false;
@@ -222,7 +225,7 @@ export const postsService = {
       if (typeof data.result === 'string') return data.result;
       throw new Error('No styled content returned from backend');
     } catch (error) {
-      console.error('Error applying post style:', error);
+      logger.error('Error applying post style', { error });
       throw new Error('Failed to apply post style');
     }
   },

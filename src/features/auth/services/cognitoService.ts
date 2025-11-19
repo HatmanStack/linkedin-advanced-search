@@ -6,6 +6,9 @@ import {
   CognitoUserSession,
 } from 'amazon-cognito-identity-js';
 import { cognitoConfig } from '@/config/appConfig';
+import { createLogger } from '@/shared/utils/logger';
+
+const logger = createLogger('CognitoService');
 
 // Initialize Cognito User Pool
 const userPool = new CognitoUserPool({
@@ -121,13 +124,13 @@ export class CognitoAuthService {
           });
         },
         onFailure: (err) => {
-          console.error('Cognito sign-in error:', err);
+          logger.error('Cognito sign-in error', { error: err });
           resolve({ error: { message: err.message, code: err.code } });
         },
         newPasswordRequired: (userAttributes) => {
           // For self-registered users, complete auth with the same password
           // This happens when Cognito puts users in FORCE_CHANGE_PASSWORD status
-          console.log('Completing new password challenge with same password');
+          logger.debug('Completing new password challenge with same password');
 
           // Filter out read-only Cognito attributes before completing challenge
           const writableAttributes = { ...userAttributes };
@@ -151,7 +154,7 @@ export class CognitoAuthService {
               });
             },
             onFailure: (err) => {
-              console.error('New password challenge failed:', err);
+              logger.error('New password challenge failed', { error: err });
               resolve({ error: { message: err.message, code: err.code } });
             },
           });
