@@ -123,7 +123,9 @@ class PuppeteerApiService {
         let parsedError: any = null;
         try {
           parsedError = textBody && contentType.includes('application/json') ? JSON.parse(textBody) : null;
-        } catch { }
+        } catch {
+          // Ignore JSON parse errors
+        }
         return {
           success: false,
           error: (parsedError && (parsedError.error || parsedError.message)) || (textBody || `HTTP ${response.status}`),

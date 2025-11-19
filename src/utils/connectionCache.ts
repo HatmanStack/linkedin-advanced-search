@@ -58,7 +58,9 @@ export class ConnectionCache {
         }
       }
       this.stats.size = this.cache.size;
-    } catch {}
+    } catch {
+      // Ignore localStorage errors
+    }
   }
 
   /**
@@ -70,7 +72,9 @@ export class ConnectionCache {
       const key = `${this.storageKeyBase}${this.namespace}`;
       const serialized = JSON.stringify(this.getAll());
       localStorage.setItem(key, serialized);
-    } catch {}
+    } catch {
+      // Ignore localStorage errors
+    }
   }
 
   /**

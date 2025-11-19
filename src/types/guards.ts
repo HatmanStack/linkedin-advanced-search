@@ -14,16 +14,8 @@ import type {
   Message,
   ConnectionStatus,
   MessageSender,
-  StatusValue,
   ConnectionFilters,
-  ConnectionCounts,
   ApiResponse,
-  // Removed unused response interfaces
-  ApiErrorInfo,
-  UserErrorInfo,
-  ErrorRecoveryAction,
-  // Removed unused database operation types
-  ValidationResult,
 } from './index';
 
 // =============================================================================
@@ -119,16 +111,6 @@ export function isMessageSender(value: unknown): value is MessageSender {
   return typeof value === 'string' && ['user', 'connection'].includes(value);
 }
 
-/**
- * Checks if a value is a valid StatusValue
- * 
- * @param value - The value to check
- * @returns True if value is a valid StatusValue
- */
-export function isStatusValue(value: unknown): value is StatusValue {
-  return typeof value === 'string' &&
-    ['all', 'incoming', 'outgoing', 'ally'].includes(value);
-}
 
 // =============================================================================
 // CORE INTERFACE TYPE GUARDS
@@ -244,25 +226,6 @@ export function isConnectionFilters(value: unknown): value is ConnectionFilters 
   return true;
 }
 
-/**
- * Checks if a value is a valid ConnectionCounts object
- * 
- * @param value - The value to check
- * @returns True if value conforms to ConnectionCounts interface
- */
-export function isConnectionCounts(value: unknown): value is ConnectionCounts {
-  if (typeof value !== 'object' || value === null) return false;
-
-  const obj = value as Record<string, unknown>;
-
-  return (
-    isValidNumber(obj.incoming) && obj.incoming >= 0 &&
-    isValidNumber(obj.outgoing) && obj.outgoing >= 0 &&
-    isValidNumber(obj.ally) && obj.ally >= 0 &&
-    isValidNumber(obj.total) && obj.total >= 0 &&
-    (obj.possible === undefined || (isValidNumber(obj.possible) && obj.possible >= 0))
-  );
-}
 
 // =============================================================================
 // API RESPONSE TYPE GUARDS
@@ -298,65 +261,6 @@ export function isApiResponse<T>(
 // ERROR TYPE GUARDS
 // =============================================================================
 
-/**
- * Checks if a value is a valid ApiErrorInfo object
- * 
- * @param value - The value to check
- * @returns True if value conforms to ApiErrorInfo interface
- */
-export function isApiErrorInfo(value: unknown): value is ApiErrorInfo {
-  if (typeof value !== 'object' || value === null) return false;
-
-  const obj = value as Record<string, unknown>;
-
-  return (
-    isNonEmptyString(obj.message) &&
-    (obj.status === undefined || isValidNumber(obj.status)) &&
-    (obj.code === undefined || typeof obj.code === 'string')
-  );
-}
-
-/**
- * Checks if a value is a valid ErrorRecoveryAction object
- * 
- * @param value - The value to check
- * @returns True if value conforms to ErrorRecoveryAction interface
- */
-export function isErrorRecoveryAction(value: unknown): value is ErrorRecoveryAction {
-  if (typeof value !== 'object' || value === null) return false;
-
-  const obj = value as Record<string, unknown>;
-
-  return (
-    isNonEmptyString(obj.label) &&
-    typeof obj.action === 'function' &&
-    (obj.primary === undefined || typeof obj.primary === 'boolean') &&
-    (obj.description === undefined || typeof obj.description === 'string')
-  );
-}
-
-/**
- * Checks if a value is a valid UserErrorInfo object
- * 
- * @param value - The value to check
- * @returns True if value conforms to UserErrorInfo interface
- */
-export function isUserErrorInfo(value: unknown): value is UserErrorInfo {
-  if (typeof value !== 'object' || value === null) return false;
-
-  const obj = value as Record<string, unknown>;
-
-  return (
-    isNonEmptyString(obj.userMessage) &&
-    isNonEmptyString(obj.technicalMessage) &&
-    typeof obj.severity === 'string' &&
-    ['low', 'medium', 'high', 'critical'].includes(obj.severity) &&
-    typeof obj.retryable === 'boolean' &&
-    Array.isArray(obj.recoveryActions) &&
-    obj.recoveryActions.every(isErrorRecoveryAction) &&
-    isNonEmptyString(obj.timestamp)
-  );
-}
 
 // =============================================================================
 // PARAMETER TYPE GUARDS
@@ -364,122 +268,5 @@ export function isUserErrorInfo(value: unknown): value is UserErrorInfo {
 
 // Removed unused database operation type guards: isConnectionQueryParams, isUpdateConnectionParams
 
-// =============================================================================
-// VALIDATION RESULT TYPE GUARDS
-// =============================================================================
 
-/**
- * Checks if a value is a valid ValidationResult object
- * 
- * @param value - The value to check
- * @returns True if value conforms to ValidationResult interface
- */
-export function isValidationResult(value: unknown): value is ValidationResult {
-  if (typeof value !== 'object' || value === null) return false;
 
-  const obj = value as Record<string, unknown>;
-
-  return (
-    typeof obj.isValid === 'boolean' &&
-    Array.isArray(obj.errors) &&
-    obj.errors.every(error => typeof error === 'string') &&
-    (obj.warnings === undefined ||
-      (Array.isArray(obj.warnings) && obj.warnings.every(warning => typeof warning === 'string'))) &&
-    (obj.sanitizedData === undefined || obj.sanitizedData !== null)
-  );
-}
-
-// =============================================================================
-// ARRAY TYPE GUARDS
-// =============================================================================
-
-/**
- * Checks if a value is an array of Connections
- * 
- * @param value - The value to check
- * @returns True if value is an array of valid Connection objects
- */
-export function isConnectionArray(value: unknown): value is Connection[] {
-  return Array.isArray(value) && value.every(isConnection);
-}
-
-/**
- * Checks if a value is an array of Messages
- * 
- * @param value - The value to check
- * @returns True if value is an array of valid Message objects
- */
-export function isMessageArray(value: unknown): value is Message[] {
-  return Array.isArray(value) && value.every(isMessage);
-}
-
-/**
- * Checks if a value is an array of strings
- * 
- * @param value - The value to check
- * @returns True if value is an array of strings
- */
-export function isStringArray(value: unknown): value is string[] {
-  return Array.isArray(value) && value.every(item => typeof item === 'string');
-}
-
-// =============================================================================
-// UTILITY TYPE GUARDS
-// =============================================================================
-
-/**
- * Creates a type guard that checks if a value has all required properties
- * 
- * @param requiredKeys - Array of required property names
- * @returns Type guard function
- */
-export function hasRequiredProperties<T extends Record<string, unknown>>(
-  requiredKeys: string[]
-): (value: unknown) => value is T {
-  return (value: unknown): value is T => {
-    if (typeof value !== 'object' || value === null) return false;
-
-    const obj = value as Record<string, unknown>;
-    return requiredKeys.every(key => obj[key] !== undefined);
-  };
-}
-
-/**
- * Creates a type guard that checks if a value is one of the allowed values
- * 
- * @param allowedValues - Array of allowed values
- * @returns Type guard function
- */
-export function isOneOf<T>(allowedValues: T[]): (value: unknown) => value is T {
-  return (value: unknown): value is T => {
-    return allowedValues.includes(value as T);
-  };
-}
-
-/**
- * Combines multiple type guards with AND logic
- * 
- * @param guards - Array of type guard functions
- * @returns Combined type guard function
- */
-export function combineGuards<T>(
-  ...guards: Array<(value: unknown) => value is T>
-): (value: unknown) => value is T {
-  return (value: unknown): value is T => {
-    return guards.every(guard => guard(value));
-  };
-}
-
-/**
- * Combines multiple type guards with OR logic
- * 
- * @param guards - Array of type guard functions
- * @returns Combined type guard function
- */
-export function combineGuardsOr<T>(
-  ...guards: Array<(value: unknown) => value is T>
-): (value: unknown) => value is T {
-  return (value: unknown): value is T => {
-    return guards.some(guard => guard(value));
-  };
-}
