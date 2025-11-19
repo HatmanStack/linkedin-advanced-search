@@ -1,15 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import { useConnections } from '@/features/connections';
-
-// Mock the AuthContext
-vi.mock('@/contexts/AuthContext', () => ({
-  useAuth: vi.fn(() => ({
-    user: { id: 'user-123', email: 'test@test.com' },
-    isAuthenticated: true,
-    isLoading: false,
-  })),
-}));
+import { AllTheProviders } from '../utils/testHelpers';
 
 // Mock puppeteerApiService
 vi.mock('@/services/puppeteerApiService', () => ({
@@ -25,7 +17,9 @@ vi.mock('@/services/puppeteerApiService', () => ({
 
 describe('useConnections', () => {
   it('should initialize connections state', () => {
-    const { result } = renderHook(() => useConnections());
+    const { result } = renderHook(() => useConnections(), {
+      wrapper: AllTheProviders
+    });
     expect(result.current).toBeDefined();
     expect(result.current.connections).toBeDefined();
     expect(result.current.loading).toBeDefined();
