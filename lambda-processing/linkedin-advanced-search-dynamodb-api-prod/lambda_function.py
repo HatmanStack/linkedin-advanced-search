@@ -206,7 +206,7 @@ def validate_profile_field(field: str, value: Any) -> bool:
         return True  # Unknown fields allowed by default
     return validator(value)
 
-def update_user_settings(user_id: str, body: dict[str, Any]) -> dict[str, Any]:
+def update_user_settings(user_id: str, body: Dict[str, Any]) -> Dict[str, Any]:
     """Update user profile info and/or linkedin_credentials.
     - Profile fields are stored under PK=USER#{sub}, SK=#PROFILE
     - linkedin_credentials is stored under PK=USER#{sub}, SK=#SETTINGS
