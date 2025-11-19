@@ -1,5 +1,5 @@
 import axios, { type AxiosInstance, type AxiosResponse, type AxiosError } from 'axios';
-import { CognitoAuthService } from '@/services/cognitoService';
+import { CognitoAuthService } from '@/features/auth';
 import { logError } from '@/utils/errorHandling';
 import type {
   Connection,

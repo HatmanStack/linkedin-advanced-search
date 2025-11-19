@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { MessageSquare, Users, Zap, ArrowRight, CheckCircle, LogIn } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/features/auth';
 
 const Index = () => {
   const navigate = useNavigate();

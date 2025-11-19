@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MessageSquare, Users, Settings, UserPlus, FileText, LogOut, AlertCircle, Database } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/features/auth';
 import { useHealAndRestore } from '@/contexts/HealAndRestoreContext'; // Added
 import { useToast } from '@/hooks/use-toast';
 import { useSearchResults } from '@/hooks';

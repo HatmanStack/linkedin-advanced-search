@@ -1,7 +1,7 @@
 // src/contexts/UserProfileContext.tsx
 import { createContext, useState, useContext, type ReactNode, useMemo, useEffect } from 'react';
 import { lambdaApiService } from '@/services/lambdaApiService';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/features/auth';
 
 type LinkedInCredentialsCiphertext = string | null; // sealbox_x25519:b64:<...>
 

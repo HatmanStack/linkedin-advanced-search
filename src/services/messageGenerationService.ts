@@ -1,4 +1,4 @@
-import { CognitoAuthService } from '@/services/cognitoService';
+import { CognitoAuthService } from '@/features/auth';
 import { API_CONFIG } from '@/config/appConfig';
 import type { Message, UserProfile } from '@/types/index';
 

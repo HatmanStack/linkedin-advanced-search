@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { CognitoAuthService, type CognitoUserData } from '@/services/cognitoService';
+import { CognitoAuthService, type CognitoUserData } from '@/features/auth';
 import { isCognitoConfigured } from '@/config/appConfig';
 import { generateUniqueUserId, validateUserForDatabase, securityUtils } from '@/utils/userUtils';
 

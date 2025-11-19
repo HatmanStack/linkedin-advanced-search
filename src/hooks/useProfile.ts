@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { UserProfile } from '@/types';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/features/auth';
 
 export const useProfile = () => {
   const { user } = useAuth();
