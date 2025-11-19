@@ -1,7 +1,7 @@
-import PostEditor from '@/components/PostEditor';
-import PostAIAssistant from '@/components/PostAIAssistant';
+import PostEditor from '@/features/posts';
+import PostAIAssistant from '@/features/posts';
 import ResearchResultsCard from '@/components/ResearchResultsCard';
-import { usePostComposer } from '@/contexts/PostComposerContext';
+import { usePostComposer } from '@/features/posts';
 import { useToast } from '@/hooks/use-toast';
 
 const NewPostTabInner = () => {
