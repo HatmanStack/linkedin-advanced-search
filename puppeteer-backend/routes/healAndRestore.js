@@ -1,5 +1,6 @@
 import express from 'express';
 import { authorizeHealAndRestore, getPendingAuthorizations, cancelHealAndRestore } from '../src/domains/workflow/services/healAndRestoreService.js';
+import { logger } from '../src/shared/utils/logger.js';
 
 const router = express.Router();
 
@@ -14,7 +15,7 @@ router.get('/status', async (req, res) => {
       data: { pendingSession }
     });
   } catch (error) {
-    console.error('Error getting heal and restore status:', error);
+    logger.error('Error getting heal and restore status', { error: error.message });
     res.status(500).json({
       success: false,
       error: 'Failed to get status'
@@ -48,7 +49,7 @@ router.post('/authorize', async (req, res) => {
       });
     }
   } catch (error) {
-    console.error('Error authorizing heal and restore:', error);
+    logger.error('Error authorizing heal and restore', { error: error.message });
     res.status(500).json({
       success: false,
       error: 'Failed to authorize'
@@ -84,7 +85,7 @@ router.post('/cancel', async (req, res) => {
       });
     }
   } catch (error) {
-    console.error('Error cancelling heal and restore:', error);
+    logger.error('Error cancelling heal and restore', { error: error.message });
     res.status(500).json({
       success: false,
       error: 'Failed to cancel'

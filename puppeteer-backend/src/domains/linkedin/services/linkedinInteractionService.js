@@ -531,7 +531,9 @@ export class LinkedInInteractionService {
       // Extra stabilization wait using a lightweight heuristic
       try {
         await this.waitForPageStability?.();
-      } catch (_) { }
+      } catch (error) {
+        logger.debug('Page stability check failed, continuing anyway', { error: error.message });
+      }
 
       // Verify we're on a profile page
       const isProfilePage = await this.verifyProfilePage(page);
@@ -683,7 +685,9 @@ export class LinkedInInteractionService {
         last = metrics;
         await new Promise(resolve => setTimeout(resolve, sampleIntervalMs));
       }
-    } catch (_) { }
+    } catch (error) {
+      logger.debug('Page stability monitoring failed', { error: error.message });
+    }
     return false;
   }
 
@@ -1471,7 +1475,9 @@ export class LinkedInInteractionService {
       this.humanBehavior.recordAction('connection_request_sent', { requestId, confirmationFound: true });
       try {
         await this.ensureEdge(profileId, 'outgoing', jwtToken);
-      } catch (_) { }
+      } catch (error) {
+        logger.debug('Failed to create edge for connection request', { error: error.message, profileId });
+      }
 
       return {
         requestId,
@@ -1577,7 +1583,9 @@ export class LinkedInInteractionService {
             usedSelector = sel;
             break;
           }
-        } catch (_) { }
+        } catch (error) {
+          logger.debug('Selector query failed, trying next', { selector: sel, error: error.message });
+        }
       }
 
       logger.info(`${buttonName} container check: ${container ? 'found' : 'not found'}` +

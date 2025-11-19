@@ -22,7 +22,7 @@ from datetime import datetime, timezone
 from prompts import LINKEDIN_IDEAS_PROMPT, LINKEDIN_RESEARCH_PROMPT, SYNTHESIZE_RESEARCH_PROMPT, APPLY_POST_STYLE_PROMPT    
 from openai import OpenAI
 import boto3
-client = OpenAI(api_key=os.environ.get('OPENAI_API_KEY'),timeout=3600)
+client = OpenAI(api_key=os.environ.get('OPENAI_API_KEY'), timeout=60)
 
 
 API_HEADERS = {
@@ -82,6 +82,9 @@ def _extract_user_id(event: dict) -> str | None:
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
+
+# Valid operations allowlist
+VALID_OPERATIONS = ['generate_ideas', 'research_selected_ideas', 'get_research_result', 'synthesize_research', 'post_style_change']
 
 
 def handle_generate_ideas(user_profile: dict, prompt: str = "", job_id: str | None = None, user_id: str | None = None) -> dict:
@@ -445,15 +448,19 @@ def lambda_handler(event, _context):
 
         body = _parse_body(event)
         user_id = _extract_user_id(event)
-        print(f'BODY: {body}')
         if not user_id:
             return _resp(401, { 'error': 'Unauthorized: Missing or invalid JWT token' })
 
-        # Extract operation from request body
+        # Extract and validate operation from request body
         operation = body.get('operation')
-        print(f'OPERATION: {operation}')
         if not operation:
             return _resp(400, { 'error': 'Missing required field: operation' })
+
+        if operation not in VALID_OPERATIONS:
+            logger.warning('Invalid operation attempted', extra={'operation': operation, 'user_id': user_id})
+            return _resp(400, { 'error': 'Invalid operation' })
+
+        logger.info('Processing request', extra={'operation': operation, 'user_id': user_id})
 
         # Route to appropriate handler based on operation
         if operation == 'generate_ideas':
