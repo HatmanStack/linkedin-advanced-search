@@ -36,6 +36,7 @@ export const postsService = {
       ideasPollingInFlight = true;
 
       const profileToSend = userProfile
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         ? (() => { const { unsent_post_content, unpublished_post_content, ai_generated_post_content, linkedin_credentials, ...rest } = userProfile as any; return rest; })()
         : null;
 
@@ -70,7 +71,7 @@ export const postsService = {
               return ideas as string[];
             }
           }
-        } catch (_) {
+        } catch {
           // ignore transient errors and continue polling
         }
         if (i < maxChecks - 1) await sleep(intervalMs);
@@ -90,6 +91,7 @@ export const postsService = {
       const response = await lambdaApiService.sendLLMRequest('research_selected_ideas', {
         selected_ideas: topics,
         user_profile: (userProfile
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
           ? (() => { const { unsent_post_content, unpublished_post_content, ai_generated_post_content, linkedin_credentials, ...rest } = userProfile as any; return rest; })()
           : null)
       });
@@ -122,7 +124,7 @@ export const postsService = {
               return content;
             }
           }
-        } catch (_) {
+        } catch {
           // ignore transient errors and continue polling
         }
         if (i < maxChecks - 1) await sleep(intervalMs);
@@ -145,9 +147,8 @@ export const postsService = {
       synthPollingInFlight = true;
 
       const profileToSend = userProfile
-        ? (() => { const { unpublished_post_content, linkedin_credentials,
-          ai_generated_ideas, ai_generated_research, ai_generated_post_hook,
-          ai_generated_post_reasoning,...rest } = userProfile as any; return rest; })()
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        ? (() => { const { unpublished_post_content, linkedin_credentials, ai_generated_ideas, ai_generated_research, ai_generated_post_hook, ai_generated_post_reasoning,...rest } = userProfile as any; return rest; })()
         : null;
 
       // Generate a client-side job id and request async synthesis
@@ -187,7 +188,7 @@ export const postsService = {
               };
             }
           }
-        } catch (_) {
+        } catch {
           // ignore transient errors and continue polling
         }
         if (i < maxChecks - 1) await sleep(intervalMs);

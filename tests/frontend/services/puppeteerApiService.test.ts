@@ -3,7 +3,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
-const mockGetSession = vi.fn();
 const mockGetCurrentUser = vi.fn();
 
 vi.mock('amazon-cognito-identity-js', () => ({

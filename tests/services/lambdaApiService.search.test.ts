@@ -12,8 +12,8 @@ const mockAxiosInstance: Partial<AxiosInstance> = {
   get: vi.fn(),
   interceptors: {
     request: {
-      use: vi.fn((successHandler) => {
-        // Store the interceptor for later use if needed
+      use: vi.fn(() => {
+        // Request interceptor mock
         return 0;
       }),
       eject: vi.fn(),

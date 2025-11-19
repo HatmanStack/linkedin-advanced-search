@@ -226,7 +226,7 @@ class ComprehensiveIntegrationRunner {
 
       // Fallback: try to parse the entire output
       return JSON.parse(output);
-    } catch (error) {
+    } catch {
       // If JSON parsing fails, return a default structure
       return {
         success: false,
