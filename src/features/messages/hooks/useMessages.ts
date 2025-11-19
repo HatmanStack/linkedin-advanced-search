@@ -4,7 +4,7 @@ import { useAuth } from '@/features/auth';
 
 export const useMessages = (connectionId?: string) => {
   const { user } = useAuth();
-  const [messages, setMessages] = useState<any[]>([]);
+  const [messages, setMessages] = useState<unknown[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -40,7 +40,7 @@ export const useMessages = (connectionId?: string) => {
   }, [fetchMessages]);
 
   const createMessage = useCallback(async (
-    messageData: any
+    messageData: unknown
   ): Promise<boolean> => {
     try {
       const response = await puppeteerApiService.createMessage(messageData);

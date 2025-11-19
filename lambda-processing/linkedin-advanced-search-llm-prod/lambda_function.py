@@ -18,10 +18,12 @@ FEATURES:
 import json
 import logging
 import os
-from datetime import datetime, timezone
-from prompts import LINKEDIN_IDEAS_PROMPT, LINKEDIN_RESEARCH_PROMPT, SYNTHESIZE_RESEARCH_PROMPT, APPLY_POST_STYLE_PROMPT    
-from openai import OpenAI
+from datetime import UTC, datetime
+
 import boto3
+from openai import OpenAI
+from prompts import APPLY_POST_STYLE_PROMPT, LINKEDIN_IDEAS_PROMPT, LINKEDIN_RESEARCH_PROMPT, SYNTHESIZE_RESEARCH_PROMPT
+
 client = OpenAI(api_key=os.environ.get('OPENAI_API_KEY'), timeout=60)
 
 
@@ -94,7 +96,7 @@ def handle_generate_ideas(user_profile: dict, prompt: str = "", job_id: str | No
     try:
         raw_ideas = ''
         user_data = ''
-        
+
         if prompt:
             raw_ideas = prompt
         if user_profile and user_profile.get('name') != "Tom, Dick, And Harry":
@@ -129,7 +131,7 @@ def handle_generate_ideas(user_profile: dict, prompt: str = "", job_id: str | No
             'success': True,
             'status': 'queued'
         }
-            
+
     except Exception as e:
         logger.error(f"Error in handle_generate_ideas: {str(e)}")
         return {
@@ -148,34 +150,34 @@ def handle_research_selected_ideas(user_data: dict, selected_ideas: list, user_i
                 'success': False,
                 'error': 'No ideas selected for research'
             }
-        
+
         # Generate a unique job ID for this research request
         import uuid
         job_id = str(uuid.uuid4())
-        
+
         # Format user data for the prompt
         formatted_user_data = ''
         if user_data and user_data.get('name') != "Tom, Dick, And Harry":
             for key, value in user_data.items():
                 if key != "linkedin_credentials":
                     formatted_user_data += f"{key}: {value}\n"
-        
+
         # Format selected ideas for the prompt
         formatted_topics = '\n'.join([f"- {idea}" for idea in selected_ideas])
-        
+
         # Create the research prompt using the template
         research_prompt = LINKEDIN_RESEARCH_PROMPT.format(
             topics=formatted_topics,
             user_data=formatted_user_data
         )
-        
+
         print(f"Research prompt created for job {job_id}")
         print(f"Selected ideas: {selected_ideas}")
-        
-        response = client.responses.create(
+
+        client.responses.create(
             model="o4-mini-deep-research",
-            input=research_prompt,                 
-            background=True,                  
+            input=research_prompt,
+            background=True,
             metadata={"job_id": job_id, "user_id": user_id},
             tools=[
                 {"type": "web_search_preview"},
@@ -189,7 +191,7 @@ def handle_research_selected_ideas(user_data: dict, selected_ideas: list, user_i
             'ideas_researched': selected_ideas,
             'research_summary': f"Researched {len(selected_ideas)} selected topics"
         }
-        
+
     except Exception as e:
         logger.error(f"Error in handle_research_selected_ideas: {str(e)}")
         return {
@@ -219,11 +221,11 @@ def handle_get_research_result(user_id: str, job_id: str, kind: str | None = Non
             prefixes = ['RESEARCH']
         elif kind == 'SYNTHESIZE':
             prefixes = ['SYNTHESIZE']
-        
+
 
         item = None
         found_kind = None
-        
+
         for prefix in prefixes:
             print(f'PK:     USER#{user_id}')
             print(f'SK:     {prefix}#{job_id}')
@@ -259,7 +261,7 @@ def handle_get_research_result(user_id: str, job_id: str, kind: str | None = Non
                 start = m.end()
                 end = matches[idx + 1].start() if idx + 1 < len(matches) else len(text)
                 value = text[start:end].strip()
-                
+
                 # Skip the first line if it's just a title/header (like "The LinkedIn Post")
                 lines = value.split('\n')
                 if len(lines) > 1:
@@ -293,12 +295,12 @@ def handle_get_research_result(user_id: str, job_id: str, kind: str | None = Non
                 # Fallback: if no numeric sections parsed, store entire content as draft
                 if not sections:
                     profile_updates['unpublished_post_content'] = content
-                
-                
+
+
 
         # Upsert profile fields on USER#<id> #PROFILE if any updates
         if profile_updates:
-            current_time = datetime.now(timezone.utc).isoformat()
+            current_time = datetime.now(UTC).isoformat()
             update_expr_parts = []
             expr_attr_values = { ':ts': current_time }
             expr_attr_names = {}
@@ -390,7 +392,7 @@ def handle_synthesize_research(research_content, post_content, ideas_content,use
         return {
             'success': True,
             'status': 'queued',
-    
+
         }
     except Exception as e:
         logger.error(f"Error in handle_synthesize_research: {str(e)}")
@@ -415,7 +417,7 @@ def handle_apply_post_style(existing_content, style):
             "max_tokens": 5000,
             "messages": [
                 {
-                    "role": "user", 
+                    "role": "user",
                     "content": llm_prompt
                 }
             ]

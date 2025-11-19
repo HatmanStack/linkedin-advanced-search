@@ -72,7 +72,7 @@ export class ApiError extends Error {
   }
 }
 
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
   statusCode: number;
   body: T;
 }
@@ -112,7 +112,7 @@ class LambdaApiService {
   constructor() {
     // Initialize axios client with API Gateway base URL
     const apiBaseUrl =
-      (import.meta.env as any).VITE_API_GATEWAY_URL ||  '';
+      (import.meta.env as unknown).VITE_API_GATEWAY_URL ||  '';
 
     if (!apiBaseUrl) {
       logger.warn(
@@ -202,7 +202,7 @@ class LambdaApiService {
     if (error.response) {
       // Server responded with error status
       const status = error.response.status;
-      const responseData = error.response.data as any;
+      const responseData = error.response.data as unknown;
       const message = responseData?.message || 
                      responseData?.error || 
                      `HTTP ${status} error`;
@@ -263,7 +263,7 @@ class LambdaApiService {
    * @throws {ApiError} When the request fails after all retries
    * @private
    */
-  private async makeRequest<T>(endpoint: string, operation: string, params: Record<string, any> = {}): Promise<T> {
+  private async makeRequest<T>(endpoint: string, operation: string, params: Record<string, unknown> = {}): Promise<T> {
     let lastError: Error | null = null;
 
     for (let attempt = 1; attempt <= this.maxRetries; attempt++) {
@@ -414,7 +414,7 @@ class LambdaApiService {
         });
       }
 
-      await this.makeRequest<{ success: boolean; updated: Record<string, any> }>('edge', 'update_metadata', {
+      await this.makeRequest<{ success: boolean; updated: Record<string, unknown> }>('edge', 'update_metadata', {
         // Edge Lambda expects 'profileId' in the request body; we always send profileId
         profileId: options?.profileId ?? connectionId,
         updates: {
@@ -496,7 +496,7 @@ class LambdaApiService {
    * @param connections Raw connections data from API
    * @returns Connection[] Formatted and validated connections
    */
-  private formatConnectionsResponse(connections: any[]): Connection[] {
+  private formatConnectionsResponse(connections: unknown[]): Connection[] {
     if (!Array.isArray(connections)) {
       logger.warn('Invalid connections data received, expected array', { connections });
       return [];
@@ -545,7 +545,7 @@ class LambdaApiService {
    * @param messages Raw messages data from API
    * @returns Message[] Formatted and validated messages
    */
-  private formatMessagesResponse(messages: any[]): Message[] {
+  private formatMessagesResponse(messages: unknown[]): Message[] {
     if (!Array.isArray(messages)) {
       logger.warn('Invalid messages data received, expected array', { messages });
       return [];
@@ -595,7 +595,7 @@ class LambdaApiService {
    * @param params Additional parameters for the operation
    * @returns Promise resolving to the operation response
    */
-  private async makeLLMRequest<T>(operation: string, params: Record<string, any> = {}): Promise<T> {
+  private async makeLLMRequest<T>(operation: string, params: Record<string, unknown> = {}): Promise<T> {
     return this.makeRequest<T>('llm', operation, params);
   }
 
@@ -605,9 +605,9 @@ class LambdaApiService {
    * @param params Additional parameters for the operation
    * @returns Promise resolving to the LLM operation response
    */
-  async sendLLMRequest(operation: string, params: Record<string, any> = {}): Promise<{ success: boolean; data?: any; error?: string }> {
+  async sendLLMRequest(operation: string, params: Record<string, unknown> = {}): Promise<{ success: boolean; data?: unknown; error?: string }> {
     try {
-      const response = await this.makeLLMRequest<any>(operation, params);
+      const response = await this.makeLLMRequest<unknown>(operation, params);
       logger.debug('LLM response received', { responseLength: response?.length });
       return { success: true, data: response };
     } catch (error) {
@@ -631,7 +631,7 @@ import type { UserProfile } from '@/shared/types';
 interface SearchResponse {
   success: boolean;
   message?: string;
-  results: any[];
+  results: unknown[];
   total: number;
   metadata?: {
     search_id: string;
@@ -650,8 +650,8 @@ class ExtendedLambdaApiService extends LambdaApiService {
      
       return { success: true, data };
     } catch (error) {
-      const err = error as AxiosError<any>;
-      const message = (err.response?.data as any)?.error || err.message || 'Failed to fetch profile';
+      const err = error as AxiosError<unknown>;
+      const message = (err.response?.data as unknown)?.error || err.message || 'Failed to fetch profile';
       return { success: false, error: message };
     }
   }
@@ -668,8 +668,8 @@ class ExtendedLambdaApiService extends LambdaApiService {
       const data = (response.data?.data ?? response.data) as UserProfile;
       return { success: true, data };
     } catch (error) {
-      const err = error as AxiosError<any>;
-      const message = (err.response?.data as any)?.error || err.message || 'Failed to update profile';
+      const err = error as AxiosError<unknown>;
+      const message = (err.response?.data as unknown)?.error || err.message || 'Failed to update profile';
       return { success: false, error: message };
     }
   }
@@ -684,8 +684,8 @@ class ExtendedLambdaApiService extends LambdaApiService {
       const data = (response.data?.data ?? response.data) as UserProfile;
       return { success: true, data };
     } catch (error) {
-      const err = error as AxiosError<any>;
-      const message = (err.response?.data as any)?.error || err.message || 'Failed to create profile';
+      const err = error as AxiosError<unknown>;
+      const message = (err.response?.data as unknown)?.error || err.message || 'Failed to create profile';
       return { success: false, error: message };
     }
   }
@@ -694,12 +694,12 @@ class ExtendedLambdaApiService extends LambdaApiService {
    * Generic helper to call operation-based POSTs against the llm backend.
    * This does not implement any polling; it simply forwards the operation and params.
    */
-  async callProfilesOperation<T = any>(operation: string, params: Record<string, any> = {}): Promise<{ success?: boolean; data?: T } & Record<string, any>> {
+  async callProfilesOperation<T = unknown>(operation: string, params: Record<string, unknown> = {}): Promise<{ success?: boolean; data?: T } & Record<string, unknown>> {
     const response = await this.apiClient.post('llm', {
       operation,
       ...params,
     });
-    const data = (response.data?.data ?? response.data) as any;
+    const data = (response.data?.data ?? response.data) as unknown;
     return data;
   }
 
@@ -712,7 +712,7 @@ class ExtendedLambdaApiService extends LambdaApiService {
    * @param offset - Pagination offset (default: 0)
    * @returns Promise resolving to SearchResponse with results
    */
-  async searchProfiles(query: string, filters?: any, limit = 10, offset = 0): Promise<SearchResponse> {
+  async searchProfiles(query: string, filters?: unknown, limit = 10, offset = 0): Promise<SearchResponse> {
     try {
       const response = await this.apiClient.post('search', {
         query,

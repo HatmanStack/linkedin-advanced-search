@@ -33,13 +33,13 @@ class DecimalEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, Decimal):
             return int(obj) if obj % 1 == 0 else float(obj)
-        return super(DecimalEncoder, self).default(obj)
+        return super().default(obj)
 
 
 def _extract_user_id(event):
     """Extract user ID from Cognito JWT claims - requires authentication"""
     import os
-    
+
     # Try Cognito authorizer claims first
     sub = event.get('requestContext', {}).get('authorizer', {}).get('claims', {}).get('sub')
     if sub:
@@ -47,7 +47,7 @@ def _extract_user_id(event):
 
     # Check if DEV_MODE environment variable is explicitly set
     dev_mode = os.environ.get('DEV_MODE', 'false').lower() == 'true'
-    
+
     if dev_mode:
         # Only in development mode: allow fallback for testing
         auth_header = event.get('headers', {}).get('Authorization', '') or event.get('headers', {}).get('authorization', '')
@@ -56,7 +56,7 @@ def _extract_user_id(event):
             return 'test-user-development'
         logger.warning("DEV_MODE: No authentication found, using default test user")
         return 'test-user-development'
-    
+
     # Production: No authentication means unauthorized
     logger.error("No authentication found and DEV_MODE is not enabled")
     return None
@@ -70,11 +70,11 @@ def lambda_handler(event, _context):
 
     # Extract user ID from JWT
     user_id = _extract_user_id(event)
-    
+
     # Check if authentication succeeded
     if user_id is None:
         return build_error_response(401, "Authentication required")
-    
+
     logger.info(f"User ID: {user_id}")
 
     # Route based on HTTP method
@@ -87,7 +87,7 @@ def lambda_handler(event, _context):
         else:
             return build_error_response(405, f"Method {http_method} not allowed")
 
-    except Exception as e:
+    except Exception:
         logger.exception("Error processing profile request")
         return build_error_response(500, "Internal server error")
 
@@ -132,7 +132,7 @@ def handle_get_profile(user_id):
         logger.info(f"Profile retrieved successfully for user {user_id}")
         return build_success_response(profile)
 
-    except ClientError as e:
+    except ClientError:
         logger.exception("DynamoDB error")
         return build_error_response(500, "Database error")
 
@@ -233,7 +233,7 @@ def handle_update_profile(event, user_id):
 
     except json.JSONDecodeError:
         return build_error_response(400, "Invalid JSON in request body")
-    except ClientError as e:
+    except ClientError:
         logger.exception("DynamoDB error")
         return build_error_response(500, "Database error")
 

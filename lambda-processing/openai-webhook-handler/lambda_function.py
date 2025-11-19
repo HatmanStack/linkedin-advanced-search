@@ -1,13 +1,12 @@
-import os
-import json
 import base64
+import json
 import logging
-from datetime import datetime, timezone
+import os
+from datetime import UTC, datetime
 
 import boto3
 from botocore.exceptions import ClientError
-
-from openai import OpenAI, InvalidWebhookSignatureError
+from openai import InvalidWebhookSignatureError, OpenAI
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -95,7 +94,7 @@ def lambda_handler(event, context):
                 # Else default to RESEARCH#{job_id} with 'content'
                 try:
                     if _table and meta.get("user_id") and meta.get("job_id"):
-                        now_iso = datetime.now(timezone.utc).isoformat()
+                        now_iso = datetime.now(UTC).isoformat()
                         content_text = getattr(resp, "output_text", None)
                         kind = (meta.get("kind") or "RESEARCH").upper()
 
