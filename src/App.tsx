@@ -1,13 +1,12 @@
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
+import { Toaster } from "@/shared/components/ui/toaster";
+import { Toaster as Sonner } from "@/shared/components/ui/sonner";
+import { TooltipProvider } from "@/shared/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { AuthProvider } from "@/contexts/AuthContext";
-import { UserProfileProvider } from "@/contexts/UserProfileContext"; // Added
-import { HealAndRestoreProvider } from "@/contexts/HealAndRestoreContext"; // Added
-import { PostComposerProvider } from "@/contexts/PostComposerContext";
-import ProtectedRoute from "@/components/ProtectedRoute";
+import { AuthProvider, ProtectedRoute } from "@/features/auth";
+import { UserProfileProvider } from "@/features/profile";
+import { HealAndRestoreProvider } from "@/features/workflow";
+import { PostComposerProvider } from "@/features/posts";
 import Index from "@/pages/Index";
 import Auth from "@/pages/Auth";
 import Dashboard from "@/pages/Dashboard";
