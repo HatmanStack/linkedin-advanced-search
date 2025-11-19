@@ -4,15 +4,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MessageSquare, Users, Settings, UserPlus, FileText, LogOut, AlertCircle, Database } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/features/auth';
-import { useHealAndRestore } from '@/contexts/HealAndRestoreContext'; // Added
+import { useHealAndRestore } from '@/features/workflow'; // Added
 import { useToast } from '@/hooks/use-toast';
 import { useSearchResults } from '@/hooks';
-import { useProfileInit } from '@/hooks/useProfileInit';
+import { useProfileInit } from '@/features/profile';
 import type { SearchFormData } from '@/utils/validation';
 import ConversationTopicPanel from '@/features/messages';
 import NewConnectionsTab from '@/features/connections';
 import NewPostTab from '@/features/posts';
-import StatusPicker from '@/components/StatusPicker';
+import StatusPicker from '@/features/workflow';
 import type { StatusValue, ConnectionCounts } from '@/types';
 import VirtualConnectionList from '@/features/connections';
 import MessageModal from '@/features/messages';
@@ -25,9 +25,9 @@ import { NoConnectionsState } from '@/components/ui/empty-state';
 import { messageGenerationService } from '@/features/messages';
 import { connectionDataContextService } from '@/features/connections';
 import { useErrorHandler } from '@/hooks/useErrorHandler';
-import { useProgressTracker } from '@/hooks/useProgressTracker';
-import ProgressIndicator from '@/components/ProgressIndicator';
-import { useUserProfile } from '@/contexts/UserProfileContext';
+import { useProgressTracker } from '@/features/workflow';
+import ProgressIndicator from '@/features/workflow';
+import { useUserProfile } from '@/features/profile';
 
 // Removed unused demo sampleConnections to reduce noise
 

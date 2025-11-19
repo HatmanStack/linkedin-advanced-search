@@ -1,7 +1,7 @@
 import { createContext, useContext, type ReactNode, useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { postsService } from '@/features/posts';
 import { useAuth } from '@/features/auth';
-import { useUserProfile } from '@/contexts/UserProfileContext';
+import { useUserProfile } from '@/features/profile';
 import { useToast } from '@/hooks/use-toast';
 import { lambdaApiService } from '@/services/lambdaApiService';
 
