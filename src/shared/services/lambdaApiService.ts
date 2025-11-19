@@ -1,6 +1,9 @@
 import axios, { type AxiosInstance, type AxiosResponse, type AxiosError } from 'axios';
 import { CognitoAuthService } from '@/features/auth';
 import { logError } from '@/shared/utils/errorHandling';
+import { createLogger } from '@/shared/utils/logger';
+
+const logger = createLogger('LambdaApiService');
 import type {
   Connection,
   Message,
@@ -112,8 +115,8 @@ class LambdaApiService {
       (import.meta.env as any).VITE_API_GATEWAY_URL ||  '';
 
     if (!apiBaseUrl) {
-      console.warn(
-        'LambdaApiService: No API base URL configured. Set VITE_API_GATEWAY_URL (preferred) or VITE_API_GATEWAY_BASE_URL to avoid defaulting to the current origin (e.g., localhost during dev).'
+      logger.warn(
+        'No API base URL configured. Set VITE_API_GATEWAY_URL (preferred) or VITE_API_GATEWAY_BASE_URL to avoid defaulting to the current origin (e.g., localhost during dev).'
       );
     }
 
@@ -172,7 +175,7 @@ class LambdaApiService {
       }
       return null;
     } catch (error) {
-      console.error('Error getting auth token:', error);
+      logger.error('Error getting auth token', { error });
       return null;
     }
   }
@@ -312,7 +315,7 @@ class LambdaApiService {
         const apiError = error instanceof ApiError ? error : this.transformError(error as AxiosError);
         
         if (!apiError.retryable || attempt === this.maxRetries) {
-          console.error(`API request failed after ${attempt} attempts:`, {
+          logger.error(`API request failed after ${attempt} attempts`, {
             endpoint,
             operation,
             error: apiError.toJSON(),
@@ -323,7 +326,7 @@ class LambdaApiService {
 
         // Calculate delay for next retry
         const delay = this.calculateBackoffDelay(attempt);
-        console.warn(`API request failed (attempt ${attempt}/${this.maxRetries}), retrying in ${delay}ms:`, {
+        logger.warn(`API request failed (attempt ${attempt}/${this.maxRetries}), retrying in ${delay}ms`, {
           endpoint,
           operation,
           error: apiError.message,
@@ -356,7 +359,7 @@ class LambdaApiService {
       const connections = this.formatConnectionsResponse(response.connections || []);
       
       // Log successful operation
-      console.log(`Successfully fetched ${connections.length} connections${status ? ` with status ${status}` : ''}`);
+      logger.info(`Successfully fetched ${connections.length} connections${status ? ` with status ${status}` : ''}`);
       
       return connections;
     } catch (error) {
@@ -420,7 +423,7 @@ class LambdaApiService {
         },
       });
 
-      console.log(`Successfully updated connection ${connectionId} status to ${newStatus}`);
+      logger.info(`Successfully updated connection ${connectionId} status to ${newStatus}`);
     } catch (error) {
       logError(error, context, { 
         connectionId, 
@@ -467,7 +470,7 @@ class LambdaApiService {
       // Transform and validate the response
       const messages = this.formatMessagesResponse(response.messages || []);
       
-      console.log(`Successfully fetched ${messages.length} messages for connection ${connectionId}`);
+      logger.info(`Successfully fetched ${messages.length} messages for connection ${connectionId}`);
       
       return messages;
     } catch (error) {
@@ -495,7 +498,7 @@ class LambdaApiService {
    */
   private formatConnectionsResponse(connections: any[]): Connection[] {
     if (!Array.isArray(connections)) {
-      console.warn('Invalid connections data received, expected array:', connections);
+      logger.warn('Invalid connections data received, expected array', { connections });
       return [];
     }
 
@@ -519,7 +522,7 @@ class LambdaApiService {
           }
 
           // If sanitization failed, return null to filter out
-          console.error(`Unable to sanitize connection data at index ${index}:`, conn);
+          logger.error(`Unable to sanitize connection data at index ${index}`, { conn });
           return null;
         } catch (error) {
           logError(error, 'format connection data', { connection: conn, index });
@@ -544,7 +547,7 @@ class LambdaApiService {
    */
   private formatMessagesResponse(messages: any[]): Message[] {
     if (!Array.isArray(messages)) {
-      console.warn('Invalid messages data received, expected array:', messages);
+      logger.warn('Invalid messages data received, expected array', { messages });
       return [];
     }
 
@@ -559,19 +562,19 @@ class LambdaApiService {
           }
 
           // If validation failed, try to sanitize the data
-          console.warn(`Invalid message data at index ${index}:`, validationResult.errors);
+          logger.warn(`Invalid message data at index ${index}`, { errors: validationResult.errors });
           const sanitized = sanitizeMessageData(msg);
           
           if (sanitized && isMessage(sanitized)) {
-            console.log(`Successfully sanitized message data at index ${index}`);
+            logger.debug(`Successfully sanitized message data at index ${index}`);
             return sanitized;
           }
 
           // If sanitization failed, return null to filter out
-          console.error(`Unable to sanitize message data at index ${index}:`, msg);
+          logger.error(`Unable to sanitize message data at index ${index}`, { msg });
           return null;
         } catch (error) {
-          console.warn('Error formatting message:', error, msg);
+          logger.warn('Error formatting message', { error, msg });
           
           // Try one more time with sanitization
           const fallback = sanitizeMessageData(msg);
@@ -605,10 +608,10 @@ class LambdaApiService {
   async sendLLMRequest(operation: string, params: Record<string, any> = {}): Promise<{ success: boolean; data?: any; error?: string }> {
     try {
       const response = await this.makeLLMRequest<any>(operation, params);
-      console.log('LLM response:', response);
+      logger.debug('LLM response received', { responseLength: response?.length });
       return { success: true, data: response };
     } catch (error) {
-      console.log('LLM error:', error);
+      logger.error('LLM request failed', { error });
       
       if (error instanceof ApiError) {
         return { success: false, error: error.message };
@@ -640,7 +643,7 @@ interface SearchResponse {
 class ExtendedLambdaApiService extends LambdaApiService {
   async getUserProfile(): Promise<{ success: boolean; data?: UserProfile; error?: string }> {
     try {
-      console.log('Fetching user profile (GET /profiles)');
+      logger.debug('Fetching user profile (GET /profiles)');
       const response = await this.apiClient.get('profiles');
       
       const data = (response.data?.data ?? response.data) as UserProfile;
@@ -656,7 +659,7 @@ class ExtendedLambdaApiService extends LambdaApiService {
   async updateUserProfile(profile: Partial<UserProfile>): Promise<{ success: boolean; data?: UserProfile; error?: string }> {
     try {
       // API requires operation-based POST body; fields must be at top-level
-      console.log('Updating profile (POST /profiles):', profile);
+      logger.debug('Updating profile (POST /profiles)', { profileKeys: Object.keys(profile) });
       // Use POST /profiles (backend accepts POST same as PUT)
       const response = await this.apiClient.post('profiles', {
         operation: 'update_user_settings',
@@ -731,7 +734,7 @@ class ExtendedLambdaApiService extends LambdaApiService {
         metadata: data.metadata,
       };
     } catch (error) {
-      console.error('Search API error:', error);
+      logger.error('Search API error', { error });
       return {
         success: false,
         message: error instanceof Error ? error.message : 'Search failed',
