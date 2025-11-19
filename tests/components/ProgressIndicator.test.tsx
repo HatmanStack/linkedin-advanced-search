@@ -6,8 +6,8 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
-import ProgressIndicator from '@/components/ProgressIndicator';
-import type { ProgressState, LoadingState } from '@/types/errorTypes';
+import ProgressIndicator from '@/features/workflow/components/ProgressIndicator';
+import type { ProgressState, LoadingState } from '@/shared/types/errorTypes';
 
 // Mock UI components
 vi.mock('@/components/ui/progress', () => ({

@@ -6,8 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MessageSquare, ArrowLeft, Eye, EyeOff, Mail, Loader2 } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
-import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/features/auth';
+import { useToast } from '@/shared/hooks';
 import { isCognitoConfigured } from '@/config/appConfig';
 
 const Auth = () => {
@@ -59,7 +59,7 @@ const Auth = () => {
         });
         navigate('/dashboard');
       }
-    } catch (_err) {
+    } catch {
       toast({
         title: "Sign In Failed",
         description: "An unexpected error occurred",
@@ -106,7 +106,7 @@ const Auth = () => {
           navigate('/dashboard');
         }
       }
-    } catch (_err) {
+    } catch {
       toast({
         title: "Sign Up Failed",
         description: "An unexpected error occurred",
@@ -141,7 +141,7 @@ const Auth = () => {
         setVerificationData({ code: '' });
         // Switch to sign in tab
       }
-    } catch (_err) {
+    } catch {
       toast({
         title: "Verification Failed",
         description: "An unexpected error occurred",
@@ -172,7 +172,7 @@ const Auth = () => {
           description: "A new verification code has been sent to your email."
         });
       }
-    } catch (_err) {
+    } catch {
       toast({
         title: "Resend Failed",
         description: "An unexpected error occurred",

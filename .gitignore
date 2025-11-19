@@ -71,3 +71,5 @@ validation-report-7.3.md
 validation-report-7.4.md
 
 
+tests/__pycache__/
+lambda-processing/**/__pycache__/

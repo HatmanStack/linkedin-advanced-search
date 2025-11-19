@@ -9,7 +9,12 @@
     /* Path mapping */
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*", "puppeteer-backend/*"]
+      "@/*": ["src/*", "puppeteer-backend/*"],
+      "@/features/*": ["src/features/*"],
+      "@/shared/*": ["src/shared/*"],
+      "@/config/*": ["src/config/*"],
+      "@/constants/*": ["src/constants/*"],
+      "@/pages/*": ["src/pages/*"]
     },
 
     /* Bundler mode */
