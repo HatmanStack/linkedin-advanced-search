@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { puppeteerApiService } from '@/services/puppeteerApiService';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/features/auth';
 
 export const useMessages = (connectionId?: string) => {
   const { user } = useAuth();
