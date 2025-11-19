@@ -1,4 +1,4 @@
-import type { Connection } from '@/types/index';
+import type { Connection } from '@/shared/types/index';
 // Removed unused imports: ProgressState, LoadingState
 
 // =============================================================================

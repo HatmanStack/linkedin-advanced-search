@@ -4,10 +4,10 @@
  */
 
 import { useState, useCallback } from 'react';
-import { useToast } from '@/hooks/use-toast';
+import { useToast } from '@/shared/hooks';
 import { MessageGenerationError } from '@/features/messages';
-import { ApiError } from '@/services/lambdaApiService';
-import type { WorkflowError, ErrorRecoveryOptions, ErrorSeverity } from '@/types/index';
+import { ApiError } from '@/shared/services';
+import type { WorkflowError, ErrorRecoveryOptions, ErrorSeverity } from '@/shared/types/index';
 
 export const useErrorHandler = () => {
   const { toast } = useToast();

@@ -1,4 +1,4 @@
-import { puppeteerApiService } from '@/services/puppeteerApiService';
+import { puppeteerApiService } from '@/shared/services';
 
 export interface HealAndRestoreSession {
   sessionId: string;

@@ -4,9 +4,9 @@
  */
 
 import React from 'react';
-import { Progress } from '@/components/ui/progress';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Progress } from '@/shared/components/ui/progress';
+import { Button } from '@/shared/components/ui/button';
+import { Card, CardContent } from '@/shared/components/ui/card';
 import { Loader2, Square, Clock, CheckCircle, AlertCircle } from 'lucide-react';
 import type { ProgressState, LoadingState } from '@/types';
 

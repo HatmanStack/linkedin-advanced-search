@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
-import { puppeteerApiService } from '@/services/puppeteerApiService';
-import { useToast } from '@/hooks/use-toast';
+import { puppeteerApiService } from '@/shared/services';
+import { useToast } from '@/shared/hooks';
 import { connectionChangeTracker } from '@/features/connections';
 
 interface UseProfileInitReturn {

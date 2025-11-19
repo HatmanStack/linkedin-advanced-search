@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { puppeteerApiService } from '@/services/puppeteerApiService';
+import { puppeteerApiService } from '@/shared/services';
 import { useAuth } from '@/features/auth';
 
 export const useMessages = (connectionId?: string) => {

@@ -1,6 +1,6 @@
 import axios, { type AxiosInstance, type AxiosResponse, type AxiosError } from 'axios';
 import { CognitoAuthService } from '@/features/auth';
-import { logError } from '@/utils/errorHandling';
+import { logError } from '@/shared/utils/errorHandling';
 import type {
   Connection,
   Message,
@@ -12,8 +12,8 @@ import {
   validateMessage,
   sanitizeConnectionData,
   sanitizeMessageData,
-} from '@/types/validators';
-import { isConnection, isMessage } from '@/types/guards';
+} from '@/shared/types/validators';
+import { isConnection, isMessage } from '@/shared/types/guards';
 
 export class ApiError extends Error {
   status?: number;

@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MessageSquare, ArrowLeft, Eye, EyeOff, Mail, Loader2 } from 'lucide-react';
 import { useAuth } from '@/features/auth';
-import { useToast } from '@/hooks/use-toast';
+import { useToast } from '@/shared/hooks';
 import { isCognitoConfigured } from '@/config/appConfig';
 
 const Auth = () => {
