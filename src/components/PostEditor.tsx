@@ -60,7 +60,9 @@ const PostEditor = ({
         const storedHook = sessionStorage.getItem(HOOK_STORAGE_KEY);
         setLocalHook(storedHook ?? null);
       }
-    } catch {}
+    } catch {
+      // Ignore sessionStorage errors
+    }
   }, [postReasoning, postHook]);
 
   // Hydrate content from sessionStorage on mount if empty (mirrors ideas/research patterns)
@@ -72,7 +74,9 @@ const PostEditor = ({
           onContentChange(stored);
           setLocalHydratedContent(stored);
         }
-      } catch {}
+      } catch {
+        // Ignore sessionStorage errors
+      }
     }
     // run once on mount
     // eslint-disable-next-line react-hooks/exhaustive-deps
