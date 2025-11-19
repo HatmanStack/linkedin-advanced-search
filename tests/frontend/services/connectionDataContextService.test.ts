@@ -7,14 +7,14 @@ describe('ConnectionDataContextService', () => {
 
   const mockConnection: Connection = {
     id: 'conn-1',
-    firstName: 'John',
-    lastName: 'Doe',
+    first_name: 'John',
+    last_name: 'Doe',
     position: 'Software Engineer',
     company: 'Tech Corp',
     headline: 'Building great software',
-    profileUrl: 'https://linkedin.com/in/john',
-    connectedAt: '2024-01-01',
-  };
+    profile_url: 'https://linkedin.com/in/john',
+    connected_at: '2024-01-01',
+  } as Connection;
 
   const mockUserProfile: UserProfile = {
     user_id: 'user-123',
@@ -79,8 +79,7 @@ describe('ConnectionDataContextService', () => {
     });
 
     it('should handle empty topic', () => {
-      const topic = service.prepareConversationTopic('');
-      expect(topic).toBe('');
+      expect(() => service.prepareConversationTopic('')).toThrow('Conversation topic is required and must be a string');
     });
   });
 
