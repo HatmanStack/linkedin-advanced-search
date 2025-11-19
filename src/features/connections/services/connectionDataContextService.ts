@@ -1,6 +1,6 @@
 import type { Connection, Message } from '@/types/index';
 import type { UserProfile } from '@/types';
-import type { MessageGenerationRequest } from '@/services/messageGenerationService';
+import type { MessageGenerationRequest } from '@/features/messages';
 
 // =============================================================================
 // INTERFACES
