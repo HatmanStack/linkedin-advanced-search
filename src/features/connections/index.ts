@@ -7,8 +7,7 @@ export { ConnectionFilters } from './components/ConnectionFilters';
 export { VirtualConnectionList } from './components/VirtualConnectionList';
 export { NewConnectionCard } from './components/NewConnectionCard';
 export { NewConnectionsTab } from './components/NewConnectionsTab';
-export { ConnectionCardSkeleton } from './components/ConnectionCardSkeleton';
-export { NewConnectionCardSkeleton } from './components/NewConnectionCardSkeleton';
+export { ConnectionCardSkeleton, ConnectionListSkeleton } from './components/ConnectionCardSkeleton';
 
 // Hooks
 export { useConnections } from './hooks/useConnections';
