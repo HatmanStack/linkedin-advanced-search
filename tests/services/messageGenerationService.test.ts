@@ -1,15 +1,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { 
-  messageGenerationService, 
+import {
+  messageGenerationService,
   MessageGenerationService,
   MessageGenerationError,
-  type MessageGenerationRequest 
-} from '@/services/messageGenerationService';
+  type MessageGenerationRequest
+} from '@/features/messages/services/messageGenerationService';
 import { API_CONFIG } from '@/config/appConfig';
-import { CognitoAuthService } from '@/services/cognitoService';
+import { CognitoAuthService } from '@/features/auth';
 
 // Mock the CognitoAuthService
-vi.mock('@/services/cognitoService', () => ({
+vi.mock('@/features/auth', () => ({
   CognitoAuthService: {
     getCurrentUserToken: vi.fn(),
   },
