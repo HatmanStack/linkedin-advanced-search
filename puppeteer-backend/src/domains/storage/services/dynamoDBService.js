@@ -120,7 +120,7 @@ class DynamoDBService {
 
             return response.data;
         } catch (error) {
-            console.error('Error creating bad contact profile:', error);
+            logger.error('Error creating bad contact profile', { error: error.message });
             throw this.handleError(error);
         }
     }

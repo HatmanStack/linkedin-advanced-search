@@ -347,11 +347,10 @@ export class ConfigValidator {
     
     if (!validation.isValid) {
       logger.error('Configuration validation failed, application may not work correctly');
-      
-      // In production, we might want to exit the process
+
+      // In production, throw error instead of abrupt termination
       if (config.nodeEnv === 'production') {
-        logger.error('Exiting due to invalid configuration in production');
-        process.exit(1);
+        throw new Error('Invalid configuration in production');
       }
     }
 
