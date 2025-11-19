@@ -25,11 +25,8 @@ describe('useErrorHandler Hook', () => {
       const { result } = renderHook(() => useErrorHandler());
       const error = new MessageGenerationError({ message: 'Unauthorized', status: 401 });
 
-      let recoveryAction: string | undefined;
       act(() => {
-        result.current.handleError(error, 'conn1', 'John Doe').then(action => {
-          recoveryAction = action;
-        });
+        result.current.handleError(error, 'conn1', 'John Doe');
       });
 
       expect(result.current.currentError?.type).toBe('authentication');

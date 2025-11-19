@@ -297,8 +297,8 @@ describe('postsService', () => {
         () => new Promise(() => {})
       );
 
-      // Start first synthesis
-      const promise1 = postsService.synthesizeResearch({
+      // Start first synthesis (intentionally not awaited to test concurrency)
+      postsService.synthesizeResearch({
         existing_content: 'content',
       });
 

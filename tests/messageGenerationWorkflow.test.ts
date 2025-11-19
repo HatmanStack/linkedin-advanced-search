@@ -5,7 +5,7 @@
  * for the message generation feature in Dashboard component.
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 
 // Mock the workflow state machine logic
 type WorkflowState = 'idle' | 'generating' | 'awaiting_approval' | 'stopping' | 'completed' | 'error';
