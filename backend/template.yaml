@@ -1,0 +1,424 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: LinkedIn Advanced Search Backend - SAM Template
+
+Parameters:
+  Environment:
+    Type: String
+    Default: prod
+    AllowedValues:
+      - dev
+      - prod
+  IncludeDevOrigins:
+    Type: String
+    Default: 'true'
+    AllowedValues:
+      - 'true'
+      - 'false'
+  ProductionOrigins:
+    Type: String
+    Default: ''
+    Description: Comma-separated production origins for CORS
+  OpenAIApiKey:
+    Type: String
+    Default: ''
+    NoEcho: true
+    Description: OpenAI API key for LLM Lambda
+  OpenAIWebhookSecret:
+    Type: String
+    Default: ''
+    NoEcho: true
+    Description: OpenAI webhook secret for webhook handler
+  BedrockModelId:
+    Type: String
+    Default: us.meta.llama3-2-90b-instruct-v1:0
+    Description: Bedrock model ID for LLM operations
+
+Globals:
+  Function:
+    Runtime: python3.13
+    Timeout: 30
+    MemorySize: 512
+    Environment:
+      Variables:
+        DYNAMODB_TABLE_NAME: !Ref ProfilesTable
+        LOG_LEVEL: INFO
+        ALLOWED_ORIGINS: !If
+          - IncludeDevOriginsCondition
+          - !Sub 'http://localhost:5173,http://localhost:3000${ProductionOrigins}'
+          - !Ref ProductionOrigins
+
+Conditions:
+  IncludeDevOriginsCondition: !Equals [!Ref IncludeDevOrigins, 'true']
+
+Resources:
+  ProfilesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub 'linkedin-advanced-search-${Environment}'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+        - AttributeName: GSI1PK
+          AttributeType: S
+        - AttributeName: GSI1SK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: GSI1
+          KeySchema:
+            - AttributeName: GSI1PK
+              KeyType: HASH
+            - AttributeName: GSI1SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  ScreenshotBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub 'linkedin-screenshots-${AWS::AccountId}-${AWS::Region}'
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders:
+              - '*'
+            AllowedMethods:
+              - GET
+              - PUT
+              - POST
+            AllowedOrigins:
+              - '*'
+            MaxAge: 3000
+
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub 'linkedin-advanced-search-${Environment}'
+      AutoVerifiedAttributes:
+        - email
+      UsernameAttributes:
+        - email
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+          RequireUppercase: true
+
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: !Sub 'linkedin-advanced-search-client-${Environment}'
+      UserPoolId: !Ref UserPool
+      ExplicitAuthFlows:
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+      GenerateSecret: false
+
+  HttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: !Ref Environment
+      CorsConfiguration:
+        AllowOrigins:
+          - http://localhost:5173
+          - http://localhost:3000
+        AllowHeaders:
+          - Content-Type
+          - Authorization
+          - X-Amz-Date
+          - X-Api-Key
+          - X-Amz-Security-Token
+        AllowMethods:
+          - GET
+          - POST
+          - PUT
+          - DELETE
+          - OPTIONS
+        AllowCredentials: true
+      Auth:
+        DefaultAuthorizer: CognitoAuthorizer
+        Authorizers:
+          CognitoAuthorizer:
+            AuthorizationScopes:
+              - email
+            IdentitySource: $request.header.Authorization
+            JwtConfiguration:
+              issuer: !Sub 'https://cognito-idp.${AWS::Region}.amazonaws.com/${UserPool}'
+              audience:
+                - !Ref UserPoolClient
+
+  EdgeProcessingFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'linkedin-edge-processing-${Environment}'
+      CodeUri: lambdas/edge-processing/
+      Handler: lambda_function.lambda_handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ProfilesTable
+      Events:
+        EdgeApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /edges
+            Method: POST
+        EdgeOptionsApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /edges
+            Method: OPTIONS
+            Auth:
+              Authorizer: NONE
+
+  DynamoDBApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'linkedin-dynamodb-api-${Environment}'
+      CodeUri: lambdas/dynamodb-api/
+      Handler: lambda_function.lambda_handler
+      Environment:
+        Variables:
+          COGNITO_USER_POOL_ID: !Ref UserPool
+          COGNITO_REGION: !Ref AWS::Region
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ProfilesTable
+      Events:
+        DynamoDBGet:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /dynamodb
+            Method: GET
+        DynamoDBPost:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /dynamodb
+            Method: POST
+        DynamoDBOptions:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /dynamodb
+            Method: OPTIONS
+            Auth:
+              Authorizer: NONE
+
+  PlaceholderSearchFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'linkedin-placeholder-search-${Environment}'
+      CodeUri: lambdas/placeholder-search/
+      Handler: index.handler
+      Runtime: nodejs20.x
+      Events:
+        SearchApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /search
+            Method: POST
+        SearchOptionsApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /search
+            Method: OPTIONS
+            Auth:
+              Authorizer: NONE
+
+  ProfileApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'linkedin-profile-api-${Environment}'
+      CodeUri: lambdas/profile-api/
+      Handler: lambda_function.lambda_handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ProfilesTable
+      Events:
+        ProfileGet:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /profiles
+            Method: GET
+        ProfilePost:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /profiles
+            Method: POST
+        ProfileOptions:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /profiles
+            Method: OPTIONS
+            Auth:
+              Authorizer: NONE
+
+  ProfileProcessingQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub 'linkedin-profile-processing-queue-${Environment}'
+      VisibilityTimeout: 300
+
+  ProfileProcessingFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'linkedin-profile-processing-${Environment}'
+      CodeUri: lambdas/profile-processing/
+      Handler: lambda_function.lambda_handler
+      Timeout: 120
+      MemorySize: 1024
+      Environment:
+        Variables:
+          AI_MODEL_ID: !Ref BedrockModelId
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ProfilesTable
+        - S3ReadPolicy:
+            BucketName: !Ref ScreenshotBucket
+        - S3WritePolicy:
+            BucketName: !Ref ScreenshotBucket
+        - Statement:
+            - Effect: Allow
+              Action:
+                - bedrock:InvokeModel
+              Resource: '*'
+      Events:
+        SQSEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt ProfileProcessingQueue.Arn
+            BatchSize: 1
+
+  S3ToSQSPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ProfileProcessingFunction
+      Principal: sqs.amazonaws.com
+      SourceArn: !GetAtt ProfileProcessingQueue.Arn
+
+  ScreenshotBucketNotification:
+    Type: AWS::S3::BucketNotification
+    DependsOn: S3ToSQSQueuePolicy
+    Properties:
+      Bucket: !Ref ScreenshotBucket
+      QueueConfigurations:
+        - Event: s3:ObjectCreated:*
+          Queue: !GetAtt ProfileProcessingQueue.Arn
+          Filter:
+            S3Key:
+              Rules:
+                - Name: prefix
+                  Value: linkedin-profiles/
+
+  S3ToSQSQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref ProfileProcessingQueue
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: s3.amazonaws.com
+            Action: sqs:SendMessage
+            Resource: !GetAtt ProfileProcessingQueue.Arn
+            Condition:
+              ArnLike:
+                aws:SourceArn: !Sub 'arn:aws:s3:::linkedin-screenshots-${AWS::AccountId}-${AWS::Region}'
+
+  LLMFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'linkedin-llm-${Environment}'
+      CodeUri: lambdas/llm/
+      Handler: lambda_function.lambda_handler
+      Timeout: 90
+      MemorySize: 512
+      Environment:
+        Variables:
+          OPENAI_API_KEY: !Ref OpenAIApiKey
+          BEDROCK_MODEL_ID: !Ref BedrockModelId
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ProfilesTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - bedrock:InvokeModel
+              Resource: '*'
+      Events:
+        LLMApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /llm
+            Method: POST
+        LLMOptionsApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /llm
+            Method: OPTIONS
+            Auth:
+              Authorizer: NONE
+
+  WebhookHandlerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'linkedin-webhook-handler-${Environment}'
+      CodeUri: lambdas/webhook-handler/
+      Handler: lambda_function.lambda_handler
+      Environment:
+        Variables:
+          OPENAI_API_KEY: !Ref OpenAIApiKey
+          OPENAI_WEBHOOK_SECRET: !Ref OpenAIWebhookSecret
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ProfilesTable
+      Events:
+        WebhookApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /webhooks/openai
+            Method: POST
+            Auth:
+              Authorizer: NONE
+
+Outputs:
+  ApiUrl:
+    Description: API Gateway endpoint URL
+    Value: !Sub 'https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}'
+  UserPoolId:
+    Description: Cognito User Pool ID
+    Value: !Ref UserPool
+  UserPoolClientId:
+    Description: Cognito User Pool Client ID
+    Value: !Ref UserPoolClient
+  DynamoDBTableName:
+    Description: DynamoDB table name
+    Value: !Ref ProfilesTable
+  ScreenshotBucketName:
+    Description: S3 bucket for screenshots
+    Value: !Ref ScreenshotBucket
+  ProfileProcessingQueueUrl:
+    Description: SQS queue URL for profile processing
+    Value: !Ref ProfileProcessingQueue
