@@ -178,10 +178,10 @@ refactor(frontend): migrate src/ to frontend/src/
 5. Update any hardcoded paths within puppeteer source files
 
 **Verification Checklist:**
-- [ ] `cd puppeteer && npm install` succeeds
-- [ ] `cd puppeteer && npm run lint` passes
+- [x] `cd puppeteer && npm install` succeeds
+- [ ] `cd puppeteer && npm run lint` passes (pre-existing lint errors)
 - [ ] `cd puppeteer && npm start` starts server (may require env vars)
-- [ ] No broken imports within puppeteer code
+- [x] No broken imports within puppeteer code
 
 **Testing Instructions:**
 - Verify server starts without import errors
