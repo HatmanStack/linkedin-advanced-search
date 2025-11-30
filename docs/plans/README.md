@@ -1,126 +1,121 @@
-# LinkedIn Advanced Search - Codebase Refactoring Plan
+# LinkedIn Advanced Search - Monorepo Refactor Plan
 
-## Feature Overview
+## Overview
 
-This refactoring initiative aims to modernize and optimize the LinkedIn Advanced Search codebase through comprehensive test coverage and systematic code quality improvements. The project is a sophisticated LinkedIn automation platform consisting of a React frontend, local Puppeteer-based automation backend, and AWS Lambda serverless infrastructure.
+This plan restructures an existing LinkedIn automation and search application from a loosely organized codebase into a clean, standardized monorepo architecture. The refactor consolidates scattered code, enforces consistent patterns, standardizes CI/CD pipelines, and eliminates technical debt through aggressive sanitization.
 
-Since the application has no production users yet, we have complete freedom to refactor without backward compatibility constraints. This plan follows a test-driven approach: writing comprehensive unit tests first, then systematically improving code quality through dead code removal, organizational restructuring, and modern pattern adoption.
+The current codebase consists of a React/Vite frontend (`src/`), a Puppeteer-based Node.js automation server (`puppeteer-backend/`), Python AWS Lambda functions (`lambda-processing/`), and scattered infrastructure definitions (`RAG-CloudStack/`). These will be reorganized into a cohesive structure with clear deployment boundaries, unified testing, and automated deployment scripts following established patterns.
 
-The refactoring prioritizes (1) eliminating unused code, (2) improving code organization, (3) removing duplication, and (4) adopting modern patterns and naming conventions. All changes will be validated through automated tests targeting 60-70% code coverage across all layers: React components, Node.js services, and Python/Node.js Lambda functions.
+The refactor prioritizes ruthless cleanup: dead code deletion, comment stripping, console.log removal, and consolidation of fragmented utilities. Historical migration documents will be deleted (they exist in git history), with only relevant information extracted into new streamlined documentation.
+
+## Target Structure
+
+```
+linkedin-advanced-search/
+├── frontend/              # Vite + React client
+│   ├── src/
+│   │   ├── features/
+│   │   ├── pages/
+│   │   └── shared/
+│   ├── package.json
+│   ├── vite.config.ts
+│   └── tsconfig.json
+├── backend/               # AWS Lambda (Python) + SAM
+│   ├── lambdas/
+│   │   ├── edge-processing/
+│   │   ├── dynamodb-api/
+│   │   ├── placeholder-search/
+│   │   ├── profile-api/
+│   │   ├── profile-processing/
+│   │   ├── llm/
+│   │   ├── webhook-handler/
+│   │   └── shared/
+│   ├── scripts/
+│   │   └── deploy.js
+│   ├── template.yaml
+│   ├── samconfig.toml
+│   └── package.json
+├── puppeteer/             # Local Node.js automation server
+│   ├── src/
+│   │   ├── domains/
+│   │   └── shared/
+│   ├── routes/
+│   ├── package.json
+│   └── .eslintrc.js
+├── docs/                  # Consolidated documentation
+│   ├── README.md
+│   └── DEPLOYMENT.md
+├── tests/                 # Centralized test suites
+│   ├── frontend/
+│   │   ├── unit/
+│   │   └── integration/
+│   ├── backend/
+│   │   ├── unit/
+│   │   └── integration/
+│   ├── puppeteer/
+│   │   └── unit/
+│   ├── e2e/
+│   └── fixtures/
+├── scripts/               # Consolidated utility scripts
+│   ├── deploy/
+│   ├── dev-tools/
+│   └── benchmarks/
+├── .github/
+│   └── workflows/
+│       └── ci.yml
+├── package.json           # Orchestration-only (cd into subdirs)
+└── README.md              # Concise quickstart
+```
 
 ## Prerequisites
 
-### Development Environment
-- **Node.js**: v18+ (LTS recommended)
-- **Python**: v3.13+ (for Lambda functions)
-- **npm**: v9+ or compatible package manager
-- **Git**: For version control and commits
+### Required Tools
+- **Node.js** v24 LTS (via nvm)
+- **Python** 3.13 (via uv)
+- **AWS CLI** configured with credentials
+- **AWS SAM CLI** v1.100+
+- **Docker** (for SAM local builds)
 
-### Testing Tools
-- **Frontend**: Vitest, @testing-library/react, jsdom
-- **Backend (Node.js)**: Vitest or Jest
-- **Lambda (Python)**: pytest, moto (AWS mocking)
-- **Lambda (Node.js)**: Vitest or Jest
-
-### AWS Tools (for Lambda testing)
-- **boto3**: Python AWS SDK
-- **moto**: Mock AWS services for testing
-- **AWS SAM CLI**: Optional, for local Lambda testing
-
-### Code Quality Tools
-- **ESLint**: v9+ with TypeScript support (already configured)
-- **TypeScript**: v5.5+ (already configured)
-- **Prettier**: Optional, for code formatting consistency
-
-### Installation
+### Environment Setup
 ```bash
-# Install frontend and backend dependencies
-npm install
+# Verify Node.js
+node --version  # Should be v24.x
 
-# Install Python dependencies for Lambda testing
-cd lambda-processing
-pip install -r requirements-test.txt  # Will be created in Phase 1
+# Verify Python
+python3 --version  # Should be 3.13.x
+
+# Verify AWS
+aws sts get-caller-identity
+sam --version
 ```
+
+### Existing Resources
+- AWS Cognito User Pool (will be preserved)
+- DynamoDB table with existing data (will be preserved)
+- S3 bucket for screenshots (will be preserved)
 
 ## Phase Summary
 
-| Phase | Goal | Est. Tokens | Status |
-|-------|------|-------------|--------|
-| [Phase 0](./Phase-0.md) | Foundation: Architecture decisions, testing strategy, shared conventions | N/A | 📋 Reference |
-| [Phase 1](./Phase-1.md) | Write comprehensive unit test suite (frontend, backend, all Lambdas) | ~100,000 | ⏳ Pending |
-| [Phase 2](./Phase-2.md) | Remove all dead and unused code | ~35,000 | ⏳ Pending |
-| [Phase 3](./Phase-3.md) | Restructure code organization and improve file/directory layout | ~45,000 | ⏳ Pending |
-| [Phase 4](./Phase-4.md) | Eliminate duplication, adopt modern patterns, improve naming conventions | ~55,000 | ⏳ Pending |
+| Phase | Goal | Estimated Tokens |
+|-------|------|------------------|
+| [Phase 0](Phase-0.md) | Foundation - ADRs, deployment scripts, testing strategy, shared patterns | ~15,000 |
+| [Phase 1](Phase-1.md) | Structure Migration - Move files, update imports, reorganize tests | ~45,000 |
+| [Phase 2](Phase-2.md) | Backend Consolidation - SAM template, deploy script, Lambda restructure | ~30,000 |
+| [Phase 3](Phase-3.md) | Sanitization & Docs - Dead code removal, comment stripping, documentation | ~25,000 |
 
-**Total Estimated Tokens**: ~235,000 across 4 implementation phases
+**Total Estimated Tokens:** ~115,000 (fits within 2 context windows with buffer)
+
+## Key Decisions
+
+1. **Orchestration-only root** - Root `package.json` delegates to subdirectories via `cd` commands
+2. **Python Lambdas preserved** - No runtime migration; restructure into `backend/lambdas/`
+3. **Tests by deployment target** - `tests/frontend/`, `tests/backend/`, `tests/puppeteer/`, `tests/e2e/`
+4. **Full sanitization** - Strip all console.log, comments, docstrings, dead code
+5. **react-stocks deployment pattern** - Interactive `deploy.js` script with `.deploy-config.json` persistence
 
 ## Navigation
 
-- **[Phase 0: Foundation](./Phase-0.md)** - Architecture decisions and testing strategy (read first)
-- **[Phase 1: Comprehensive Test Suite](./Phase-1.md)** - Unit tests for all layers
-- **[Phase 2: Dead Code Removal](./Phase-2.md)** - Eliminate unused code
-- **[Phase 3: Code Organization](./Phase-3.md)** - Restructure directories and files
-- **[Phase 4: Duplication, Patterns & Naming](./Phase-4.md)** - Final code quality improvements
-
-## Development Principles
-
-This refactoring follows these core principles:
-
-1. **Test-Driven Development (TDD)**: Write tests before making any code changes
-2. **Don't Repeat Yourself (DRY)**: Eliminate code duplication systematically
-3. **You Aren't Gonna Need It (YAGNI)**: Remove speculative or unused code
-4. **Atomic Commits**: Small, focused commits with conventional commit format
-5. **No Breaking Changes**: While we have freedom to refactor, preserve functional behavior
-
-## Commit Message Format
-
-All commits should follow the [Conventional Commits](https://www.conventionalcommits.org/) specification:
-
-```
-type(scope): brief description
-
-- Detailed change 1
-- Detailed change 2
-- Detailed change 3
-```
-
-**Types**: `feat`, `fix`, `refactor`, `test`, `docs`, `style`, `chore`, `perf`
-
-**Examples**:
-- `test(frontend): add unit tests for ConnectionList component`
-- `refactor(backend): remove unused LinkedIn profile parsing utilities`
-- `chore(lambda): reorganize DynamoDB API Lambda structure`
-
-## Getting Started
-
-1. **Read Phase 0** to understand architecture decisions and testing strategy
-2. **Start with Phase 1** to build the comprehensive test suite
-3. **Proceed sequentially** through Phases 2-4
-4. **Verify each phase** before moving to the next
-5. **Commit frequently** with clear, descriptive messages
-
-## Notes for Implementation Engineer
-
-- **Zero Context Assumption**: Each phase is written for engineers unfamiliar with this codebase
-- **Guidance, Not Commands**: Tasks provide architectural guidance; you determine specific implementation
-- **Verification-Driven**: Each task includes testable verification criteria
-- **Tool Freedom**: Use your preferred approaches within the architectural guidelines
-- **Ask Questions**: If requirements are unclear, seek clarification before proceeding
-
-## Success Criteria
-
-This refactoring is complete when:
-
-- ✅ 60-70% unit test coverage across all layers (frontend, backend, Lambdas)
-- ✅ Zero unused imports, variables, functions, or files
-- ✅ Clear, logical code organization with consistent structure
-- ✅ No code duplication exceeding 5 lines
-- ✅ Modern patterns adopted (ES6+, async/await, functional components)
-- ✅ Consistent naming conventions throughout codebase
-- ✅ All tests passing with no warnings or errors
-- ✅ Build completes successfully with clean output
-
----
-
-**Last Updated**: 2025-11-18
-**Current Branch**: `claude/refactor-codebase-01EpkokvaUcysygZRmQvQ78V`
+- [Phase 0: Foundation](Phase-0.md) - Start here
+- [Phase 1: Structure Migration](Phase-1.md)
+- [Phase 2: Backend Consolidation](Phase-2.md)
+- [Phase 3: Sanitization & Docs](Phase-3.md)
