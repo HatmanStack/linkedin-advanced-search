@@ -116,11 +116,11 @@ chore(structure): create target directory scaffold
 8. Update `frontend/tailwind.config.ts` content paths
 
 **Verification Checklist:**
-- [ ] `cd frontend && npm install` succeeds
-- [ ] `cd frontend && npm run dev` starts Vite server
-- [ ] `cd frontend && npm run build` produces `dist/` folder
-- [ ] `cd frontend && npm run lint` passes
-- [ ] No TypeScript errors (`npx tsc --noEmit`)
+- [x] `cd frontend && npm install` succeeds
+- [x] `cd frontend && npm run dev` starts Vite server
+- [ ] `cd frontend && npm run build` produces `dist/` folder (pre-existing code issues)
+- [x] `cd frontend && npm run lint` passes (warnings only)
+- [x] No TypeScript errors (`npx tsc --noEmit`)
 
 **Testing Instructions:**
 - Run existing frontend tests after migration
