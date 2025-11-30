@@ -2,7 +2,6 @@ import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react-swc'
 import path from "path"
 
-// https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
   resolve: {
@@ -20,18 +19,16 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'jsdom',
-    setupFiles: ['./tests/setupTests.ts'],
+    setupFiles: ['../tests/frontend/setupTests.ts'],
     css: true,
-    include: ['tests/**/*.test.{js,ts,tsx}'],
+    include: ['../tests/frontend/**/*.test.{js,ts,tsx}'],
     exclude: [
-      'tests/node-unit/**',
-      'tests/integration/**',
       'node_modules/**'
     ],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html', 'lcov'],
-      exclude: ['node_modules/', 'tests/', '**/*.test.{ts,tsx,js}', '**/*.config.{ts,js}', '**/ui/**'],
+      exclude: ['node_modules/', '../tests/', '**/*.test.{ts,tsx,js}', '**/*.config.{ts,js}', '**/ui/**'],
       thresholds: {
         global: {
           lines: 60,
