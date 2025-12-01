@@ -77,8 +77,12 @@ async function checkPrerequisites() {
   }
 
   try {
-    exec('docker info', { stdio: 'pipe', ignoreError: true });
-    console.log('  ✅ Docker available');
+    const dockerOutput = exec('docker info', { stdio: 'pipe' });
+    if (dockerOutput) {
+      console.log('  ✅ Docker available');
+    } else {
+      console.warn('  ⚠️  Docker not running. Python Lambda builds may fail.');
+    }
   } catch {
     console.warn('  ⚠️  Docker not running. Python Lambda builds may fail.');
   }

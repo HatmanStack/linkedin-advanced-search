@@ -24,7 +24,7 @@
 ## Prerequisites
 
 - **Node.js** v22+ (LTS recommended)
-- **Python** 3.11+ (for Lambda functions)
+- **Python** 3.13+ (for Lambda functions)
 - **AWS CLI** configured with credentials
 - **SAM CLI** for serverless deployment
 

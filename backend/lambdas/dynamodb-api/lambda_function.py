@@ -79,6 +79,10 @@ def lambda_handler(event: dict[str, Any], context) -> dict[str, Any]:
         body = json.loads(event.get('body', '{}')) if event.get('body') else {}
         operation = body.get('operation')
 
+        if not user_id:
+            logger.error("No user ID found in JWT token for mutating operation")
+            return create_response(401, {'error': 'Unauthorized: Missing or invalid JWT token'}, _get_origin_from_event(event))
+
         if operation == 'create':
             return create_bad_contact_profile(user_id, body)
         elif operation == 'update_user_settings':
@@ -244,7 +248,7 @@ def get_profile_metadata(profile_id_b64: str) -> dict[str, Any] | None:
                 'SK': '#METADATA'
             }
         )
-        return create_response(200, response.get('Item'))
+        return response.get('Item')
     except ClientError as e:
         logger.error(f"Error getting profile metadata: {str(e)}")
         return None

@@ -335,6 +335,14 @@ def handle_synthesize_research(research_content, post_content, ideas_content, us
 
 def handle_apply_post_style(existing_content, style):
     try:
+        bedrock_model_id = os.environ.get('BEDROCK_MODEL_ID')
+        if not bedrock_model_id:
+            logger.error("BEDROCK_MODEL_ID environment variable not configured")
+            return {
+                'success': False,
+                'error': 'Bedrock model not configured',
+            }
+
         llm_prompt = APPLY_POST_STYLE_PROMPT.format(
             existing_content=existing_content,
             style=style
@@ -353,7 +361,7 @@ def handle_apply_post_style(existing_content, style):
         })
 
         response = boto3.client('bedrock-runtime').invoke_model(
-            modelId=os.environ.get('BEDROCK_MODEL_ID'),
+            modelId=bedrock_model_id,
             body=body,
             contentType='application/json'
         )
