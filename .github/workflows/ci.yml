@@ -36,8 +36,7 @@ jobs:
       - name: Install uv
         run: pip install uv
       - name: Run Ruff linting
-        run: uvx ruff check lambda-processing
-        continue-on-error: true  # Pre-existing issues
+        run: uvx ruff check backend/lambdas
 
   puppeteer-lint:
     name: Puppeteer Lint

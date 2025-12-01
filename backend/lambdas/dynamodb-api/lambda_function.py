@@ -3,7 +3,7 @@ import json
 import logging
 import os
 from datetime import UTC, datetime
-from typing import Any, Dict
+from typing import Any
 
 import boto3
 from botocore.exceptions import ClientError
@@ -182,7 +182,7 @@ def validate_profile_field(field: str, value: Any) -> bool:
     return validator(value)
 
 
-def update_user_settings(user_id: str, body: Dict[str, Any]) -> Dict[str, Any]:
+def update_user_settings(user_id: str, body: dict[str, Any]) -> dict[str, Any]:
     try:
         current_time = datetime.now(UTC).isoformat()
 
