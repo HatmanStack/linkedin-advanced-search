@@ -212,28 +212,15 @@ Expected: `400 Bad Request - "Invalid request: offset must be non-negative"`
 
 ## Deployment
 
-### Package for deployment
+Deploy via SAM from the backend directory:
 
 ```bash
-cd lambda-processing/linkedin-advanced-search-placeholder-search-prod
-zip -r placeholder-search.zip index.js package.json
+cd backend
+npm run deploy
 ```
 
-### Upload to S3 (for CloudFormation)
-
-```bash
-aws s3 cp placeholder-search.zip s3://your-artifacts-bucket/lambdas/
-```
-
-### Deploy via CloudFormation
-
-```bash
-cd RAG-CloudStack
-bash deploy.sh
-```
-
-Lambda will be created with:
-- **Function Name:** `linkedin-advanced-search-placeholder-search-prod`
+This Lambda is automatically deployed with:
+- **Function Name:** `linkedin-placeholder-search-{env}`
 - **Runtime:** Node.js 20.x
 - **Handler:** `index.handler`
 - **Timeout:** 30 seconds
@@ -401,9 +388,7 @@ Environment:
 
 ## Related Documentation
 
-- [API Specification](../../Migration/docs/search-api-specification.md)
-- [Phase 4 Implementation Plan](../../Migration/docs/plans/Phase-4.md)
-- [CloudFormation Templates](../../RAG-CloudStack/templates/)
+- See `docs/` directory for API specifications and implementation plans
 
 ---
 
