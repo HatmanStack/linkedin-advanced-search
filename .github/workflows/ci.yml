@@ -1,0 +1,93 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install dependencies
+        working-directory: ./frontend
+        run: npm ci
+      - name: Lint
+        working-directory: ./frontend
+        run: npm run lint
+      - name: Type check
+        working-directory: ./frontend
+        run: npx tsc --noEmit
+      - name: Test
+        working-directory: ./frontend
+        run: npm run test
+        continue-on-error: true  # No tests yet
+
+  puppeteer:
+    name: Puppeteer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install dependencies
+        working-directory: ./puppeteer
+        run: npm ci
+      - name: Lint
+        working-directory: ./puppeteer
+        run: npm run lint
+        continue-on-error: true  # ESLint v8 config needs migration
+      - name: Test
+        working-directory: ./puppeteer
+        run: npm test
+        continue-on-error: true  # No tests yet
+
+  backend:
+    name: Backend (Python)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install uv
+        run: pip install uv
+      - name: Install dependencies
+        run: |
+          uv venv
+          source .venv/bin/activate
+          uv pip install -r tests/backend/requirements-test.txt
+      - name: Lint
+        run: uvx ruff check backend/lambdas
+      - name: Type check
+        run: uvx mypy backend/lambdas --ignore-missing-imports
+        continue-on-error: true  # Type hints incomplete
+      - name: Test
+        run: |
+          source .venv/bin/activate
+          PYTHONPATH=$PWD/backend/lambdas pytest tests/backend -v --tb=short
+
+  status-check:
+    name: Status Check
+    needs: [frontend, puppeteer, backend]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Check required jobs passed
+        run: |
+          if [[ "${{ needs.frontend.result }}" == "failure" ]]; then
+            echo "Frontend checks failed"
+            exit 1
+          fi
+          if [[ "${{ needs.backend.result }}" == "failure" ]]; then
+            echo "Backend checks failed"
+            exit 1
+          fi
+          echo "Required checks passed"

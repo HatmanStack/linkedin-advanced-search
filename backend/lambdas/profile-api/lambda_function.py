@@ -1,0 +1,236 @@
+
+import json
+import logging
+import os
+from datetime import datetime
+from decimal import Decimal
+
+import boto3
+from botocore.exceptions import ClientError
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+
+dynamodb = boto3.resource('dynamodb')
+table_name = os.environ.get('DYNAMODB_TABLE_NAME', 'linkedin-advanced-search')
+table = dynamodb.Table(table_name)
+
+logger.info(f"Using DynamoDB table: {table_name}")
+
+
+class DecimalEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, Decimal):
+            return int(obj) if obj % 1 == 0 else float(obj)
+        return super().default(obj)
+
+
+def _extract_user_id(event):
+    import os
+
+    sub = event.get('requestContext', {}).get('authorizer', {}).get('claims', {}).get('sub')
+    if sub:
+        return sub
+
+    dev_mode = os.environ.get('DEV_MODE', 'false').lower() == 'true'
+
+    if dev_mode:
+        auth_header = event.get('headers', {}).get('Authorization', '') or event.get('headers', {}).get('authorization', '')
+        if auth_header:
+            logger.warning("DEV_MODE: Authorization header present but no Cognito claims, using development user ID")
+            return 'test-user-development'
+        logger.warning("DEV_MODE: No authentication found, using default test user")
+        return 'test-user-development'
+
+    logger.error("No authentication found and DEV_MODE is not enabled")
+    return None
+
+def lambda_handler(event, _context):
+    http_method = event.get('httpMethod') or event.get('requestContext', {}).get('http', {}).get('method', '')
+
+    logger.info(f"Profile API request: {http_method} /profiles")
+
+    user_id = _extract_user_id(event)
+
+    if user_id is None:
+        return build_error_response(401, "Authentication required")
+
+    logger.info(f"User ID: {user_id}")
+
+
+    try:
+        if http_method == 'GET':
+            return handle_get_profile(user_id)
+        elif http_method == 'POST':
+            return handle_update_profile(event, user_id)
+        else:
+            return build_error_response(405, f"Method {http_method} not allowed")
+
+    except Exception:
+        logger.exception("Error processing profile request")
+        return build_error_response(500, "Internal server error")
+
+
+def handle_get_profile(user_id):
+    try:
+        response = table.get_item(
+            Key={
+                'PK': f'USER#{user_id}',
+                'SK': 'PROFILE'
+            }
+        )
+
+        if 'Item' not in response:
+            logger.info(f"Profile not found for user {user_id}, returning default")
+            default_profile = {
+                'userId': user_id,
+                'email': '',
+                'firstName': '',
+                'lastName': '',
+                'linkedin_credentials': None,
+                'createdAt': datetime.utcnow().isoformat(),
+                'updatedAt': datetime.utcnow().isoformat()
+            }
+            return build_success_response(default_profile)
+
+        item = response['Item']
+        profile = {
+            'userId': user_id,
+            'email': item.get('email', ''),
+            'firstName': item.get('firstName', ''),
+            'lastName': item.get('lastName', ''),
+            'linkedin_credentials': item.get('linkedin_credentials'),
+            'createdAt': item.get('createdAt', ''),
+            'updatedAt': item.get('updatedAt', '')
+        }
+
+        logger.info(f"Profile retrieved successfully for user {user_id}")
+        return build_success_response(profile)
+
+    except ClientError:
+        logger.exception("DynamoDB error")
+        return build_error_response(500, "Database error")
+
+
+def handle_update_profile(event, user_id):
+    try:
+        raw_body = event.get('body', '{}')
+        if isinstance(raw_body, str):
+            body = json.loads(raw_body or '{}')
+        elif raw_body is None:
+            body = {}
+        else:
+            body = raw_body
+
+        operation = body.get('operation', 'update_user_settings')
+
+        if operation != 'update_user_settings':
+            return build_error_response(400, f"Unsupported operation: {operation}")
+
+        update_fields = {}
+        expression_attribute_names = {}
+        expression_attribute_values = {}
+
+        allowed_fields = {
+            'email': 'email',
+            'firstName': 'firstName',
+            'lastName': 'lastName',
+            'first_name': 'firstName',  # Snake case alias
+            'last_name': 'lastName',    # Snake case alias
+            'headline': 'headline',
+            'current_position': 'current_position',
+            'company': 'company',
+            'location': 'location',
+            'summary': 'summary',
+            'linkedin_credentials': 'linkedin_credentials'
+        }
+
+        for field, dynamo_field in allowed_fields.items():
+            if field in body and body[field] is not None:
+                update_fields[dynamo_field] = body[field]
+
+        if not update_fields:
+            return build_error_response(400, "No valid fields to update")
+
+        now_iso = datetime.utcnow().isoformat()
+        update_fields['updatedAt'] = now_iso
+
+        update_expr_parts = []
+        for field, value in update_fields.items():
+            attr_name = f"#{field}"
+            attr_value = f":{field}"
+            expression_attribute_names[attr_name] = field
+            expression_attribute_values[attr_value] = value
+            update_expr_parts.append(f"{attr_name} = {attr_value}")
+
+        expression_attribute_names['#createdAt'] = 'createdAt'
+        expression_attribute_values[':createdAt'] = now_iso
+        update_expr_parts.append("#createdAt = if_not_exists(#createdAt, :createdAt)")
+
+        update_expression = "SET " + ", ".join(update_expr_parts)
+
+        logger.info(f"Updating profile for user {user_id} with fields: {list(update_fields.keys())}")
+
+        response = table.update_item(
+            Key={
+                'PK': f'USER#{user_id}',
+                'SK': 'PROFILE'
+            },
+            UpdateExpression=update_expression,
+            ExpressionAttributeNames=expression_attribute_names,
+            ExpressionAttributeValues=expression_attribute_values,
+            ReturnValues='ALL_NEW'
+        )
+
+        item = response['Attributes']
+        profile = {
+            'userId': user_id,
+            'email': item.get('email', ''),
+            'firstName': item.get('firstName', ''),
+            'lastName': item.get('lastName', ''),
+            'linkedin_credentials': item.get('linkedin_credentials'),
+            'createdAt': item.get('createdAt', ''),
+            'updatedAt': item.get('updatedAt', '')
+        }
+
+        logger.info(f"Profile updated successfully for user {user_id}")
+        return build_success_response(profile)
+
+    except json.JSONDecodeError:
+        return build_error_response(400, "Invalid JSON in request body")
+    except ClientError:
+        logger.exception("DynamoDB error")
+        return build_error_response(500, "Database error")
+
+
+def build_success_response(data):
+    return {
+        'statusCode': 200,
+        'headers': {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+            'Access-Control-Allow-Methods': 'GET,POST,OPTIONS'
+        },
+        'body': json.dumps({
+            'success': True,
+            'data': data
+        }, cls=DecimalEncoder)
+    }
+
+
+def build_error_response(status_code, message):
+    return {
+        'statusCode': status_code,
+        'headers': {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+            'Access-Control-Allow-Methods': 'GET,POST,OPTIONS'
+        },
+        'body': json.dumps({
+            'success': False,
+            'error': message,
+            'timestamp': datetime.utcnow().isoformat()
+        })
+    }
