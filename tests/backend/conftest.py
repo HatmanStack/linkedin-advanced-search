@@ -2,12 +2,23 @@
 Pytest configuration and fixtures for Lambda function testing
 """
 import os
+import sys
+from pathlib import Path
 
 import pytest
 from moto import mock_aws
 
+# Add lambdas directory to path for imports
+BACKEND_LAMBDAS = Path(__file__).parent.parent.parent / 'backend' / 'lambdas'
+sys.path.insert(0, str(BACKEND_LAMBDAS))
 
-# Set fake AWS credentials for all tests
+# Set test environment variables before any Lambda imports
+os.environ['DYNAMODB_TABLE_NAME'] = 'test-table'
+os.environ['TABLE_NAME'] = 'test-table'
+os.environ['BUCKET_NAME'] = 'test-bucket'
+os.environ['LOG_LEVEL'] = 'DEBUG'
+
+
 @pytest.fixture(scope='session', autouse=True)
 def aws_credentials():
     """Set up fake AWS credentials for testing"""
