@@ -1,20 +1,3 @@
-"""
-LLM Endpoint Lambda Function (Python 3.12)
-
-Scaffolded to mirror JWT/authorizer extraction from `edge-endpoint`.
-
-REQUIRED ENVIRONMENT VARIABLES:
-- OPENAI_API_KEY: Your OpenAI API key for GPT-4o integration
-- DYNAMODB_TABLE_NAME (optional for research result lookup)
-
-FEATURES:
-- AI-powered LinkedIn content idea generation using GPT-4o
-- Fallback to default ideas if OpenAI API is unavailable
-- Comprehensive error handling and logging
-- User profile and prompt-based content customization
-- Research job lookup by (user_id, job_id) in DynamoDB
-"""
-
 import json
 import logging
 import os
@@ -36,12 +19,11 @@ API_HEADERS = {
 }
 
 
-# Optional DynamoDB setup for research result lookup
 try:
     _dynamodb = boto3.resource('dynamodb')
     _TABLE_NAME = os.environ.get('DYNAMODB_TABLE_NAME')
     _table = _dynamodb.Table(_TABLE_NAME) if _TABLE_NAME else None
-except Exception as _e:  # pragma: no cover
+except Exception as _e:
     _table = None
 
 
@@ -85,14 +67,10 @@ def _extract_user_id(event: dict) -> str | None:
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-# Valid operations allowlist
 VALID_OPERATIONS = ['generate_ideas', 'research_selected_ideas', 'get_research_result', 'synthesize_research', 'post_style_change']
 
 
 def handle_generate_ideas(user_profile: dict, prompt: str = "", job_id: str | None = None, user_id: str | None = None) -> dict:
-    """
-    Handle generate_ideas operation
-    """
     try:
         raw_ideas = ''
         user_data = ''
@@ -107,8 +85,6 @@ def handle_generate_ideas(user_profile: dict, prompt: str = "", job_id: str | No
             raw_ideas=raw_ideas
         )
 
-
-        # Queue background processing via OpenAI webhooks (reliable async in Lambda)
         try:
             response = client.responses.create(
                 model="gpt-5",
@@ -139,9 +115,6 @@ def handle_generate_ideas(user_profile: dict, prompt: str = "", job_id: str | No
 
 
 def handle_research_selected_ideas(user_data: dict, selected_ideas: list, user_id: str) -> dict:
-    """
-    Handle research_selected_ideas operation
-    """
     try:
         if not selected_ideas:
             return {
@@ -149,21 +122,17 @@ def handle_research_selected_ideas(user_data: dict, selected_ideas: list, user_i
                 'error': 'No ideas selected for research'
             }
 
-        # Generate a unique job ID for this research request
         import uuid
         job_id = str(uuid.uuid4())
 
-        # Format user data for the prompt
         formatted_user_data = ''
         if user_data and user_data.get('name') != "Tom, Dick, And Harry":
             for key, value in user_data.items():
                 if key != "linkedin_credentials":
                     formatted_user_data += f"{key}: {value}\n"
 
-        # Format selected ideas for the prompt
         formatted_topics = '\n'.join([f"- {idea}" for idea in selected_ideas])
 
-        # Create the research prompt using the template
         research_prompt = LINKEDIN_RESEARCH_PROMPT.format(
             topics=formatted_topics,
             user_data=formatted_user_data
@@ -196,19 +165,11 @@ def handle_research_selected_ideas(user_data: dict, selected_ideas: list, user_i
 
 
 def handle_get_research_result(user_id: str, job_id: str, kind: str | None = None) -> dict:
-    """
-    Look up a previously stored research result by (user_id, job_id).
-    Expected key schema: PK = f"USER#{user_id}", SK = f"{KIND}#{job_id}" where KIND is one of IDEAS, RESEARCH, SYNTHESIZE
-    Returns:
-      - { success: True, content: <string or object> } if found
-      - { success: False } if not found or storage unavailable
-    """
     try:
         if not _table:
             logger.error("DynamoDB table not configured for research lookup")
             return { 'success': False }
 
-        # Determine key prefix based on kind or attempt all
         prefixes = []
         if kind == 'IDEAS':
             prefixes = ['IDEAS']
@@ -216,7 +177,6 @@ def handle_get_research_result(user_id: str, job_id: str, kind: str | None = Non
             prefixes = ['RESEARCH']
         elif kind == 'SYNTHESIZE':
             prefixes = ['SYNTHESIZE']
-
 
         item = None
         found_kind = None
@@ -235,12 +195,9 @@ def handle_get_research_result(user_id: str, job_id: str, kind: str | None = Non
         if not item:
             return { 'success': False }
 
-        # Build profile_updates based on the kind of item found
         profile_updates = {}
 
         def _parse_synthesize_sections(text: str) -> dict:
-            """Parse synthesize content into sections 1, 2, 3 using numeric prefixes.
-            Accepts markers at line starts like '1:', '1.', '1)', '1 -'. Returns dict keys '1','2','3'."""
             import re
             sections = {}
             if not isinstance(text, str) or not text.strip():
@@ -255,17 +212,15 @@ def handle_get_research_result(user_id: str, job_id: str, kind: str | None = Non
                 end = matches[idx + 1].start() if idx + 1 < len(matches) else len(text)
                 value = text[start:end].strip()
 
-                # Skip the first line if it's just a title/header (like "The LinkedIn Post")
                 lines = value.split('\n')
                 if len(lines) > 1:
-                    # Skip first line and join the rest
                     content = '\n'.join(lines[1:]).strip()
                     if content:
                         sections[key] = content.strip()
                 elif value and not value.startswith('The LinkedIn Post'):
-                    # Single line that's not a title
                     sections[key] = value.strip()
             return sections
+
         sections = {}
         if found_kind == 'IDEAS':
             ideas = item.get('ideas') if isinstance(item, dict) else None
@@ -285,13 +240,9 @@ def handle_get_research_result(user_id: str, job_id: str, kind: str | None = Non
                     profile_updates['ai_generated_post_reasoning'] = sections['2']
                 if '3' in sections:
                     profile_updates['ai_generated_post_hook'] = sections['3']
-                # Fallback: if no numeric sections parsed, store entire content as draft
                 if not sections:
                     profile_updates['unpublished_post_content'] = content
 
-
-
-        # Upsert profile fields on USER#<id> #PROFILE if any updates
         if profile_updates:
             current_time = datetime.now(UTC).isoformat()
             update_expr_parts = []
@@ -315,7 +266,6 @@ def handle_get_research_result(user_id: str, job_id: str, kind: str | None = Non
                 ExpressionAttributeValues=expr_attr_values
             )
 
-        # Return shape depends on prefix
         if item.get('ideas'):
             return { 'success': True, 'ideas': item.get('ideas') }
         else:
@@ -328,29 +278,19 @@ def handle_get_research_result(user_id: str, job_id: str, kind: str | None = Non
         return { 'success': False }
 
 
-def handle_synthesize_research(research_content, post_content, ideas_content,user_profile: dict, job_id: str | None, user_id: str | None) -> dict:
-    """
-    Handle synthesize_research operation.
-
-    Combines prior research findings, any draft post content, and user profile
-    context to synthesize a finished LinkedIn post using the OpenAI Responses API.
-
-    Parameters may be strings or structured objects; structured inputs are
-    converted to formatted JSON for inclusion in the prompt.
-    """
+def handle_synthesize_research(research_content, post_content, ideas_content, user_profile: dict, job_id: str | None, user_id: str | None) -> dict:
     try:
         if not job_id:
             return {
                 'success': False,
                 'error': 'Missing required field: job_id'
             }
-        # Format user profile
+
         user_data = ''
         if isinstance(user_profile, dict) and user_profile.get('name') != "Tom, Dick, And Harry":
             for key, value in user_profile.items():
                 user_data += f"{key}: {value}\n"
 
-        # Normalize research and post content to strings
         def _normalize_content(value) -> str:
             if value is None:
                 return ''
@@ -371,7 +311,6 @@ def handle_synthesize_research(research_content, post_content, ideas_content,use
             ideas_content=ideas_content,
         )
 
-        # Queue background synthesis. Result will arrive via webhook and be stored under SYNTHESIZE#{job_id}
         response = client.responses.create(
             model="gpt-5",
             input=llm_prompt,
@@ -385,7 +324,6 @@ def handle_synthesize_research(research_content, post_content, ideas_content,use
         return {
             'success': True,
             'status': 'queued',
-
         }
     except Exception as e:
         logger.error(f"Error in handle_synthesize_research: {str(e)}")
@@ -394,10 +332,8 @@ def handle_synthesize_research(research_content, post_content, ideas_content,use
             'error': 'Failed to synthesize research into post',
         }
 
+
 def handle_apply_post_style(existing_content, style):
-    """
-    Handle apply_post_style operation.
-    """
     try:
         llm_prompt = APPLY_POST_STYLE_PROMPT.format(
             existing_content=existing_content,
@@ -417,7 +353,7 @@ def handle_apply_post_style(existing_content, style):
         })
 
         response = boto3.client('bedrock-runtime').invoke_model(
-            modelId= os.environ.get('BEDROCK_MODEL_ID'),
+            modelId=os.environ.get('BEDROCK_MODEL_ID'),
             body=body,
             contentType='application/json'
         )
@@ -445,7 +381,6 @@ def lambda_handler(event, _context):
         if not user_id:
             return _resp(401, { 'error': 'Unauthorized: Missing or invalid JWT token' })
 
-        # Extract and validate operation from request body
         operation = body.get('operation')
         if not operation:
             return _resp(400, { 'error': 'Missing required field: operation' })
@@ -456,7 +391,6 @@ def lambda_handler(event, _context):
 
         logger.info('Processing request', extra={'operation': operation, 'user_id': user_id})
 
-        # Route to appropriate handler based on operation
         if operation == 'generate_ideas':
             prompt = body.get('prompt', None)
             profile = body.get('user_profile', None)
@@ -498,5 +432,3 @@ def lambda_handler(event, _context):
     except Exception as e:
         logger.error(f"Unexpected error in lambda_handler: {str(e)}")
         return _resp(500, { 'error': 'Internal server error' })
-
-

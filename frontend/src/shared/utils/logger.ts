@@ -1,14 +1,3 @@
-/**
- * Centralized logging service for the application
- *
- * Features:
- * - Environment-aware logging (dev vs production)
- * - Structured logging with context
- * - Automatic sensitive data masking
- * - Log levels: debug, info, warn, error
- * - Production-safe (no console clutter in prod)
- */
-
 type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
 interface LogContext {
@@ -22,9 +11,6 @@ interface LogEntry {
   context?: LogContext;
 }
 
-/**
- * Sensitive field patterns to mask in logs
- */
 const SENSITIVE_PATTERNS = [
   'password',
   'token',
@@ -38,16 +24,10 @@ const SENSITIVE_PATTERNS = [
   'cvv'
 ];
 
-/**
- * Check if we're in development mode
- */
 const isDevelopment = (): boolean => {
   return import.meta.env.DEV || import.meta.env.MODE === 'development';
 };
 
-/**
- * Mask sensitive data in objects
- */
 const maskSensitiveData = (data: unknown): unknown => {
   if (!data || typeof data !== 'object') {
     return data;
@@ -77,9 +57,6 @@ const maskSensitiveData = (data: unknown): unknown => {
   return masked;
 };
 
-/**
- * Format log entry for output
- */
 const formatLogEntry = (entry: LogEntry): string => {
   const { timestamp, level, message, context } = entry;
   const levelStr = level.toUpperCase().padEnd(5);
@@ -94,23 +71,18 @@ const formatLogEntry = (entry: LogEntry): string => {
   return output;
 };
 
-/**
- * Log a message at the specified level
- */
 const log = (level: LogLevel, message: string, context?: LogContext): void => {
   const entry: LogEntry = {
     timestamp: new Date().toISOString(),
     level,
     message,
-    context: context ? maskSensitiveData(context) : undefined
+    context: context ? maskSensitiveData(context) as LogContext : undefined
   };
 
-  // In production, only log warnings and errors
   if (!isDevelopment() && (level === 'debug' || level === 'info')) {
     return;
   }
 
-  // Format and output the log
   const formatted = formatLogEntry(entry);
 
   switch (level) {
@@ -131,57 +103,30 @@ const log = (level: LogLevel, message: string, context?: LogContext): void => {
       console.error(formatted);
       break;
   }
-
-  // In production, you might want to send errors to a monitoring service
-  if (!isDevelopment() && level === 'error') {
-    // TODO: Send to error tracking service (e.g., Sentry, Datadog)
-    // Example: Sentry.captureException(new Error(message), { extra: context });
-  }
 };
 
-/**
- * Logger API
- */
 export const logger = {
-  /**
-   * Log debug information (dev only)
-   */
   debug: (message: string, context?: LogContext): void => {
     log('debug', message, context);
   },
 
-  /**
-   * Log informational messages (dev only)
-   */
   info: (message: string, context?: LogContext): void => {
     log('info', message, context);
   },
 
-  /**
-   * Log warning messages (dev and prod)
-   */
   warn: (message: string, context?: LogContext): void => {
     log('warn', message, context);
   },
 
-  /**
-   * Log error messages (dev and prod)
-   */
   error: (message: string, context?: LogContext): void => {
     log('error', message, context);
   },
 
-  /**
-   * Log with custom level
-   */
   log: (level: LogLevel, message: string, context?: LogContext): void => {
     log(level, message, context);
   }
 };
 
-/**
- * Helper to create a scoped logger for a specific module
- */
 export const createLogger = (module: string) => ({
   debug: (message: string, context?: LogContext) =>
     logger.debug(`[${module}] ${message}`, context),
