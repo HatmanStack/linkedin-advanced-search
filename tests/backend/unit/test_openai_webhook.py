@@ -1,34 +1,64 @@
-"""Tests for OpenAI Webhook Handler Lambda"""
+"""Tests for OpenAI Webhook Handler Lambda
+
+NOTE: These tests require openai>=1.50.0 which includes InvalidWebhookSignatureError.
+Tests are skipped if the required version is not installed.
+"""
 import json
-import sys
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / 'backend' / 'lambdas' / 'webhook-handler'))
+import pytest
+
+try:
+    from openai import InvalidWebhookSignatureError
+    OPENAI_AVAILABLE = True
+except ImportError:
+    OPENAI_AVAILABLE = False
+
+from conftest import load_lambda_module
 
 
-def test_webhook_handler_success(lambda_context):
-    """Test successful webhook handling"""
-    from lambda_function import lambda_handler
+pytestmark = pytest.mark.skipif(
+    not OPENAI_AVAILABLE,
+    reason="openai>=1.50.0 required for webhook tests (InvalidWebhookSignatureError)"
+)
 
+
+@pytest.fixture
+def webhook_module(monkeypatch):
+    """Load the webhook-handler Lambda module with required env vars"""
+    monkeypatch.setenv('OPENAI_WEBHOOK_SECRET', 'test-secret')
+    monkeypatch.setenv('OPENAI_API_KEY', 'test-api-key')
+    return load_lambda_module('webhook-handler')
+
+
+def test_webhook_handler_missing_headers(lambda_context, webhook_module):
+    """Test webhook handler with missing required headers"""
     event = {
         'body': json.dumps({'event': 'completion', 'data': {}}),
         'headers': {'Content-Type': 'application/json'},
     }
 
-    response = lambda_handler(event, lambda_context)
+    response = webhook_module.lambda_handler(event, lambda_context)
 
-    assert response['statusCode'] in [200, 400, 500]
+    # Should return 401 for missing webhook headers
+    assert response['statusCode'] == 401
 
 
-def test_webhook_authentication(lambda_context):
-    """Test webhook authentication"""
-    from lambda_function import lambda_handler
+def test_webhook_handler_missing_secret(lambda_context, monkeypatch):
+    """Test webhook handler when OPENAI_WEBHOOK_SECRET is not configured"""
+    monkeypatch.delenv('OPENAI_WEBHOOK_SECRET', raising=False)
+
+    module = load_lambda_module('webhook-handler')
 
     event = {
         'body': json.dumps({'data': 'test'}),
-        'headers': {},
+        'headers': {
+            'webhook-id': 'test-id',
+            'webhook-timestamp': '123456',
+            'webhook-signature': 'test-sig',
+        },
     }
 
-    response = lambda_handler(event, lambda_context)
+    response = module.lambda_handler(event, lambda_context)
 
-    assert response['statusCode'] in [200, 401, 500]
+    # Should return 500 when secret not configured
+    assert response['statusCode'] == 500

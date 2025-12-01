@@ -1,23 +1,37 @@
 """Tests for Profile Processing Lambda"""
 import json
-import sys
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / 'backend' / 'lambdas' / 'profile-processing'))
+import pytest
+
+from conftest import load_lambda_module
 
 
-def test_process_profile_data(lambda_context):
-    """Test profile data processing"""
-    from lambda_function import lambda_handler
+@pytest.fixture
+def profile_processing_module():
+    """Load the profile-processing Lambda module"""
+    return load_lambda_module('profile-processing')
 
+
+def test_process_profile_data(lambda_context, profile_processing_module):
+    """Test profile data processing via SQS event"""
     event = {
         'Records': [
             {
-                'body': json.dumps({'profileId': 'test-123'}),
+                'eventSource': 'aws:sqs',
+                'body': json.dumps({
+                    'Records': [{
+                        'eventSource': 'aws:s3',
+                        's3': {
+                            'bucket': {'name': 'test-bucket'},
+                            'object': {'key': 'linkedin-profiles/test-user/Profile-2024.png'}
+                        }
+                    }]
+                }),
             }
         ]
     }
 
-    response = lambda_handler(event, lambda_context)
+    response = profile_processing_module.lambda_handler(event, lambda_context)
 
+    # Profile processing should return 200 or 500 (not 401 - no auth required for SQS)
     assert response['statusCode'] in [200, 400, 500]

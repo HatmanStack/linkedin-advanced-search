@@ -1,6 +1,7 @@
 """
 Pytest configuration and fixtures for Lambda function testing
 """
+import importlib.util
 import os
 import sys
 from pathlib import Path
@@ -8,15 +9,53 @@ from pathlib import Path
 import pytest
 from moto import mock_aws
 
-# Add lambdas directory to path for imports
+# Path to lambdas directory
 BACKEND_LAMBDAS = Path(__file__).parent.parent.parent / 'backend' / 'lambdas'
-sys.path.insert(0, str(BACKEND_LAMBDAS))
 
 # Set test environment variables before any Lambda imports
 os.environ['DYNAMODB_TABLE_NAME'] = 'test-table'
 os.environ['TABLE_NAME'] = 'test-table'
 os.environ['BUCKET_NAME'] = 'test-bucket'
 os.environ['LOG_LEVEL'] = 'DEBUG'
+os.environ['COGNITO_USER_POOL_ID'] = 'test-pool-id'
+os.environ['COGNITO_REGION'] = 'us-west-2'
+os.environ['ALLOWED_ORIGINS'] = 'http://localhost:5173,http://localhost:3000'
+
+
+def load_lambda_module(lambda_name: str):
+    """
+    Load a Lambda module with proper isolation to avoid caching conflicts.
+
+    Args:
+        lambda_name: Name of the Lambda directory (e.g., 'dynamodb-api', 'edge-processing')
+
+    Returns:
+        The loaded lambda_function module
+    """
+    lambda_path = BACKEND_LAMBDAS / lambda_name / 'lambda_function.py'
+
+    if not lambda_path.exists():
+        raise FileNotFoundError(f"Lambda function not found: {lambda_path}")
+
+    # Create a unique module name to avoid caching conflicts
+    module_name = f"lambda_{lambda_name.replace('-', '_')}"
+
+    # Load the module spec
+    spec = importlib.util.spec_from_file_location(module_name, lambda_path)
+    module = importlib.util.module_from_spec(spec)
+
+    # Add the Lambda's directory to sys.path temporarily for relative imports
+    lambda_dir = str(BACKEND_LAMBDAS / lambda_name)
+    sys.path.insert(0, lambda_dir)
+
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        # Remove the Lambda's directory from sys.path
+        if lambda_dir in sys.path:
+            sys.path.remove(lambda_dir)
+
+    return module
 
 
 @pytest.fixture(scope='session', autouse=True)

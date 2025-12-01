@@ -681,6 +681,46 @@ test(backend): update tests for new structure
 
 ---
 
+## Review Feedback (Iteration 1)
+
+### Critical: Frontend Build Fails
+
+> **Consider:** Running `npm run build` shows 150+ TypeScript errors. Have you verified the frontend compiles successfully?
+>
+> **Think about:** Errors reference missing UI components (`@/components/ui/badge`, `@/components/ui/checkbox`, etc.) and type issues. Are these shadcn/ui components that need to be installed?
+>
+> **Reflect:** The phase verification checklist marks items as complete, but does the build actually work? Should the frontend build be part of Phase 2 scope or deferred?
+
+### Critical: Backend Tests Failing (12 of 20)
+
+> **Consider:** Running `pytest tests/backend -v` shows 12 failing tests. The error logs show:
+> - `ERROR root:lambda_function.py:183 Lambda execution failed: 'Records'` - Why is the DynamoDB API test expecting `Records`?
+> - `ERROR root:lambda_function.py:75 No authentication found and DEV_MODE is not enabled` - This line number doesn't match dynamodb-api's lambda_function.py
+>
+> **Think about:** The test files manipulate `sys.path` to import specific Lambda modules, but conftest.py also adds `backend/lambdas` to the path. Could there be module caching conflicts where tests import the wrong `lambda_function.py`?
+>
+> **Reflect:** Look at `tests/backend/unit/test_dynamodb_api.py:15-21` where it manually manages sys.path and clears sys.modules. Is this approach reliable when multiple test files each try to import different `lambda_function.py` modules?
+
+### Issue: Test Module Import Conflicts
+
+> **Consider:** Each test file (test_dynamodb_api.py, test_profile_processing.py, etc.) inserts a different path to sys.path and imports `lambda_function`. When pytest runs all tests together, which module gets cached?
+>
+> **Think about:** The pattern at test_dynamodb_api.py:19-20 clears `sys.modules['lambda_function']`, but what about other test files? Do they all need this cleanup?
+>
+> **Reflect:** Would it be cleaner to use unique import names or pytest's `importlib` utilities to avoid conflicts?
+
+### Issue: DynamoDB API Test Fixtures
+
+> **Consider:** The test `test_cors_preflight_response` expects statusCode 204 but gets 500. The error message is `'Records'`. Looking at dynamodb-api's lambda_function.py, where does it reference `event['Records']`?
+>
+> **Think about:** The dynamodb-api Lambda doesn't process SQS Records - that's profile-processing. Could the wrong Lambda module be getting imported?
+
+### Verification Status Update
+
+> **Consider:** The checklist shows "All backend tests pass with mocks (partial)" as checked. With 12/20 tests failing, is this accurate?
+>
+> **Reflect:** Should failing tests block Phase 2 completion, or should they be tracked as known issues for Phase 3?
+
 ## Phase Verification
 
 This phase is complete when:
@@ -689,9 +729,10 @@ This phase is complete when:
 - [x] `backend/template.yaml` defines all AWS resources
 - [x] `npm run deploy` successfully deploys to AWS (SAM build verified)
 - [x] Stack outputs are captured in `.env` (deploy script configured)
-- [x] All backend tests pass with mocks (partial - see notes)
-- [x] CI can run backend tests without AWS credentials
+- [ ] All backend tests pass with mocks (**BLOCKED: 12 of 20 tests failing**)
+- [ ] CI can run backend tests without AWS credentials (**BLOCKED: tests fail**)
 - [ ] Frontend can connect to deployed API (requires actual deployment)
+- [ ] Frontend builds without errors (**BLOCKED: 150+ TypeScript errors**)
 
 **Known Limitations:**
 - Code sanitization not yet performed (Phase 3)
