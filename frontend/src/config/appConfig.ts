@@ -1,5 +1,3 @@
-// Unified application configuration
-// Combines Cognito, API, and UI-related constants in one place
 import { createLogger } from '@/shared/utils/logger';
 
 const logger = createLogger('AppConfig');
@@ -25,8 +23,7 @@ export const validateCognitoConfig = () => {
 export const isCognitoConfigured = validateCognitoConfig();
 
 export const API_CONFIG = {
-  // Production AWS API Gateway URL (fallback)
-  BASE_URL: import.meta.env.VITE_API_GATEWAY_URL || 'https://2c6mr2rri0.execute-api.us-west-2.amazonaws.com/prod',
+  BASE_URL: import.meta.env.VITE_API_GATEWAY_URL || '',
   ENDPOINTS: {
     SEARCH: '/',
     MESSAGE_GENERATION: '/ai/generate-message',
@@ -43,6 +40,3 @@ export const UI_CONFIG = {
   DEBOUNCE_DELAY: 300,
   MAX_RETRIES: 3,
 } as const;
-
-
-
