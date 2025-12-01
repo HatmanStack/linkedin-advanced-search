@@ -19,7 +19,7 @@ const logger = createLogger('MessageModal');
 import { transformErrorForUser, getToastVariant, ERROR_MESSAGES } from '@/shared/utils/errorHandling';
 import { NoMessagesState } from '@/shared/components/ui/empty-state';
 import LoadingOverlay from '@/shared/components/ui/loading-overlay';
-import type { MessageModalProps } from '@/types';
+import type { MessageModalProps } from '@/shared/types';
 
 /**
  * MessageModal Component

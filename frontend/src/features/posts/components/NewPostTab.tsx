@@ -1,7 +1,5 @@
-import PostEditor from '@/features/posts';
-import PostAIAssistant from '@/features/posts';
-import ResearchResultsCard from '@/features/search';
-import { usePostComposer } from '@/features/posts';
+import { PostEditor, PostAIAssistant, usePostComposer } from '@/features/posts';
+import { ResearchResultsCard } from '@/features/search';
 import { useToast } from '@/shared/hooks';
 import { createLogger } from '@/shared/utils/logger';
 

@@ -1,7 +1,7 @@
 import { useState, type ChangeEvent, type KeyboardEvent, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
-import { Button } from "./ui/button";
-import { Input } from "./ui/input";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/shared/components/ui/card";
+import { Button } from "@/shared/components/ui/button";
+import { Input } from "@/shared/components/ui/input";
 import { Sparkles, Search, X } from 'lucide-react';
 import { createLogger } from '@/shared/utils/logger';
 

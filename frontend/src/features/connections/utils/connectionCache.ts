@@ -1,4 +1,4 @@
-import type { Connection } from '@/types';
+import type { Connection } from '@/shared/types';
 
 interface CacheStats {
   hits: number;

@@ -1,7 +1,7 @@
 // Search feature barrel export
 
 // Components
-export { ResearchResultsCard } from './components/ResearchResultsCard';
+export { default as ResearchResultsCard } from './components/ResearchResultsCard';
 
 // Hooks
-export { useSearchResults } from './hooks/useSearchResults';
+export { default as useSearchResults } from './hooks/useSearchResults';

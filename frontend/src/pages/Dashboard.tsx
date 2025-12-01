@@ -1,23 +1,21 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/shared/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
 import { MessageSquare, Users, Settings, UserPlus, FileText, LogOut, AlertCircle, Database } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/features/auth';
 import { useHealAndRestore } from '@/features/workflow'; // Added
 import { useToast } from '@/shared/hooks';
-import { useSearchResults } from '@/hooks';
+import { useSearchResults } from '@/features/search';
 import { useProfileInit } from '@/features/profile';
 import type { SearchFormData } from '@/shared/utils/validation';
-import ConversationTopicPanel from '@/features/messages';
-import NewConnectionsTab from '@/features/connections';
-import NewPostTab from '@/features/posts';
-import StatusPicker from '@/features/workflow';
-import type { StatusValue, ConnectionCounts } from '@/types';
-import VirtualConnectionList from '@/features/connections';
-import MessageModal from '@/features/messages';
+import { ConversationTopicPanel, MessageModal } from '@/features/messages';
+import { NewConnectionsTab, VirtualConnectionList } from '@/features/connections';
+import { NewPostTab } from '@/features/posts';
+import { StatusPicker } from '@/features/workflow';
+import type { StatusValue, ConnectionCounts } from '@/shared/types';
 import { lambdaApiService as dbConnector, ApiError } from '@/shared/services';
-import type { Connection, Message } from '@/types';
+import type { Connection, Message } from '@/shared/types';
 import { createLogger } from '@/shared/utils/logger';
 
 const logger = createLogger('Dashboard');
@@ -28,8 +26,7 @@ import { NoConnectionsState } from '@/shared/components/ui/empty-state';
 import { messageGenerationService } from '@/features/messages';
 import { connectionDataContextService } from '@/features/connections';
 import { useErrorHandler } from '@/shared/hooks';
-import { useProgressTracker } from '@/features/workflow';
-import ProgressIndicator from '@/features/workflow';
+import { useProgressTracker, ProgressIndicator } from '@/features/workflow';
 import { useUserProfile } from '@/features/profile';
 
 // Removed unused demo sampleConnections to reduce noise

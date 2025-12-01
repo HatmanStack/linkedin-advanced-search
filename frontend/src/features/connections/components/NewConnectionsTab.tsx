@@ -1,13 +1,13 @@
 import type React from 'react';
 import { useState, useMemo, useCallback } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card";
+import { Input } from "@/shared/components/ui/input";
+import { Button } from "@/shared/components/ui/button";
+import { Alert, AlertDescription } from "@/shared/components/ui/alert";
 import { UserPlus, Building, User, Search, X, Loader2, AlertCircle, Info } from 'lucide-react';
-import VirtualConnectionList from '@/features/connections';
+import { VirtualConnectionList } from '@/features/connections';
 import { connectionCache } from '@/features/connections';
-import type { Connection } from '@/types';
+import type { Connection } from '@/shared/types';
 import { createLogger } from '@/shared/utils/logger';
 
 const logger = createLogger('NewConnectionsTab');

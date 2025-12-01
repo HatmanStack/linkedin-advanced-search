@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import type { UserProfile } from '@/types';
+import type { UserProfile } from '@/shared/types';
 import { useAuth } from '@/features/auth';
 
 export const useProfile = () => {

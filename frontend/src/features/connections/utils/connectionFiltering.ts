@@ -1,4 +1,4 @@
-import type { Connection, ConnectionFilters } from '@/types';
+import type { Connection, ConnectionFilters } from '@/shared/types';
 
 /**
  * Filters connections based on the provided filter criteria

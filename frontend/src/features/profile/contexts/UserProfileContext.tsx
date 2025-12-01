@@ -8,7 +8,7 @@ const logger = createLogger('UserProfileContext');
 
 type LinkedInCredentialsCiphertext = string | null; // sealbox_x25519:b64:<...>
 
-import type { UserProfile } from '@/types';
+import type { UserProfile } from '@/shared/types';
 
 interface UserProfileContextType {
   // LinkedIn credentials

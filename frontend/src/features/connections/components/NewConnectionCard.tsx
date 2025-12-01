@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Badge } from "@/shared/components/ui/badge";
+import { Button } from "@/shared/components/ui/button";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -10,18 +10,18 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle
-} from "@/components/ui/alert-dialog";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+} from "@/shared/components/ui/alert-dialog";
+import { Checkbox } from "@/shared/components/ui/checkbox";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/shared/components/ui/dialog";
 import { User, Building, MapPin, Tag, X, Loader2, CheckCircle, UserPlus } from 'lucide-react';
-import { useToast } from "@/hooks/use-toast";
-import { lambdaApiService as dbConnector } from "@/services/lambdaApiService";
-import { puppeteerApiService } from "@/services/puppeteerApiService";
-import { transformErrorForUser, getToastVariant, ERROR_MESSAGES } from "@/utils/errorHandling";
+import { useToast } from "@/shared/hooks/use-toast";
+import { lambdaApiService as dbConnector } from "@/shared/services/lambdaApiService";
+import { puppeteerApiService } from "@/shared/services/puppeteerApiService";
+import { transformErrorForUser, getToastVariant, ERROR_MESSAGES } from "@/shared/utils/errorHandling";
 import { createLogger } from '@/shared/utils/logger';
 
 const logger = createLogger('NewConnectionCard');
-import type { NewConnectionCardProps } from '@/types';
+import type { NewConnectionCardProps } from '@/shared/types';
 
 /**
  * NewConnectionCard Component
@@ -133,7 +133,7 @@ const NewConnectionCard: React.FC<NewConnectionCardProps> = ({
 
       // Update local cache with new status to trigger re-render
       try {
-        const { connectionCache } = await import('@/utils/connectionCache');
+        const { connectionCache } = await import('@/features/connections/utils/connectionCache');
         connectionCache.update(connection.id, { status: 'processed' });
       } catch {
         // Ignore cache update failures
@@ -279,7 +279,7 @@ const NewConnectionCard: React.FC<NewConnectionCardProps> = ({
 
       // Update local cache with new status to trigger re-render
       try {
-        const { connectionCache } = await import('@/utils/connectionCache');
+        const { connectionCache } = await import('@/features/connections/utils/connectionCache');
         connectionCache.update(connection.id, { status: 'outgoing' });
       } catch {
         // Ignore cache update failures

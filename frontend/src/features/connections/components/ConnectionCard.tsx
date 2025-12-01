@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from "react";
-import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Badge } from "@/shared/components/ui/badge";
+import { Checkbox } from "@/shared/components/ui/checkbox";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/shared/components/ui/dialog";
 import { MessageSquare, ExternalLink, User, Building, MapPin, Tag } from 'lucide-react';
-import type { ConnectionCardProps } from '@/types';
+import type { ConnectionCardProps } from '@/shared/types';
 
 /**
  * ConnectionCard Component

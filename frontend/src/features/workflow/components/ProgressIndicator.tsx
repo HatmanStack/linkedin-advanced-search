@@ -8,7 +8,7 @@ import { Progress } from '@/shared/components/ui/progress';
 import { Button } from '@/shared/components/ui/button';
 import { Card, CardContent } from '@/shared/components/ui/card';
 import { Loader2, Square, Clock, CheckCircle, AlertCircle } from 'lucide-react';
-import type { ProgressState, LoadingState } from '@/types';
+import type { ProgressState, LoadingState } from '@/shared/types';
 
 interface ProgressIndicatorProps {
   progressState: ProgressState;

@@ -1,21 +1,21 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Slider } from "@/components/ui/slider";
-import { Badge } from "@/components/ui/badge";
+import { Button } from "@/shared/components/ui/button";
+import { Input } from "@/shared/components/ui/input";
+import { Label } from "@/shared/components/ui/label";
+import { Slider } from "@/shared/components/ui/slider";
+import { Badge } from "@/shared/components/ui/badge";
 import { 
   Select, 
   SelectContent, 
   SelectItem, 
   SelectTrigger, 
   SelectValue 
-} from "@/components/ui/select";
+} from "@/shared/components/ui/select";
 import { 
   Popover, 
   PopoverContent, 
   PopoverTrigger 
-} from "@/components/ui/popover";
+} from "@/shared/components/ui/popover";
 import { 
   Filter, 
   X, 
@@ -24,7 +24,7 @@ import {
   TrendingUp,
   RotateCcw
 } from 'lucide-react';
-import type { Connection, ConnectionFilters } from '@/types';
+import type { Connection, ConnectionFilters } from '@/shared/types';
 
 interface ConnectionFiltersProps {
   connections: Connection[];

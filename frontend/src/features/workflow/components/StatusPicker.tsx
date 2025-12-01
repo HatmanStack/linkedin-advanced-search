@@ -1,9 +1,9 @@
 import React from 'react';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/components/ui/select";
+import { Label } from "@/shared/components/ui/label";
+import { Badge } from "@/shared/components/ui/badge";
 import { Users, Clock, Send, UserCheck, Filter } from 'lucide-react';
-import type { StatusValue, StatusPickerProps } from '@/types';
+import type { StatusValue, StatusPickerProps } from '@/shared/types';
 
 /**
  * Status mapping configuration interface
