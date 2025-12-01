@@ -123,7 +123,6 @@ def create_bad_contact_profile(user_id: str, body: dict[str, Any]) -> dict[str, 
         updates = body.get('updates', {})
         current_time = datetime.now(UTC).isoformat()
 
-        print(f'THIS IS THE BAD CONTACT:   PROFILE#{profile_id_b64}')
         # Create or update profile metadata
         profile_metadata = {
             'PK': f'PROFILE#{profile_id_b64}',
@@ -267,7 +266,7 @@ def update_user_settings(user_id: str, body: Dict[str, Any]) -> Dict[str, Any]:
                 ExpressionAttributeValues=expr_attr_values
             )
         else:
-            print(f"No profile fields provided for update: {body}")
+            logger.info(f"No profile fields provided for update")
 
 
         return create_response(200, {'success': True})
@@ -278,7 +277,6 @@ def update_user_settings(user_id: str, body: Dict[str, Any]) -> Dict[str, Any]:
 def get_profile_metadata(profile_id_b64: str) -> dict[str, Any] | None:
     """Helper function to get profile metadata"""
     try:
-        print(f'THIS IS THE PROFILE BEING CHECKED:  PROFILE#{profile_id_b64}')
         response = table.get_item(
             Key={
                 'PK': f'PROFILE#{profile_id_b64}',
