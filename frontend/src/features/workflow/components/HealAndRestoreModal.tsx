@@ -25,7 +25,6 @@ export const HealAndRestoreModal: React.FC<HealAndRestoreModalProps> = ({
   const [autoApprove, setAutoApprove] = useState(false);
 
   const handleAuthorize = () => {
-    // Save auto-approve preference to session storage
     if (autoApprove) {
       sessionStorage.setItem('autoApproveHealRestore', 'true');
     }

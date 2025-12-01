@@ -3,10 +3,6 @@ import { createLogger } from '@/shared/utils/logger';
 
 const logger = createLogger('ErrorHandling');
 
-/**
- * Error handling utilities for the connection management system
- * Provides consistent error handling patterns and user-friendly error messages
- */
 
 export interface ErrorWithRecovery {
   message: string;
@@ -22,9 +18,7 @@ export interface RecoveryAction {
   primary?: boolean;
 }
 
-/**
- * Transform various error types into user-friendly error objects
- */
+
 export function transformErrorForUser(
   error: unknown,
   context: string,
@@ -39,7 +33,6 @@ export function transformErrorForUser(
     message = error.message;
     retryable = error.retryable || false;
     
-    // Map API errors to user-friendly messages
     if (error.status === 401 || error.status === 403) {
       userMessage = 'You need to sign in again to continue.';
       severity = 'high';
@@ -74,7 +67,6 @@ export function transformErrorForUser(
     message = error.message;
     userMessage = `Failed to ${context}. ${error.message}`;
     
-    // Check for specific error patterns
     if (error.message.includes('timeout') || error.message.includes('TIMEOUT')) {
       userMessage = 'The request took too long. Please try again.';
       retryable = true;
@@ -98,16 +90,12 @@ export function transformErrorForUser(
   };
 }
 
-/**
- * Get appropriate toast variant based on error severity
- */
+
 export function getToastVariant(severity: 'low' | 'medium' | 'high'): 'default' | 'destructive' {
   return severity === 'low' ? 'default' : 'destructive';
 }
 
-/**
- * Create standardized error messages for common operations
- */
+
 export const ERROR_MESSAGES = {
   FETCH_CONNECTIONS: 'load your connections',
   UPDATE_CONNECTION: 'update the connection',
@@ -121,9 +109,6 @@ export const ERROR_MESSAGES = {
 } as const;
 
 
-/**
- * Log errors with context for debugging
- */
 export function logError(error: unknown, context: string, additionalData?: unknown): void {
   const errorInfo = {
     timestamp: new Date().toISOString(),
@@ -140,6 +125,4 @@ export function logError(error: unknown, context: string, additionalData?: unkno
   
   logger.error(`[${context}] Error occurred`, { errorInfo });
   
-  // In production, you might want to send this to an error tracking service
-  // Example: Sentry.captureException(error, { extra: errorInfo });
 }

@@ -4,21 +4,19 @@ import {
   AuthenticationDetails,
   CognitoUserAttribute,
   CognitoUserSession,
-  ISignUpResult,
 } from 'amazon-cognito-identity-js';
+import type { ISignUpResult } from 'amazon-cognito-identity-js';
 import { cognitoConfig } from '@/config/appConfig';
 import { createLogger } from '@/shared/utils/logger';
 import type { AuthError, CognitoAttributeList } from '../types';
 
 const logger = createLogger('CognitoService');
 
-// Initialize Cognito User Pool
 const userPool = new CognitoUserPool({
   UserPoolId: cognitoConfig.userPoolId,
   ClientId: cognitoConfig.userPoolWebClientId,
 });
 
-// Helper function to extract user data from Cognito attributes
 function extractUserData(session: CognitoUserSession, attributes: CognitoAttributeList, email: string): CognitoUserData {
   const userAttributes: { [key: string]: string } = {};
   attributes?.forEach((attr) => {
@@ -35,7 +33,6 @@ function extractUserData(session: CognitoUserSession, attributes: CognitoAttribu
 }
 
 
-
 export interface CognitoUserData {
   id: string;
   email: string;
@@ -45,7 +42,6 @@ export interface CognitoUserData {
 }
 
 export class CognitoAuthService {
-  // Sign up a new user
   static async signUp(
     email: string,
     password: string,
@@ -86,19 +82,12 @@ export class CognitoAuthService {
 
         resolve({
           error: null,
-          user: {
-            id: result?.userSub || '',
-            email,
-            firstName,
-            lastName,
-            needsVerification: !result?.user.getUsername(),
-          },
+          user: result!,
         });
       });
     });
   }
 
-  // Sign in an existing user
   static async signIn(email: string, password: string): Promise<{ error: AuthError | null; user?: CognitoUserData }> {
     return new Promise((resolve) => {
       const authenticationDetails = new AuthenticationDetails({
@@ -113,7 +102,6 @@ export class CognitoAuthService {
 
       cognitoUser.authenticateUser(authenticationDetails, {
         onSuccess: (session: CognitoUserSession) => {
-          // Get user attributes
           cognitoUser.getUserAttributes((err, attributes) => {
             if (err) {
               resolve({ error: { message: err.message } });
@@ -130,11 +118,8 @@ export class CognitoAuthService {
           resolve({ error: { message: err.message, code: err.code } });
         },
         newPasswordRequired: (userAttributes) => {
-          // For self-registered users, complete auth with the same password
-          // This happens when Cognito puts users in FORCE_CHANGE_PASSWORD status
           logger.debug('Completing new password challenge with same password');
 
-          // Filter out read-only Cognito attributes before completing challenge
           const writableAttributes = { ...userAttributes };
           delete writableAttributes.email;
           delete writableAttributes.email_verified;
@@ -143,7 +128,6 @@ export class CognitoAuthService {
 
           cognitoUser.completeNewPasswordChallenge(password, writableAttributes, {
             onSuccess: (session: CognitoUserSession) => {
-              // Successfully completed password challenge
               cognitoUser.getUserAttributes((err, attributes) => {
                 if (err) {
                   resolve({ error: { message: err.message } });
@@ -165,7 +149,6 @@ export class CognitoAuthService {
     });
   }
 
-  // Sign out the current user
   static async signOut(): Promise<void> {
     const cognitoUser = userPool.getCurrentUser();
     if (cognitoUser) {
@@ -173,7 +156,6 @@ export class CognitoAuthService {
     }
   }
 
-  // Get current authenticated user
   static async getCurrentUser(): Promise<CognitoUserData | null> {
     return new Promise((resolve) => {
       const cognitoUser = userPool.getCurrentUser();
@@ -215,7 +197,6 @@ export class CognitoAuthService {
     });
   }
 
-  // Confirm user registration with verification code
   static async confirmSignUp(email: string, code: string): Promise<{ error: AuthError | null }> {
     return new Promise((resolve) => {
       const cognitoUser = new CognitoUserClass({
@@ -233,7 +214,6 @@ export class CognitoAuthService {
     });
   }
 
-  // Resend verification code
   static async resendConfirmationCode(email: string): Promise<{ error: AuthError | null }> {
     return new Promise((resolve) => {
       const cognitoUser = new CognitoUserClass({
@@ -251,7 +231,6 @@ export class CognitoAuthService {
     });
   }
 
-  // Forgot password - initiate reset
   static async forgotPassword(email: string): Promise<{ error: AuthError | null }> {
     return new Promise((resolve) => {
       const cognitoUser = new CognitoUserClass({
@@ -270,7 +249,6 @@ export class CognitoAuthService {
     });
   }
 
-  // Confirm forgot password with new password and code
   static async confirmPassword(
     email: string,
     code: string,
@@ -293,7 +271,6 @@ export class CognitoAuthService {
     });
   }
 
-  // Get current user's JWT token
   static async getCurrentUserToken(): Promise<string | null> {
     return new Promise((resolve) => {
       const cognitoUser = userPool.getCurrentUser();
@@ -309,7 +286,6 @@ export class CognitoAuthService {
           return;
         }
 
-        // Return the ID token (JWT)
         resolve(session.getIdToken().getJwtToken());
       });
     });

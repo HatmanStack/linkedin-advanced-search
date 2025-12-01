@@ -75,7 +75,6 @@ export const HealAndRestoreProvider: React.FC<HealAndRestoreProviderProps> = ({ 
 
   const handleCancel = async () => {
     if (currentNotification?.sessionId) {
-      // Inform backend and locally ignore this session id to prevent re-trigger
       await healAndRestoreService.cancelHealAndRestore(currentNotification.sessionId);
     }
     setShowModal(false);

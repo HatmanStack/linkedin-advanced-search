@@ -26,63 +26,51 @@ export class RandomHelpers {
     return userAgents[Math.floor(Math.random() * userAgents.length)];
   }
 
-  /**
-   * Generate realistic interaction timing delays based on action type
-   * @param {string} actionType - Type of action: 'click', 'type', 'scroll', 'navigate', 'think'
-   * @returns {Promise<void>}
-   */
+  
   static async humanLikeDelay(actionType = 'default') {
     const delayRanges = {
-      click: [200, 800],        // Quick click actions
-      type: [50, 150],          // Between keystrokes
-      scroll: [300, 1200],      // Scrolling actions
-      navigate: [1000, 3000],   // Page navigation
-      think: [500, 2000],       // Thinking/reading pauses
-      default: [500, 1500]      // General delays
+      click: [200, 800],
+      type: [50, 150],
+      scroll: [300, 1200],
+      navigate: [1000, 3000],
+      think: [500, 2000],
+      default: [500, 1500]
     };
 
     const [min, max] = delayRanges[actionType] || delayRanges.default;
     
-    // Add some randomness to make delays less predictable
     const baseDelay = this.randomInRange(min, max);
-    const variance = Math.random() * 0.3 - 0.15; // ±15% variance
+    const variance = Math.random() * 0.3 - 0.15;
     const finalDelay = Math.max(50, Math.floor(baseDelay * (1 + variance)));
     
     return new Promise(resolve => setTimeout(resolve, finalDelay));
   }
 
-  /**
-   * Generate variable typing speed with realistic patterns
-   * @param {string} text - Text to calculate typing timing for
-   * @returns {Array<number>} Array of delays between each character
-   */
+  
   static generateTypingPattern(text) {
-    const baseSpeed = this.randomInRange(80, 150); // Base WPM equivalent in ms per char
+    const baseSpeed = this.randomInRange(80, 150);
     const delays = [];
     
     for (let i = 0; i < text.length; i++) {
       const char = text[i];
       let delay = baseSpeed;
       
-      // Adjust delay based on character type
       if (char === ' ') {
-        delay *= this.randomInRange(1.2, 2.0); // Longer pause at spaces
+        delay *= this.randomInRange(1.2, 2.0);
       } else if (/[.!?]/.test(char)) {
-        delay *= this.randomInRange(1.5, 2.5); // Pause at sentence endings
+        delay *= this.randomInRange(1.5, 2.5);
       } else if (/[,;:]/.test(char)) {
-        delay *= this.randomInRange(1.1, 1.8); // Pause at punctuation
+        delay *= this.randomInRange(1.1, 1.8);
       } else if (/[A-Z]/.test(char) && i > 0) {
-        delay *= this.randomInRange(1.1, 1.4); // Slight pause before capitals
+        delay *= this.randomInRange(1.1, 1.4);
       } else if (/\d/.test(char)) {
-        delay *= this.randomInRange(1.2, 1.6); // Slower for numbers
+        delay *= this.randomInRange(1.2, 1.6);
       }
       
-      // Add random variance (±30%)
       const variance = Math.random() * 0.6 - 0.3;
       delay = Math.max(20, Math.floor(delay * (1 + variance)));
       
-      // Occasional longer pauses (simulate thinking/corrections)
-      if (Math.random() < 0.05) { // 5% chance
+      if (Math.random() < 0.05) {
         delay += this.randomInRange(300, 1000);
       }
       
@@ -92,27 +80,20 @@ export class RandomHelpers {
     return delays;
   }
 
-  /**
-   * Generate random mouse movement coordinates for human-like cursor behavior
-   * @param {Object} viewport - Viewport dimensions {width, height}
-   * @param {Object} target - Target element bounds {x, y, width, height}
-   * @returns {Array<Object>} Array of {x, y} coordinates for mouse path
-   */
+  
   static generateMousePath(viewport, target) {
     const startX = this.randomInRange(0, viewport.width);
     const startY = this.randomInRange(0, viewport.height);
     
-    // Target center with some randomness
     const targetX = target.x + target.width / 2 + this.randomInRange(-20, 20);
     const targetY = target.y + target.height / 2 + this.randomInRange(-10, 10);
     
     const path = [];
-    const steps = this.randomInRange(3, 8); // Number of intermediate points
+    const steps = this.randomInRange(3, 8);
     
     for (let i = 0; i <= steps; i++) {
       const progress = i / steps;
       
-      // Use bezier-like curve for natural movement
       const curveVariance = Math.sin(progress * Math.PI) * this.randomInRange(-50, 50);
       
       const x = startX + (targetX - startX) * progress + curveVariance;
@@ -124,25 +105,18 @@ export class RandomHelpers {
     return path;
   }
 
-  /**
-   * Generate realistic scrolling behavior
-   * @param {number} totalDistance - Total distance to scroll
-   * @param {string} direction - 'up' or 'down'
-   * @returns {Array<Object>} Array of scroll actions {delta, delay}
-   */
+  
   static generateScrollPattern(totalDistance, direction = 'down') {
     const scrollActions = [];
     let remainingDistance = Math.abs(totalDistance);
     const multiplier = direction === 'up' ? -1 : 1;
     
     while (remainingDistance > 0) {
-      // Variable scroll amounts (simulate mouse wheel or trackpad)
       const scrollAmount = Math.min(
         remainingDistance,
         this.randomInRange(80, 200)
       );
       
-      // Variable delays between scrolls
       const delay = this.randomInRange(100, 300);
       
       scrollActions.push({
@@ -152,7 +126,6 @@ export class RandomHelpers {
       
       remainingDistance -= scrollAmount;
       
-      // Occasional pause during scrolling
       if (Math.random() < 0.2 && remainingDistance > 0) {
         scrollActions.push({
           delta: 0,
@@ -164,12 +137,7 @@ export class RandomHelpers {
     return scrollActions;
   }
 
-  /**
-   * Calculate if a cooling-off period is needed based on recent activity
-   * @param {Array<Date>} recentActions - Array of recent action timestamps
-   * @param {Object} thresholds - Activity thresholds {actionsPerMinute, actionsPerHour}
-   * @returns {Object} {needsCooldown, cooldownDuration, reason}
-   */
+  
   static calculateCooldownNeeds(recentActions, thresholds = {}) {
     const now = new Date();
     const oneMinuteAgo = new Date(now.getTime() - 60000);
@@ -181,15 +149,13 @@ export class RandomHelpers {
       ...thresholds
     };
     
-    // Count recent actions
     const actionsLastMinute = recentActions.filter(action => action > oneMinuteAgo).length;
     const actionsLastHour = recentActions.filter(action => action > oneHourAgo).length;
     
-    // Check if cooling-off is needed
     if (actionsLastMinute > defaultThresholds.actionsPerMinute) {
       return {
         needsCooldown: true,
-        cooldownDuration: this.randomInRange(30000, 120000), // 30s - 2min
+        cooldownDuration: this.randomInRange(30000, 120000),
         reason: 'High activity in last minute'
       };
     }
@@ -197,16 +163,15 @@ export class RandomHelpers {
     if (actionsLastHour > defaultThresholds.actionsPerHour) {
       return {
         needsCooldown: true,
-        cooldownDuration: this.randomInRange(300000, 900000), // 5-15min
+        cooldownDuration: this.randomInRange(300000, 900000),
         reason: 'High activity in last hour'
       };
     }
     
-    // Random occasional breaks (simulate natural behavior)
-    if (Math.random() < 0.05) { // 5% chance
+    if (Math.random() < 0.05) {
       return {
         needsCooldown: true,
-        cooldownDuration: this.randomInRange(10000, 60000), // 10s - 1min
+        cooldownDuration: this.randomInRange(10000, 60000),
         reason: 'Random natural break'
       };
     }
@@ -218,31 +183,19 @@ export class RandomHelpers {
     };
   }
 
-  /**
-   * Generate realistic reading/scanning time based on content length
-   * @param {string} content - Content to calculate reading time for
-   * @param {number} wordsPerMinute - Reading speed (default: 200 WPM)
-   * @returns {number} Reading time in milliseconds
-   */
+  
   static calculateReadingTime(content, wordsPerMinute = 200) {
     const wordCount = content.split(/\s+/).length;
-    const baseReadingTime = (wordCount / wordsPerMinute) * 60000; // Convert to ms
+    const baseReadingTime = (wordCount / wordsPerMinute) * 60000;
     
-    // Add variance for realistic behavior (±40%)
     const variance = Math.random() * 0.8 - 0.4;
     const readingTime = Math.max(1000, baseReadingTime * (1 + variance));
     
-    // Cap maximum reading time for very long content
-    return Math.min(readingTime, 30000); // Max 30 seconds
+    return Math.min(readingTime, 30000);
   }
 
-  /**
-   * Generate random viewport adjustments (simulate window resizing/zooming)
-   * @param {Object} currentViewport - Current viewport {width, height}
-   * @returns {Object} New viewport dimensions or null if no change
-   */
+  
   static generateViewportAdjustment(currentViewport) {
-    // Only occasionally adjust viewport (2% chance)
     if (Math.random() > 0.02) {
       return null;
     }
@@ -251,7 +204,6 @@ export class RandomHelpers {
     const adjustmentType = adjustmentTypes[Math.floor(Math.random() * adjustmentTypes.length)];
     
     if (adjustmentType === 'resize') {
-      // Small window resize
       const widthChange = this.randomInRange(-100, 100);
       const heightChange = this.randomInRange(-50, 50);
       
@@ -261,9 +213,8 @@ export class RandomHelpers {
       };
     }
     
-    // Zoom adjustment (simulate Ctrl+scroll)
     const zoomLevels = [0.8, 0.9, 1.0, 1.1, 1.25];
-    const currentZoom = 1.0; // Assume default zoom
+    const currentZoom = 1.0;
     const newZoom = zoomLevels[Math.floor(Math.random() * zoomLevels.length)];
     
     if (newZoom !== currentZoom) {

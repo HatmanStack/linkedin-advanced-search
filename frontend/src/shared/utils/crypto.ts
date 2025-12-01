@@ -1,12 +1,8 @@
-/**
- * Crypto utilities for client-side encryption.
- * Preferred: Curve25519 sealed box (libsodium) tagged as `sealbox_x25519:b64:<...>`
- * Legacy: RSA-OAEP(SHA-256) tagged as `rsa_oaep_sha256:b64:<...>`
- */
+
 
 import sodium from 'libsodium-wrappers-sumo';
 
-/** Normalize base64 to standard charset and correct padding */
+
 function normalizeBase64(input: string): string {
   const cleaned = input
     .replace(/[\r\n\s]/g, '')
@@ -16,7 +12,7 @@ function normalizeBase64(input: string): string {
   return paddingNeeded ? cleaned + '='.repeat(4 - paddingNeeded) : cleaned;
 }
 
-/** Convert a base64 string to an ArrayBuffer (robust to url-safe and missing padding) */
+
 function base64ToArrayBuffer(base64: string): ArrayBuffer {
   const normalized = normalizeBase64(base64);
   const binaryString = typeof atob === 'function'
@@ -31,7 +27,7 @@ function base64ToArrayBuffer(base64: string): ArrayBuffer {
   return bytes.buffer;
 }
 
-/** Convert an ArrayBuffer to a base64 string */
+
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);
   let binary = '';
@@ -47,7 +43,7 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
   throw new Error('No base64 encoder available');
 }
 
-/** Import an RSA public key from a PEM string for RSA-OAEP with SHA-256 */
+
 export async function importRsaPublicKey(pem: string): Promise<CryptoKey> {
   const pemContents = pem
     .replace(/-----BEGIN PUBLIC KEY-----/g, '')
@@ -65,7 +61,7 @@ export async function importRsaPublicKey(pem: string): Promise<CryptoKey> {
   );
 }
 
-/** Encrypt a UTF-8 string with RSA-OAEP and return base64 ciphertext */
+
 export async function encryptWithRsaOaep(plaintext: string, publicKeyPem: string): Promise<string> {
   const encoder = new TextEncoder();
   const key = await importRsaPublicKey(publicKeyPem);
@@ -77,7 +73,7 @@ export async function encryptWithRsaOaep(plaintext: string, publicKeyPem: string
   return arrayBufferToBase64(encrypted);
 }
 
-/** Encrypt a UTF-8 string with Curve25519 sealed box and return base64 ciphertext */
+
 export async function encryptWithSealboxB64(plaintext: string, publicKeyB64: string): Promise<string> {
   await sodium.ready;
   const messageBytes = new TextEncoder().encode(plaintext);
@@ -86,7 +82,6 @@ export async function encryptWithSealboxB64(plaintext: string, publicKeyB64: str
     throw new Error('Invalid public key length for sealed box');
   }
   const sealed = sodium.crypto_box_seal(messageBytes, pkBytes);
-  // Convert to base64
   const sealedB64 = arrayBufferToBase64(sealed.buffer.slice(sealed.byteOffset, sealed.byteOffset + sealed.byteLength) as ArrayBuffer);
   return sealedB64;
 }

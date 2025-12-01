@@ -1,12 +1,6 @@
 import type { Connection, ConnectionFilters } from '@/shared/types';
 
-/**
- * Filters connections based on the provided filter criteria
- * 
- * @param connections - Array of connections to filter
- * @param filters - Filter criteria to apply
- * @returns Filtered array of connections
- */
+
 export function filterConnections(
   connections: Connection[], 
   filters: ConnectionFilters
@@ -14,14 +8,12 @@ export function filterConnections(
   if (!connections.length) return connections;
 
   return connections.filter(connection => {
-    // Status filter
     if (filters.status && filters.status !== 'all') {
       if (connection.status !== filters.status) {
         return false;
       }
     }
 
-    // Search term filter (searches name, position, company, headline)
     if (filters.searchTerm) {
       const searchTerm = filters.searchTerm.toLowerCase().trim();
       if (searchTerm) {
@@ -40,26 +32,22 @@ export function filterConnections(
       }
     }
 
-    // Location filter
     if (filters.location) {
       if (!connection.location || connection.location !== filters.location) {
         return false;
       }
     }
 
-    // Company filter
     if (filters.company) {
       if (!connection.company || connection.company !== filters.company) {
         return false;
       }
     }
 
-    // Conversion likelihood range filter
     if (filters.conversionLikelihoodRange) {
       const { min, max } = filters.conversionLikelihoodRange;
       const likelihood = connection.conversion_likelihood;
       
-      // If connection doesn't have conversion likelihood, exclude it
       if (likelihood === undefined || likelihood === null) {
         return false;
       }
@@ -69,7 +57,6 @@ export function filterConnections(
       }
     }
 
-    // Tags filter
     if (filters.tags && filters.tags.length > 0) {
       const connectionTags = connection.tags || [];
       const hasMatchingTag = filters.tags.some(filterTag => 
@@ -85,14 +72,7 @@ export function filterConnections(
   });
 }
 
-/**
- * Sorts connections based on various criteria
- * 
- * @param connections - Array of connections to sort
- * @param sortBy - Field to sort by
- * @param sortOrder - Sort direction
- * @returns Sorted array of connections
- */
+
 export function sortConnections(
   connections: Connection[],
   sortBy: 'name' | 'company' | 'date_added' | 'conversion_likelihood' = 'name',

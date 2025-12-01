@@ -34,7 +34,6 @@ const NewPostTabInner = () => {
       setIdeas(generatedIdeas);
     } catch (error) {
       logger.error('Failed to generate ideas', { error });
-      // Ideas will remain empty, so textarea will be shown
     }
   };
 
@@ -72,7 +71,6 @@ const NewPostTabInner = () => {
     });
   };
 
-  // Research of selected ideas is handled via onResearchTopics with a string[] from the assistant
 
   return (
     <div className="grid lg:grid-cols-[13fr_7fr] gap-8">

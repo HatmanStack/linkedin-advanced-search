@@ -1,9 +1,5 @@
 export class ProfileInitStateManager {
-  /**
-   * Build initial state for profile initialization
-   * @param {Object} params - State parameters
-   * @returns {Object} Initial state object
-   */
+  
   static buildInitialState({
     searchName,
     searchPassword,
@@ -45,12 +41,7 @@ export class ProfileInitStateManager {
     };
   }
 
-  /**
-   * Build state for healing/recovery scenarios
-   * @param {Object} existingState - Current state
-   * @param {Object} healingParams - Healing parameters
-   * @returns {Object} Updated state for healing
-   */
+  
   static buildHealingState(existingState, healingParams) {
     return {
       ...existingState,
@@ -66,12 +57,7 @@ export class ProfileInitStateManager {
     };
   }
 
-  /**
-   * Update state with batch processing progress
-   * @param {Object} state - Current state
-   * @param {Object} progress - Progress update
-   * @returns {Object} Updated state
-   */
+  
   static updateBatchProgress(state, progress) {
     return {
       ...state,
@@ -84,11 +70,7 @@ export class ProfileInitStateManager {
     };
   }
 
-  /**
-   * Validate required state fields
-   * @param {Object} state - State to validate
-   * @throws {Error} If validation fails
-   */
+  
   static validateState(state) {
     const hasPlain = !!(state.searchName && state.searchPassword);
     const hasCipher = typeof state.credentialsCiphertext === 'string' && state.credentialsCiphertext.startsWith('sealbox_x25519:b64:');
@@ -99,7 +81,6 @@ export class ProfileInitStateManager {
       throw new Error('Missing required state field: jwtToken');
     }
 
-    // Validate batch processing fields if present
     if (state.currentBatch !== undefined && state.currentBatch < 0) {
       throw new Error('currentBatch must be non-negative');
     }
@@ -112,7 +93,6 @@ export class ProfileInitStateManager {
       throw new Error('batchSize must be positive');
     }
 
-    // Validate connection list type - updated for new connection types
     const validConnectionTypes = ['ally', 'incoming', 'outgoing'];
     if (
       state.currentProcessingList !== undefined &&
@@ -124,20 +104,12 @@ export class ProfileInitStateManager {
     }
   }
 
-  /**
-   * Check if state indicates a healing scenario
-   * @param {Object} state - State to check
-   * @returns {boolean} True if healing is in progress
-   */
+  
   static isHealingState(state) {
     return !!(state.healPhase && state.healReason);
   }
 
-  /**
-   * Check if state indicates resumption from a previous session
-   * @param {Object} state - State to check
-   * @returns {boolean} True if resuming
-   */
+  
   static isResumingState(state) {
     return !!(
       state.masterIndexFile || 
@@ -147,11 +119,7 @@ export class ProfileInitStateManager {
     );
   }
 
-  /**
-   * Get progress summary from state
-   * @param {Object} state - Current state
-   * @returns {Object} Progress summary
-   */
+  
   static getProgressSummary(state) {
     const totalExpectedConnections = Object.values(state.totalConnections || {}).reduce((sum, count) => sum + count, 0);
     const completedBatches = state.completedBatches ? state.completedBatches.length : 0;
@@ -159,7 +127,6 @@ export class ProfileInitStateManager {
     const currentIndex = state.currentIndex || 0;
     const batchSize = state.batchSize || 100;
 
-    // Estimate progress based on completed batches and current position
     const estimatedProcessed = (completedBatches * batchSize) + currentIndex;
     const progressPercentage = totalExpectedConnections > 0 
       ? Math.min(100, (estimatedProcessed / totalExpectedConnections) * 100)
@@ -179,14 +146,7 @@ export class ProfileInitStateManager {
     };
   }
 
-  /**
-   * Create state for specific healing scenarios
-   * @param {Object} baseState - Base state
-   * @param {string} healPhase - Healing phase identifier
-   * @param {string} healReason - Reason for healing
-   * @param {Object} additionalParams - Additional healing parameters
-   * @returns {Object} Healing state
-   */
+  
   static createHealingState(baseState, healPhase, healReason, additionalParams = {}) {
     return this.buildHealingState(baseState, {
       healPhase,
@@ -195,16 +155,7 @@ export class ProfileInitStateManager {
     });
   }
 
-  /**
-   * Create healing state for list creation scenarios
-   * @param {Object} baseState - Base state
-   * @param {string} connectionType - Type of connection being collected (ally, incoming, outgoing)
-   * @param {number} expansionAttempt - Current expansion attempt number
-   * @param {number} currentFileIndex - Current file index being written
-   * @param {Object} masterIndex - Current master index state
-   * @param {string} healReason - Reason for healing
-   * @returns {Object} List creation healing state
-   */
+  
   static createListCreationHealingState(baseState, connectionType, expansionAttempt, currentFileIndex, masterIndex, healReason) {
     return {
       ...baseState,
@@ -224,12 +175,7 @@ export class ProfileInitStateManager {
     };
   }
 
-  /**
-   * Update state with list creation progress
-   * @param {Object} state - Current state
-   * @param {Object} progress - Progress update
-   * @returns {Object} Updated state
-   */
+  
   static updateListCreationProgress(state, progress) {
     return {
       ...state,
@@ -245,20 +191,12 @@ export class ProfileInitStateManager {
     };
   }
 
-  /**
-   * Check if state indicates list creation healing
-   * @param {Object} state - State to check
-   * @returns {boolean} True if list creation healing is in progress
-   */
+  
   static isListCreationHealingState(state) {
     return state.healPhase === 'list-creation' && !!state.listCreationState;
   }
 
-  /**
-   * Get list creation resume parameters from healing state
-   * @param {Object} state - Healing state
-   * @returns {Object} Resume parameters for list creation
-   */
+  
   static getListCreationResumeParams(state) {
     if (!this.isListCreationHealingState(state)) {
       return null;
@@ -275,11 +213,7 @@ export class ProfileInitStateManager {
     };
   }
 
-  /**
-   * Reset state for fresh start while preserving authentication
-   * @param {Object} state - Current state
-   * @returns {Object} Reset state
-   */
+  
   static resetProcessingState(state) {
     return {
       ...state,

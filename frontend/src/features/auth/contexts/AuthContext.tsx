@@ -38,7 +38,6 @@ const useAuth = () => {
   return context;
 };
 
-// Local storage key for mock authentication fallback
 const LOCAL_STORAGE_KEY = 'linkedin_advanced_search_user';
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -51,19 +50,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const initializeAuth = async () => {
     if (isCognitoConfigured) {
-      // Use AWS Cognito
       try {
         const cognitoUser: CognitoUserData | null = await CognitoAuthService.getCurrentUser();
         if (cognitoUser) {
           const userData: User = {
-            id: cognitoUser.id, // This is the Cognito sub (UUID)
+            id: cognitoUser.id,
             email: cognitoUser.email,
             firstName: cognitoUser.firstName,
             lastName: cognitoUser.lastName,
             emailVerified: cognitoUser.emailVerified,
           };
 
-          // Validate user data before setting
           if (validateUserForDatabase(userData)) {
             setUser(userData);
             logger.info('Cognito user authenticated', { user: securityUtils.maskUserForLogging(userData) });
@@ -75,7 +72,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         logger.error('Error initializing Cognito auth', { error });
       }
     } else {
-      // Fallback to localStorage mock authentication
       const storedUser = localStorage.getItem(LOCAL_STORAGE_KEY);
       if (storedUser) {
         try {
@@ -103,19 +99,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return null;
       }
     } else {
-      // For mock auth, return a fake token or null
       return user ? 'mock-jwt-token' : null;
     }
   };
 
   const signIn = async (email: string, password: string) => {
-    // Validate email format
     if (!securityUtils.isValidEmail(email)) {
       return { error: { message: 'Invalid email format' } };
     }
 
     if (isCognitoConfigured) {
-      // Use AWS Cognito
       try {
         const result = await CognitoAuthService.signIn(email, password);
         if (result.error) {
@@ -124,7 +117,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         if (result.user) {
           const userData: User = {
-            id: result.user.id, // Cognito sub (UUID)
+            id: result.user.id,
             email: result.user.email,
             firstName: result.user.firstName,
             lastName: result.user.lastName,
@@ -144,7 +137,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return { error: { message: 'Authentication failed' } };
       }
     } else {
-      // Fallback to mock authentication
       if (email && password) {
         const mockUser: User = {
           id: generateUniqueUserId(email, false),
@@ -166,21 +158,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signUp = async (email: string, password: string, firstName?: string, lastName?: string) => {
-    // Validate email format
     if (!securityUtils.isValidEmail(email)) {
       return { error: { message: 'Invalid email format' } };
     }
 
     if (isCognitoConfigured) {
-      // Use AWS Cognito
       try {
         const result = await CognitoAuthService.signUp(email, password, firstName, lastName);
         if (result.error) {
           return { error: result.error };
         }
 
-        // For Cognito, user needs to verify email before they can sign in
-        // Don't set user state here, they need to verify first
         logger.info('User registered with Cognito, verification required');
         return {
           error: null,
@@ -191,7 +179,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return { error: { message: 'Registration failed' } };
       }
     } else {
-      // Fallback to mock authentication
       if (email && password) {
         const mockUser: User = {
           id: generateUniqueUserId(email, false),
@@ -217,26 +204,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       logger.info('User signing out', { user: securityUtils.maskUserForLogging(user) });
     }
 
-    // Clear JWT token from session storage
-          // Note: clearAuthToken functionality moved to puppeteerApiService
-      // For now, we'll clear session storage directly
       sessionStorage.removeItem('jwt_token');
 
     if (isCognitoConfigured) {
-      // Use AWS Cognito
       try {
         await CognitoAuthService.signOut();
       } catch (error) {
         logger.error('Error signing out from Cognito', { error });
       }
     } else {
-      // Fallback to localStorage cleanup
       localStorage.removeItem(LOCAL_STORAGE_KEY);
     }
     setUser(null);
   };
 
-  // Cognito-specific methods (only available when Cognito is configured)
   const confirmSignUp = isCognitoConfigured
     ? async (email: string, code: string) => {
       try {

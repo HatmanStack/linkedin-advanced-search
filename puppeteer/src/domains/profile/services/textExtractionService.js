@@ -1,8 +1,4 @@
-/**
- * Text Extraction Service
- *
- * Extracts structured text from LinkedIn profile pages using Puppeteer
- */
+
 
 import { logger } from '../../shared/utils/logger.js';
 import { createEmptyProfile, validateProfileData } from '../schemas/profileTextSchema.js';
@@ -12,18 +8,15 @@ export class TextExtractionService {
   constructor(puppeteerService) {
     this.puppeteer = puppeteerService;
     this.config = {
-      // Timeouts
       elementWait: 10000,
       sectionLoad: 5000,
       scrollDelay: 1000,
 
-      // Limits
       maxExperiences: 20,
       maxEducation: 10,
       maxSkills: 50,
       maxAboutLength: 5000,
 
-      // Behavior
       expandContent: true,
       scrollBeforeExtract: true
     };
@@ -31,43 +24,32 @@ export class TextExtractionService {
     logger.debug('TextExtractionService initialized');
   }
 
-  /**
-   * Extract complete profile text from a LinkedIn profile URL
-   * @param {string} profileUrl - LinkedIn profile URL
-   * @returns {Promise<Object>} - Extracted profile data matching schema
-   */
+  
   async extractProfileText(profileUrl) {
     const startTime = Date.now();
     logger.info(`Starting text extraction for: ${profileUrl}`);
 
     try {
-      // Extract profile ID from URL
       const profileId = this._extractProfileIdFromUrl(profileUrl);
 
-      // Create empty profile structure
       const profileData = createEmptyProfile(profileId, profileUrl);
 
-      // Navigate to profile if not already there
       const currentUrl = await this.puppeteer.getPage().url();
       if (!currentUrl.includes(profileId)) {
         await this.puppeteer.goto(profileUrl);
         await RandomHelpers.randomDelay(1500, 2500);
       }
 
-      // Wait for profile page to load
       await this._waitForProfileLoad();
 
-      // Expand "see more" content if enabled
       if (this.config.expandContent) {
         await this._expandAllContent();
       }
 
-      // Scroll to ensure all content is loaded
       if (this.config.scrollBeforeExtract) {
         await this._scrollPage();
       }
 
-      // Extract each section
       try {
         const basicInfo = await this._extractBasicInfo();
         profileData.name = basicInfo.name || '';
@@ -103,13 +85,10 @@ export class TextExtractionService {
         logger.warn(`Failed to extract skills: ${error.message}`);
       }
 
-      // Generate fulltext
       profileData.fulltext = this._generateFulltext(profileData);
 
-      // Set extraction timestamp
       profileData.extracted_at = new Date().toISOString();
 
-      // Validate extracted data
       const validation = validateProfileData(profileData);
       if (!validation.isValid) {
         logger.warn(`Validation errors: ${validation.errors.join(', ')}`);
@@ -130,10 +109,7 @@ export class TextExtractionService {
     }
   }
 
-  /**
-   * Wait for profile page to load key elements
-   * @private
-   */
+  
   async _waitForProfileLoad() {
     const page = this.puppeteer.getPage();
     try {
@@ -144,10 +120,7 @@ export class TextExtractionService {
     }
   }
 
-  /**
-   * Expand "see more" buttons to reveal full content
-   * @private
-   */
+  
   async _expandAllContent() {
     const page = this.puppeteer.getPage();
     logger.debug('Expanding "see more" content...');
@@ -176,11 +149,9 @@ export class TextExtractionService {
               foundButtons = true;
               await RandomHelpers.randomDelay(500, 1000);
             } catch (err) {
-              // Button may not be clickable, skip
             }
           }
         } catch (error) {
-          // Selector didn't match, continue
         }
       }
 
@@ -190,10 +161,7 @@ export class TextExtractionService {
     logger.debug(`Content expansion completed after ${attempts} attempts`);
   }
 
-  /**
-   * Scroll page to load all content
-   * @private
-   */
+  
   async _scrollPage() {
     const page = this.puppeteer.getPage();
     try {
@@ -214,7 +182,6 @@ export class TextExtractionService {
         });
       });
 
-      // Scroll back to top
       await page.evaluate(() => window.scrollTo(0, 0));
       await RandomHelpers.randomDelay(500, 1000);
     } catch (error) {
@@ -222,18 +189,13 @@ export class TextExtractionService {
     }
   }
 
-  /**
-   * Extract basic profile information (name, headline, location)
-   * @private
-   * @returns {Promise<Object>} - { name, headline, location }
-   */
+  
   async _extractBasicInfo() {
     const page = this.puppeteer.getPage();
 
     return await page.evaluate(() => {
       const result = { name: null, headline: null, location: null };
 
-      // Extract name
       const nameSelectors = [
         'h1.text-heading-xlarge',
         'h1.inline',
@@ -249,7 +211,6 @@ export class TextExtractionService {
         }
       }
 
-      // Extract headline
       const headlineSelectors = [
         '.text-body-medium.break-words',
         '.pv-top-card--list-bullet li:first-child',
@@ -265,7 +226,6 @@ export class TextExtractionService {
         }
       }
 
-      // Extract location
       const locationSelectors = [
         '.text-body-small.inline.t-black--light.break-words',
         '.pv-top-card--list-bullet li:last-child',
@@ -284,11 +244,7 @@ export class TextExtractionService {
     });
   }
 
-  /**
-   * Extract about/summary section
-   * @private
-   * @returns {Promise<string|null>} - About text or null
-   */
+  
   async _extractAbout() {
     const page = this.puppeteer.getPage();
 
@@ -316,22 +272,16 @@ export class TextExtractionService {
     return about;
   }
 
-  /**
-   * Extract experience history
-   * @private
-   * @returns {Promise<Array>} - Array of experience objects
-   */
+  
   async _extractExperience() {
     const page = this.puppeteer.getPage();
 
     const experiences = await page.evaluate((maxExperiences) => {
       const result = [];
 
-      // Find experience section
       const experienceSection = document.querySelector('#experience');
       if (!experienceSection) return result;
 
-      // Find all experience items
       const experienceItems = experienceSection.parentElement.querySelectorAll('ul > li.artdeco-list__item');
 
       for (let i = 0; i < Math.min(experienceItems.length, maxExperiences); i++) {
@@ -345,14 +295,12 @@ export class TextExtractionService {
           description: null
         };
 
-        // Extract title
         const titleElement = item.querySelector('.t-bold span[aria-hidden="true"]') ||
                             item.querySelector('div[data-field="title"]');
         if (titleElement) {
           exp.title = titleElement.textContent.trim();
         }
 
-        // Extract company
         const companyElement = item.querySelector('.t-14.t-normal span[aria-hidden="true"]') ||
                               item.querySelector('span.t-14.t-normal') ||
                               item.querySelector('div[data-field="subtitle"]');
@@ -360,7 +308,6 @@ export class TextExtractionService {
           exp.company = companyElement.textContent.trim().replace(/·.*/, '').trim();
         }
 
-        // Extract dates
         const dateElement = item.querySelector('.t-14.t-normal.t-black--light span[aria-hidden="true"]') ||
                            item.querySelector('span.t-black--light.t-14');
         if (dateElement) {
@@ -374,14 +321,12 @@ export class TextExtractionService {
           }
         }
 
-        // Extract description
         const descElement = item.querySelector('.inline-show-more-text') ||
                            item.querySelector('.pv-entity__description');
         if (descElement) {
           exp.description = descElement.textContent.trim();
         }
 
-        // Only add if we have at least company or title
         if (exp.company || exp.title) {
           result.push(exp);
         }
@@ -393,22 +338,16 @@ export class TextExtractionService {
     return experiences;
   }
 
-  /**
-   * Extract education history
-   * @private
-   * @returns {Promise<Array>} - Array of education objects
-   */
+  
   async _extractEducation() {
     const page = this.puppeteer.getPage();
 
     const education = await page.evaluate((maxEducation) => {
       const result = [];
 
-      // Find education section
       const educationSection = document.querySelector('#education');
       if (!educationSection) return result;
 
-      // Find all education items
       const educationItems = educationSection.parentElement.querySelectorAll('ul > li.artdeco-list__item');
 
       for (let i = 0; i < Math.min(educationItems.length, maxEducation); i++) {
@@ -422,14 +361,12 @@ export class TextExtractionService {
           description: null
         };
 
-        // Extract school name
         const schoolElement = item.querySelector('.t-bold span[aria-hidden="true"]') ||
                              item.querySelector('div[data-field="school_name"]');
         if (schoolElement) {
           edu.school = schoolElement.textContent.trim();
         }
 
-        // Extract degree and field
         const degreeElement = item.querySelector('.t-14.t-normal span[aria-hidden="true"]') ||
                              item.querySelector('div[data-field="degree_name"]');
         if (degreeElement) {
@@ -443,7 +380,6 @@ export class TextExtractionService {
           }
         }
 
-        // Extract dates
         const dateElement = item.querySelector('.t-14.t-normal.t-black--light span[aria-hidden="true"]');
         if (dateElement) {
           const dateText = dateElement.textContent.trim();
@@ -456,7 +392,6 @@ export class TextExtractionService {
           }
         }
 
-        // Only add if we have at least school
         if (edu.school) {
           result.push(edu);
         }
@@ -468,22 +403,16 @@ export class TextExtractionService {
     return education;
   }
 
-  /**
-   * Extract skills
-   * @private
-   * @returns {Promise<Array>} - Array of skill strings
-   */
+  
   async _extractSkills() {
     const page = this.puppeteer.getPage();
 
     const skills = await page.evaluate((maxSkills) => {
       const result = [];
 
-      // Find skills section
       const skillsSection = document.querySelector('#skills');
       if (!skillsSection) return result;
 
-      // Find all skill items
       const skillElements = skillsSection.parentElement.querySelectorAll('ul li div[data-field="skill_card_skill_topic"] span[aria-hidden="true"]');
 
       for (let i = 0; i < Math.min(skillElements.length, maxSkills); i++) {
@@ -493,7 +422,6 @@ export class TextExtractionService {
         }
       }
 
-      // Fallback: try alternate selector
       if (result.length === 0) {
         const altSkillElements = skillsSection.parentElement.querySelectorAll('li .hoverable-link-text span[aria-hidden="true"]');
         for (let i = 0; i < Math.min(altSkillElements.length, maxSkills); i++) {
@@ -510,24 +438,16 @@ export class TextExtractionService {
     return skills;
   }
 
-  /**
-   * Generate fulltext from all profile fields
-   * @private
-   * @param {Object} profileData - Profile data object
-   * @returns {string} - Concatenated fulltext
-   */
+  
   _generateFulltext(profileData) {
     const parts = [];
 
-    // Add basic info
     if (profileData.name) parts.push(profileData.name);
     if (profileData.headline) parts.push(profileData.headline);
     if (profileData.location) parts.push(profileData.location);
 
-    // Add about
     if (profileData.about) parts.push(profileData.about);
 
-    // Add current position
     if (profileData.current_position) {
       const cp = profileData.current_position;
       if (cp.company) parts.push(cp.company);
@@ -535,7 +455,6 @@ export class TextExtractionService {
       if (cp.description) parts.push(cp.description);
     }
 
-    // Add experience
     if (profileData.experience && profileData.experience.length > 0) {
       profileData.experience.forEach(exp => {
         if (exp.company) parts.push(exp.company);
@@ -544,7 +463,6 @@ export class TextExtractionService {
       });
     }
 
-    // Add education
     if (profileData.education && profileData.education.length > 0) {
       profileData.education.forEach(edu => {
         if (edu.school) parts.push(edu.school);
@@ -553,7 +471,6 @@ export class TextExtractionService {
       });
     }
 
-    // Add skills
     if (profileData.skills && profileData.skills.length > 0) {
       parts.push(`Skills: ${profileData.skills.join(', ')}`);
     }
@@ -561,12 +478,7 @@ export class TextExtractionService {
     return parts.filter(Boolean).join(' ').trim();
   }
 
-  /**
-   * Extract profile ID from LinkedIn URL
-   * @private
-   * @param {string} url - LinkedIn profile URL
-   * @returns {string} - Profile ID
-   */
+  
   _extractProfileIdFromUrl(url) {
     const match = url.match(/linkedin\.com\/in\/([^\/\?]+)/);
     if (match && match[1]) {

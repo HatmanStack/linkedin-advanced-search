@@ -5,38 +5,13 @@ import { Badge } from "@/shared/components/ui/badge";
 import { Users, Clock, Send, UserCheck, Filter } from 'lucide-react';
 import type { StatusValue, StatusPickerProps } from '@/shared/types';
 
-/**
- * Status mapping configuration interface
- */
+
 interface StatusMapping {
   label: string;
   icon: React.ComponentType<{ className?: string }>;
 }
 
-/**
- * StatusPicker Component
- * 
- * A filter component for connection management that allows users to filter connections
- * by status type. Maps database status values to user-friendly display labels and
- * shows connection counts for each status.
- * 
- * Features:
- * - Select dropdown interface for status selection
- * - Connection count badges for each status
- * - "All Statuses" option to show all connections
- * - Consistent styling with Dashboard components
- * 
- * Status Mapping:
- * - all → "All Statuses" (shows total count)
- * - incoming → "Pending" (shows incoming count)
- * - outgoing → "Sent" (shows outgoing count)
- * - ally → "Connections" (shows ally count)
- */
 
-/**
- * Status mapping from database values to display labels
- * Maps StatusValue keys to their display configuration including label and icon
- */
 export const STATUS_MAPPING: Record<StatusValue, StatusMapping> = {
   all: { label: 'All Statuses', icon: Filter },
   incoming: { label: 'Pending', icon: Clock },
@@ -44,34 +19,17 @@ export const STATUS_MAPPING: Record<StatusValue, StatusMapping> = {
   ally: { label: 'Connections', icon: UserCheck }
 } as const;
 
-/**
- * StatusPicker Component
- * 
- * @param props - The component props
- * @param props.selectedStatus - Currently selected status filter
- * @param props.onStatusChange - Callback when status selection changes
- * @param props.connectionCounts - Connection counts for each status type
- * @param props.className - Additional CSS classes
- * 
- * @returns JSX element representing the status picker
- */
+
 const StatusPicker: React.FC<StatusPickerProps> = ({
   selectedStatus,
   onStatusChange,
   connectionCounts,
   className = ''
 }) => {
-  /**
-   * Gets the connection count for a specific status value
-   * Only counts incoming, outgoing, and ally statuses (excludes possible)
-   * 
-   * @param status - The status value to get count for
-   * @returns The number of connections for the given status
-   */
+  
   const getStatusCount = (status: StatusValue): number => {
     switch (status) {
       case 'all':
-        // Only count incoming, outgoing, and ally (exclude possible status)
         return connectionCounts.incoming + connectionCounts.outgoing + connectionCounts.ally;
       case 'incoming':
         return connectionCounts.incoming;
@@ -84,11 +42,7 @@ const StatusPicker: React.FC<StatusPickerProps> = ({
     }
   };
 
-  /**
-   * Renders the display content for the currently selected status
-   * 
-   * @returns JSX element with icon, label, and count badge
-   */
+  
   const getSelectedStatusDisplay = () => {
     const config = STATUS_MAPPING[selectedStatus];
     const Icon = config.icon;
@@ -108,12 +62,7 @@ const StatusPicker: React.FC<StatusPickerProps> = ({
     );
   };
 
-  /**
-   * Renders a select item for a specific status with icon, label, and count badge
-   * 
-   * @param status - The status value to render
-   * @returns JSX element representing the select item
-   */
+  
   const renderSelectItem = (status: StatusValue) => {
     const config = STATUS_MAPPING[status];
     const Icon = config.icon;

@@ -1,4 +1,3 @@
-// src/contexts/UserProfileContext.tsx
 import { createContext, useState, useContext, type ReactNode, useMemo, useEffect } from 'react';
 import { lambdaApiService } from '@/shared/services';
 import { useAuth } from '@/features/auth';
@@ -6,21 +5,18 @@ import { createLogger } from '@/shared/utils/logger';
 
 const logger = createLogger('UserProfileContext');
 
-type LinkedInCredentialsCiphertext = string | null; // sealbox_x25519:b64:<...>
+type LinkedInCredentialsCiphertext = string | null;
 
 import type { UserProfile } from '@/shared/types';
 
 interface UserProfileContextType {
-  // LinkedIn credentials
   ciphertext: LinkedInCredentialsCiphertext;
   setCiphertext: (ciphertext: LinkedInCredentialsCiphertext) => void;
   
-  // General user profile
   userProfile: UserProfile | null;
   updateUserProfile: (updates: Partial<UserProfile>) => Promise<void>;
   refreshUserProfile: () => Promise<void>;
   
-  // Loading states
   isLoading: boolean;
 }
 
@@ -32,11 +28,8 @@ export const UserProfileProvider = ({ children }: { children: ReactNode }) => {
   const [isLoading, setIsLoading] = useState(false);
   const { user } = useAuth();
 
-  // Avoid redundant fetches within a single session
-  // This ensures we fetch once (e.g., from Dashboard) and reuse across the app
   let fetchedFlag = false;
 
-  // Fetch user profile from API
   const fetchUserProfile = async () => {
     if (!user) return;
     
@@ -46,17 +39,14 @@ export const UserProfileProvider = ({ children }: { children: ReactNode }) => {
       if (response.success && response.data) {
         setUserProfile(response.data);
         
-        // Also set LinkedIn credentials if available
         if (response.data.linkedin_credentials) {
           setCiphertextState(response.data.linkedin_credentials);
           try {
             sessionStorage.setItem('li_credentials_ciphertext', response.data.linkedin_credentials);
           } catch {
-        // Ignore storage errors
       }
         }
         try { sessionStorage.setItem('profile_fetched', 'true'); } catch {
-        // Ignore storage errors
       }
         fetchedFlag = true;
       }
@@ -67,7 +57,6 @@ export const UserProfileProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  // Update user profile
   const updateUserProfile = async (updates: Partial<UserProfile>) => {
     if (!user) return;
     
@@ -75,10 +64,8 @@ export const UserProfileProvider = ({ children }: { children: ReactNode }) => {
     try {
       const response = await lambdaApiService.updateUserProfile(updates);
       if (response.success) {
-        // Refresh the profile to get updated data
         await fetchUserProfile();
         try { sessionStorage.setItem('profile_fetched', 'true'); } catch {
-        // Ignore storage errors
       }
         fetchedFlag = true;
       } else {
@@ -92,13 +79,10 @@ export const UserProfileProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  // Refresh user profile
   const refreshUserProfile = async () => {
     await fetchUserProfile();
   };
 
-  // On mount, hydrate ciphertext from sessionStorage. Defer profile fetch to Dashboard,
-  // but allow a guarded fetch if not fetched yet (for direct navigation fallbacks)
   useEffect(() => {
     try {
       const stored = sessionStorage.getItem('li_credentials_ciphertext');
@@ -120,17 +104,14 @@ export const UserProfileProvider = ({ children }: { children: ReactNode }) => {
     if (user) {
       const alreadyFetched = (() => { try { return sessionStorage.getItem('profile_fetched') === 'true'; } catch { return false; } })();
       if (!alreadyFetched && !fetchedFlag) {
-        // Guarded fetch for non-dashboard entry points
         fetchUserProfile();
         fetchedFlag = true;
         try { sessionStorage.setItem('profile_fetched', 'true'); } catch {
-        // Ignore storage errors
       }
       }
     }
   }, [user]);
 
-  // Memoize the context value to prevent unnecessary re-renders
   const contextValue = useMemo(() => ({
     ciphertext,
     setCiphertext: (value: LinkedInCredentialsCiphertext) => {
@@ -148,7 +129,6 @@ export const UserProfileProvider = ({ children }: { children: ReactNode }) => {
           logger.debug('Credentials removed from sessionStorage');
         }
       } catch {
-        // Ignore storage errors
       }
     },
     userProfile,

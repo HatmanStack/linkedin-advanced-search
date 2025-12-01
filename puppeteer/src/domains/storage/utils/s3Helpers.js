@@ -1,24 +1,12 @@
-/**
- * S3 Helpers
- *
- * Utility functions for S3 operations on profile text files
- */
+
 
 import { S3Client, HeadObjectCommand, GetObjectCommand, DeleteObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { logger } from './logger.js';
 
-/**
- * Cache of S3 clients by region
- * Reusing clients improves performance and reduces resource usage
- */
+
 const clientCache = new Map();
 
-/**
- * Get or create a cached S3Client for the specified region
- * @private
- * @param {string} region - AWS region
- * @returns {S3Client} - Cached or new S3Client instance
- */
+
 function getS3Client(region) {
   if (!clientCache.has(region)) {
     logger.debug(`Creating new S3Client for region: ${region}`);
@@ -27,14 +15,7 @@ function getS3Client(region) {
   return clientCache.get(region);
 }
 
-/**
- * Check if a file exists in S3
- * @param {string} bucket - S3 bucket name
- * @param {string} key - S3 object key
- * @param {string} region - AWS region
- * @returns {Promise<boolean>} - True if file exists, false if not found
- * @throws {Error} - For non-404 S3 errors
- */
+
 export async function checkFileExists(bucket, key, region) {
   const client = getS3Client(region);
   try {
@@ -55,14 +36,7 @@ export async function checkFileExists(bucket, key, region) {
   }
 }
 
-/**
- * Download and parse profile text JSON from S3
- * @param {string} bucket - S3 bucket name
- * @param {string} key - S3 object key
- * @param {string} region - AWS region
- * @returns {Promise<Object>} - Parsed JSON profile data
- * @throws {Error} - For S3 or JSON parsing errors
- */
+
 export async function downloadProfileText(bucket, key, region) {
   const client = getS3Client(region);
   try {
@@ -84,12 +58,7 @@ export async function downloadProfileText(bucket, key, region) {
   }
 }
 
-/**
- * Convert readable stream to string
- * @private
- * @param {ReadableStream} stream - S3 response body stream
- * @returns {Promise<string>} - Stream contents as string
- */
+
 async function streamToString(stream) {
   const chunks = [];
   for await (const chunk of stream) {
@@ -98,14 +67,7 @@ async function streamToString(stream) {
   return Buffer.concat(chunks).toString('utf-8');
 }
 
-/**
- * Delete a profile text file from S3
- * @param {string} bucket - S3 bucket name
- * @param {string} key - S3 object key
- * @param {string} region - AWS region
- * @returns {Promise<void>}
- * @throws {Error} - For S3 errors
- */
+
 export async function deleteProfileText(bucket, key, region) {
   const client = getS3Client(region);
   try {
@@ -121,15 +83,7 @@ export async function deleteProfileText(bucket, key, region) {
   }
 }
 
-/**
- * List all profile text files in S3 with a given prefix
- * @param {string} bucket - S3 bucket name
- * @param {string} prefix - S3 key prefix to filter by
- * @param {string} region - AWS region
- * @param {number} maxKeys - Maximum number of keys to return (default: 1000)
- * @returns {Promise<Array>} - Array of S3 objects
- * @throws {Error} - For S3 errors
- */
+
 export async function listProfileTexts(bucket, prefix, region, maxKeys = 1000) {
   const client = getS3Client(region);
   try {
@@ -155,13 +109,7 @@ export async function listProfileTexts(bucket, prefix, region, maxKeys = 1000) {
   }
 }
 
-/**
- * Verify that multiple files exist in S3
- * @param {string} bucket - S3 bucket name
- * @param {Array<string>} keys - Array of S3 object keys to verify
- * @param {string} region - AWS region
- * @returns {Promise<Array<Object>>} - Array of { key, exists } objects
- */
+
 export async function verifyUploads(bucket, keys, region) {
   try {
     logger.info(`Verifying ${keys.length} uploads in S3`);
@@ -185,13 +133,7 @@ export async function verifyUploads(bucket, keys, region) {
   }
 }
 
-/**
- * Get metadata for a file in S3 without downloading the full content
- * @param {string} bucket - S3 bucket name
- * @param {string} key - S3 object key
- * @param {string} region - AWS region
- * @returns {Promise<Object|null>} - S3 object metadata or null if not found
- */
+
 export async function getFileMetadata(bucket, key, region) {
   const client = getS3Client(region);
   try {

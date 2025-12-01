@@ -1,11 +1,9 @@
-// Puppeteer browser configuration
 export const puppeteerConfig = {
-  HEADLESS: process.env.PUPPETEER_HEADLESS !== 'false', // Default to true
+  HEADLESS: process.env.PUPPETEER_HEADLESS !== 'false',
   SLOW_MO: process.env.PUPPETEER_SLOW_MO ? parseInt(process.env.PUPPETEER_SLOW_MO) : 0,
-  DEFAULT_TIMEOUT: 30000, // 30 seconds
-  DEFAULT_NAVIGATION_TIMEOUT: 30000, // 30 seconds
+  DEFAULT_TIMEOUT: 30000,
+  DEFAULT_NAVIGATION_TIMEOUT: 30000,
 
-  // Browser args
   BROWSER_ARGS: [
     '--no-sandbox',
     '--disable-setuid-sandbox',
@@ -14,7 +12,6 @@ export const puppeteerConfig = {
     '--disable-gpu',
   ],
 
-  // Viewport
   VIEWPORT: {
     width: 1920,
     height: 1080,

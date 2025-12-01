@@ -1,14 +1,9 @@
 import { logger } from './logger.js';
 
-/**
- * LinkedIn Error Handler - Comprehensive error categorization and handling
- * Implements requirement 7.1, 7.2, 7.3, 7.4, 7.5, 7.6
- */
+
 export class LinkedInErrorHandler {
   
-  /**
-   * Error categories for classification
-   */
+  
   static ERROR_CATEGORIES = {
     AUTHENTICATION: 'AUTHENTICATION',
     BROWSER: 'BROWSER',
@@ -19,11 +14,8 @@ export class LinkedInErrorHandler {
     SYSTEM: 'SYSTEM'
   };
 
-  /**
-   * Error codes with detailed information
-   */
+  
   static ERROR_CODES = {
-    // Authentication Errors
     JWT_INVALID: {
       category: 'AUTHENTICATION',
       httpStatus: 401,
@@ -43,7 +35,6 @@ export class LinkedInErrorHandler {
       suggestions: ['Re-authenticate with LinkedIn', 'Check if account is locked']
     },
 
-    // Browser Errors
     BROWSER_CRASH: {
       category: 'BROWSER',
       httpStatus: 503,
@@ -69,19 +60,18 @@ export class LinkedInErrorHandler {
       suggestions: ['LinkedIn interface may have changed', 'Try refreshing the page', 'Contact support if issue persists']
     },
 
-    // LinkedIn Platform Errors
     LINKEDIN_RATE_LIMIT: {
       category: 'RATE_LIMIT',
       httpStatus: 429,
       message: 'LinkedIn rate limiting detected',
-      retryAfter: 300000, // 5 minutes
+      retryAfter: 300000,
       suggestions: ['Wait 5 minutes before retrying', 'Reduce interaction frequency', 'Spread requests over longer time periods']
     },
     LINKEDIN_SUSPICIOUS_ACTIVITY: {
       category: 'RATE_LIMIT',
       httpStatus: 429,
       message: 'LinkedIn detected suspicious activity',
-      retryAfter: 1800000, // 30 minutes
+      retryAfter: 1800000,
       suggestions: ['Wait 30 minutes before retrying', 'Reduce automation frequency', 'Use more human-like behavior patterns']
     },
     PROFILE_NOT_FOUND: {
@@ -109,7 +99,6 @@ export class LinkedInErrorHandler {
       suggestions: ['Check post content for violations', 'Verify media attachments', 'Try again with different content']
     },
 
-    // Validation Errors
     INVALID_PROFILE_ID: {
       category: 'VALIDATION',
       httpStatus: 400,
@@ -129,7 +118,6 @@ export class LinkedInErrorHandler {
       suggestions: ['Provide all required fields', 'Check API documentation']
     },
 
-    // Network Errors
     NETWORK_ERROR: {
       category: 'NETWORK',
       httpStatus: 503,
@@ -143,7 +131,6 @@ export class LinkedInErrorHandler {
       suggestions: ['Check DNS settings', 'Verify network configuration', 'Try using different DNS server']
     },
 
-    // System Errors
     MEMORY_LIMIT_EXCEEDED: {
       category: 'SYSTEM',
       httpStatus: 507,
@@ -158,13 +145,10 @@ export class LinkedInErrorHandler {
     }
   };
 
-  /**
-   * Categorize error based on error message and context
-   */
+  
   static categorizeError(error, context = {}) {
     const errorMessage = error.message.toLowerCase();
 
-    // Authentication errors
     if (errorMessage.includes('jwt') || errorMessage.includes('token') || errorMessage.includes('unauthorized')) {
       return this.ERROR_CODES.JWT_INVALID;
     }
@@ -175,7 +159,6 @@ export class LinkedInErrorHandler {
       return this.ERROR_CODES.LINKEDIN_SESSION_EXPIRED;
     }
 
-    // Browser errors
     if (errorMessage.includes('browser') && (errorMessage.includes('crash') || errorMessage.includes('closed'))) {
       return this.ERROR_CODES.BROWSER_CRASH;
     }
@@ -189,7 +172,6 @@ export class LinkedInErrorHandler {
       return this.ERROR_CODES.ELEMENT_NOT_FOUND;
     }
 
-    // Rate limiting and LinkedIn platform errors
     if (errorMessage.includes('rate limit') || errorMessage.includes('too many requests')) {
       return this.ERROR_CODES.LINKEDIN_RATE_LIMIT;
     }
@@ -209,7 +191,6 @@ export class LinkedInErrorHandler {
       return this.ERROR_CODES.POST_CREATION_FAILED;
     }
 
-    // Network errors
     if (errorMessage.includes('network') || errorMessage.includes('connection') || errorMessage.includes('enotfound')) {
       return this.ERROR_CODES.NETWORK_ERROR;
     }
@@ -217,7 +198,6 @@ export class LinkedInErrorHandler {
       return this.ERROR_CODES.DNS_RESOLUTION_FAILED;
     }
 
-    // System errors
     if (errorMessage.includes('memory') || errorMessage.includes('heap')) {
       return this.ERROR_CODES.MEMORY_LIMIT_EXCEEDED;
     }
@@ -225,7 +205,6 @@ export class LinkedInErrorHandler {
       return this.ERROR_CODES.DISK_SPACE_LOW;
     }
 
-    // Default to generic system error
     return {
       category: 'SYSTEM',
       httpStatus: 500,
@@ -234,17 +213,13 @@ export class LinkedInErrorHandler {
     };
   }
 
-  /**
-   * Create structured error response with actionable suggestions
-   */
+  
   static createErrorResponse(error, context = {}, requestId = null) {
     const categorizedError = this.categorizeError(error, context);
     const timestamp = new Date().toISOString();
 
-    // Log the error with full context
     this.logError(error, categorizedError, context, requestId);
 
-    // Create structured response
     const errorResponse = {
       success: false,
       error: {
@@ -258,7 +233,6 @@ export class LinkedInErrorHandler {
       }
     };
 
-    // Add retry information for rate limiting errors
     if (categorizedError.retryAfter) {
       errorResponse.error.retryAfter = categorizedError.retryAfter;
       errorResponse.error.retryAt = new Date(Date.now() + categorizedError.retryAfter).toISOString();
@@ -270,30 +244,23 @@ export class LinkedInErrorHandler {
     };
   }
 
-  /**
-   * Generate error code based on categorized error and original error
-   */
+  
   static getErrorCode(categorizedError, originalError) {
-    // Find matching error code
     for (const [code, errorInfo] of Object.entries(this.ERROR_CODES)) {
       if (errorInfo === categorizedError) {
         return code;
       }
     }
 
-    // Generate generic code based on category
     return `${categorizedError.category}_ERROR`;
   }
 
-  /**
-   * Get detailed error information for debugging
-   */
+  
   static getErrorDetails(error, context) {
     if (process.env.NODE_ENV === 'development') {
       return error.message;
     }
 
-    // In production, provide sanitized details
     if (context.operation) {
       return `Error occurred during ${context.operation}`;
     }
@@ -301,9 +268,7 @@ export class LinkedInErrorHandler {
     return 'An error occurred while processing your request';
   }
 
-  /**
-   * Log error with comprehensive information for audit trails
-   */
+  
   static logError(error, categorizedError, context, requestId) {
     const logData = {
       requestId,
@@ -316,7 +281,6 @@ export class LinkedInErrorHandler {
       httpStatus: categorizedError.httpStatus
     };
 
-    // Log at appropriate level based on error category
     switch (categorizedError.category) {
       case 'AUTHENTICATION':
         logger.warn('Authentication error occurred', logData);
@@ -338,40 +302,31 @@ export class LinkedInErrorHandler {
     }
   }
 
-  /**
-   * Implement backoff strategy for rate limiting
-   */
+  
   static calculateBackoffDelay(attemptCount, errorCategory) {
-    const baseDelay = 1000; // 1 second
-    const maxDelay = 300000; // 5 minutes
+    const baseDelay = 1000;
+    const maxDelay = 300000;
 
     let delay;
     switch (errorCategory) {
       case 'RATE_LIMIT':
-        // Exponential backoff for rate limiting
         delay = Math.min(baseDelay * Math.pow(2, attemptCount), maxDelay);
         break;
       case 'BROWSER':
-        // Linear backoff for browser errors
-        delay = Math.min(baseDelay * attemptCount, 30000); // Max 30 seconds
+        delay = Math.min(baseDelay * attemptCount, 30000);
         break;
       case 'NETWORK':
-        // Exponential backoff for network errors
-        delay = Math.min(baseDelay * Math.pow(1.5, attemptCount), 60000); // Max 1 minute
+        delay = Math.min(baseDelay * Math.pow(1.5, attemptCount), 60000);
         break;
       default:
-        // Default linear backoff
-        delay = Math.min(baseDelay * attemptCount, 10000); // Max 10 seconds
+        delay = Math.min(baseDelay * attemptCount, 10000);
     }
 
-    // Add jitter to prevent thundering herd
     const jitter = Math.random() * 0.1 * delay;
     return Math.floor(delay + jitter);
   }
 
-  /**
-   * Check if error is recoverable and should be retried
-   */
+  
   static isRecoverable(categorizedError, attemptCount = 1) {
     const maxAttempts = 3;
 
@@ -379,20 +334,16 @@ export class LinkedInErrorHandler {
       return false;
     }
 
-    // Recoverable error categories
     const recoverableCategories = ['BROWSER', 'NETWORK', 'SYSTEM'];
     
-    // Rate limiting is recoverable but with longer delays
     if (categorizedError.category === 'RATE_LIMIT') {
-      return attemptCount <= 2; // Max 2 retries for rate limiting
+      return attemptCount <= 2;
     }
 
     return recoverableCategories.includes(categorizedError.category);
   }
 
-  /**
-   * Create recovery mechanism for browser crashes
-   */
+  
   static createRecoveryPlan(error, context) {
     const categorizedError = this.categorizeError(error, context);
 

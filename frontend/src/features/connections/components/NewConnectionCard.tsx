@@ -23,21 +23,7 @@ import { createLogger } from '@/shared/utils/logger';
 const logger = createLogger('NewConnectionCard');
 import type { NewConnectionCardProps } from '@/shared/types';
 
-/**
- * NewConnectionCard Component
- * 
- * Simplified card component for displaying 'possible' status connections.
- * Excludes message-related information and includes conversion likelihood
- * percentage display with remove functionality.
- * 
- * @param props - The component props
- * @param props.connection - Connection data to display (must have status 'possible')
- * @param props.onRemove - Callback when remove button is clicked
- * @param props.onSelect - Callback when card is selected
- * @param props.className - Additional CSS classes
- * 
- * @returns JSX element representing the new connection card
- */
+
 const NewConnectionCard: React.FC<NewConnectionCardProps> = ({
   connection,
   onRemove,
@@ -49,13 +35,11 @@ const NewConnectionCard: React.FC<NewConnectionCardProps> = ({
   const [isConnecting, setIsConnecting] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isTagsOpen, setIsTagsOpen] = useState(false);
-  // Keep the tags "… more" button visible by limiting tags based on character budget
   const [tagCharBudget, setTagCharBudget] = useState<number>(48);
   const [dontShowAgain, setDontShowAgain] = useState(false);
   const [skipRemoveConfirm, setSkipRemoveConfirm] = useState(false);
   const { toast } = useToast();
 
-  // Preference storage key
   const REMOVE_CONFIRM_PREF_KEY = 'hideRemoveConfirm';
 
   useEffect(() => {
@@ -64,12 +48,10 @@ const NewConnectionCard: React.FC<NewConnectionCardProps> = ({
       setDontShowAgain(pref);
       setSkipRemoveConfirm(pref);
     } catch {
-      // ignore storage errors
     }
      
   }, [connection?.id]);
 
-  // Build a LinkedIn profile URL from either a full URL, profile id, or fallback to id
   const buildLinkedInProfileUrl = (): string | null => {
     const raw = connection.linkedin_url || connection.id;
     if (!raw) return null;
@@ -77,20 +59,16 @@ const NewConnectionCard: React.FC<NewConnectionCardProps> = ({
     return hasProtocol ? raw : `https://www.linkedin.com/in/${raw}`;
   };
 
-  /**
-   * Handles tag click events, preventing bubbling and delegating to parent
-   */
+  
   const handleTagClick = (tag: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (onTagClick) onTagClick(tag);
   };
 
-  // Navigate to LinkedIn profile on card click (except when removing or clicking buttons)
   const handleCardClick = (e: React.MouseEvent) => {
     if (isRemoving || isConnecting) return;
 
     const url = buildLinkedInProfileUrl();
-    // Only navigate if the original event target wasn't a button inside our controls area
     const target = e.target as HTMLElement | null;
     if (target && target.closest('button')) return;
 
@@ -101,45 +79,32 @@ const NewConnectionCard: React.FC<NewConnectionCardProps> = ({
     }
   };
 
-  /**
-   * Handles remove button click events, preventing event bubbling and opening confirmation dialog
-   * 
-   * @param e - The mouse event
-   */
+  
   const handleRemoveClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (skipRemoveConfirm) {
-      // Directly remove without showing modal
       void handleConfirmRemove();
     } else {
       setIsDialogOpen(true);
     }
   };
 
-  /**
-   * Handles the confirmed removal of a connection by updating its status to 'processed'
-   * Shows loading states, success feedback, and error handling with recovery options
-   */
+  
   const handleConfirmRemove = async () => {
     setIsRemoving(true);
     setIsDialogOpen(false);
 
     try {
-      // Determine profile identifier to pass to edge API (linkedin URL or fallback to id)
       const profileId = connection.linkedin_url || connection.id;
 
-      // Update status from 'possible' to 'processed' via edge API
       await dbConnector.updateConnectionStatus(connection.id, 'processed', { profileId });
 
-      // Update local cache with new status to trigger re-render
       try {
         const { connectionCache } = await import('@/features/connections/utils/connectionCache');
         connectionCache.update(connection.id, { status: 'processed' });
       } catch {
-        // Ignore cache update failures
       }
 
-      // Show success feedback with animation
       toast({
         title: "Connection Removed",
         description: (
@@ -151,14 +116,12 @@ const NewConnectionCard: React.FC<NewConnectionCardProps> = ({
         variant: "default",
       });
 
-      // Notify parent component to update status/remove from UI
       if (onRemove) {
         onRemove(connection.id, 'processed');
       }
     } catch (error) {
       logger.error('Error removing connection', { error });
 
-      // Transform error for user-friendly display
       const errorInfo = transformErrorForUser(
         error,
         ERROR_MESSAGES.REMOVE_CONNECTION,
@@ -175,7 +138,6 @@ const NewConnectionCard: React.FC<NewConnectionCardProps> = ({
         ]
       );
 
-      // Show error feedback with recovery options
       toast({
         title: "Remove Failed",
         description: errorInfo.userMessage,
@@ -198,11 +160,9 @@ const NewConnectionCard: React.FC<NewConnectionCardProps> = ({
     try {
       localStorage.setItem(REMOVE_CONFIRM_PREF_KEY, String(value));
     } catch {
-      // ignore storage errors
     }
   };
 
-  // Adjust tag character budget responsively (match ConnectionCard behavior)
   useEffect(() => {
     const calculateBudget = () => {
       const width = window.innerWidth;
@@ -221,13 +181,13 @@ const NewConnectionCard: React.FC<NewConnectionCardProps> = ({
     if (!allTags || allTags.length === 0) {
       return { visible: [] as string[], hasMore: false };
     }
-    const reservedForMore = 6; // approx chars for "+ more"
+    const reservedForMore = 6;
     const effectiveBudget = Math.max(0, tagCharBudget - reservedForMore);
     let used = 0;
     const visible: string[] = [];
     for (let i = 0; i < allTags.length; i++) {
       const tag = allTags[i];
-      const cost = tag.length + 2; // crude width for padding/gap
+      const cost = tag.length + 2;
       if (used + cost > effectiveBudget) break;
       visible.push(tag);
       used += cost;
@@ -235,14 +195,9 @@ const NewConnectionCard: React.FC<NewConnectionCardProps> = ({
     return { visible, hasMore: visible.length < allTags.length };
   };
 
-  /**
-   * Handles connect button click events, preventing event bubbling and updating connection status
-   * 
-   * @param e - The mouse event
-   */
+  
   const handleConnectClick = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    // Skip if already pending/outgoing
     if (connection.status === 'outgoing') {
       toast({
         title: 'Connection Request Sent',
@@ -260,7 +215,6 @@ const NewConnectionCard: React.FC<NewConnectionCardProps> = ({
     setIsConnecting(true);
 
     try {
-      // Call puppeteer backend to send the LinkedIn connection request
       const profileId = connection.linkedin_url || connection.id;
       const resp = await puppeteerApiService.addLinkedInConnection({
         profileId,
@@ -270,22 +224,17 @@ const NewConnectionCard: React.FC<NewConnectionCardProps> = ({
         throw new Error(resp.error || 'Failed to send connection request');
       }
 
-      // Update status to 'outgoing' in DB for consistency
       try {
         await dbConnector.updateConnectionStatus(connection.id, 'outgoing', { profileId });
       } catch {
-        // Ignore DB update failures
       }
 
-      // Update local cache with new status to trigger re-render
       try {
         const { connectionCache } = await import('@/features/connections/utils/connectionCache');
         connectionCache.update(connection.id, { status: 'outgoing' });
       } catch {
-        // Ignore cache update failures
       }
 
-      // Regardless of response status (sent/pending/outgoing), show success and remove from UI
       toast({
         title: "Connection Request Sent",
         description: (
@@ -300,7 +249,6 @@ const NewConnectionCard: React.FC<NewConnectionCardProps> = ({
     } catch (error) {
       logger.error('Error connecting', { error });
 
-      // Transform error for user-friendly display
       const errorInfo = transformErrorForUser(
         error,
         ERROR_MESSAGES.UPDATE_CONNECTION,
@@ -317,7 +265,6 @@ const NewConnectionCard: React.FC<NewConnectionCardProps> = ({
         ]
       );
 
-      // Show error feedback with recovery options
       toast({
         title: "Connect Failed",
         description: errorInfo.userMessage,
@@ -337,28 +284,28 @@ const NewConnectionCard: React.FC<NewConnectionCardProps> = ({
       onClick={handleCardClick}
     >
       <div className="flex items-start space-x-4">
-        {/* Profile Picture Space */}
+        {}
         <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white font-semibold flex-shrink-0">
           {connection.first_name[0]}{connection.last_name[0]}
         </div>
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between mb-1">
-            {/* Name of Connection */}
+            {}
             <h3 className="text-white font-semibold truncate">
               {connection.first_name} {connection.last_name}
             </h3>
 
             <div className="flex flex-col items-end space-y-1 flex-shrink-0">
               <div className="flex items-center space-x-2">
-                {/* Demo Data Badge */}
+                {}
                 {connection.isFakeData && (
                   <div className="bg-yellow-600/90 text-yellow-100 text-xs px-2 py-1 rounded-full font-medium shadow-lg">
                     Demo Data
                   </div>
                 )}
 
-                {/* Connect Button */}
+                {}
                 <Button
                   variant="ghost"
                   size="sm"
@@ -374,7 +321,7 @@ const NewConnectionCard: React.FC<NewConnectionCardProps> = ({
                   )}
                 </Button>
 
-                {/* Remove Button - controlled modal open to avoid unwanted popup when preference is set */}
+                {}
                 <Button
                   variant="ghost"
                   size="sm"
@@ -425,7 +372,7 @@ const NewConnectionCard: React.FC<NewConnectionCardProps> = ({
                 </AlertDialog>
               </div>
 
-              {/* Conversion Likelihood Percentage */}
+              {}
               {connection.conversion_likelihood !== undefined && (
                 <div className="text-slate-300 text-xs font-medium">
                   {connection.conversion_likelihood}%
@@ -434,7 +381,7 @@ const NewConnectionCard: React.FC<NewConnectionCardProps> = ({
             </div>
           </div>
 
-          {/* Job Title and Company on Same Line */}
+          {}
           <div className="flex items-center text-slate-300 text-sm mb-2 flex-wrap">
             <User className="h-3 w-3 mr-1 flex-shrink-0" />
             <span className="truncate">{connection.position}</span>
@@ -446,7 +393,7 @@ const NewConnectionCard: React.FC<NewConnectionCardProps> = ({
             )}
           </div>
 
-          {/* Location */}
+          {}
           {connection.location && (
             <div className="flex items-center text-slate-400 text-sm mb-2">
               <MapPin className="h-3 w-3 mr-1 flex-shrink-0" />
@@ -454,7 +401,7 @@ const NewConnectionCard: React.FC<NewConnectionCardProps> = ({
             </div>
           )}
 
-          {/* Headline */}
+          {}
           {connection.headline && (
             <p className="text-slate-400 text-sm mb-3 line-clamp-2">
               {connection.headline}
@@ -462,8 +409,7 @@ const NewConnectionCard: React.FC<NewConnectionCardProps> = ({
           )}
 
 
-
-          {/* Tags - Single line, visible tag budget + "+N more" like ConnectionCard */}
+          {}
           {(connection.tags?.length || connection.common_interests?.length) && (() => {
             const allTags = (connection.tags || connection.common_interests || []) as string[];
             const { visible, hasMore } = getVisibleTagsByCharacterBudget(allTags);
@@ -499,7 +445,7 @@ const NewConnectionCard: React.FC<NewConnectionCardProps> = ({
             );
           })()}
 
-          {/* Date Added */}
+          {}
           {connection.date_added && (
             <p className="text-slate-500 text-xs mt-2">
               Added: {new Date(connection.date_added).toLocaleDateString()}
@@ -508,7 +454,7 @@ const NewConnectionCard: React.FC<NewConnectionCardProps> = ({
         </div>
       </div>
 
-      {/* Tags Modal */}
+      {}
       <Dialog open={isTagsOpen} onOpenChange={setIsTagsOpen}>
         <DialogContent className="text-slate-100 bg-slate-900 border border-slate-700 shadow-2xl" onClick={(e: React.MouseEvent) => e.stopPropagation()}>
           <DialogHeader>

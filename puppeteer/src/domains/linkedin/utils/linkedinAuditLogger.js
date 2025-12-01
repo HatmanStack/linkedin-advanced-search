@@ -1,17 +1,9 @@
 import { logger } from './logger.js';
 
-/**
- * LinkedIn Audit Logger - Comprehensive audit trail for LinkedIn interactions
- * Implements requirement 7.1, 7.2, 7.3 for audit trails and monitoring
- */
+
 export class LinkedInAuditLogger {
   
-  /**
-   * Log interaction attempt
-   * @param {string} operation - Operation being attempted
-   * @param {Object} context - Context information
-   * @param {string} requestId - Unique request identifier
-   */
+  
   static logInteractionAttempt(operation, context, requestId) {
     const auditData = {
       eventType: 'INTERACTION_ATTEMPT',
@@ -21,7 +13,6 @@ export class LinkedInAuditLogger {
       timestamp: new Date().toISOString(),
       context: {
         ...context,
-        // Remove sensitive data
         messageContent: context.messageContent ? '[REDACTED]' : undefined,
         connectionMessage: context.connectionMessage ? '[REDACTED]' : undefined,
         content: context.content ? '[REDACTED]' : undefined
@@ -31,13 +22,7 @@ export class LinkedInAuditLogger {
     logger.info('LinkedIn interaction attempt', auditData);
   }
 
-  /**
-   * Log successful interaction
-   * @param {string} operation - Operation that succeeded
-   * @param {Object} result - Operation result
-   * @param {Object} context - Context information
-   * @param {string} requestId - Unique request identifier
-   */
+  
   static logInteractionSuccess(operation, result, context, requestId) {
     const auditData = {
       eventType: 'INTERACTION_SUCCESS',
@@ -47,7 +32,6 @@ export class LinkedInAuditLogger {
       timestamp: new Date().toISOString(),
       result: {
         ...result,
-        // Include relevant metrics
         duration: context.duration,
         attemptCount: context.attemptCount || 1
       },
@@ -63,13 +47,7 @@ export class LinkedInAuditLogger {
     logger.info('LinkedIn interaction success', auditData);
   }
 
-  /**
-   * Log failed interaction
-   * @param {string} operation - Operation that failed
-   * @param {Error} error - Error that occurred
-   * @param {Object} context - Context information
-   * @param {string} requestId - Unique request identifier
-   */
+  
   static logInteractionFailure(operation, error, context, requestId) {
     const auditData = {
       eventType: 'INTERACTION_FAILURE',
@@ -94,12 +72,7 @@ export class LinkedInAuditLogger {
     logger.error('LinkedIn interaction failure', auditData);
   }
 
-  /**
-   * Log rate limiting detection
-   * @param {string} operation - Operation that was rate limited
-   * @param {Object} context - Context information
-   * @param {string} requestId - Unique request identifier
-   */
+  
   static logRateLimitDetected(operation, context, requestId) {
     const auditData = {
       eventType: 'RATE_LIMIT_DETECTED',
@@ -117,12 +90,7 @@ export class LinkedInAuditLogger {
     logger.warn('LinkedIn rate limiting detected', auditData);
   }
 
-  /**
-   * Log browser session events
-   * @param {string} eventType - Type of session event
-   * @param {Object} sessionInfo - Session information
-   * @param {string} requestId - Unique request identifier
-   */
+  
   static logSessionEvent(eventType, sessionInfo, requestId = null) {
     const auditData = {
       eventType: `SESSION_${eventType.toUpperCase()}`,
@@ -142,12 +110,7 @@ export class LinkedInAuditLogger {
     logger[logLevel](`LinkedIn session ${eventType}`, auditData);
   }
 
-  /**
-   * Log authentication events
-   * @param {string} eventType - Type of authentication event
-   * @param {Object} context - Context information
-   * @param {string} requestId - Unique request identifier
-   */
+  
   static logAuthenticationEvent(eventType, context, requestId) {
     const auditData = {
       eventType: `AUTH_${eventType.toUpperCase()}`,
@@ -165,12 +128,7 @@ export class LinkedInAuditLogger {
     logger[logLevel](`LinkedIn authentication ${eventType}`, auditData);
   }
 
-  /**
-   * Log suspicious activity detection
-   * @param {string} activityType - Type of suspicious activity
-   * @param {Object} context - Context information
-   * @param {string} requestId - Unique request identifier
-   */
+  
   static logSuspiciousActivity(activityType, context, requestId) {
     const auditData = {
       eventType: 'SUSPICIOUS_ACTIVITY_DETECTED',
@@ -189,12 +147,7 @@ export class LinkedInAuditLogger {
     logger.warn('Suspicious activity detected', auditData);
   }
 
-  /**
-   * Log human behavior simulation events
-   * @param {string} behaviorType - Type of behavior being simulated
-   * @param {Object} context - Context information
-   * @param {string} requestId - Unique request identifier
-   */
+  
   static logHumanBehavior(behaviorType, context, requestId) {
     const auditData = {
       eventType: 'HUMAN_BEHAVIOR_SIMULATION',
@@ -212,12 +165,7 @@ export class LinkedInAuditLogger {
     logger.debug('Human behavior simulation', auditData);
   }
 
-  /**
-   * Log recovery attempts
-   * @param {string} recoveryType - Type of recovery being attempted
-   * @param {Object} context - Context information
-   * @param {string} requestId - Unique request identifier
-   */
+  
   static logRecoveryAttempt(recoveryType, context, requestId) {
     const auditData = {
       eventType: 'RECOVERY_ATTEMPT',
@@ -236,14 +184,8 @@ export class LinkedInAuditLogger {
     logger[logLevel](`Recovery attempt ${context.success ? 'succeeded' : 'failed'}`, auditData);
   }
 
-  /**
-   * Generate interaction summary for reporting
-   * @param {string} timeframe - Timeframe for summary (e.g., 'last_hour', 'last_day')
-   * @returns {Object} Interaction summary
-   */
+  
   static generateInteractionSummary(timeframe = 'last_hour') {
-    // This would typically query log storage for aggregated data
-    // For now, return a placeholder structure
     const summary = {
       timeframe,
       generatedAt: new Date().toISOString(),
@@ -271,13 +213,7 @@ export class LinkedInAuditLogger {
     return summary;
   }
 
-  /**
-   * Log performance metrics
-   * @param {string} operation - Operation being measured
-   * @param {number} duration - Duration in milliseconds
-   * @param {Object} context - Context information
-   * @param {string} requestId - Unique request identifier
-   */
+  
   static logPerformanceMetrics(operation, duration, context, requestId) {
     const auditData = {
       eventType: 'PERFORMANCE_METRICS',
@@ -292,8 +228,7 @@ export class LinkedInAuditLogger {
       }
     };
 
-    // Log as warning if operation took too long
-    const logLevel = duration > 30000 ? 'warn' : 'debug'; // 30 seconds threshold
+    const logLevel = duration > 30000 ? 'warn' : 'debug';
     logger[logLevel]('Performance metrics', auditData);
   }
 }

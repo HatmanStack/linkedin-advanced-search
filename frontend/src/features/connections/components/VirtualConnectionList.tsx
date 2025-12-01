@@ -23,7 +23,6 @@ interface VirtualConnectionListProps {
   initialFilters?: ConnectionFilters;
   sortBy?: 'name' | 'company' | 'date_added' | 'conversion_likelihood';
   sortOrder?: 'asc' | 'desc';
-  // Checkbox functionality props
   showCheckboxes?: boolean;
   selectedConnections?: string[];
   onCheckboxChange?: (connectionId: string, checked: boolean) => void;
@@ -42,14 +41,12 @@ interface ListItemProps {
     onMessageClick?: (connection: Connection) => void;
     activeTags?: string[];
     selectedConnectionId?: string;
-    // Checkbox functionality
     showCheckboxes?: boolean;
     selectedConnections?: string[];
     onCheckboxChange?: (connectionId: string, checked: boolean) => void;
   };
 }
 
-// Individual list item component for react-window
 const ListItem: React.FC<ListItemProps> = ({ index, style, data }) => {
   const {
     connections,
@@ -112,8 +109,8 @@ const VirtualConnectionList: React.FC<VirtualConnectionListProps> = ({
   activeTags = [],
   selectedConnectionId,
   className = '',
-  itemHeight = 200, // Default height for connection cards
-  overscanCount = 5, // Pre-render 5 items above/below viewport
+  itemHeight = 200,
+  overscanCount = 5,
   showFilters = true,
   initialFilters = {},
   sortBy = 'name',
@@ -122,18 +119,16 @@ const VirtualConnectionList: React.FC<VirtualConnectionListProps> = ({
   selectedConnections = [],
   onCheckboxChange
 }) => {
-  const [containerHeight, setContainerHeight] = useState(600); // Default height
+  const [containerHeight, setContainerHeight] = useState(600);
   const [containerRef, setContainerRef] = useState<HTMLDivElement | null>(null);
   const [filters, setFilters] = useState<ConnectionFilters>(initialFilters);
   const [removedIds, setRemovedIds] = useState<Set<string>>(new Set());
 
-  // Handle window resize events for responsive behavior
   const handleResize = useCallback(() => {
     if (containerRef) {
       const rect = containerRef.getBoundingClientRect();
-      const availableHeight = window.innerHeight - rect.top - 40; // Reduced margin for fuller viewport usage
+      const availableHeight = window.innerHeight - rect.top - 40;
       
-      // For both new and regular connections, use a generous viewport height similar to NewConnectionsTab
       const minHeight = Math.max(window.innerHeight * 0.9, 700);
       setContainerHeight(Math.max(minHeight, availableHeight));
     }
@@ -145,26 +140,21 @@ const VirtualConnectionList: React.FC<VirtualConnectionListProps> = ({
     return () => window.removeEventListener('resize', handleResize);
   }, [handleResize]);
 
-  // Apply filters and sorting to connections
   const processedConnections = useMemo(() => {
     let filtered = filterConnections(connections, filters);
-    // Exclude any items that were locally removed
     if (removedIds.size > 0) {
       filtered = filtered.filter((c: Connection) => !removedIds.has(c.id));
     }
-    // When tags are active upstream, preserve the provided order (parent handles tag-based sorting)
     if (activeTags && activeTags.length > 0) {
       return filtered;
     }
     return sortConnections(filtered, sortBy, sortOrder);
   }, [connections, filters, sortBy, sortOrder, removedIds, activeTags]);
 
-  // Handle filter changes
   const handleFiltersChange = useCallback((newFilters: ConnectionFilters) => {
     setFilters(newFilters);
   }, []);
 
-  // Wrap onRemove to also update local removedIds so the list re-renders immediately
   const handleRemoveInternal = useCallback((connectionId: string, newStatus: string) => {
     setRemovedIds(prev => {
       const next = new Set(prev);
@@ -174,7 +164,6 @@ const VirtualConnectionList: React.FC<VirtualConnectionListProps> = ({
     if (onRemove) onRemove(connectionId, newStatus);
   }, [onRemove]);
 
-  // Memoize the data object to prevent unnecessary re-renders
   const itemData = useMemo(() => ({
     connections: processedConnections,
     isNewConnection,
@@ -205,7 +194,7 @@ const VirtualConnectionList: React.FC<VirtualConnectionListProps> = ({
 
   return (
     <div className={`w-full space-y-4 ${className}`}>
-      {/* Filter Component */}
+      {}
       {showFilters && (
         <ConnectionFiltersComponent
           connections={connections}
@@ -216,7 +205,7 @@ const VirtualConnectionList: React.FC<VirtualConnectionListProps> = ({
         />
       )}
 
-      {/* Results Summary */}
+      {}
       {showFilters && (
         <div className="flex items-center justify-between text-sm text-slate-400 px-1">
           <span>
@@ -230,7 +219,7 @@ const VirtualConnectionList: React.FC<VirtualConnectionListProps> = ({
         </div>
       )}
 
-      {/* Connection List or Empty State */}
+      {}
       <div 
         ref={setContainerRef}
         style={{ height: containerHeight }}

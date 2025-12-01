@@ -6,7 +6,6 @@ const API_BASE_URL = process.env.API_GATEWAY_BASE_URL;
 class DynamoDBService {
     constructor() {
         this.authToken = null;
-        // Ensure trailing slash so relative endpoint paths join correctly (preserve stage path)
         const normalizedBaseUrl = API_BASE_URL
             ? (API_BASE_URL.endsWith('/') ? API_BASE_URL : `${API_BASE_URL}/`)
             : API_BASE_URL;
@@ -20,10 +19,6 @@ class DynamoDBService {
     }
 
 
-
-    /**
-     * Internal POST helper with unified headers and error handling
-     */
     async _post(path, body) {
         try {
             const response = await this.apiClient.post(path, body, { headers: this.getHeaders() });
@@ -33,9 +28,7 @@ class DynamoDBService {
         }
     }
 
-    /**
-     * Internal GET helper with unified headers and error handling
-     */
+    
     async _get(path, params = {}) {
         try {
             const response = await this.apiClient.get(path, {
@@ -48,18 +41,12 @@ class DynamoDBService {
         }
     }
 
-    /**
-     * Set the authorization token for API requests
-     * @param {string} token - JWT token from Cognito
-     */
+    
     setAuthToken(token) {
         this.authToken = token;
     }
 
-    /**
-     * Get headers for API requests
-     * @returns {Object} Headers object
-     */
+    
     getHeaders() {
         const headers = {
             'Content-Type': 'application/json'
@@ -72,11 +59,7 @@ class DynamoDBService {
         return headers;
     }
 
-    /**
-     * Check if a profile exists and has been updated in the past month
-     * @param {string} profileId - Profile ID to check
-     * @returns {Promise<boolean>} true if profile doesn't exist or hasn't been updated in last month, false otherwise
-     */
+    
     async getProfileDetails(profileId) {
         try {
             const data = await this._get('profiles', {
@@ -100,12 +83,7 @@ class DynamoDBService {
         return new Date(updatedAt) < oneMonthAgo;
     }
 
-    /**
-     * Create a "bad contact" profile and its edges with processed status
-     * @param {Object} profileData - Profile information
-     * @param {Object} edgesData - Edge relationship data
-     * @returns {Promise<Object>} Creation result
-     */
+    
     async createBadContactProfile(profileId) {
         try {
             const response = await this.apiClient.post('profiles', {
@@ -125,11 +103,7 @@ class DynamoDBService {
         }
     }
 
-    /**
-     * Mark a profile as bad contact (wrapper around createBadContactProfile)
-     * @param {string} profileId
-     * @returns {Promise<boolean>}
-     */
+    
     async markBadContact(profileId) {
         if (!profileId) throw new Error('profileId is required');
         try {
@@ -142,9 +116,7 @@ class DynamoDBService {
         }
     }
 
-        /**
-     * Public: Single entrypoint to upsert edge status (create if missing, update otherwise)
-     */
+        
         async upsertEdgeStatus(profileId, status, extraUpdates = {}) {
             const now = new Date().toISOString();
             return await this._post('edge', {
@@ -154,12 +126,7 @@ class DynamoDBService {
             });
         }
 
-    /**
-     * Check if an edge relationship exists between user and connection profile
-     * The user ID is extracted from the JWT token in the Lambda function
-     * @param {string} connectionProfileId - Connection profile ID to check
-     * @returns {Promise<boolean>} true if edge exists, false otherwise
-     */
+    
     async checkEdgeExists(connectionProfileId) {
         try {
             const data = await this._post('edge', {
@@ -175,14 +142,9 @@ class DynamoDBService {
         }
     }
 
-    /**
-     * Handle API errors consistently
-     * @param {Error} error - The error object
-     * @returns {Error} Formatted error
-     */
+    
     handleError(error) {
         if (error.response) {
-            // API responded with error status
             const message = error.response.data?.error || error.response.statusText;
             const statusCode = error.response.status;
 
@@ -198,14 +160,11 @@ class DynamoDBService {
 
             return new Error(`API Error (${statusCode}): ${message}`);
         } else if (error.request) {
-            // Network error
             return new Error('Network error. Please check your connection.');
         } else {
-            // Other error
             return new Error(error.message || 'An unexpected error occurred.');
         }
     }
 }
 
-// Export singleton instance
 export default DynamoDBService;

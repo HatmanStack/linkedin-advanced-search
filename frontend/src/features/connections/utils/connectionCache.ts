@@ -8,11 +8,7 @@ interface CacheStats {
   maxSize: number;
 }
 
-/**
- * LRU (Least Recently Used) Cache for Connection data
- * Provides efficient caching with automatic eviction of least recently used items
- * when the cache reaches its maximum size limit.
- */
+
 export class ConnectionCache {
   private cache = new Map<string, Connection>();
   private readonly maxSize: number;
@@ -31,18 +27,12 @@ export class ConnectionCache {
     };
   }
 
-  /**
-   * Set a namespace (typically the current user id) for persistent storage
-   * When set, the cache will automatically save to localStorage on mutations.
-   */
+  
   setNamespace(namespace: string | null): void {
     this.namespace = namespace && namespace.trim().length > 0 ? namespace : null;
   }
 
-  /**
-   * Load cache contents from localStorage for the current namespace
-   * Overwrites any in-memory contents.
-   */
+  
   loadFromStorage(): void {
     if (!this.namespace) return;
     try {
@@ -53,19 +43,16 @@ export class ConnectionCache {
       if (!Array.isArray(parsed)) return;
       this.cache.clear();
       for (const connection of parsed) {
-        if (connection && (connection as unknown).id) {
-          this.cache.set((connection as unknown).id, connection);
+        if (connection && connection.id) {
+          this.cache.set(connection.id, connection);
         }
       }
       this.stats.size = this.cache.size;
     } catch {
-      // Ignore localStorage errors
     }
   }
 
-  /**
-   * Persist current cache contents to localStorage for the current namespace
-   */
+  
   private saveToStorage(): void {
     if (!this.namespace) return;
     try {
@@ -73,19 +60,14 @@ export class ConnectionCache {
       const serialized = JSON.stringify(this.getAll());
       localStorage.setItem(key, serialized);
     } catch {
-      // Ignore localStorage errors
     }
   }
 
-  /**
-   * Get a connection from the cache
-   * Moves the item to the end (most recently used) if found
-   */
+  
   get(id: string): Connection | undefined {
     const item = this.cache.get(id);
     
     if (item) {
-      // Move to end (most recently used)
       this.cache.delete(id);
       this.cache.set(id, item);
       this.stats.hits++;
@@ -96,12 +78,8 @@ export class ConnectionCache {
     return undefined;
   }
 
-  /**
-   * Set a connection in the cache
-   * Evicts least recently used item if cache is at capacity
-   */
+  
   set(id: string, connection: Connection): void {
-    // If item already exists, update it and move to end
     if (this.cache.has(id)) {
       this.cache.delete(id);
       this.cache.set(id, connection);
@@ -109,7 +87,6 @@ export class ConnectionCache {
       return;
     }
 
-    // If at capacity, remove least recently used item
     if (this.cache.size >= this.maxSize) {
       const firstKey = this.cache.keys().next().value;
       if (firstKey) {
@@ -123,16 +100,12 @@ export class ConnectionCache {
     this.saveToStorage();
   }
 
-  /**
-   * Check if a connection exists in the cache
-   */
+  
   has(id: string): boolean {
     return this.cache.has(id);
   }
 
-  /**
-   * Remove a connection from the cache
-   */
+  
   delete(id: string): boolean {
     const deleted = this.cache.delete(id);
     if (deleted) {
@@ -142,9 +115,7 @@ export class ConnectionCache {
     return deleted;
   }
 
-  /**
-   * Clear all connections from the cache
-   */
+  
   clear(): void {
     this.cache.clear();
     this.stats.size = 0;
@@ -154,10 +125,7 @@ export class ConnectionCache {
     this.saveToStorage();
   }
 
-  /**
-   * Get multiple connections from the cache
-   * Returns a map of found connections and an array of missing IDs
-   */
+  
   getMultiple(ids: string[]): { found: Map<string, Connection>; missing: string[] } {
     const found = new Map<string, Connection>();
     const missing: string[] = [];
@@ -174,9 +142,7 @@ export class ConnectionCache {
     return { found, missing };
   }
 
-  /**
-   * Set multiple connections in the cache
-   */
+  
   setMultiple(connections: Connection[]): void {
     for (const connection of connections) {
       this.set(connection.id, connection);
@@ -184,10 +150,7 @@ export class ConnectionCache {
     this.saveToStorage();
   }
 
-  /**
-   * Invalidate connections that match a predicate
-   * Useful for cache invalidation when connections are updated
-   */
+  
   invalidateWhere(predicate: (connection: Connection) => boolean): number {
     let invalidated = 0;
     const toDelete: string[] = [];
@@ -206,10 +169,7 @@ export class ConnectionCache {
     return invalidated;
   }
 
-  /**
-   * Update a connection in the cache if it exists
-   * Returns true if the connection was found and updated
-   */
+  
   update(id: string, updates: Partial<Connection>): boolean {
     const existing = this.cache.get(id);
     if (existing) {
@@ -221,25 +181,17 @@ export class ConnectionCache {
     return false;
   }
 
-  /**
-   * Get all connections from the cache as an array
-   * Ordered from least recently used to most recently used
-   */
+  
   getAll(): Connection[] {
     return Array.from(this.cache.values());
   }
 
-  /**
-   * Get all connection IDs from the cache as an array
-   * Ordered from least recently used to most recently used
-   */
+  
   getAllIds(): string[] {
     return Array.from(this.cache.keys());
   }
 
-  /**
-   * Get cache statistics
-   */
+  
   getStats(): CacheStats {
     return {
       ...this.stats,
@@ -247,38 +199,28 @@ export class ConnectionCache {
     };
   }
 
-  /**
-   * Get cache hit rate as a percentage
-   */
+  
   getHitRate(): number {
     const total = this.stats.hits + this.stats.misses;
     return total === 0 ? 0 : (this.stats.hits / total) * 100;
   }
 
-  /**
-   * Check if the cache is at capacity
-   */
+  
   isFull(): boolean {
     return this.cache.size >= this.maxSize;
   }
 
-  /**
-   * Get the current size of the cache
-   */
+  
   size(): number {
     return this.cache.size;
   }
 
-  /**
-   * Get the maximum size of the cache
-   */
+  
   getMaxSize(): number {
     return this.maxSize;
   }
 
-  /**
-   * Get connections by status from the cache
-   */
+  
   getByStatus(status: string): Connection[] {
     const connections: Connection[] = [];
     for (const connection of this.cache.values()) {
@@ -289,14 +231,9 @@ export class ConnectionCache {
     return connections;
   }
 
-  /**
-   * Preload connections into the cache
-   * Useful for warming up the cache with frequently accessed data
-   */
+  
   preload(connections: Connection[]): void {
-    // Sort by some priority if needed (e.g., by date_added or status)
     const sortedConnections = [...connections].sort((a, b) => {
-      // Prioritize 'ally' and 'incoming' connections
       const statusPriority = { ally: 3, incoming: 2, outgoing: 1, possible: 0 };
       const aPriority = statusPriority[a.status as keyof typeof statusPriority] || 0;
       const bPriority = statusPriority[b.status as keyof typeof statusPriority] || 0;
@@ -305,7 +242,6 @@ export class ConnectionCache {
         return bPriority - aPriority;
       }
       
-      // Secondary sort by date_added (most recent first)
       if (a.date_added && b.date_added) {
         return new Date(b.date_added).getTime() - new Date(a.date_added).getTime();
       }
@@ -313,15 +249,12 @@ export class ConnectionCache {
       return 0;
     });
 
-    // Load up to maxSize connections
     const connectionsToLoad = sortedConnections.slice(0, this.maxSize);
     this.setMultiple(connectionsToLoad);
     this.saveToStorage();
   }
 }
 
-// Create a singleton instance for global use
 export const connectionCache = new ConnectionCache(1000);
 
-// Export the CacheStats interface for use in other files
 export type { CacheStats };

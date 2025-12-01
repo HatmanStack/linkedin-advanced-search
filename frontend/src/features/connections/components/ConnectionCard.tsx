@@ -5,34 +5,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/shared/compo
 import { MessageSquare, ExternalLink, User, Building, MapPin, Tag } from 'lucide-react';
 import type { ConnectionCardProps } from '@/shared/types';
 
-/**
- * ConnectionCard Component
- * 
- * Displays a connection's information in a card format with interactive elements.
- * Supports both regular connections and new connection variants with different
- * styling and behavior patterns. Includes checkbox functionality for selecting
- * ally connections for messaging workflows.
- * 
- * @param props - The component props
- * @param props.connection - Connection data to display
- * @param props.isSelected - Whether this card is currently selected
- * @param props.isNewConnection - Whether this is a new connection card variant
- * @param props.onSelect - Callback when card is selected
- * @param props.onNewConnectionClick - Callback for new connection card clicks
- * @param props.onTagClick - Callback when a tag is clicked
- * @param props.onMessageClick - Callback when message count is clicked
- * @param props.activeTags - Array of currently active/selected tags
- * @param props.className - Additional CSS classes
- * @param props.showCheckbox - Whether to show checkbox for connection selection
-     * @param props.isCheckboxEnabled - Whether the checkbox is enabled (only for ally status)
- * @param props.isChecked - Whether the checkbox is checked
- * @param props.onCheckboxChange - Callback when checkbox state changes
- * 
- * @returns JSX element representing the connection card
- */
-const ConnectionCard = ({ 
-  connection, 
-  isSelected = false, 
+const ConnectionCard = ({
+  connection,
+  isSelected = false,
   isNewConnection = false,
   onSelect,
   onNewConnectionClick,
@@ -52,7 +27,6 @@ const ConnectionCard = ({
 
   const decodeBase64UrlSafe = (value: string): string | null => {
     try {
-      // Normalize URL-safe base64 to standard base64 and add padding
       let normalized = value.replace(/-/g, '+').replace(/_/g, '/');
       const pad = normalized.length % 4;
       if (pad === 2) normalized += '==';
@@ -65,14 +39,12 @@ const ConnectionCard = ({
   };
 
   const buildLinkedInProfileUrl = (): string | null => {
-    // 1) Prefer explicit linkedin_url when present
     const rawLinkedin = (connection.linkedin_url || '').trim();
     if (rawLinkedin) {
       if (isHttpUrl(rawLinkedin)) {
         return rawLinkedin;
       }
       const trimmed = rawLinkedin.replace(/^\/+|\/+$/g, '');
-      // Handle formats like "in/vanity" or just "vanity"
       if (trimmed.toLowerCase().startsWith('in/')) {
         const slug = trimmed.split('/')[1] || '';
         if (slug) return `https://www.linkedin.com/in/${slug}`;
@@ -80,10 +52,8 @@ const ConnectionCard = ({
       if (isVanitySlug(trimmed)) {
         return `https://www.linkedin.com/in/${trimmed}`;
       }
-      // If it's not a clean vanity slug, fall through to ID decode
     }
 
-    // 2) Try decoding id (our types state this is base64-encoded LinkedIn URL)
     if (connection.id) {
       const decoded = decodeBase64UrlSafe(connection.id);
       if (decoded) {
@@ -101,7 +71,6 @@ const ConnectionCard = ({
       }
     }
 
-    // 3) Last resort: people search with name + company
     const query = [connection.first_name, connection.last_name, connection.company]
       .filter(Boolean)
       .join(' ')
@@ -112,16 +81,12 @@ const ConnectionCard = ({
     return null;
   };
 
-  /**
-   * Handles card click events, opening LinkedIn profile in new tab
-   */
   const handleClick = () => {
     const url = buildLinkedInProfileUrl();
     if (url) {
       window.open(url, '_blank', 'noopener,noreferrer');
       return;
     }
-    // Final fallback: use existing callback logic
     if (isNewConnection && onNewConnectionClick) {
       onNewConnectionClick(connection);
     } else if (onSelect) {
@@ -129,12 +94,6 @@ const ConnectionCard = ({
     }
   };
 
-  /**
-   * Handles tag click events, preventing event bubbling and triggering tag callback
-   * 
-   * @param tag - The tag that was clicked
-   * @param e - The mouse event
-   */
   const handleTagClick = (tag: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (onTagClick) {
@@ -142,11 +101,6 @@ const ConnectionCard = ({
     }
   };
 
-  /**
-   * Handles message count click events, preventing event bubbling and triggering message callback
-   * 
-   * @param e - The mouse event
-   */
   const handleMessageClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (onMessageClick) {
@@ -164,32 +118,16 @@ const ConnectionCard = ({
     setIsTagsOpen(true);
   };
 
-  /**
-   * Handles checkbox change events, preventing event bubbling and triggering checkbox callback
-   * 
-   * @param checked - The new checked state
-   */
   const handleCheckboxChange = (checked: boolean) => {
     if (onCheckboxChange) {
       onCheckboxChange(connection.id, checked);
     }
   };
 
-  /**
-   * Handles checkbox click events to prevent event bubbling
-   * 
-   * @param e - The mouse event
-   */
   const handleCheckboxClick = (e: React.MouseEvent) => {
     e.stopPropagation();
   };
 
-  /**
-   * Maps connection status to human-readable display configuration
-   * 
-   * @param status - The connection status to map
-   * @returns Display configuration object with label and color classes, or null if invalid
-   */
   const getStatusDisplay = (status?: string) => {
     switch (status) {
       case 'possible':
@@ -207,7 +145,6 @@ const ConnectionCard = ({
 
   const statusDisplay = getStatusDisplay(connection.status);
 
-  // Keep the tags "… more" button visible by limiting tags based on character budget
   const [tagCharBudget, setTagCharBudget] = useState<number>(48);
 
   useEffect(() => {
@@ -228,13 +165,13 @@ const ConnectionCard = ({
     if (!allTags || allTags.length === 0) {
       return { visible: [] as string[], hasMore: false };
     }
-    const reservedForMore = 6; // approx chars for "… more"
+    const reservedForMore = 6;
     const effectiveBudget = Math.max(0, tagCharBudget - reservedForMore);
     let used = 0;
     const visible: string[] = [];
     for (let i = 0; i < allTags.length; i++) {
       const tag = allTags[i];
-      const cost = tag.length + 2; // crude width for padding/gap
+      const cost = tag.length + 2;
       if (used + cost > effectiveBudget) break;
       visible.push(tag);
       used += cost;
@@ -242,7 +179,6 @@ const ConnectionCard = ({
     return { visible, hasMore: visible.length < allTags.length };
   };
 
-  // Summary handling: place "more" inline at end of second line (approximate via char budget) and remove trailing ellipsis
   const [summaryCharBudget, setSummaryCharBudget] = useState<number>(120);
 
   useEffect(() => {
@@ -264,10 +200,9 @@ const ConnectionCard = ({
     if (normalized.length <= summaryCharBudget) {
       return { truncated: normalized, hasMore: false };
     }
-    // cut without adding ellipsis, avoid mid-word cut
     const slice = normalized.slice(0, summaryCharBudget);
     const lastSpace = slice.lastIndexOf(' ');
-    const safeCut = lastSpace > 40 ? slice.slice(0, lastSpace) : slice; // ensure not overly short
+    const safeCut = lastSpace > 40 ? slice.slice(0, lastSpace) : slice;
     return { truncated: safeCut.trimEnd(), hasMore: true };
   };
 
@@ -281,7 +216,6 @@ const ConnectionCard = ({
       onClick={handleClick}
     >
       <div className="flex items-start space-x-4">
-        {/* Left column: checkbox above avatar */}
         <div className="flex flex-col items-center gap-2 flex-shrink-0">
           {showCheckbox && connection.status === 'ally' && (
             <div className="flex items-center" onClick={handleCheckboxClick}>
@@ -294,7 +228,6 @@ const ConnectionCard = ({
               />
             </div>
           )}
-          {/* Profile Picture Space */}
           <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white font-semibold">
             {connection.first_name[0]}{connection.last_name[0]}
           </div>
@@ -302,28 +235,25 @@ const ConnectionCard = ({
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between mb-1">
-            {/* Name of Connection */}
             <h3 className="text-white font-semibold truncate">
               {connection.first_name} {connection.last_name}
             </h3>
             <div className="flex items-center space-x-2 flex-shrink-0">
-              {/* Connection Status Badge */}
               {statusDisplay && (
-                <Badge 
-                  variant="outline" 
+                <Badge
+                  variant="outline"
                   className={`text-xs px-2 py-1 border ${statusDisplay.color}`}
                 >
                   {statusDisplay.label}
                 </Badge>
               )}
-              {/* Demo Data Badge */}
               {connection.isFakeData && (
                 <div className="bg-yellow-600/90 text-yellow-100 text-xs px-2 py-1 rounded-full font-medium shadow-lg">
                   Demo Data
                 </div>
               )}
               {connection.messages !== undefined && (
-                <div 
+                <div
                   className={`flex items-center text-sm transition-all duration-200 ${
                     onMessageClick && connection.messages > 0
                       ? 'text-slate-300 hover:text-blue-300 cursor-pointer hover:bg-blue-600/10 px-2 py-1 rounded'
@@ -333,10 +263,10 @@ const ConnectionCard = ({
                   }`}
                   onClick={onMessageClick && connection.messages > 0 ? handleMessageClick : undefined}
                   title={
-                    connection.messages === 0 
-                      ? 'No messages yet' 
-                      : onMessageClick 
-                      ? 'Click to view message history' 
+                    connection.messages === 0
+                      ? 'No messages yet'
+                      : onMessageClick
+                      ? 'Click to view message history'
                       : undefined
                   }
                 >
@@ -352,8 +282,7 @@ const ConnectionCard = ({
               )}
             </div>
           </div>
-          
-          {/* Job Title and Place of Work on Same Line */}
+
           <div className="flex items-center text-slate-300 text-sm mb-2 flex-wrap">
             <User className="h-3 w-3 mr-1 flex-shrink-0" />
             <span className="truncate">{connection.position}</span>
@@ -364,15 +293,14 @@ const ConnectionCard = ({
               </>
             )}
           </div>
-          
+
           {connection.location && (
             <div className="flex items-center text-slate-400 text-sm mb-2">
               <MapPin className="h-3 w-3 mr-1 flex-shrink-0" />
               <span className="truncate">{connection.location}</span>
             </div>
           )}
-          
-          {/* Short Summary of Last Action with inline "more" at end of second line (approx via char budget) */}
+
           {(connection.last_action_summary || connection.recent_activity || connection.last_activity_summary) && (() => {
             const full = (connection.last_action_summary || connection.recent_activity || connection.last_activity_summary) as string;
             const { truncated, hasMore } = getTruncatedSummary(full);
@@ -395,8 +323,7 @@ const ConnectionCard = ({
               </div>
             );
           })()}
-          
-          {/* Tags - Clickable for Sorting (limit inline by character budget, expand modal for all) */}
+
           {(connection.tags?.length || connection.common_interests?.length) && (() => {
             const allTags = (connection.tags || connection.common_interests || []) as string[];
             const { visible, hasMore } = getVisibleTagsByCharacterBudget(allTags);
@@ -405,9 +332,9 @@ const ConnectionCard = ({
                 <div className="flex items-center overflow-hidden flex-nowrap gap-2 max-w-full whitespace-nowrap leading-7 min-h-[28px] py-0.5">
                   <Tag className="h-3 w-3 text-slate-400 mr-1 flex-shrink-0" />
                   {visible.map((tag: string, index: number) => (
-                    <Badge 
-                      key={index} 
-                      variant="outline" 
+                    <Badge
+                      key={index}
+                      variant="outline"
                       className={`cursor-pointer text-xs transition-all duration-200 hover:scale-105 flex-shrink-0 ${
                         activeTags.includes(tag)
                           ? 'bg-blue-600 text-white border-blue-500 shadow-lg'
@@ -431,14 +358,13 @@ const ConnectionCard = ({
               </div>
             );
           })()}
-          
+
           {connection.date_added && (
             <p className="text-slate-500 text-xs mt-2">
               Added: {new Date(connection.date_added).toLocaleDateString()}
             </p>
           )}
-          
-          {/* Warning for missing LinkedIn URL in new connections */}
+
           {isNewConnection && !connection.linkedin_url && (
             <p className="text-yellow-400 text-xs mt-2 flex items-center">
               <ExternalLink className="h-3 w-3 mr-1" />
@@ -448,7 +374,6 @@ const ConnectionCard = ({
         </div>
       </div>
 
-      {/* Summary Modal */}
       <Dialog open={isSummaryOpen} onOpenChange={setIsSummaryOpen}>
         <DialogContent className="text-slate-100 bg-slate-900 border border-slate-700 shadow-2xl" onClick={(e: React.MouseEvent) => e.stopPropagation()}>
           <DialogHeader>
@@ -460,7 +385,6 @@ const ConnectionCard = ({
         </DialogContent>
       </Dialog>
 
-      {/* Tags Modal */}
       <Dialog open={isTagsOpen} onOpenChange={setIsTagsOpen}>
         <DialogContent className="text-slate-100 bg-slate-900 border border-slate-700 shadow-2xl" onClick={(e: React.MouseEvent) => e.stopPropagation()}>
           <DialogHeader>
@@ -468,9 +392,9 @@ const ConnectionCard = ({
           </DialogHeader>
           <div className="flex flex-wrap gap-2">
             {(connection.tags || connection.common_interests || []).map((tag: string, index: number) => (
-              <Badge 
-                key={`all-${index}`} 
-                variant="outline" 
+              <Badge
+                key={`all-${index}`}
+                variant="outline"
                 className={`cursor-pointer text-xs transition-all duration-200 hover:scale-105 ${
                   activeTags.includes(tag)
                     ? 'bg-blue-600 text-white border-blue-500 shadow-lg'

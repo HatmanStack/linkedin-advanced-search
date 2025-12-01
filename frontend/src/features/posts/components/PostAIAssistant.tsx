@@ -33,10 +33,8 @@ const PostAIAssistant = ({
   const [selectedIdeas, setSelectedIdeas] = useState<Set<number>>(new Set());
   const [localIdeas, setLocalIdeas] = useState<string[]>([]);
 
-  // Session storage key for ideas
   const IDEAS_STORAGE_KEY = 'ai_generated_ideas';
 
-  // Load ideas from session storage on component mount
   useEffect(() => {
     try {
       const storedIdeas = sessionStorage.getItem(IDEAS_STORAGE_KEY);
@@ -45,7 +43,6 @@ const PostAIAssistant = ({
         parsed = JSON.parse(storedIdeas);
         setLocalIdeas(parsed ?? []);
       }
-      // hydrate selected ideas
       const storedSelected = sessionStorage.getItem(SELECTED_IDEAS_STORAGE_KEY);
       if (storedSelected) {
         const selectedList: string[] = JSON.parse(storedSelected);
@@ -60,11 +57,9 @@ const PostAIAssistant = ({
     }
   }, []);
 
-  // Update local ideas when props change
   useEffect(() => {
     if (ideas && ideas.length > 0) {
       setLocalIdeas(ideas);
-      // Save to session storage
       try {
         sessionStorage.setItem(IDEAS_STORAGE_KEY, JSON.stringify(ideas));
       } catch (error) {
@@ -73,7 +68,6 @@ const PostAIAssistant = ({
     }
   }, [ideas]);
 
-  // Persist selected idea texts whenever selection or list changes
   useEffect(() => {
     try {
       const selectedTexts = Array.from(selectedIdeas).map(idx => localIdeas[idx]).filter(Boolean);
@@ -99,14 +93,12 @@ const PostAIAssistant = ({
     const newIdeas = localIdeas.filter((_, i) => i !== index);
     setLocalIdeas(newIdeas);
     
-    // Update session storage
     try {
       sessionStorage.setItem(IDEAS_STORAGE_KEY, JSON.stringify(newIdeas));
     } catch (error) {
       logger.error('Failed to update ideas in session storage', { error });
     }
     
-    // Clear selection if deleted idea was selected and shift indices
     const newSelected = new Set(selectedIdeas);
     newSelected.delete(index);
     const adjustedSelected = new Set<number>();
@@ -119,7 +111,6 @@ const PostAIAssistant = ({
     });
     setSelectedIdeas(adjustedSelected);
     
-    // Notify parent if callback exists
     if (onIdeasUpdate) {
       await onIdeasUpdate(newIdeas);
     }
@@ -139,21 +130,18 @@ const PostAIAssistant = ({
     const hasCustomTopic = Boolean(ideaPrompt.trim());
     const hasSelected = Boolean(localIdeas && localIdeas.length > 0 && selectedIdeas.size > 0);
 
-    // If textarea has content, research the custom topic
     if (hasCustomTopic) {
       onResearchTopics([ideaPrompt.trim()]);
-      setIdeaPrompt(''); // Clear the textarea after sending
+      setIdeaPrompt('');
       return;
     }
     
-    // If we have selected ideas, research those
     if (hasSelected) {
       const selectedIdeasList = Array.from(selectedIdeas).map(index => localIdeas[index]);
       onResearchTopics(selectedIdeasList);
       return;
     }
     
-    // If neither, do nothing (button will be disabled in UI)
     setShowResearchInput(false);
   };
 

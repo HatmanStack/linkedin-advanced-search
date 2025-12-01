@@ -12,7 +12,6 @@ export const connectionChangeTracker = {
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
     } catch {
-      // Ignore storage errors
     }
   },
 
@@ -20,7 +19,6 @@ export const connectionChangeTracker = {
     try {
       localStorage.removeItem(STORAGE_KEY);
     } catch {
-      // Ignore storage errors
     }
   },
 
@@ -37,5 +35,4 @@ export const connectionChangeTracker = {
 };
 
 export default connectionChangeTracker;
-
 

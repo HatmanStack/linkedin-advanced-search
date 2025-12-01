@@ -7,7 +7,6 @@ function useLocalStorage<T>(
   key: string,
   initialValue: T
 ): [T, (value: T | ((prevValue: T) => T)) => void, () => void] {
-  // Get value from localStorage or use initial value
   const [storedValue, setStoredValue] = useState<T>(() => {
     try {
       const item = window.localStorage.getItem(key);
@@ -18,7 +17,6 @@ function useLocalStorage<T>(
     }
   });
 
-  // Set value in both state and localStorage
   const setValue = useCallback((value: T | ((prevValue: T) => T)) => {
     try {
       const valueToStore = value instanceof Function ? value(storedValue) : value;
@@ -29,7 +27,6 @@ function useLocalStorage<T>(
     }
   }, [key, storedValue]);
 
-  // Remove value from localStorage
   const removeValue = useCallback(() => {
     try {
       window.localStorage.removeItem(key);
@@ -39,7 +36,6 @@ function useLocalStorage<T>(
     }
   }, [key, initialValue]);
 
-  // Listen for changes to this localStorage key from other tabs
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === key && e.newValue !== null) {

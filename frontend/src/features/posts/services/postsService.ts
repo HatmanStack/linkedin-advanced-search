@@ -6,22 +6,42 @@ import { createLogger } from '@/shared/utils/logger';
 
 const logger = createLogger('PostsService');
 
-// Prevent concurrent or duplicate idea polling loops (e.g., accidental double clicks or re-renders)
 let ideasPollingInFlight = false;
-// Prevent concurrent or duplicate synthesis polling loops
 let synthPollingInFlight = false;
+
+interface SectionsMap {
+  '1'?: string;
+  '2'?: string;
+  '3'?: string;
+}
+
+interface PollResult {
+  success?: boolean;
+  status?: string;
+  ideas?: string[];
+  content?: string;
+  sections?: SectionsMap;
+  data?: {
+    ideas?: string[];
+    content?: string;
+    sections?: SectionsMap;
+  };
+}
+
+interface LLMResponseData {
+  job_id?: string;
+  jobId?: string;
+}
 
 export const postsService = {
   async saveUnsentPostToProfile(content: string): Promise<void> {
-    // Save only the textarea content
-    const updates: Partial<UserProfile> = { unpublished_post_content: content } as unknown;
+    const updates: Partial<UserProfile> = { unpublished_post_content: content };
     const resp = await lambdaApiService.updateUserProfile(updates);
     if (!resp.success) throw new Error(resp.error || 'Failed to save unsent post');
   },
 
   async clearUnsentPostFromProfile(): Promise<void> {
-    // Clear only the draft field
-    const updates: Partial<UserProfile> = { unpublished_post_content: '' } as unknown;
+    const updates: Partial<UserProfile> = { unpublished_post_content: '' };
     const resp = await lambdaApiService.updateUserProfile(updates);
     if (!resp.success) throw new Error(resp.error || 'Failed to clear unsent post');
   },
@@ -39,11 +59,9 @@ export const postsService = {
       ideasPollingInFlight = true;
 
       const profileToSend = userProfile
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        ? (() => { const { unsent_post_content, unpublished_post_content, ai_generated_post_content, linkedin_credentials, ...rest } = userProfile as unknown; return rest; })()
+        ? (() => { const { unpublished_post_content, linkedin_credentials, ...rest } = userProfile; return rest; })()
         : null;
 
-      // Generate a client-side job id and request async idea generation
       const jobId = uuidv4();
       const response = await lambdaApiService.sendLLMRequest('generate_ideas', {
         prompt: prompt || '',
@@ -55,19 +73,18 @@ export const postsService = {
         throw new Error(response.error || 'Failed to request idea generation');
       }
 
-      // Poll every 10 seconds for results stored by the backend under IDEAS#{job_id}
       const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
-      const intervalMs = 5_000; // 5 seconds
-      const maxChecks = 35;      // up to ~1.5 minutes
+      const intervalMs = 5_000;
+      const maxChecks = 35;
 
       for (let i = 0; i < maxChecks; i++) {
         try {
-          const poll = await lambdaApiService.callProfilesOperation<{ ideas?: string[] }>('get_research_result', {
+          const poll = await lambdaApiService.callProfilesOperation<PollResult>('get_research_result', {
             job_id: jobId,
             kind: 'IDEAS',
           });
           if (poll && (poll.success === true || poll.status === 'ok')) {
-            const ideas = (poll as unknown).ideas || (poll as unknown).data?.ideas;
+            const ideas = poll.ideas || poll.data?.ideas;
             if (Array.isArray(ideas) && ideas.length > 0) {
               logger.debug('Ideas generated', { ideas });
               ideasPollingInFlight = false;
@@ -75,7 +92,6 @@ export const postsService = {
             }
           }
         } catch {
-          // ignore transient errors and continue polling
         }
         if (i < maxChecks - 1) await sleep(intervalMs);
       }
@@ -94,41 +110,37 @@ export const postsService = {
       const response = await lambdaApiService.sendLLMRequest('research_selected_ideas', {
         selected_ideas: topics,
         user_profile: (userProfile
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
-          ? (() => { const { unsent_post_content, unpublished_post_content, ai_generated_post_content, linkedin_credentials, ...rest } = userProfile as unknown; return rest; })()
+          ? (() => { const { unpublished_post_content, linkedin_credentials, ...rest } = userProfile; return rest; })()
           : null)
       });
-      
+
       if (!response.success) {
         throw new Error(response.error || 'Failed to research topics');
       }
-      const jobId: string | undefined = (response.data?.job_id || response.data?.jobId) as (string | undefined);
+      const responseData = response.data as LLMResponseData | undefined;
+      const jobId: string | undefined = responseData?.job_id || responseData?.jobId;
       if (!jobId) {
         throw new Error('No job_id returned for research request');
       }
 
-      // Simple polling loop that queries the profiles backend for research results.
-      // This avoids coupling to profile fields and simply expects the backend to return
-      // { success: true, content: string } when ready.
       const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
-      const delayMs = 2 * 60_000; // 2 minutes before first check
-      const intervalMs = 60_000;  // then every 1 minute
-      const maxChecks = 30;       // up to ~30 minutes total
+      const delayMs = 2 * 60_000;
+      const intervalMs = 60_000;
+      const maxChecks = 30;
 
       await sleep(delayMs);
       for (let i = 0; i < maxChecks; i++) {
         try {
-          const poll = await lambdaApiService.callProfilesOperation<{ content?: string }>('get_research_result', { 
+          const poll = await lambdaApiService.callProfilesOperation<PollResult>('get_research_result', {
             job_id: jobId,
             kind: 'RESEARCH', });
           if (poll && (poll.success === true || poll.status === 'ok')) {
-            const content = (poll as unknown).content || (poll as unknown).data?.content;
+            const content = poll.content || poll.data?.content;
             if (content && typeof content === 'string' && content.trim().length > 0) {
               return content;
             }
           }
         } catch {
-          // ignore transient errors and continue polling
         }
         if (i < maxChecks - 1) await sleep(intervalMs);
       }
@@ -150,11 +162,9 @@ export const postsService = {
       synthPollingInFlight = true;
 
       const profileToSend = userProfile
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        ? (() => { const { unpublished_post_content, linkedin_credentials, ai_generated_ideas, ai_generated_research, ai_generated_post_hook, ai_generated_post_reasoning,...rest } = userProfile as unknown; return rest; })()
+        ? (() => { const { unpublished_post_content, linkedin_credentials, ai_generated_ideas, ai_generated_research, ai_generated_post_hook, ai_generated_post_reasoning, ...rest } = userProfile; return rest; })()
         : null;
 
-      // Generate a client-side job id and request async synthesis
       const jobId = uuidv4();
       const response = await lambdaApiService.sendLLMRequest('synthesize_research', {
         existing_content: payload.existing_content,
@@ -168,21 +178,19 @@ export const postsService = {
         throw new Error(response.error || 'Failed to synthesize research');
       }
 
-      // Poll every 5 seconds up to ~1.5 minutes, mirroring generateIdeas
       const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
       const intervalMs = 5_000;
       const maxChecks = 35;
 
       for (let i = 0; i < maxChecks; i++) {
         try {
-          const poll = await lambdaApiService.callProfilesOperation<{ sections?: unknown }>('get_research_result', {
+          const poll = await lambdaApiService.callProfilesOperation<PollResult>('get_research_result', {
             job_id: jobId,
-            // Use a distinct kind for synthesis; backend will fallback to RESEARCH if unknown
             kind: 'SYNTHESIZE',
           });
-          if (poll && (poll.success === true || (poll as unknown).status === 'ok')) {
-            const sections = (poll as unknown).sections || (poll as unknown).data?.sections;
-            if (sections ) {
+          if (poll && (poll.success === true || poll.status === 'ok')) {
+            const sections: SectionsMap | undefined = poll.sections || poll.data?.sections;
+            if (sections) {
               synthPollingInFlight = false;
               return {
                 content: sections['1'] || '',
@@ -192,7 +200,6 @@ export const postsService = {
             }
           }
         } catch {
-          // ignore transient errors and continue polling
         }
         if (i < maxChecks - 1) await sleep(intervalMs);
       }
@@ -207,7 +214,7 @@ export const postsService = {
 
   async applyPostStyle(existingContent: string, style: string): Promise<string> {
     try {
-      
+
       const response = await lambdaApiService.sendLLMRequest('post_style_change', {
         existing_content: existingContent,
         style,
@@ -215,13 +222,11 @@ export const postsService = {
       if (!response.success) {
         throw new Error(response.error || 'Failed to apply post style');
       }
-      const data = (response.data as unknown) || {};
-      // Support either { content } or { data: { content } }
+      const data = (response.data as { content?: string; data?: { content?: string }; result?: string } | undefined) || {};
       const content = data.content ?? data.data?.content;
       if (typeof content === 'string' && content.trim().length > 0) {
-        return content as string;
+        return content;
       }
-      // If backend returns full object, attempt common field names
       if (typeof data.result === 'string') return data.result;
       throw new Error('No styled content returned from backend');
     } catch (error) {
@@ -230,5 +235,4 @@ export const postsService = {
     }
   },
 };
-
 

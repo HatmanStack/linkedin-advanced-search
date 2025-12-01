@@ -1,14 +1,9 @@
 import { logger } from './logger.js';
 import config from '../../shared/config/index.js';
 
-/**
- * Simple in-memory FIFO queue with configurable concurrency.
- * Used to serialize LinkedIn interaction jobs so concurrent requests
- * do not step on the same long-lived Puppeteer page/session.
- */
+
 class InteractionQueue {
   constructor(options = {}) {
-    // Force serialization for current single-Page architecture
     const defaultConcurrency = 1;
     this.concurrency = Math.max(1, Number(options.concurrency) || defaultConcurrency);
     this.queue = [];
@@ -16,12 +11,7 @@ class InteractionQueue {
     this.jobs = new Map();
   }
 
-  /**
-   * Enqueue a unit of work.
-   * @param {Function} taskFn - async function performing the job, returns a result
-   * @param {Object} meta - metadata for logging/inspection (e.g., { type, requestId, userId })
-   * @returns {Promise<any>} resolves/rejects with task result
-   */
+  
   enqueue(taskFn, meta = {}) {
     if (typeof taskFn !== 'function') {
       throw new Error('enqueue requires a function');
@@ -105,9 +95,7 @@ class InteractionQueue {
   }
 }
 
-// Export a singleton queue instance for linkedin interactions
 export const linkedInInteractionQueue = new InteractionQueue();
 
 export default InteractionQueue;
-
 

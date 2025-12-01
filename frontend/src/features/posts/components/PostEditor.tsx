@@ -47,7 +47,6 @@ const PostEditor = ({
     return Boolean((localHook ?? postHook) || (localReasoning ?? postReasoning));
   }, [postHook, postReasoning, localHook, localReasoning]);
 
-  // Local hydration for reasoning and hook from sessionStorage
   useEffect(() => {
     try {
       if (postReasoning && postReasoning !== localReasoning) {
@@ -64,11 +63,9 @@ const PostEditor = ({
         setLocalHook(storedHook ?? null);
       }
     } catch {
-      // Ignore sessionStorage errors
     }
   }, [postReasoning, postHook]);
 
-  // Hydrate content from sessionStorage on mount if empty (mirrors ideas/research patterns)
   useEffect(() => {
     if (!content || content.length === 0) {
       try {
@@ -78,17 +75,13 @@ const PostEditor = ({
           setLocalHydratedContent(stored);
         }
       } catch {
-        // Ignore sessionStorage errors
       }
     }
-    // run once on mount
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
 
   const handleStyleChange = async (value: string) => {
     setSelectedStyle(value);
-    // Revert to original when Default is selected
     if (value === 'default') {
       onContentChange(localHydratedContent);
       return;
@@ -105,14 +98,12 @@ const PostEditor = ({
     setIsFormatting(true);
     try {
       const styled = await postsService.applyPostStyle(localHydratedContent, value);
-      // Ignore if a newer job started meanwhile
       
       onContentChange(styled);    
       parsed[value] = styled;
       setIsFormatting(false);
       sessionStorage.setItem(STYLE_CACHE_KEY, JSON.stringify(parsed));  
     } catch (err) {
-      // Ignore failure and keep original content
       logger.error('Failed to apply post style', { error: err });
     } 
   };
@@ -232,5 +223,4 @@ const PostEditor = ({
 };
 
 export default PostEditor;
-
 

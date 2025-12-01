@@ -45,37 +45,33 @@ const Profile = () => {
   };
 
   useEffect(() => {
-    // If we already have ciphertext in context, just show the stored banner
     if (ciphertext) {
       setHasStoredCredentials(true);
     }
   }, [ciphertext]);
 
   useEffect(() => {
-    // When user profile context updates, hydrate this page's local editable fields
     (async () => {
       try {
-        const data: unknown = userProfile;
-        if (!data) return;
-        const firstName = (data.first_name || '').trim();
-        const lastName = (data.last_name || '').trim();
+        if (!userProfile) return;
+        const firstName = (userProfile.first_name || '').trim();
+        const lastName = (userProfile.last_name || '').trim();
         const derivedName = [firstName, lastName].filter(Boolean).join(' ').trim();
         setProfile(prev => ({
           ...prev,
           name: derivedName || prev.name,
-          title: (data.headline || data.current_position || prev.title || '').toString(),
-          company: (data.company || prev.company || '').toString(),
-          location: (data.location || prev.location || '').toString(),
-          bio: (data.summary || prev.bio || '').toString(),
-          interests: Array.isArray(data.interests) ? data.interests : prev.interests,
-          linkedinUrl: (data.profile_url || prev.linkedinUrl || '').toString(),
+          title: (userProfile.headline || userProfile.current_position || prev.title || '').toString(),
+          company: (userProfile.company || prev.company || '').toString(),
+          location: (userProfile.location || prev.location || '').toString(),
+          bio: (userProfile.summary || prev.bio || '').toString(),
+          interests: Array.isArray(userProfile.interests) ? userProfile.interests : prev.interests,
+          linkedinUrl: (userProfile.profile_url || prev.linkedinUrl || '').toString(),
         }));
 
-        if (data.linkedin_credentials) {
+        if (userProfile.linkedin_credentials) {
           setHasStoredCredentials(true);
         }
       } catch {
-        // Silent fail; do not block profile page if profile isn't initialized yet
       }
     })();
   }, [userProfile]);
@@ -104,15 +100,11 @@ const Profile = () => {
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      // We avoid storing plaintext in context; we only set ciphertext below
 
-      // Transmit over HTTPS/TLS and let backend encrypt with KMS before storing in DynamoDB
-      // Never log or store plaintext locally beyond this session memory.
       if (linkedinCredentials.email && linkedinCredentials.password) {
         const payload: { linkedin_credentials: string } = { linkedin_credentials: '' };
 
-        // Optional client-side encryption if sealbox public key is provided.
-        const sealboxPubB64 = (import.meta.env as unknown).VITE_CRED_SEALBOX_PUBLIC_KEY_B64 as string | undefined;
+        const sealboxPubB64 = (import.meta.env as ImportMetaEnv).VITE_CRED_SEALBOX_PUBLIC_KEY_B64;
         logger.debug('Save credentials - public key check', {
           hasPublicKey: !!sealboxPubB64,
           keyType: typeof sealboxPubB64,
@@ -134,30 +126,25 @@ const Profile = () => {
           payload.linkedin_credentials = `sealbox_x25519:b64:${ciphertextB64}`;
           logger.debug('Full credentials prepared', { credentialsLength: payload.linkedin_credentials.length });
 
-          // Update context with ciphertext for app-wide usage
           setCiphertext(payload.linkedin_credentials);
           logger.debug('Credentials set in context');
         } else {
           logger.warn('No public key found, using plaintext fallback');
-          // Fallback: send JSON string and rely on backend to encrypt/de-identify and store securely with KMS
           payload.linkedin_credentials = JSON.stringify({
             email: linkedinCredentials.email,
             password: linkedinCredentials.password,
           });
-          // Do NOT store plaintext in context
         }
 
         await updateUserProfile(payload);
         setHasStoredCredentials(true);
 
-        // Clear password from local component state after saving to reduce exposure in memory
         setLinkedinCredentials(prev => ({ ...prev, password: '' }));
       }
 
-      // Save non-sensitive profile info
       const [firstName, ...rest] = profile.name.trim().split(/\s+/);
       const lastName = rest.join(' ').trim();
-      const profilePayload: unknown = {
+      const profilePayload = {
         first_name: firstName || undefined,
         last_name: lastName || undefined,
         headline: profile.title || undefined,
@@ -189,7 +176,7 @@ const Profile = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
-      {/* Navigation */}
+      {}
       <nav className="bg-white/5 backdrop-blur-md border-b border-white/10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-4">
@@ -212,14 +199,14 @@ const Profile = () => {
       </nav>
 
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
+        {}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-white mb-2">Your Profile</h1>
           <p className="text-slate-300">Update your profile information and LinkedIn credentials.</p>
         </div>
 
         <div className="grid lg:grid-cols-3 gap-8">
-          {/* Profile Form */}
+          {}
           <div className="lg:col-span-2 space-y-6">
             <Card className="bg-white/5 backdrop-blur-md border-white/10">
               <CardHeader>
@@ -408,7 +395,7 @@ const Profile = () => {
             </Button>
           </div>
 
-          {/* Profile Preview */}
+          {}
           <div className="space-y-6">
             <Card className="bg-white/5 backdrop-blur-md border-white/10">
               <CardHeader>

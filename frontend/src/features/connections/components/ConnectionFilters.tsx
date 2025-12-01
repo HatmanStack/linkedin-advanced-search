@@ -49,7 +49,6 @@ const ConnectionFiltersComponent: React.FC<ConnectionFiltersProps> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
 
-  // Calculate filter statistics from connections
   const filterStats = useMemo((): FilterStats => {
     const locationCounts = new Map<string, number>();
     const companyCounts = new Map<string, number>();
@@ -57,19 +56,16 @@ const ConnectionFiltersComponent: React.FC<ConnectionFiltersProps> = ({
     let maxConversion = 0;
 
     connections.forEach(connection => {
-      // Count locations
       if (connection.location) {
         const location = connection.location.trim();
         locationCounts.set(location, (locationCounts.get(location) || 0) + 1);
       }
 
-      // Count companies
       if (connection.company) {
         const company = connection.company.trim();
         companyCounts.set(company, (companyCounts.get(company) || 0) + 1);
       }
 
-      // Track conversion likelihood range
       if (connection.conversion_likelihood !== undefined) {
         minConversion = Math.min(minConversion, connection.conversion_likelihood);
         maxConversion = Math.max(maxConversion, connection.conversion_likelihood);
@@ -80,11 +76,11 @@ const ConnectionFiltersComponent: React.FC<ConnectionFiltersProps> = ({
       locations: Array.from(locationCounts.entries())
         .map(([value, count]) => ({ value, count }))
         .sort((a, b) => b.count - a.count)
-        .slice(0, 20), // Limit to top 20 locations
+        .slice(0, 20),
       companies: Array.from(companyCounts.entries())
         .map(([value, count]) => ({ value, count }))
         .sort((a, b) => b.count - a.count)
-        .slice(0, 20), // Limit to top 20 companies
+        .slice(0, 20),
       conversionRange: {
         min: minConversion === 100 ? 0 : minConversion,
         max: maxConversion === 0 ? 100 : maxConversion
@@ -92,7 +88,6 @@ const ConnectionFiltersComponent: React.FC<ConnectionFiltersProps> = ({
     };
   }, [connections]);
 
-  // Handle filter updates
   const updateFilter = useCallback((key: keyof ConnectionFilters, value: unknown) => {
     onFiltersChange({
       ...filters,
@@ -100,7 +95,6 @@ const ConnectionFiltersComponent: React.FC<ConnectionFiltersProps> = ({
     });
   }, [filters, onFiltersChange]);
 
-  // Handle conversion likelihood range change
   const handleConversionRangeChange = useCallback((values: number[]) => {
     updateFilter('conversionLikelihoodRange', {
       min: values[0],
@@ -108,19 +102,16 @@ const ConnectionFiltersComponent: React.FC<ConnectionFiltersProps> = ({
     });
   }, [updateFilter]);
 
-  // Clear all filters
   const clearAllFilters = useCallback(() => {
     onFiltersChange({});
   }, [onFiltersChange]);
 
-  // Clear individual filter
   const clearFilter = useCallback((key: keyof ConnectionFilters) => {
     const newFilters = { ...filters };
     delete newFilters[key];
     onFiltersChange(newFilters);
   }, [filters, onFiltersChange]);
 
-  // Count active filters
   const activeFilterCount = useMemo(() => {
     let count = 0;
     if (filters.location) count++;
@@ -132,7 +123,7 @@ const ConnectionFiltersComponent: React.FC<ConnectionFiltersProps> = ({
 
   return (
     <div className={`flex items-center space-x-2 ${className}`}>
-      {/* Active filter badges */}
+      {}
       {filters.location && (
         <Badge 
           variant="secondary" 
@@ -187,7 +178,7 @@ const ConnectionFiltersComponent: React.FC<ConnectionFiltersProps> = ({
         </Badge>
       )}
 
-      {/* Filter popover */}
+      {}
       <Popover open={isOpen} onOpenChange={setIsOpen}>
         <PopoverTrigger asChild>
           <Button
@@ -227,7 +218,7 @@ const ConnectionFiltersComponent: React.FC<ConnectionFiltersProps> = ({
               )}
             </div>
 
-            {/* Search term filter */}
+            {}
             <div className="space-y-2">
               <Label htmlFor="search-term" className="text-sm font-medium">
                 Search
@@ -241,7 +232,7 @@ const ConnectionFiltersComponent: React.FC<ConnectionFiltersProps> = ({
               />
             </div>
 
-            {/* Location filter */}
+            {}
             <div className="space-y-2">
               <Label className="text-sm font-medium">
                 <MapPin className="h-4 w-4 inline mr-1" />
@@ -265,7 +256,7 @@ const ConnectionFiltersComponent: React.FC<ConnectionFiltersProps> = ({
               </Select>
             </div>
 
-            {/* Company filter */}
+            {}
             <div className="space-y-2">
               <Label className="text-sm font-medium">
                 <Building className="h-4 w-4 inline mr-1" />
@@ -289,7 +280,7 @@ const ConnectionFiltersComponent: React.FC<ConnectionFiltersProps> = ({
               </Select>
             </div>
 
-            {/* Conversion likelihood filter (only for new connections) */}
+            {}
             {isNewConnection && filterStats.conversionRange.max > 0 && (
               <div className="space-y-2">
                 <Label className="text-sm font-medium">
@@ -316,7 +307,7 @@ const ConnectionFiltersComponent: React.FC<ConnectionFiltersProps> = ({
               </div>
             )}
 
-            {/* Filter summary */}
+            {}
             <div className="pt-2 border-t border-slate-700">
               <p className="text-xs text-slate-400">
                 Showing {connections.length} connection{connections.length !== 1 ? 's' : ''}

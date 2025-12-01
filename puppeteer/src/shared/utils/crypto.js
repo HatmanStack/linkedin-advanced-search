@@ -9,7 +9,7 @@ async function readPrivateKeyB64() {
     const content = await fs.readFile(path, 'utf8');
     const b64 = content.trim();
     const buf = Buffer.from(b64, 'base64');
-    if (buf.length !== 32) return null; // X25519 sk length
+    if (buf.length !== 32) return null;
     return b64;
   } catch {
     return null;
@@ -43,7 +43,6 @@ export async function decryptSealboxB64Tag(ciphertextTag) {
     await sodium.ready;
     const sk = sodium.from_base64(privB64, sodium.base64_variants.ORIGINAL);
 
-    // Derive public key from private key (libsodium doesn't ship direct fn, use scalar mult base point)
     const pk = sodium.crypto_scalarmult_base(sk);
 
     const plaintext = sodium.crypto_box_seal_open(
@@ -64,16 +63,11 @@ export async function decryptSealboxB64Tag(ciphertextTag) {
   }
 }
 
-/**
- * Extract LinkedIn credentials from request body.
- * Supports either ciphertext (preferred) or plaintext object fallback.
- * Returns { searchName, searchPassword } or null if unavailable.
- */
+
 export async function extractLinkedInCredentials(body = {}) {
   try {
     logger.info('Attempting to extract LinkedIn credentials');
 
-    // Preferred: ciphertext
     if (body.linkedinCredentialsCiphertext) {
       const decrypted = await decryptSealboxB64Tag(body.linkedinCredentialsCiphertext);
 

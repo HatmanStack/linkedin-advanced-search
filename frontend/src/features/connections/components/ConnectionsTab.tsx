@@ -8,8 +8,32 @@ import { Input } from "@/shared/components/ui/input";
 import { Button } from "@/shared/components/ui/button";
 import { Search, Users, Filter, X, Database } from 'lucide-react';
 
-// Fake data for when server is unavailable
-const generateFakeConnections = (): unknown[] => [
+interface DisplayConnection {
+  connection_id: string;
+  id?: string;
+  user_id?: string;
+  first_name: string;
+  last_name: string;
+  position?: string;
+  company?: string;
+  headline?: string;
+  connection_status?: string;
+  status?: string;
+  message_count?: number;
+  messages?: number;
+  tags?: string[];
+  conversation_topics?: string[];
+  last_activity_summary?: string;
+  recent_activity?: string;
+  created_at?: string;
+  date_added?: string;
+  updated_at?: string;
+  profile_picture_url?: string;
+  isFakeData?: boolean;
+  location?: string;
+}
+
+const generateFakeConnections = (): DisplayConnection[] => [
   {
     connection_id: 'fake-1',
     user_id: 'fake-user',
@@ -103,7 +127,7 @@ const generateFakeConnections = (): unknown[] => [
 ];
 
 interface ConnectionsTabProps {
-  onConnectionSelect?: (connection: unknown) => void;
+  onConnectionSelect?: (connection: DisplayConnection) => void;
   selectedConnections?: string[];
   onSelectionChange?: (connectionIds: string[]) => void;
 }
@@ -143,10 +167,29 @@ const ConnectionsTab: React.FC<ConnectionsTabProps> = ({
     return () => window.removeEventListener('resize', handleResize);
   }, [handleResize]);
 
-  // Use fake data if no real connections are available
-  const displayConnections = connections.length > 0 ? connections : generateFakeConnections();
+  const displayConnections: DisplayConnection[] = connections.length > 0
+    ? connections.map(c => ({
+        connection_id: c.id,
+        id: c.id,
+        first_name: c.first_name,
+        last_name: c.last_name,
+        position: c.position,
+        company: c.company,
+        headline: c.headline,
+        connection_status: c.status,
+        status: c.status,
+        message_count: c.messages,
+        messages: c.messages,
+        tags: c.tags,
+        last_activity_summary: c.last_action_summary || c.recent_activity,
+        recent_activity: c.recent_activity,
+        created_at: c.date_added,
+        date_added: c.date_added,
+        location: c.location,
+        isFakeData: c.isFakeData,
+      }))
+    : generateFakeConnections();
 
-  // Get all unique tags from connections
   const allTags = useMemo(() => {
     const tagSet = new Set<string>();
     displayConnections.forEach(connection => {
@@ -155,7 +198,6 @@ const ConnectionsTab: React.FC<ConnectionsTabProps> = ({
     return Array.from(tagSet).sort();
   }, [displayConnections]);
 
-  // Filter and sort connections based on search and tags
   const filteredConnections = useMemo(() => {
     let filtered = displayConnections.filter(connection => {
       const matchesSearch = searchQuery === '' ||
@@ -167,18 +209,15 @@ const ConnectionsTab: React.FC<ConnectionsTabProps> = ({
       return matchesSearch;
     });
 
-    // Sort by tag matches if tags are selected
     if (activeTags.length > 0) {
       filtered = filtered.sort((a, b) => {
         const aTagsMatch = (a.tags || []).filter((tag: string) => activeTags.includes(tag)).length;
         const bTagsMatch = (b.tags || []).filter((tag: string) => activeTags.includes(tag)).length;
 
-        // Sort by number of matching tags (descending)
         if (aTagsMatch !== bTagsMatch) {
           return bTagsMatch - aTagsMatch;
         }
 
-        // If same number of matches, sort alphabetically
         return `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`);
       });
     }
@@ -215,10 +254,8 @@ const ConnectionsTab: React.FC<ConnectionsTabProps> = ({
     setActiveTags([]);
   };
 
-  // Handle profile initialization with connection refresh
   const handleInitializeProfile = async () => {
     await initializeProfile(() => {
-      // Refresh connections list to show any new data after successful initialization
       refetch();
     });
   };
@@ -233,7 +270,7 @@ const ConnectionsTab: React.FC<ConnectionsTabProps> = ({
               Loading Connections...
             </CardTitle>
             <div className="flex items-center gap-2">
-              {/* Initialize Profile Database Button */}
+              {}
               <Button
                 onClick={handleInitializeProfile}
                 disabled={isInitializing}
@@ -255,7 +292,6 @@ const ConnectionsTab: React.FC<ConnectionsTabProps> = ({
   }
 
   if (error) {
-    // Show fake data with error message when there's an error
 
     return (
       <Card className="bg-white/5 backdrop-blur-md border-white/10">
@@ -266,7 +302,7 @@ const ConnectionsTab: React.FC<ConnectionsTabProps> = ({
               Error Loading Connections
             </CardTitle>
             <div className="flex items-center gap-2">
-              {/* Initialize Profile Database Button */}
+              {}
               <Button
                 onClick={handleInitializeProfile}
                 disabled={isInitializing}
@@ -298,7 +334,7 @@ const ConnectionsTab: React.FC<ConnectionsTabProps> = ({
             </p>
           </div>
 
-          {/* Search and Filter Controls */}
+          {}
           <div className="space-y-4 mb-6">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 h-4 w-4" />
@@ -311,7 +347,7 @@ const ConnectionsTab: React.FC<ConnectionsTabProps> = ({
             </div>
           </div>
 
-          {/* Fake Connections using VirtualConnectionList for consistent spacing/VH */}
+          {}
           <div ref={setContainerRef} style={{ height: containerHeight }} className="overflow-y-auto">
             <VirtualConnectionList
               connections={generateFakeConnections().map((c) => ({
@@ -356,7 +392,7 @@ const ConnectionsTab: React.FC<ConnectionsTabProps> = ({
             Your Connections ({filteredConnections.length})
           </CardTitle>
           <div className="flex items-center gap-2">
-            {/* Initialize Profile Database Button */}
+            {}
             <Button
               onClick={handleInitializeProfile}
               disabled={isInitializing}
@@ -382,7 +418,7 @@ const ConnectionsTab: React.FC<ConnectionsTabProps> = ({
           Manage and interact with your LinkedIn connections
         </CardDescription>
 
-        {/* Status Messages */}
+        {}
         {initializationMessage && (
           <div className="bg-green-600/20 border border-green-500/30 rounded-lg p-3 mt-4">
             <p className="text-green-200 text-sm font-medium">
@@ -400,7 +436,7 @@ const ConnectionsTab: React.FC<ConnectionsTabProps> = ({
         )}
       </CardHeader>
       <CardContent>
-        {/* Search and Filter Controls */}
+        {}
         <div className="space-y-4 mb-6">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
@@ -412,7 +448,7 @@ const ConnectionsTab: React.FC<ConnectionsTabProps> = ({
             />
           </div>
 
-          {/* Tag Filters */}
+          {}
           {allTags.length > 0 && (
             <div>
               <div className="flex items-center gap-2 mb-2">
@@ -443,7 +479,7 @@ const ConnectionsTab: React.FC<ConnectionsTabProps> = ({
           )}
         </div>
 
-        {/* Connections List using VirtualConnectionList for consistent spacing/VH */}
+        {}
         <div ref={setContainerRef} style={{ height: containerHeight }} className="overflow-y-auto">
           <VirtualConnectionList
             connections={filteredConnections.map((c) => ({

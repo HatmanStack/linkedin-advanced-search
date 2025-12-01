@@ -21,24 +21,7 @@ import { NoMessagesState } from '@/shared/components/ui/empty-state';
 import LoadingOverlay from '@/shared/components/ui/loading-overlay';
 import type { MessageModalProps } from '@/shared/types';
 
-/**
- * MessageModal Component
- * 
- * Modal component for displaying and managing message history with connections.
- * Provides scrollable message display, message input functionality, and error handling.
- * 
- * @param props - The component props
- * @param props.isOpen - Whether the modal is open
- * @param props.connection - Connection whose messages to display
- * @param props.onClose - Callback to close the modal
- * @param props.onSendMessage - Callback to send a new message (optional)
- * @param props.isLoadingMessages - Whether messages are currently loading
- * @param props.messagesError - Error message if message loading failed
- * @param props.onRetryLoadMessages - Callback to retry loading messages
- * @param props.className - Additional CSS classes
- * 
- * @returns JSX element representing the message modal
- */
+
 export const MessageModal: React.FC<MessageModalProps> = ({
   isOpen,
   connection,
@@ -58,7 +41,6 @@ export const MessageModal: React.FC<MessageModalProps> = ({
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
-  // Handle pre-populated message content
   useEffect(() => {
     if (prePopulatedMessage && isOpen) {
       setMessageInput(prePopulatedMessage);
@@ -67,16 +49,10 @@ export const MessageModal: React.FC<MessageModalProps> = ({
     }
   }, [prePopulatedMessage, isOpen]);
 
-  /**
-   * Formats a timestamp string for display in the message history
-   * 
-   * @param timestamp - ISO timestamp string to format
-   * @returns Formatted timestamp string for display
-   */
+  
   const formatTimestamp = (timestamp: string): string => {
     try {
       const date = new Date(timestamp);
-      // Check if the date is valid
       if (isNaN(date.getTime())) {
         return 'Unknown time';
       }
@@ -91,7 +67,6 @@ export const MessageModal: React.FC<MessageModalProps> = ({
     }
   };
 
-  // Scroll to bottom when messages change
   useEffect(() => {
     if (scrollAreaRef.current) {
       const scrollElement = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
@@ -101,21 +76,17 @@ export const MessageModal: React.FC<MessageModalProps> = ({
     }
   }, [connection.message_history]);
 
-  // Handle generation workflow shortcuts (Escape is handled by Dialog's onOpenChange)
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (!isOpen) return;
 
-      // Generation workflow keyboard shortcuts
       if (showGenerationControls) {
         if (event.key === 'Enter' && !event.shiftKey && event.ctrlKey) {
-          // Ctrl+Enter to approve and next
           event.preventDefault();
           if (onApproveAndNext) {
             onApproveAndNext();
           }
         } else if (event.key === 's' && event.ctrlKey) {
-          // Ctrl+S to skip
           event.preventDefault();
           if (onSkipConnection) {
             onSkipConnection();
@@ -133,14 +104,10 @@ export const MessageModal: React.FC<MessageModalProps> = ({
     };
   }, [isOpen, showGenerationControls, onApproveAndNext, onSkipConnection]);
 
-  /**
-   * Handles sending a new message with validation, error handling, and user feedback
-   * Validates message length, calls the onSendMessage callback, and shows appropriate toasts
-   */
+  
   const handleSendMessage = async () => {
     const trimmedMessage = messageInput.trim();
 
-    // Validate message input
     if (!trimmedMessage) {
       toast({
         title: "Empty Message",
@@ -171,7 +138,7 @@ export const MessageModal: React.FC<MessageModalProps> = ({
     setIsSending(true);
     try {
       await onSendMessage(trimmedMessage);
-      setMessageInput(''); // Clear input on success
+      setMessageInput('');
 
       toast({
         title: "Message Sent",
@@ -181,7 +148,6 @@ export const MessageModal: React.FC<MessageModalProps> = ({
     } catch (error) {
       logger.error('Error sending message', { error });
 
-      // Transform error for user-friendly display
       const errorInfo = transformErrorForUser(
         error,
         ERROR_MESSAGES.SEND_MESSAGE,
@@ -204,13 +170,7 @@ export const MessageModal: React.FC<MessageModalProps> = ({
     }
   };
 
-  /**
-   * Handles keyboard events in the message input field
-   * Sends message on Enter key press (without Shift modifier) for normal mode
-   * In generation mode, Enter approves and moves to next connection
-   * 
-   * @param event - The keyboard event
-   */
+  
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
@@ -261,7 +221,7 @@ export const MessageModal: React.FC<MessageModalProps> = ({
           </DialogDescription>
         </DialogHeader>
 
-        {/* Message History */}
+        {}
         <div className="flex-1 min-h-0">
           <LoadingOverlay
             isLoading={isLoadingMessages}
@@ -325,7 +285,7 @@ export const MessageModal: React.FC<MessageModalProps> = ({
           </LoadingOverlay>
         </div>
 
-        {/* Message Input */}
+        {}
         <DialogFooter className="flex-col space-y-2 sm:flex-row sm:space-y-0">
           {isGeneratedContent && (
             <div className="w-full mb-2 p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-md">

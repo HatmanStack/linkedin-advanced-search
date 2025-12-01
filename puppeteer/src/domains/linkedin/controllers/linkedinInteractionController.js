@@ -9,10 +9,7 @@ import { linkedInInteractionQueue } from '../utils/interactionQueue.js';
 
 export class LinkedInInteractionController {
 
-  /**
-   * Send a direct message to a LinkedIn connection
-   * POST /linkedin-interactions/send-message
-   */
+  
   async sendMessage(req, res) {
     const requestId = uuidv4();
     const startTime = Date.now();
@@ -24,10 +21,8 @@ export class LinkedInInteractionController {
     });
 
     try {
-      // Extract and validate request parameters
       const { recipientProfileId, messageContent, recipientName } = req.body;
 
-      // Extract user ID from JWT token early for audit logging
       const userId = this._extractUserIdFromToken(req.jwtToken);
 
       const context = {
@@ -39,10 +34,8 @@ export class LinkedInInteractionController {
         recipientName
       };
 
-      // Log interaction attempt
       LinkedInAuditLogger.logInteractionAttempt('sendMessage', context, requestId);
 
-      // Validate required parameters
       if (!recipientProfileId || !messageContent) {
         const error = new Error('Missing required parameters: recipientProfileId and messageContent are required');
         const { response, httpStatus } = LinkedInErrorHandler.createErrorResponse(
@@ -55,7 +48,6 @@ export class LinkedInInteractionController {
         return res.status(httpStatus).json(response);
       }
 
-      // Validate message content length (reasonable limit)
       if (messageContent.length > 8000) {
         const error = new Error('Message content too long: must be 8000 characters or less');
         const { response, httpStatus } = LinkedInErrorHandler.createErrorResponse(
@@ -68,7 +60,6 @@ export class LinkedInInteractionController {
         return res.status(httpStatus).json(response);
       }
 
-      // Validate profile ID format (basic validation)
       if (typeof recipientProfileId !== 'string' || recipientProfileId.trim().length === 0) {
         const error = new Error('Invalid profile ID: must be a non-empty string');
         const { response, httpStatus } = LinkedInErrorHandler.createErrorResponse(
@@ -94,13 +85,10 @@ export class LinkedInInteractionController {
         return res.status(httpStatus).json(response);
       }
 
-      // Enqueue the interaction to prevent concurrent page access
       const meta = { type: 'send-message', requestId, userId, recipientProfileId };
       const result = await linkedInInteractionQueue.enqueue(async () => {
-        // Initialize LinkedIn interaction service
         const linkedinService = new LinkedInInteractionService();
 
-        // Ensure we are logged in if no active authenticated session
         try {
           const sessionActive = await linkedinService.isSessionActive();
           if (!sessionActive) {
@@ -119,7 +107,6 @@ export class LinkedInInteractionController {
           throw new Error('Login required but failed to authenticate to LinkedIn');
         }
 
-        // Send message via service layer
         logger.info('Attempting to send LinkedIn message', {
           requestId,
           recipientProfileId,
@@ -137,13 +124,10 @@ export class LinkedInInteractionController {
 
       const duration = Date.now() - startTime;
 
-      // Log performance metrics
       LinkedInAuditLogger.logPerformanceMetrics('sendMessage', duration, context, requestId);
 
-      // Log successful interaction
       LinkedInAuditLogger.logInteractionSuccess('sendMessage', result, { ...context, duration }, requestId);
 
-      // Return success response
       res.json({
         success: true,
         data: {
@@ -163,7 +147,6 @@ export class LinkedInInteractionController {
 
       logger.error('Send message controller error:', { requestId, error: error.message, stack: error.stack });
 
-      // Log performance metrics even for failures
       LinkedInAuditLogger.logPerformanceMetrics('sendMessage', duration, { operation: 'sendMessage' }, requestId);
 
       const { response, httpStatus } = LinkedInErrorHandler.createErrorResponse(
@@ -172,7 +155,6 @@ export class LinkedInInteractionController {
         requestId
       );
 
-      // Log interaction failure
       LinkedInAuditLogger.logInteractionFailure('sendMessage', error, {
         operation: 'sendMessage',
         userId,
@@ -184,10 +166,7 @@ export class LinkedInInteractionController {
     }
   }
 
-  /**
-   * Send a connection request to a LinkedIn profile
-   * POST /linkedin-interactions/add-connection
-   */
+  
   async addConnection(req, res) {
     const requestId = uuidv4();
     logger.info('Add connection request received', { requestId });
@@ -199,10 +178,8 @@ export class LinkedInInteractionController {
     });
 
     try {
-      // Extract and validate request parameters (minimal subset)
       const { profileId } = req.body || {};
 
-      // Validate required parameters
       if (!profileId) {
         const error = new Error('Missing required parameters: profileId is required');
         const { response, httpStatus } = LinkedInErrorHandler.createErrorResponse(
@@ -214,7 +191,6 @@ export class LinkedInInteractionController {
       }
       logger.info('Add connection request received asdfsadfsadf1', { requestId, profileId });
 
-      // Validate profile ID format (basic validation)
       if (typeof profileId !== 'string' || profileId.trim().length === 0) {
         const error = new Error('Invalid profile ID: must be a non-empty string');
         const { response, httpStatus } = LinkedInErrorHandler.createErrorResponse(
@@ -225,11 +201,8 @@ export class LinkedInInteractionController {
         return res.status(httpStatus).json(response);
       }
 
-      // Validate connection message length if provided
-      // Do not process optional connection message in this controller; keep action focused
       logger.info('Add connection request received', { requestId, profileId });
 
-      // Extract user ID from JWT token
       const userId = this._extractUserIdFromToken(req.jwtToken);
       if (!userId) {
         const error = new Error('JWT token invalid: unable to extract user ID from token');
@@ -241,13 +214,10 @@ export class LinkedInInteractionController {
         return res.status(httpStatus).json(response);
       }
       logger.info('Add connection request received  2', { requestId, profileId });
-      // Enqueue the interaction to prevent concurrent page access
       const meta = { type: 'add-connection', requestId, userId, profileId };
       const result = await linkedInInteractionQueue.enqueue(async () => {
-        // Initialize LinkedIn interaction service
         const linkedinService = new LinkedInInteractionService();
 
-        // Ensure we are logged in if no active authenticated session
         try {
           const sessionActive = await linkedinService.isSessionActive();
           if (!sessionActive) {
@@ -266,12 +236,10 @@ export class LinkedInInteractionController {
           throw new Error('Login required but failed to authenticate to LinkedIn');
         }
 
-        // Send connection request via service layer (single workflow)
         logger.info('Attempting to send LinkedIn connection request', { requestId, profileId, userId });
         return await linkedinService.executeConnectionWorkflow(profileId, '', { jwtToken: req.jwtToken });
       }, meta);
 
-      // Return success response
       res.json({
         success: true,
         data: {
@@ -299,10 +267,7 @@ export class LinkedInInteractionController {
     }
   }
 
-  /**
-   * Create and publish a LinkedIn post
-   * POST /linkedin-interactions/create-post
-   */
+  
   async createPost(req, res) {
     const requestId = uuidv4();
 
@@ -313,10 +278,8 @@ export class LinkedInInteractionController {
     });
 
     try {
-      // Extract and validate request parameters
       const { content, mediaAttachments } = req.body;
 
-      // Validate required parameters
       if (!content) {
         const error = new Error('Missing required parameters: content is required');
         const { response, httpStatus } = LinkedInErrorHandler.createErrorResponse(
@@ -327,7 +290,6 @@ export class LinkedInInteractionController {
         return res.status(httpStatus).json(response);
       }
 
-      // Validate content length (3000 character limit)
       if (content.length > 3000) {
         const error = new Error('Content exceeds maximum length: must be 3000 characters or less');
         const { response, httpStatus } = LinkedInErrorHandler.createErrorResponse(
@@ -338,7 +300,6 @@ export class LinkedInInteractionController {
         return res.status(httpStatus).json(response);
       }
 
-      // Validate content is not empty after trimming
       if (typeof content !== 'string' || content.trim().length === 0) {
         const error = new Error('Invalid post content: must be a non-empty string');
         const { response, httpStatus } = LinkedInErrorHandler.createErrorResponse(
@@ -349,7 +310,6 @@ export class LinkedInInteractionController {
         return res.status(httpStatus).json(response);
       }
 
-      // Validate media attachments if provided
       if (mediaAttachments && !Array.isArray(mediaAttachments)) {
         const error = new Error('Invalid media attachments format: must be an array');
         const { response, httpStatus } = LinkedInErrorHandler.createErrorResponse(
@@ -360,7 +320,6 @@ export class LinkedInInteractionController {
         return res.status(httpStatus).json(response);
       }
 
-      // Validate individual media attachments
       if (mediaAttachments && mediaAttachments.length > 0) {
         for (let i = 0; i < mediaAttachments.length; i++) {
           const attachment = mediaAttachments[i];
@@ -386,7 +345,6 @@ export class LinkedInInteractionController {
         }
       }
 
-      // Extract user ID from JWT token
       const userId = this._extractUserIdFromToken(req.jwtToken);
       if (!userId) {
         const error = new Error('JWT token invalid: unable to extract user ID from token');
@@ -400,7 +358,6 @@ export class LinkedInInteractionController {
 
       const meta = { type: 'create-post', requestId, userId };
       const result = await linkedInInteractionQueue.enqueue(async () => {
-        // Initialize LinkedIn interaction service
         const linkedinService = new LinkedInInteractionService();
 
         logger.info('Attempting to create LinkedIn post', {
@@ -418,7 +375,6 @@ export class LinkedInInteractionController {
         );
       }, meta);
 
-      // Return success response
       res.json({
         success: true,
         data: {
@@ -447,10 +403,7 @@ export class LinkedInInteractionController {
     }
   }
 
-  /**
-   * Generate personalized message for a connection
-   * POST /linkedin-interactions/generate-personalized-message
-   */
+  
   async generatePersonalizedMessage(req, res) {
     const requestId = uuidv4();
 
@@ -461,10 +414,8 @@ export class LinkedInInteractionController {
     });
 
     try {
-      // Extract and validate request parameters
       const { profileData, conversationTopic, messageHistory } = req.body;
 
-      // Validate required parameters
       if (!profileData || !conversationTopic) {
         const error = new Error('Missing required parameters: profileData and conversationTopic are required');
         const { response, httpStatus} = LinkedInErrorHandler.createErrorResponse(
@@ -475,10 +426,8 @@ export class LinkedInInteractionController {
         return res.status(httpStatus).json(response);
       }
 
-      // Extract user ID from JWT token
       const userId = this._extractUserIdFromToken(req.jwtToken);
 
-      // NOTE: Personalized message generation not yet implemented
       logger.info('Personalized message generation not yet implemented', {
         requestId,
         hasProfileData: !!profileData,
@@ -487,7 +436,6 @@ export class LinkedInInteractionController {
         userId
       });
 
-      // Placeholder response
       res.json({
         success: true,
         data: {
@@ -513,10 +461,7 @@ export class LinkedInInteractionController {
     }
   }
 
-  /**
-   * Get current browser session status
-   * GET /linkedin-interactions/session-status
-   */
+  
   async getSessionStatus(req, res) {
     const requestId = uuidv4();
 
@@ -526,7 +471,6 @@ export class LinkedInInteractionController {
     });
 
     try {
-      // Extract user ID from JWT token
       const userId = this._extractUserIdFromToken(req.jwtToken);
       if (!userId) {
         const error = new Error('JWT token invalid: unable to extract user ID from token');
@@ -538,15 +482,12 @@ export class LinkedInInteractionController {
         return res.status(httpStatus).json(response);
       }
 
-      // Initialize LinkedIn interaction service
       const linkedinService = new LinkedInInteractionService();
 
-      // Get comprehensive session status via service layer
       logger.info('Checking LinkedIn session status', { requestId, userId });
 
       const sessionStatus = await linkedinService.getSessionStatus();
 
-      // Return session status response
       res.json({
         success: true,
         data: {
@@ -582,11 +523,7 @@ export class LinkedInInteractionController {
     }
   }
 
-  /**
-   * Extract user ID from JWT token
-   * Decodes JWT payload to extract user information
-   * @private
-   */
+  
   _extractUserIdFromToken(token) {
     try {
       if (!token) {
@@ -594,24 +531,19 @@ export class LinkedInInteractionController {
         return null;
       }
 
-      // JWT tokens have 3 parts separated by dots: header.payload.signature
       const parts = token.split('.');
       if (parts.length !== 3) {
         logger.warn('Invalid JWT token format - expected 3 parts');
         return null;
       }
 
-      // Decode the payload (second part)
       const payload = parts[1];
 
-      // Add padding if needed for base64 decoding
       const paddedPayload = payload + '='.repeat((4 - payload.length % 4) % 4);
 
-      // Decode base64 payload
       const decodedPayload = Buffer.from(paddedPayload, 'base64').toString('utf8');
       const payloadObj = JSON.parse(decodedPayload);
 
-      // Extract user ID - try common JWT claim names
       const userId = payloadObj.sub || payloadObj.user_id || payloadObj.userId || payloadObj.id;
 
       if (!userId) {
@@ -622,7 +554,7 @@ export class LinkedInInteractionController {
       }
 
       logger.debug('Successfully extracted user ID from JWT token', {
-        userId: userId.substring(0, 8) + '...' // Log partial ID for security
+        userId: userId.substring(0, 8) + '...'
       });
 
       return userId;

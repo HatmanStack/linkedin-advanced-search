@@ -9,22 +9,15 @@ import { createLogger } from '@/shared/utils/logger';
 
 const logger = createLogger('PuppeteerApiService');
 
-// API Configuration
-// This service calls the local puppeteer backend for LinkedIn automation
-// Note: Backend routes are rooted at '/', e.g., '/search', so do NOT append '/api' here.
 const PUPPETEER_BACKEND_URL =
-  (import.meta.env as unknown).VITE_PUPPETEER_BACKEND_URL ||
-  (import.meta.env as unknown).VITE_API_GATEWAY_URL || // fallback for legacy env var usage
+  (import.meta.env as ImportMetaEnv).VITE_PUPPETEER_BACKEND_URL ||
+  (import.meta.env as ImportMetaEnv).VITE_API_GATEWAY_URL ||
   'http://localhost:3001';
 
-// This service handles raw API calls to the puppeteer backend
-// No specific types needed - we use generic types and let the backend handle the data structure
 
-// Service for interacting with the local puppeteer backend that handles LinkedIn automation
 class PuppeteerApiService {
 
   private async getAuthHeaders(): Promise<HeadersInit> {
-    // Get JWT token from Cognito session
     const token = await this.getCognitoToken();
     return {
       'Content-Type': 'application/json',
@@ -34,7 +27,6 @@ class PuppeteerApiService {
 
   private async getCognitoToken(): Promise<string> {
     try {
-      // Get current Cognito user session
       const userPool = new CognitoUserPool({
         UserPoolId: cognitoConfig.userPoolId,
         ClientId: cognitoConfig.userPoolWebClientId,
@@ -43,7 +35,6 @@ class PuppeteerApiService {
       const cognitoUser = userPool.getCurrentUser();
       if (!cognitoUser) return '';
 
-      // Properly handle async getSession
       return new Promise<string>((resolve) => {
         cognitoUser.getSession((err: Error | null, session: CognitoUserSession) => {
           if (err || !session.isValid()) {
@@ -65,7 +56,6 @@ class PuppeteerApiService {
     options: RequestInit = {}
   ): Promise<PuppeteerApiResponse<T>> {
     try {
-      // Attach ciphertext credentials for sensitive endpoints; rely on UserProfileContext to have stored them
       let augmentedBody = options.body;
       const shouldAttach =
         endpoint.startsWith('/linkedin') ||
@@ -117,17 +107,14 @@ class PuppeteerApiService {
         body: augmentedBody,
       });
 
-      // Gracefully handle empty/204 responses (no body)
       const contentType = response.headers.get('content-type') || '';
       const textBody = await response.text();
 
-      // Non-OK still try to surface server message if any
       if (!response.ok) {
-        let parsedError: unknown = null;
+        let parsedError: { error?: string; message?: string } | null = null;
         try {
           parsedError = textBody && contentType.includes('application/json') ? JSON.parse(textBody) : null;
         } catch {
-          // Ignore JSON parse errors
         }
         return {
           success: false,
@@ -135,25 +122,24 @@ class PuppeteerApiService {
         };
       }
 
-      // OK responses: allow empty body or non-JSON bodies
       if (!textBody) {
         return { success: true } as PuppeteerApiResponse<T>;
       }
 
-      let parsed: unknown = textBody;
+      let parsed: { data?: T; message?: string } | string = textBody;
       if (contentType.includes('application/json')) {
         try {
           parsed = JSON.parse(textBody);
         } catch {
-          // If JSON parse fails, fall back to raw text
           parsed = textBody;
         }
       }
 
+      const parsedObj = typeof parsed === 'object' ? parsed : null;
       return {
         success: true,
-        data: (parsed && parsed.data) ? parsed.data : parsed,
-        message: parsed?.message,
+        data: (parsedObj && parsedObj.data) ? parsedObj.data : parsed as T,
+        message: parsedObj?.message,
       } as PuppeteerApiResponse<T>;
     } catch (error) {
       return {
@@ -163,10 +149,7 @@ class PuppeteerApiService {
     }
   }
 
-  // User Profile Operations removed - these were conflicting with API Gateway /profile endpoints
-  // Profile management should be handled through lambdaApiService instead
 
-  // Connection Operations
   async getConnections(filters?: {
     status?: string;
     tags?: string[];
@@ -199,7 +182,6 @@ class PuppeteerApiService {
     });
   }
 
-  // Message Operations
   async getMessages(filters?: {
     connectionId?: string;
     isSent?: boolean;
@@ -223,7 +205,6 @@ class PuppeteerApiService {
     });
   }
 
-  // Topic Operations
   async getTopics(): Promise<PuppeteerApiResponse<unknown[]>> {
     return this.makeRequest<unknown[]>('/topics');
   }
@@ -235,7 +216,6 @@ class PuppeteerApiService {
     });
   }
 
-  // Draft Operations
   async getDrafts(): Promise<PuppeteerApiResponse<unknown[]>> {
     return this.makeRequest<unknown[]>('/drafts');
   }
@@ -247,7 +227,6 @@ class PuppeteerApiService {
     });
   }
 
-  // LinkedIn Integration
   async performLinkedInSearch(criteria: unknown): Promise<PuppeteerApiResponse<unknown>> {
     return this.makeRequest<unknown>('/search', {
       method: 'POST',
@@ -262,7 +241,6 @@ class PuppeteerApiService {
     });
   }
 
-  // LinkedIn Interactions
   async sendLinkedInMessage(params: {
     recipientProfileId: string;
     messageContent: string;
@@ -277,7 +255,6 @@ class PuppeteerApiService {
     );
 
     if (response.success) {
-      // Mark that DynamoDB edges/messages changed
       connectionChangeTracker.markChanged('interaction');
     }
 
@@ -323,7 +300,6 @@ class PuppeteerApiService {
     return response;
   }
 
-  // Heal and Restore Operations
   async authorizeHealAndRestore(sessionId: string, autoApprove: boolean = false): Promise<PuppeteerApiResponse<{ success: boolean }>> {
     return this.makeRequest<{ success: boolean }>('/heal-restore/authorize', {
       method: 'POST',
@@ -342,18 +318,13 @@ class PuppeteerApiService {
     });
   }
 
-  // Profile Initialization Operations
-  async initializeProfileDatabase(credentials: {
-    searchName: string;
-    searchPassword: string;
-  }): Promise<PuppeteerApiResponse<{ success?: boolean; healing?: boolean; message?: string }>> {
+  async initializeProfileDatabase(credentials?: Record<string, unknown>): Promise<PuppeteerApiResponse<{ success?: boolean; healing?: boolean; message?: string }>> {
     return this.makeRequest<{ success?: boolean; healing?: boolean; message?: string }>('/profile-init', {
       method: 'POST',
-      body: JSON.stringify(credentials),
+      body: JSON.stringify(credentials || {}),
     });
   }
 
-  // LinkedIn Search Operations
   async searchLinkedIn(searchData: SearchFormData): Promise<unknown> {
     const response = await this.makeRequest<unknown>(
       '/search',
@@ -366,7 +337,6 @@ class PuppeteerApiService {
   }
 }
 
-// Custom error class
 export class ApiError extends Error {
   status?: number;
 

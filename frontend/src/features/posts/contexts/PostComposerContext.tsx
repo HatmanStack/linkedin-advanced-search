@@ -61,8 +61,6 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
   const HOOK_STORAGE_KEY = 'ai_generated_post_hook';
   const [ideas, setIdeas] = useState<string[]>([]);
 
-  // Load or clear unsent post content when user/profile becomes available.
-  // Only hydrate editor content once per user session to avoid overwriting local edits on profile refreshes.
   useEffect(() => {
     let cancelled = false;
     logger.debug('hydrate start', { hasUser: !!user, hasProfile: !!userProfile });
@@ -77,59 +75,47 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
       }
       
       
-      
-      // Use the profile data from context instead of fetching again
-      const unsent = (userProfile as unknown).unpublished_post_content || (userProfile as unknown).unsent_post_content;
+      const unsent = userProfile.unpublished_post_content;
       if (!cancelled && !hasHydratedContentRef.current) {
         setContent(unsent || "");
         hasHydratedContentRef.current = true;
       }
-      // Mirror profile values into session storage for downstream component hydration
       try {
-        const pResearch = (userProfile as unknown)?.ai_generated_research;
+        const pResearch = userProfile.ai_generated_research;
         if (typeof pResearch === 'string' && pResearch.trim()) {
           try { sessionStorage.setItem(RESEARCH_STORAGE_KEY, pResearch); } catch {
-            // Ignore storage errors (private browsing, quota exceeded)
           }
         }
       } catch {
-        // Ignore profile access errors
       }
 
       try {
-        const pResearch = (userProfile as unknown)?.unpublished_post_content;
-        if (typeof pResearch === 'string' && pResearch.trim()) {
-          try { sessionStorage.setItem(CONTENT_STORAGE_KEY, pResearch); } catch {
-            // Ignore storage errors (private browsing, quota exceeded)
+        const pContent = userProfile.unpublished_post_content;
+        if (typeof pContent === 'string' && pContent.trim()) {
+          try { sessionStorage.setItem(CONTENT_STORAGE_KEY, pContent); } catch {
           }
         }
       } catch {
-        // Ignore profile access errors
       }
 
       try {
-        const pReasoning = (userProfile as unknown)?.ai_generated_post_reasoning;
+        const pReasoning = userProfile.ai_generated_post_reasoning;
         if (typeof pReasoning === 'string' && pReasoning.trim()) {
           try { sessionStorage.setItem(REASONING_STORAGE_KEY, pReasoning); } catch {
-            // Ignore storage errors (private browsing, quota exceeded)
           }
         }
       } catch {
-        // Ignore profile access errors
       }
 
       try {
-        const pHook = (userProfile as unknown)?.ai_generated_post_hook;
+        const pHook = userProfile.ai_generated_post_hook;
         if (typeof pHook === 'string' && pHook.trim()) {
           try { sessionStorage.setItem(HOOK_STORAGE_KEY, pHook); } catch {
-            // Ignore storage errors (private browsing, quota exceeded)
           }
         }
       } catch {
-        // Ignore profile access errors
       }
 
-      // Leave ideas hydration as-is; components handle their own session hydration too
       try {
         const storedIdeas = sessionStorage.getItem(IDEAS_STORAGE_KEY);
         logger.debug('hydrate ideas: session', { exists: !!storedIdeas, len: storedIdeas?.length });
@@ -140,7 +126,7 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
 
         } else {
           logger.debug('hydrate ideas: profile fallback');
-          const fromProfileIdeas = (userProfile as unknown)?.ai_generated_ideas;
+          const fromProfileIdeas = userProfile.ai_generated_ideas;
           if (!cancelled && Array.isArray(fromProfileIdeas)) {
             logger.debug('hydrate ideas: using profile', { count: fromProfileIdeas.length });
             setIdeas(fromProfileIdeas);
@@ -175,7 +161,6 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
     setIsPublishing(true);
     try {
       await postsService.publishPost(content);
-      // On publish, remove saved unsent content from profile
       await postsService.clearUnsentPostFromProfile();
       setContent('');
     } finally {
@@ -187,11 +172,9 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
     setIsGeneratingIdeas(true);
     try {
       const ideas = await postsService.generateIdeas(prompt, userProfile || undefined);
-      // Persist locally in session storage for repopulation across reloads
       try {
         sessionStorage.setItem(IDEAS_STORAGE_KEY, JSON.stringify(ideas));
       } catch {
-        // Ignore storage errors
       }
       
       setIdeas(ideas);
@@ -220,7 +203,6 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
   const synthesizeResearch = useCallback(async (contentOverride?: string) => {
     const raw = (contentOverride ?? content) ?? '';
     const source = raw.trim();
-    // hydrate selected ideas from session storage
     let selectedIdeas: string[] | undefined;
     try {
       const si = sessionStorage.getItem('ai_selected_ideas');
@@ -229,7 +211,6 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
         if (Array.isArray(parsed) && parsed.length > 0) selectedIdeas = parsed;
       }
     } catch {
-        // Ignore storage errors
       }
 
 
@@ -242,23 +223,18 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
         selected_ideas: selectedIdeas,
       }, userProfile || undefined);
       if (synthesized) {
-        // Set the main content in the editor
         setContent(synthesized.content);
         try { sessionStorage.setItem(RESEARCH_STORAGE_KEY, synthesized.content); } catch {
-        // Ignore storage errors
       }
         
-        // Save reasoning and hook to session storage and state
         if (synthesized.reasoning) {
           setPostReasoning(synthesized.reasoning);
           try { sessionStorage.setItem(REASONING_STORAGE_KEY, synthesized.reasoning); } catch {
-        // Ignore storage errors
       }
         }
         if (synthesized.hook) {
           setPostHook(synthesized.hook);
           try { sessionStorage.setItem(HOOK_STORAGE_KEY, synthesized.hook); } catch {
-        // Ignore storage errors
       }
         }
       }
@@ -271,10 +247,8 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
     logger.debug('clearResearch');
     setResearchContent(null);
     try { sessionStorage.removeItem(RESEARCH_STORAGE_KEY); } catch {
-        // Ignore storage errors
       }
 
-    // Update user profile to clear research content
     try {
       await lambdaApiService.updateUserProfile({
         ai_generated_research: ''
@@ -293,10 +267,8 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
       sessionStorage.removeItem(REASONING_STORAGE_KEY);
       sessionStorage.removeItem(HOOK_STORAGE_KEY);
     } catch {
-        // Ignore storage errors
       }
 
-    // Update user profile to clear synthesis content
     try {
       await lambdaApiService.updateUserProfile({
         ai_generated_post_reasoning: '',
@@ -367,6 +339,4 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
     </PostComposerContext.Provider>
   );
 };
-
-
 

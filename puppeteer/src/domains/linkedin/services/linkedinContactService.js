@@ -22,17 +22,12 @@ export class LinkedInContactService {
     this.s3TextUploadService = new S3TextUploadService();
   }
 
-  /**
-   * Waits for dynamic content growth to stabilize, then scrolls to the top.
-   * This helps ensure data has populated and the page is positioned correctly
-   * before taking a screenshot.
-   */
+  
   async _waitForContentStableAndScrollTop() {
     const page = this.puppeteer.getPage();
     logger.debug('Waiting for content to stabilize before screenshot...');
 
     try {
-      // Poll for stability by comparing scrollHeight and text length over time
       const maxChecks = 10;
       let previousHeight = 0;
       let previousTextLength = 0;
@@ -46,7 +41,6 @@ export class LinkedInContactService {
         const heightDelta = Math.abs(height - previousHeight);
         const textDelta = Math.abs(textLength - previousTextLength);
 
-        // Consider stable if changes are minimal between samples
         if (i > 0 && heightDelta < 50 && textDelta < 200) {
           break;
         }
@@ -59,7 +53,6 @@ export class LinkedInContactService {
       logger.debug(`Stability check skipped/failed: ${err.message}`);
     }
 
-    // Ensure we are at the top before capturing
     try {
       await page.evaluate(() => {
         window.scrollTo(0, 0);
@@ -80,10 +73,8 @@ export class LinkedInContactService {
       logger.info(`Taking screenshots for profile: ${profileId} (status=${status})`);
       workingTempDir = await this._createSessionDirectory(profileId);
 
-      // Capture the required set of screenshots based on status and optional selection
       await this.captureRequiredScreenshots(profileId, workingTempDir, status, options);
 
-      // Extract profile text (after screenshots, while still on profile page)
       try {
         const profileUrl = `https://www.linkedin.com/in/${profileId}/`;
         logger.info(`Extracting text from profile: ${profileId}`);
@@ -92,7 +83,6 @@ export class LinkedInContactService {
       } catch (extractionError) {
         logger.error(`Text extraction failed for ${profileId}:`, extractionError);
         logger.warn(`Continuing with screenshot upload despite text extraction failure`);
-        // Create minimal profile data on extraction failure
         profileText = {
           profile_id: profileId,
           url: `https://www.linkedin.com/in/${profileId}/`,
@@ -111,7 +101,6 @@ export class LinkedInContactService {
         };
       }
 
-      // Upload profile text to S3 (Phase 3)
       if (profileText && !profileText.extraction_failed) {
         try {
           logger.info(`Uploading profile text to S3 for ${profileId}`);
@@ -146,16 +135,13 @@ export class LinkedInContactService {
         };
       }
 
-      // Collect all PNG screenshots from temp directory
       const allScreenshots = await fs.readdir(workingTempDir);
       const screenshotPaths = allScreenshots
         .filter(name => name.toLowerCase().endsWith('.png'))
         .map(file => path.join(workingTempDir, file));
 
-      // Use a single timestamp for this profile ingestion session
       const sessionTimestamp = new Date().toISOString().replace(/:/g, '-').replace(/\./g, '_');
 
-      // Upload to S3 using consistent timestamp across all screenshots
       const uploadResults = await this._uploadToS3(screenshotPaths, profileId, sessionTimestamp);
       s3UploadedObjects.push(...uploadResults);
 
@@ -182,41 +168,30 @@ export class LinkedInContactService {
         s3TextUpload
       };
     } finally {
-      // Always clean up the working temp directory after upload is attempted
       if (workingTempDir) await this._cleanup(workingTempDir);
     }
   }
 
-  /**
-   * Creates a session-specific temporary directory for screenshots
-   */
+  
   async _createSessionDirectory(profileId) {
     try {
       await fs.mkdir(this.screenshotsBaseDir, { recursive: true });
     } catch (error) {
-      // Directory might already exist, ignore error
     }
 
     const sessionDir = await fs.mkdtemp(path.join(this.screenshotsBaseDir, `linkedin-screenshots-${profileId}-`));
     return sessionDir;
   }
 
-  /**
-   * Capture the required screenshots for a profile depending on the connection status.
-   * - ally: Reactions, Profile, Recent Activity, About This Profile, Message History
-   * - incoming/outgoing: Reactions, Profile, Recent Activity, About This Profile
-   * - possible: Reactions, Profile, Recent Activity
-   */
+  
   async captureRequiredScreenshots(profileId, tempDir, status, options = {}) {
     const page = this.puppeteer.getPage();
-    // Determine default screens by status; options.screens can override
     let defaultScreens;
     if (status === 'incoming' || status === 'outgoing' || status == 'ally') {
       defaultScreens = ['Reactions', 'Profile', 'Activity', 'Recent-Activity', 'About-This-Profile'];
     } else if (status === 'possible') {
       defaultScreens = ['Reactions', 'Profile', 'Recent-Activity'];
     } else {
-      // ally or general: include messages and about profile
       return null;
     }
 
@@ -270,8 +245,6 @@ export class LinkedInContactService {
     }
 
    
-
-    
     if (defaultScreens.includes('About-This-Profile')) {
     try {
       
@@ -280,7 +253,6 @@ export class LinkedInContactService {
       const aboutUrl = `https://www.linkedin.com/in/${profileId}/overlay/about-this-profile/`;
       await this.puppeteer.goto(aboutUrl);
       await RandomHelpers.randomDelay(1500, 2500);
-      // Wait briefly to allow overlay to render
       await new Promise(resolve => setTimeout(resolve, 800));
       await this._captureSingleScreenshot(tempDir, profileId, 'About-This-Profile');
       logger.debug(`Successfully captured About-This-Profile for ${profileId}`);
@@ -298,10 +270,8 @@ export class LinkedInContactService {
   async _expandAllContent() {
     logger.info('Expanding all "see more" content...');
 
-    // Initial scroll to load content
     await this._autoScroll();
 
-    // Find and click "see more" buttons
     const seeMoreSelectors = [
       '::-p-aria(…see more)',
       '::-p-text(…see more)',
@@ -319,7 +289,6 @@ export class LinkedInContactService {
 
       for (const selector of seeMoreSelectors) {
         try {
-          // Wait for at least one button to appear (optional, can skip if not sure)
           const buttons = await this.puppeteer.getPage().$$(`${selector}`);
           for (const button of buttons) {
             try {
@@ -372,24 +341,19 @@ export class LinkedInContactService {
       deviceScaleFactor: 1,
     });
 
-    // Wait for content to populate and ensure we are at the top
     await this._waitForContentStableAndScrollTop();
 
-    // Keep a raw temp file name; final name includes unified timestamp during upload
     const screenshotPath = path.join(tempDir, `raw-${uuidv4()}.png`);
     await new Promise(resolve => setTimeout(resolve, 1000));
     await this.puppeteer.screenshot(screenshotPath, { fullPage: true });
     logger.info('Captured single screenshot.');
 
-    // Crop the screenshot to width 850, left 0, top 0, keep original height
 
     const sanitized = String(label).replace(/[^a-z0-9\-]/gi, '-');
-    // Keep filename without timestamp here; timestamp applied at upload
     const croppedPath = path.join(tempDir, `${profileId}-${sanitized}.png`);
 
     const image = sharp(screenshotPath);
     const metadata = await image.metadata();
-    // Preserve original analyzeContact sizing for Reactions; keep existing for others
     const isReactions = String(label).toLowerCase() === 'reactions';
     const cropLeft = isReactions ? 300 : 0;
     const cropWidth = isReactions ? 575 : 850;
@@ -398,7 +362,6 @@ export class LinkedInContactService {
       .toFile(croppedPath);
     logger.info(`Saved screenshot ${croppedPath}`);
 
-    // Delete the original screenshot after cropping
     await fs.unlink(screenshotPath);
 
     return [croppedPath];
@@ -446,7 +409,6 @@ export class LinkedInContactService {
 
   async _cleanup(tempDir) {
     try {
-      //await fs.rm(tempDir, { recursive: true, force: true });
       logger.debug(`Cleaned up temporary directory: ${tempDir}`);
     } catch (error) {
       logger.error(`Cleanup failed for ${tempDir}:`, error);

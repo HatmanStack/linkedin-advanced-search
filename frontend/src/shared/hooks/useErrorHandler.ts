@@ -1,7 +1,4 @@
-/**
- * Error Handler Hook for Message Generation Workflow
- * Task 9: Comprehensive error handling and user feedback
- */
+
 
 import { useState, useCallback } from 'react';
 import { useToast } from '@/shared/hooks';
@@ -26,7 +23,8 @@ export const useErrorHandler = () => {
       return 'api';
     }
     
-    if (error.name === 'NetworkError' || error.message?.includes('network')) {
+    const errorObj = error as { name?: string; message?: string };
+    if (errorObj.name === 'NetworkError' || errorObj.message?.includes('network')) {
       return 'network';
     }
     
@@ -78,7 +76,7 @@ export const useErrorHandler = () => {
     
     return {
       type: errorType,
-      message: error.message || 'An unexpected error occurred',
+      message: (error as { message?: string })?.message || 'An unexpected error occurred',
       connectionId,
       connectionName,
       recoveryOptions,
@@ -126,7 +124,6 @@ export const useErrorHandler = () => {
         });
       }
 
-      // Show error toast with recovery options
       const errorTitle = connectionName 
         ? `Error processing ${connectionName}`
         : 'Message generation error';
@@ -140,14 +137,13 @@ export const useErrorHandler = () => {
         variant: severity === 'critical' || severity === 'high' ? 'destructive' : 'default'
       });
 
-      // Auto-resolve after timeout if no user action
       setTimeout(() => {
         if (workflowError.recoveryOptions.skip) {
           resolve('skip');
         } else {
           resolve('stop');
         }
-      }, 10000); // 10 second timeout
+      }, 10000);
     });
   }, [createWorkflowError, getErrorSeverity, toast]);
 

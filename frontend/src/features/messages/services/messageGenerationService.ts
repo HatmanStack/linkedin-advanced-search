@@ -5,18 +5,12 @@ import { createLogger } from '@/shared/utils/logger';
 
 const logger = createLogger('MessageGenerationService');
 
-// =============================================================================
-// INTERFACES
-// =============================================================================
 
-/**
- * Request payload for message generation API
- */
 export interface MessageGenerationRequest {
-  /** ID of the connection to generate message for */
+  
   connectionId: string;
   
-  /** Connection profile data for personalization */
+  
   connectionProfile: {
     firstName: string;
     lastName: string;
@@ -26,33 +20,29 @@ export interface MessageGenerationRequest {
     tags?: string[];
   };
   
-  /** Conversation topic entered by user */
+  
   conversationTopic: string;
   
-  /** Previous message history with this connection */
+  
   messageHistory?: Message[];
   
-  /** User's profile information for context */
+  
   userProfile?: UserProfile;
 }
 
-/**
- * Response from message generation API
- */
+
 export interface MessageGenerationResponse {
-  /** AI-generated message content */
+  
   generatedMessage: string;
   
-  /** Confidence score for the generated message (0-1) */
+  
   confidence: number;
   
-  /** Optional reasoning or explanation for the message */
+  
   reasoning?: string;
 }
 
-/**
- * Custom error class for message generation API errors
- */
+
 export class MessageGenerationError extends Error {
   status?: number;
   code?: string;
@@ -73,27 +63,15 @@ export class MessageGenerationError extends Error {
   }
 }
 
-// =============================================================================
-// SERVICE CONFIGURATION
-// =============================================================================
 
 const MESSAGE_GENERATION_CONFIG = {
   BASE_URL: import.meta.env.VITE_API_GATEWAY_URL || API_CONFIG.BASE_URL,
   ENDPOINT: API_CONFIG.ENDPOINTS.MESSAGE_GENERATION,
-  TIMEOUT: 30000, // 30 seconds for AI generation
-  MOCK_MODE: import.meta.env.VITE_MOCK_MODE === 'true' || process.env.NODE_ENV === 'development', // Use mock responses in development
+  TIMEOUT: 30000,
+  MOCK_MODE: import.meta.env.VITE_MOCK_MODE === 'true' || process.env.NODE_ENV === 'development',
 } as const;
 
-// =============================================================================
-// MESSAGE GENERATION SERVICE
-// =============================================================================
 
-/**
- * Service for handling AI-powered message generation
- * 
- * This service integrates with the backend Lambda function to generate
- * personalized messages based on connection data and conversation topics.
- */
 class MessageGenerationService {
   private baseURL: string;
   private timeout: number;
@@ -103,14 +81,11 @@ class MessageGenerationService {
     this.timeout = MESSAGE_GENERATION_CONFIG.TIMEOUT;
   }
 
-  /**
-   * Get JWT token from Cognito for API authentication
-   */
+  
   private async getAuthToken(): Promise<string | null> {
     try {
       const token = await CognitoAuthService.getCurrentUserToken();
       if (token) {
-        // Store in session storage for future use
         sessionStorage.setItem('jwt_token', token);
         return token;
       }
@@ -121,9 +96,7 @@ class MessageGenerationService {
     }
   }
 
-  /**
-   * Make authenticated HTTP request to the API
-   */
+  
   private async makeRequest<T>(
     endpoint: string,
     options: RequestInit = {}
@@ -132,7 +105,6 @@ class MessageGenerationService {
     const timeoutId = setTimeout(() => controller.abort(), this.timeout);
 
     try {
-      // Get JWT token for authentication
       const token = await this.getAuthToken();
       
       const headers: Record<string, string> = {
@@ -140,7 +112,6 @@ class MessageGenerationService {
         ...options.headers as Record<string, string>,
       };
 
-      // Add Authorization header if token is available
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
       }
@@ -191,27 +162,17 @@ class MessageGenerationService {
     }
   }
 
-  /**
-   * Generate a personalized message for a specific connection
-   * 
-   * @param request - Message generation request parameters
-   * @returns Promise resolving to generated message content
-   * @throws MessageGenerationError for API or network errors
-   */
+  
   async generateMessage(request: MessageGenerationRequest): Promise<string> {
     try {
-      // Validate required fields
       this.validateRequest(request);
 
-      // Use mock response in development mode
       if (MESSAGE_GENERATION_CONFIG.MOCK_MODE) {
         return this.generateMockResponse(request);
       }
 
-      // Prepare the API request payload
       const payload = this.formatRequestPayload(request);
 
-      // Make the API call
       const response = await this.makeRequest<MessageGenerationResponse>(
         MESSAGE_GENERATION_CONFIG.ENDPOINT,
         {
@@ -220,7 +181,6 @@ class MessageGenerationService {
         }
       );
 
-      // Validate and return the generated message
       if (!response.generatedMessage) {
         throw new MessageGenerationError({
           message: 'Invalid response: missing generated message',
@@ -230,12 +190,10 @@ class MessageGenerationService {
 
       return response.generatedMessage;
     } catch (error) {
-      // Re-throw MessageGenerationError instances
       if (error instanceof MessageGenerationError) {
         throw error;
       }
 
-      // Wrap other errors
       throw new MessageGenerationError({
         message: error instanceof Error ? error.message : 'Failed to generate message',
         code: 'GENERATION_FAILED',
@@ -243,19 +201,13 @@ class MessageGenerationService {
     }
   }
 
-  /**
-   * Generate messages for multiple connections in batch
-   * 
-   * @param requests - Array of message generation requests
-   * @returns Promise resolving to Map of connectionId -> generated message
-   */
+  
   async generateBatchMessages(
     requests: MessageGenerationRequest[]
   ): Promise<Map<string, string>> {
     const results = new Map<string, string>();
     const errors = new Map<string, MessageGenerationError>();
 
-    // Process requests sequentially to avoid overwhelming the API
     for (const request of requests) {
       try {
         const message = await this.generateMessage(request);
@@ -272,7 +224,6 @@ class MessageGenerationService {
       }
     }
 
-    // If all requests failed, throw an error
     if (results.size === 0 && errors.size > 0) {
       const firstError = Array.from(errors.values())[0];
       throw new MessageGenerationError({
@@ -284,17 +235,13 @@ class MessageGenerationService {
     return results;
   }
 
-  /**
-   * Generate mock response for development and testing
-   */
+  
   private async generateMockResponse(request: MessageGenerationRequest): Promise<string> {
-    // Simulate API delay
     await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
 
     const { connectionProfile, conversationTopic } = request;
     const { firstName, position, company } = connectionProfile;
 
-    // Generate realistic mock message based on the conversation topic
     const mockMessages = [
       `Hi ${firstName}, I noticed your work at ${company} as ${position}. I'd love to discuss ${conversationTopic} with you - it's something I'm passionate about and I think we could have a great conversation about it.`,
       `Hello ${firstName}, Your experience at ${company} caught my attention. I'm really interested in ${conversationTopic} and would appreciate your insights on this topic. Would you be open to connecting?`,
@@ -302,11 +249,9 @@ class MessageGenerationService {
       `Hello ${firstName}, I hope you're doing well! I noticed we might have some common interests around ${conversationTopic}. Given your background at ${company}, I'd love to connect and learn from your experience.`,
     ];
 
-    // Randomly select a mock message
     const selectedMessage = mockMessages[Math.floor(Math.random() * mockMessages.length)];
 
-    // Occasionally simulate an error for testing
-    if (Math.random() < 0.1) { // 10% chance of error
+    if (Math.random() < 0.1) {
       throw new MessageGenerationError({
         message: 'Mock API error for testing',
         status: 500,
@@ -317,9 +262,7 @@ class MessageGenerationService {
     return selectedMessage;
   }
 
-  /**
-   * Validate the message generation request
-   */
+  
   private validateRequest(request: MessageGenerationRequest): void {
     if (!request.connectionId) {
       throw new MessageGenerationError({
@@ -351,9 +294,7 @@ class MessageGenerationService {
     }
   }
 
-  /**
-   * Format the request payload for the API
-   */
+  
   private formatRequestPayload(request: MessageGenerationRequest): Record<string, unknown> {
     return {
       connectionId: request.connectionId,
@@ -379,17 +320,9 @@ class MessageGenerationService {
     };
   }
 
-  // Removed unused handleApiError to reduce complexity
 }
 
-// =============================================================================
-// EXPORTS
-// =============================================================================
 
-// Create singleton instance
 export const messageGenerationService = new MessageGenerationService();
 
-// Export the service class for testing
 export { MessageGenerationService };
-
-// Interfaces are already exported above with their declarations

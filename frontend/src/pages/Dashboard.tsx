@@ -4,7 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/components/ui
 import { MessageSquare, Users, Settings, UserPlus, FileText, LogOut, AlertCircle, Database } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/features/auth';
-import { useHealAndRestore } from '@/features/workflow'; // Added
+import { useHealAndRestore } from '@/features/workflow';
 import { useToast } from '@/shared/hooks';
 import { useSearchResults } from '@/features/search';
 import { useProfileInit } from '@/features/profile';
@@ -29,22 +29,18 @@ import { useErrorHandler } from '@/shared/hooks';
 import { useProgressTracker, ProgressIndicator } from '@/features/workflow';
 import { useUserProfile } from '@/features/profile';
 
-// Removed unused demo sampleConnections to reduce noise
 
-// Sample data for demonstration
-// Prevent duplicate initial fetches under React StrictMode double-mount
 let initialConnectionsFetchInFlight: Promise<Connection[]> | null = null;
 const Dashboard = () => {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
-  const { startListening } = useHealAndRestore(); // Added
+  const { startListening } = useHealAndRestore();
   const { toast } = useToast();
-  const { ciphertext: linkedInCredsCiphertext, userProfile, refreshUserProfile } = useUserProfile(); // Include profile for display name
+  const { ciphertext: linkedInCredsCiphertext, userProfile, refreshUserProfile } = useUserProfile();
   const [conversationTopic, setConversationTopic] = useState('');
   const [selectedConnections, setSelectedConnections] = useState<string[]>([]);
   const [isSearchingLinkedIn, setIsSearchingLinkedIn] = useState(false);
 
-  // Connection management state
   const [connections, setConnections] = useState<Connection[]>([]);
   const [connectionsLoading, setConnectionsLoading] = useState(false);
   const [connectionsError, setConnectionsError] = useState<string | null>(null);
@@ -57,22 +53,18 @@ const Dashboard = () => {
     total: 0
   });
 
-  // Message modal state
   const [messageModalOpen, setMessageModalOpen] = useState(false);
   const [selectedConnectionForMessages, setSelectedConnectionForMessages] = useState<Connection | null>(null);
   const [messageHistory, setMessageHistory] = useState<Message[]>([]);
 
-  // Error handling and progress tracking
   const errorHandler = useErrorHandler();
   const progressTracker = useProgressTracker();
 
-  // Message generation workflow state
   const [isGeneratingMessages, setIsGeneratingMessages] = useState(false);
   const [currentConnectionIndex, setCurrentConnectionIndex] = useState(0);
   const [generatedMessages, setGeneratedMessages] = useState<Map<string, string>>(new Map());
   const [workflowState, setWorkflowState] = useState<'idle' | 'generating' | 'awaiting_approval' | 'stopping' | 'completed' | 'error'>('idle');
 
-  // Use existing search functionality
   const {
     loading,
     error,
@@ -80,7 +72,6 @@ const Dashboard = () => {
     searchLinkedIn,
   } = useSearchResults();
 
-  // Profile initialization functionality
   const {
     isInitializing,
     initializationMessage,
@@ -88,7 +79,6 @@ const Dashboard = () => {
     initializeProfile
   } = useProfileInit();
 
-  // Reset workflow state function - defined early to avoid temporal dead zone
   const resetWorkflowState = useCallback(() => {
     setIsGeneratingMessages(false);
     setCurrentConnectionIndex(0);
@@ -96,23 +86,18 @@ const Dashboard = () => {
     setWorkflowState('idle');
   }, []);
 
-  // (Post drafts are now handled by PostComposer context)
 
-  // Start listening for heal and restore notifications
   useEffect(() => {
     startListening();
   }, [startListening]);
 
-  // Fetch the user profile once on dashboard mount (preferred fetch site)
   useEffect(() => {
     refreshUserProfile();
-  }, []); // Empty dependency array - only run once on mount
+  }, []);
 
-  // Initialize connections data on component mount
   useEffect(() => {
     if (!user) return;
 
-    // Namespace the cache per user and load from storage once on mount/session switch
     connectionCache.setNamespace(user.id);
     connectionCache.loadFromStorage();
 
@@ -128,7 +113,6 @@ const Dashboard = () => {
         setConnectionsLoading(true);
         setConnectionsError(null);
         try {
-          // Use a module-level in-flight promise to avoid duplicate calls in StrictMode
           if (!initialConnectionsFetchInFlight) {
             initialConnectionsFetchInFlight = dbConnector.getConnectionsByStatus();
           }
@@ -150,9 +134,7 @@ const Dashboard = () => {
           });
           counts.total = counts.incoming + counts.outgoing + counts.ally;
           setConnectionCounts(counts);
-          // Clear change flag after successful refresh
           connectionChangeTracker.clearChanged();
-          // Mark initialized for this session so subsequent navigations don't refetch unnecessarily
           sessionStorage.setItem(sessionInitKey, 'true');
         } catch (err: unknown) {
           const errorMessage = err instanceof ApiError ? err.message : 'Failed to fetch connections';
@@ -177,19 +159,16 @@ const Dashboard = () => {
       });
       counts.total = counts.incoming + counts.outgoing + counts.ally;
       setConnectionCounts(counts);
-      // Ensure session initialized flag is set when data already exists in cache
       if (!hasInitializedThisSession) {
         sessionStorage.setItem(sessionInitKey, 'true');
       }
     }
   }, [user]);
 
-  // Handle workflow state transitions
   useEffect(() => {
     logger.debug('Workflow state changed', { workflowState });
   }, [workflowState]);
 
-  // Connection management functions
   const fetchConnections = useCallback(async () => {
     if (!user || connectionsLoading) return;
 
@@ -197,20 +176,15 @@ const Dashboard = () => {
     setConnectionsError(null);
 
     try {
-      // Fetch all connections from DynamoDB
       const fetchedConnections = await dbConnector.getConnectionsByStatus();
 
-      // Update connections state
       setConnections(fetchedConnections);
 
-      // Update connection cache
       connectionCache.setMultiple(fetchedConnections);
 
-      // Calculate connection counts
       const counts = calculateConnectionCounts(fetchedConnections);
       setConnectionCounts(counts);
 
-      // Clear change flag after successful refresh of cache
       connectionChangeTracker.clearChanged();
 
       logger.info('Connections fetched successfully', { count: fetchedConnections.length });
@@ -251,19 +225,16 @@ const Dashboard = () => {
       }
     });
 
-    // Total should only include incoming, outgoing, and ally (exclude possible)
     counts.total = counts.incoming + counts.outgoing + counts.ally;
 
     return counts;
   }, []);
 
-  // Message modal functions
   const handleMessageClick = useCallback(async (connection: Connection) => {
     setSelectedConnectionForMessages(connection);
     setMessageModalOpen(true);
 
     try {
-      // Placeholder until message history API is implemented
       const messages: Message[] = [];
       setMessageHistory(messages);
     } catch (err: unknown) {
@@ -276,7 +247,6 @@ const Dashboard = () => {
         variant: "destructive"
       });
 
-      // Set empty message history on error
       setMessageHistory([]);
     }
   }, [toast]);
@@ -288,7 +258,6 @@ const Dashboard = () => {
   }, []);
 
   const handleSendMessage = useCallback(async (message: string): Promise<void> => {
-    // Placeholder for future API integration
     logger.info('Sending message', { message, connectionId: selectedConnectionForMessages?.id });
 
     toast({
@@ -297,7 +266,6 @@ const Dashboard = () => {
       variant: "default"
     });
 
-    // For now, just add the message to local state for demo purposes
     if (selectedConnectionForMessages) {
       const newMessage: Message = {
         id: `msg-${Date.now()}`,
@@ -310,7 +278,6 @@ const Dashboard = () => {
     }
   }, [selectedConnectionForMessages, toast]);
 
-  // Message generation workflow functions
   const processSelectedConnections = useCallback(async () => {
     if (selectedConnections.length === 0 || !conversationTopic.trim()) {
       errorHandler.showWarningFeedback(
@@ -322,7 +289,6 @@ const Dashboard = () => {
 
     logger.info('Starting message generation workflow', { connectionCount: selectedConnections.length });
 
-    // Initialize progress tracking
     progressTracker.initializeProgress(selectedConnections.length);
     progressTracker.setLoadingMessage('Preparing message generation...', 0, true);
 
@@ -338,7 +304,6 @@ const Dashboard = () => {
     logger.debug('Processing connections', { connections: selectedConnectionsData.map(c => `${c.first_name} ${c.last_name}`) });
 
     for (let i = 0; i < selectedConnectionsData.length; i++) {
-      // Check if user requested to stop
       if (workflowState === 'stopping') {
         logger.info('Workflow stopped by user');
         progressTracker.resetProgress();
@@ -349,7 +314,6 @@ const Dashboard = () => {
       const connection = selectedConnectionsData[i];
       const connectionName = `${connection.first_name} ${connection.last_name}`;
 
-      // Update progress
       progressTracker.updateProgress(i, connectionName, 'generating');
       progressTracker.setLoadingMessage(`Generating message for ${connectionName}...`,
         Math.round((i / selectedConnectionsData.length) * 100), true);
@@ -361,27 +325,22 @@ const Dashboard = () => {
 
       while (shouldContinue) {
         try {
-          // Generate message for current connection
           const generatedMessage = await generateMessageForConnection(connection);
           logger.debug('Generated message', { name: connection.first_name, preview: generatedMessage.substring(0, 100) });
 
-          // Cache the generated message
           setGeneratedMessages(prev => new Map(prev).set(connection.id, generatedMessage));
 
-          // Set workflow to awaiting approval and open modal
           progressTracker.updateProgress(i, connectionName, 'waiting_approval');
           setWorkflowState('awaiting_approval');
           setSelectedConnectionForMessages(connection);
           setMessageModalOpen(true);
 
-          // Wait for user approval before continuing
           await waitForUserApproval();
-          break; // Success, move to next connection
+          break;
 
         } catch (error) {
           logger.error('Error generating message for connection', { connectionId: connection.id, error });
 
-          // Use comprehensive error handling
           const recoveryAction = await errorHandler.handleError(
             error,
             connection.id,
@@ -394,24 +353,23 @@ const Dashboard = () => {
               retryCount++;
               progressTracker.setLoadingMessage(`Retrying message generation for ${connectionName}... (Attempt ${retryCount + 1})`,
                 Math.round((i / selectedConnectionsData.length) * 100), true);
-              continue; // Retry the same connection
+              continue;
 
             case 'skip':
               errorHandler.showInfoFeedback(`Skipped ${connectionName} due to error.`, 'Connection Skipped');
-              shouldContinue = false; // Move to next connection
+              shouldContinue = false;
               break;
 
             case 'stop':
               progressTracker.resetProgress();
               setWorkflowState('error');
               setIsGeneratingMessages(false);
-              return; // Stop entire process
+              return;
           }
         }
       }
     }
 
-    // Workflow completed successfully
     logger.info('Message generation workflow completed');
     progressTracker.updateProgress(selectedConnectionsData.length, undefined, 'completed');
 
@@ -422,7 +380,6 @@ const Dashboard = () => {
 
     setWorkflowState('completed');
 
-    // Reset after a short delay to show completion
     setTimeout(() => {
       resetWorkflowState();
       progressTracker.resetProgress();
@@ -432,7 +389,6 @@ const Dashboard = () => {
 
   const generateMessageForConnection = useCallback(async (connection: Connection): Promise<string> => {
     try {
-      // Build request using shared context service for DRYness
       const cleanedTopic = connectionDataContextService.prepareConversationTopic(conversationTopic);
       const connectionWithHistory = { ...connection, message_history: messageHistory } as Connection;
       const context = connectionDataContextService.prepareMessageGenerationContext(
@@ -443,7 +399,6 @@ const Dashboard = () => {
       );
       const request = connectionDataContextService.createMessageGenerationRequest(context);
 
-      // Call message generation service
       const generatedMessage = await messageGenerationService.generateMessage(request);
       return generatedMessage;
 
@@ -455,7 +410,6 @@ const Dashboard = () => {
 
   const waitForUserApproval = useCallback((): Promise<void> => {
     return new Promise((resolve) => {
-      // This will be resolved when user approves or skips in the modal
       const checkApproval = () => {
         if (workflowState !== 'awaiting_approval') {
           resolve();
@@ -471,10 +425,8 @@ const Dashboard = () => {
     setWorkflowState('stopping');
     setIsGeneratingMessages(false);
 
-    // Reset progress tracking
     progressTracker.resetProgress();
 
-    // Close modal if open
     if (messageModalOpen) {
       setMessageModalOpen(false);
       setSelectedConnectionForMessages(null);
@@ -498,14 +450,12 @@ const Dashboard = () => {
     processSelectedConnections();
   }, [selectedConnections, conversationTopic, processSelectedConnections, toast]);
 
-  // Display name from user profile context (fallback to auth user)
   const displayName = useMemo(() => {
     const fullName = [userProfile?.first_name, userProfile?.last_name].filter(Boolean).join(' ');
     if (fullName) return fullName;
     return userProfile?.email || user?.firstName || user?.email || 'User';
   }, [userProfile, user]);
 
-  // Get current connection name for display
   const currentConnectionName = useMemo(() => {
     if (!isGeneratingMessages || currentConnectionIndex >= selectedConnections.length) {
       return undefined;
@@ -516,7 +466,6 @@ const Dashboard = () => {
     return connection ? `${connection.first_name} ${connection.last_name}` : undefined;
   }, [isGeneratingMessages, currentConnectionIndex, selectedConnections, connections]);
   const filteredConnections = useMemo(() => {
-    // status filter first
     let list = connections.filter(connection => {
       if (selectedStatus === 'all') {
         return ['incoming', 'outgoing', 'ally'].includes(connection.status);
@@ -524,7 +473,6 @@ const Dashboard = () => {
       return connection.status === selectedStatus;
     });
 
-    // if tags active, sort by number of matching tags desc, then name
     if (activeTags.length > 0) {
       list = [...list].sort((a, b) => {
         const aTagsMatch = (a.tags || a.common_interests || []).filter((t: string) => activeTags.includes(t)).length;
@@ -556,7 +504,6 @@ const Dashboard = () => {
     );
   };
 
-  // Handle checkbox changes for connection selection
   const handleConnectionCheckboxChange = useCallback((connectionId: string, checked: boolean) => {
     setSelectedConnections(prev => {
       if (checked) {
@@ -567,7 +514,6 @@ const Dashboard = () => {
     });
   }, []);
 
-  // Calculate selected connections count for ConversationTopicPanel
   const selectedConnectionsCount = useMemo(() => {
     return selectedConnections.length;
   }, [selectedConnections]);
@@ -576,23 +522,18 @@ const Dashboard = () => {
     setIsSearchingLinkedIn(true);
 
     try {
-      // Convert the new filter format to the existing SearchFormData format
       const searchData: SearchFormData = {
         companyName: filters.company,
         companyRole: filters.job,
         companyLocation: filters.location,
-        // We do not include plaintext; puppeteerApiService will attach ciphertext automatically
         searchName: '',
         searchPassword: '',
-        userId: filters.userId, // Include userId from filters
+        userId: filters.userId,
       };
       logger.debug('Search data prepared', { hasCiphertext: !!linkedInCredsCiphertext, searchDataKeys: Object.keys(searchData) });
 
-      // Use the existing search functionality - it returns void but updates hook state
       await searchLinkedIn(searchData);
 
-      // Always refresh connections after search completes
-      // The hook handles the response internally and updates results state
       await fetchConnections();
 
     } catch (error) {
@@ -607,21 +548,16 @@ const Dashboard = () => {
     }
   };
 
-  // Post creation handlers are now managed by PostComposer context
 
-  // Removed unused generateMessages navigation helper
-
-  // Handle profile initialization with connection refresh
   const handleInitializeProfile = async () => {
     await initializeProfile(() => {
-      // Refresh connections list to show any new data after successful initialization
       fetchConnections();
     });
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
-      {/* Navigation */}
+      {}
       <nav className="bg-white/5 backdrop-blur-md border-b border-white/10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-4">
@@ -630,10 +566,10 @@ const Dashboard = () => {
               <span className="text-2xl font-bold text-white">LinkedIn Advanced Search</span>
             </div>
             <div className="flex items-center space-x-4">
-              {/* Welcome message with current user by name */}
+              {}
               <span className="text-white">Welcome, {displayName}</span>
 
-              {/* User profile section */}
+              {}
               <Button
                 variant="ghost"
                 className="text-white hover:bg-white/10"
@@ -643,7 +579,7 @@ const Dashboard = () => {
                 Profile
               </Button>
 
-              {/* Sign Out button */}
+              {}
               <Button
                 variant="ghost"
                 onClick={handleSignOut}
@@ -658,7 +594,7 @@ const Dashboard = () => {
       </nav>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
+        {}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-white mb-2">Your Network Dashboard</h1>
           <p className="text-slate-300">Manage your connections, discover new people, and create engaging content.</p>
@@ -681,7 +617,7 @@ const Dashboard = () => {
           </TabsList>
 
           <TabsContent value="connections" className="space-y-6">
-            {/* Profile Init Status Messages */}
+            {}
             {initializationMessage && (
               <div className="bg-green-600/20 border border-green-500/30 rounded-lg p-3">
                 <p className="text-green-200 text-sm font-medium">
@@ -700,7 +636,7 @@ const Dashboard = () => {
 
             <div className="grid lg:grid-cols-3 gap-8">
               <div className="lg:col-span-2">
-                {/* Loading State */}
+                {}
                 {connectionsLoading && (
                   <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-lg p-6">
                     <div className="flex items-center justify-between mb-4">
@@ -711,7 +647,7 @@ const Dashboard = () => {
                   </div>
                 )}
 
-                {/* Error State */}
+                {}
                 {connectionsError && !connectionsLoading && (
                   <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-6">
                     <div className="flex items-center space-x-3">
@@ -732,7 +668,7 @@ const Dashboard = () => {
                   </div>
                 )}
 
-                {/* Connections List with Virtual Scrolling */}
+                {}
                 {!connectionsLoading && !connectionsError && (
                   <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-lg p-6">
                     <div className="flex items-center justify-between mb-4">
@@ -741,7 +677,7 @@ const Dashboard = () => {
                         <div className="text-sm text-slate-400">
                           {filteredConnections.length} of {connectionCounts.total} connections
                         </div>
-                        {/* Initialize Profile Database Button */}
+                        {}
                         <Button
                           onClick={handleInitializeProfile}
                           disabled={isInitializing}
@@ -772,9 +708,9 @@ const Dashboard = () => {
                         onMessageClick={handleMessageClick}
                         onTagClick={handleTagClick}
                         activeTags={activeTags}
-                        selectedConnectionId={selectedConnections[0]} // Show first selected as highlighted
+                        selectedConnectionId={selectedConnections[0]}
                         className="min-h-[500px]"
-                        itemHeight={220} // Card height + 24px margin (mb-6)
+                        itemHeight={220}
                         showFilters={true}
                         sortBy="name"
                         sortOrder="asc"
@@ -806,7 +742,7 @@ const Dashboard = () => {
                   currentConnectionName={currentConnectionName}
                 />
 
-                {/* Progress Indicator for Message Generation */}
+                {}
                 <ProgressIndicator
                   progressState={progressTracker.progressState}
                   loadingState={progressTracker.loadingState}
@@ -818,7 +754,7 @@ const Dashboard = () => {
           </TabsContent>
 
           <TabsContent value="new-connections" className="space-y-6">
-            {/* New Connection Search with Virtual Scrolling */}
+            {}
             <NewConnectionsTab
               searchResults={newConnections}
               onSearch={handleLinkedInSearch}
@@ -829,10 +765,8 @@ const Dashboard = () => {
               searchInfoMessage={infoMessage}
               onRefresh={fetchConnections}
               onRemoveConnection={(connectionId: string, newStatus: 'processed' | 'outgoing') => {
-                // Update status accordingly in state and cache to trigger list re-render
                 setConnections(prev => {
                   const updated = prev.map(c => c.id === connectionId ? { ...c, status: newStatus } : c);
-                  // Recalculate connection counts after status update
                   const counts = calculateConnectionCounts(updated);
                   setConnectionCounts(counts);
                   return updated;
@@ -856,7 +790,7 @@ const Dashboard = () => {
         </Tabs>
       </div>
 
-      {/* Message Modal */}
+      {}
       {selectedConnectionForMessages && (
         <MessageModal
           isOpen={messageModalOpen}

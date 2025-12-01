@@ -1,4 +1,3 @@
-// Backend configuration barrel export
 export { serverConfig } from './server.js';
 export { awsConfig } from './aws.js';
 export { linkedinConfig } from './linkedin.js';

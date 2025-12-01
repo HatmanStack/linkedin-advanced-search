@@ -19,7 +19,6 @@ const ResearchResultsCard = ({
 }: ResearchResultsCardProps) => {
   const [localResearch, setLocalResearch] = useState<string | null>(null);
 
-  // Local hydration from sessionStorage on mount and whenever research completes
   useEffect(() => {
     if (!isResearching) {
       try {
@@ -120,5 +119,4 @@ const ResearchResultsCard = ({
 }
 
 export default ResearchResultsCard;
-
 

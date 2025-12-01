@@ -1,7 +1,4 @@
-/**
- * Progress Tracker Hook for Message Generation Workflow
- * Task 9: Comprehensive error handling and user feedback
- */
+
 
 import { useState, useCallback } from 'react';
 import type { ProgressState, LoadingState } from '@/shared/types/index';
@@ -41,7 +38,6 @@ export const useProgressTracker = () => {
         phase
       };
 
-      // Calculate estimated time remaining
       if (startTime && current > 0) {
         const elapsed = Date.now() - startTime;
         const avgTimePerConnection = elapsed / current;

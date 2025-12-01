@@ -2,21 +2,14 @@ import { logger } from './logger.js';
 import { ConfigManager } from './configManager.js';
 import ConfigValidator from './configValidator.js';
 
-/**
- * Configuration Initializer - Handles startup configuration initialization
- * Implements requirement 4.4 for configuration setup
- */
+
 export class ConfigInitializer {
   
-  /**
-   * Initialize configuration system on application startup
-   * @returns {Promise<boolean>} Success status
-   */
+  
   static async initialize() {
     try {
       logger.info('Initializing LinkedIn interaction configuration system...');
 
-      // Step 1: Validate configuration
       const validation = ConfigValidator.validateOnStartup();
       
       if (!validation.isValid) {
@@ -25,23 +18,18 @@ export class ConfigInitializer {
           errors: validation.errors
         });
         
-        // In production, exit on invalid configuration
         if (process.env.NODE_ENV === 'production') {
           logger.error('Exiting due to invalid configuration in production environment');
           process.exit(1);
         }
       }
 
-      // Step 2: Initialize configuration manager
       const configManager = ConfigManager.getInstance();
       
-      // Step 3: Log configuration summary
       this.logConfigurationSummary(configManager);
       
-      // Step 4: Set up configuration monitoring
       this.setupConfigurationMonitoring(configManager);
       
-      // Step 5: Validate feature dependencies
       this.validateFeatureDependencies(configManager);
       
       logger.info('LinkedIn interaction configuration system initialized successfully');
@@ -50,7 +38,6 @@ export class ConfigInitializer {
     } catch (error) {
       logger.error('Failed to initialize configuration system:', error);
       
-      // In production, exit on initialization failure
       if (process.env.NODE_ENV === 'production') {
         logger.error('Exiting due to configuration initialization failure in production');
         process.exit(1);
@@ -60,10 +47,7 @@ export class ConfigInitializer {
     }
   }
 
-  /**
-   * Log comprehensive configuration summary
-   * @param {ConfigManager} configManager - Configuration manager instance
-   */
+  
   static logConfigurationSummary(configManager) {
     const summary = {
       environment: configManager.getEnvironmentConfig(),
@@ -91,12 +75,8 @@ export class ConfigInitializer {
     logger.info('LinkedIn interaction configuration summary', summary);
   }
 
-  /**
-   * Set up configuration monitoring and health checks
-   * @param {ConfigManager} configManager - Configuration manager instance
-   */
+  
   static setupConfigurationMonitoring(configManager) {
-    // Add configuration watcher for critical changes
     configManager.addConfigWatcher((event, data) => {
       if (event === 'validation') {
         if (!data.isValid) {
@@ -108,7 +88,6 @@ export class ConfigInitializer {
       }
     });
 
-    // Set up periodic health checks
     setInterval(() => {
       const health = configManager.getHealthStatus();
       
@@ -117,19 +96,15 @@ export class ConfigInitializer {
       } else {
         logger.debug('Configuration health check passed', health);
       }
-    }, 600000); // 10 minutes
+    }, 600000);
 
     logger.debug('Configuration monitoring and health checks initialized');
   }
 
-  /**
-   * Validate feature dependencies and warn about potential issues
-   * @param {ConfigManager} configManager - Configuration manager instance
-   */
+  
   static validateFeatureDependencies(configManager) {
     const warnings = [];
 
-    // Check if any features are enabled
     const enabledFeatures = [
       'messageSending',
       'connectionRequests',
@@ -140,29 +115,24 @@ export class ConfigInitializer {
       warnings.push('No LinkedIn interaction features are enabled');
     }
 
-    // Check human behavior dependency
     if (enabledFeatures.length > 0 && !configManager.isFeatureEnabled('humanBehavior')) {
       warnings.push('Human behavior simulation is disabled but interaction features are enabled - this may trigger detection');
     }
 
-    // Check suspicious activity detection
     if (configManager.isFeatureEnabled('suspiciousActivityDetection') && !configManager.isFeatureEnabled('humanBehavior')) {
       warnings.push('Suspicious activity detection is enabled but human behavior simulation is disabled');
     }
 
-    // Check rate limiting configuration
     const rateLimitConfig = configManager.getRateLimitConfig();
     if (rateLimitConfig.max > 20) {
       warnings.push('Rate limit is set high - this may trigger LinkedIn detection');
     }
 
-    // Check concurrent interactions
     const maxConcurrent = configManager.get('maxConcurrentInteractions');
     if (maxConcurrent > 5) {
       warnings.push('High concurrent interaction limit may trigger rate limiting');
     }
 
-    // Log warnings
     warnings.forEach(warning => {
       logger.warn('Configuration dependency warning:', warning);
     });
@@ -172,10 +142,7 @@ export class ConfigInitializer {
     }
   }
 
-  /**
-   * Get initialization status for health checks
-   * @returns {Object} Initialization status
-   */
+  
   static getInitializationStatus() {
     const configManager = ConfigManager.getInstance();
     
@@ -195,19 +162,14 @@ export class ConfigInitializer {
     };
   }
 
-  /**
-   * Reinitialize configuration (for runtime updates)
-   * @returns {Promise<boolean>} Success status
-   */
+  
   static async reinitialize() {
     logger.info('Reinitializing LinkedIn interaction configuration...');
     
     try {
-      // Clear configuration cache
       const configManager = ConfigManager.getInstance();
       configManager.clearCache();
       
-      // Revalidate configuration
       const validation = configManager.validateConfiguration();
       
       if (!validation.isValid) {
@@ -218,7 +180,6 @@ export class ConfigInitializer {
         return false;
       }
       
-      // Log updated summary
       this.logConfigurationSummary(configManager);
       
       logger.info('Configuration reinitialization completed successfully');
@@ -230,10 +191,7 @@ export class ConfigInitializer {
     }
   }
 
-  /**
-   * Export configuration for backup or analysis
-   * @returns {Object} Configuration export
-   */
+  
   static exportConfiguration() {
     const configManager = ConfigManager.getInstance();
     
@@ -247,10 +205,7 @@ export class ConfigInitializer {
     };
   }
 
-  /**
-   * Generate configuration report for monitoring
-   * @returns {Object} Configuration report
-   */
+  
   static generateConfigurationReport() {
     const configManager = ConfigManager.getInstance();
     const validation = configManager.getLastValidation();

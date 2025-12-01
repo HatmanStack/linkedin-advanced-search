@@ -40,7 +40,7 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
-      {/* Navigation */}
+      {}
       <nav className="bg-white/5 backdrop-blur-md border-b border-white/10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-4">
@@ -75,7 +75,7 @@ const Index = () => {
         </div>
       </nav>
 
-      {/* Hero Section */}
+      {}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 pb-16">
         <div className="text-center">
           <h1 className="text-5xl md:text-6xl font-bold text-white mb-6 leading-tight">
@@ -107,7 +107,7 @@ const Index = () => {
         </div>
       </div>
 
-      {/* Features Section */}
+      {}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
         <div className="text-center mb-16">
           <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
@@ -137,7 +137,7 @@ const Index = () => {
         </div>
       </div>
 
-      {/* Benefits Section */}
+      {}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
         <div className="bg-gradient-to-r from-blue-600/20 to-purple-600/20 backdrop-blur-md rounded-2xl p-8 md:p-12 border border-white/10">
           <div className="grid md:grid-cols-2 gap-12 items-center">
@@ -182,7 +182,7 @@ const Index = () => {
         </div>
       </div>
 
-      {/* CTA Section */}
+      {}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 text-center">
         <h3 className="text-3xl md:text-4xl font-bold text-white mb-4">
           Ready to Transform Your Networking?
@@ -200,7 +200,7 @@ const Index = () => {
         </Button>
       </div>
 
-      {/* Footer */}
+      {}
       <footer className="bg-white/5 backdrop-blur-md border-t border-white/10 mt-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="flex justify-between items-center">

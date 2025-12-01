@@ -39,7 +39,6 @@ const Auth = () => {
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Simple: set loading immediately; no extra yielding
     if (isPreloading) setIsPreloading(false);
     setIsLoading(true);
     
@@ -89,8 +88,7 @@ const Auth = () => {
           variant: "destructive"
         });
       } else {
-        if (isCognitoConfigured && (result as unknown).needsVerification) {
-          // Show verification step for Cognito
+        if (isCognitoConfigured) {
           setVerificationEmail(signUpData.email);
           setShowVerification(true);
           toast({
@@ -98,7 +96,6 @@ const Auth = () => {
             description: "We've sent you a verification code. Please check your email and enter the code below."
           });
         } else {
-          // Mock auth or direct success
           toast({
             title: "Welcome!",
             description: "Your account has been created successfully."
@@ -139,7 +136,6 @@ const Auth = () => {
         });
         setShowVerification(false);
         setVerificationData({ code: '' });
-        // Switch to sign in tab
       }
     } catch {
       toast({
@@ -186,7 +182,7 @@ const Auth = () => {
   if (showVerification) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
-        {/* Navigation */}
+        {}
         <nav className="bg-white/5 backdrop-blur-md border-b border-white/10">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between items-center py-4">
@@ -266,7 +262,7 @@ const Auth = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
-      {/* Navigation */}
+      {}
       <nav className="bg-white/5 backdrop-blur-md border-b border-white/10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-4">

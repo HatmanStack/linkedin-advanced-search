@@ -1,11 +1,3 @@
-"""
-Profile API Lambda Function
-
-Handles user profile management including encrypted LinkedIn credentials storage.
-Operations:
-- GET /profiles - Fetch user profile
-- POST /profiles - Update user profile (operation: update_user_settings)
-"""
 
 import json
 import logging
@@ -16,11 +8,9 @@ from decimal import Decimal
 import boto3
 from botocore.exceptions import ClientError
 
-# Configure logging
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-# DynamoDB client
 dynamodb = boto3.resource('dynamodb')
 table_name = os.environ.get('DYNAMODB_TABLE_NAME', 'linkedin-advanced-search')
 table = dynamodb.Table(table_name)
@@ -29,7 +19,6 @@ logger.info(f"Using DynamoDB table: {table_name}")
 
 
 class DecimalEncoder(json.JSONEncoder):
-    """Helper class to convert Decimal to int/float for JSON serialization"""
     def default(self, obj):
         if isinstance(obj, Decimal):
             return int(obj) if obj % 1 == 0 else float(obj)
@@ -37,19 +26,15 @@ class DecimalEncoder(json.JSONEncoder):
 
 
 def _extract_user_id(event):
-    """Extract user ID from Cognito JWT claims - requires authentication"""
     import os
 
-    # Try Cognito authorizer claims first
     sub = event.get('requestContext', {}).get('authorizer', {}).get('claims', {}).get('sub')
     if sub:
         return sub
 
-    # Check if DEV_MODE environment variable is explicitly set
     dev_mode = os.environ.get('DEV_MODE', 'false').lower() == 'true'
 
     if dev_mode:
-        # Only in development mode: allow fallback for testing
         auth_header = event.get('headers', {}).get('Authorization', '') or event.get('headers', {}).get('authorization', '')
         if auth_header:
             logger.warning("DEV_MODE: Authorization header present but no Cognito claims, using development user ID")
@@ -57,27 +42,21 @@ def _extract_user_id(event):
         logger.warning("DEV_MODE: No authentication found, using default test user")
         return 'test-user-development'
 
-    # Production: No authentication means unauthorized
     logger.error("No authentication found and DEV_MODE is not enabled")
     return None
 
 def lambda_handler(event, _context):
-    """Main Lambda handler for profile API operations"""
-    # HTTP API v2 uses requestContext.http.method instead of httpMethod
     http_method = event.get('httpMethod') or event.get('requestContext', {}).get('http', {}).get('method', '')
 
     logger.info(f"Profile API request: {http_method} /profiles")
 
-    # Extract user ID from JWT
     user_id = _extract_user_id(event)
 
-    # Check if authentication succeeded
     if user_id is None:
         return build_error_response(401, "Authentication required")
 
     logger.info(f"User ID: {user_id}")
 
-    # Route based on HTTP method
 
     try:
         if http_method == 'GET':
@@ -93,9 +72,7 @@ def lambda_handler(event, _context):
 
 
 def handle_get_profile(user_id):
-    """Handle GET /profiles - Fetch user profile"""
     try:
-        # Query DynamoDB for user profile
         response = table.get_item(
             Key={
                 'PK': f'USER#{user_id}',
@@ -105,7 +82,6 @@ def handle_get_profile(user_id):
 
         if 'Item' not in response:
             logger.info(f"Profile not found for user {user_id}, returning default")
-            # Return default profile structure
             default_profile = {
                 'userId': user_id,
                 'email': '',
@@ -117,7 +93,6 @@ def handle_get_profile(user_id):
             }
             return build_success_response(default_profile)
 
-        # Extract profile data
         item = response['Item']
         profile = {
             'userId': user_id,
@@ -138,9 +113,7 @@ def handle_get_profile(user_id):
 
 
 def handle_update_profile(event, user_id):
-    """Handle POST /profiles - Update user profile"""
     try:
-        # Parse request body (handles both string and dict)
         raw_body = event.get('body', '{}')
         if isinstance(raw_body, str):
             body = json.loads(raw_body or '{}')
@@ -149,18 +122,15 @@ def handle_update_profile(event, user_id):
         else:
             body = raw_body
 
-        # Extract operation
         operation = body.get('operation', 'update_user_settings')
 
         if operation != 'update_user_settings':
             return build_error_response(400, f"Unsupported operation: {operation}")
 
-        # Build update expression
         update_fields = {}
         expression_attribute_names = {}
         expression_attribute_values = {}
 
-        # Fields that can be updated (support both camelCase and snake_case)
         allowed_fields = {
             'email': 'email',
             'firstName': 'firstName',
@@ -182,11 +152,9 @@ def handle_update_profile(event, user_id):
         if not update_fields:
             return build_error_response(400, "No valid fields to update")
 
-        # Always update the updatedAt timestamp
         now_iso = datetime.utcnow().isoformat()
         update_fields['updatedAt'] = now_iso
 
-        # Build update expression
         update_expr_parts = []
         for field, value in update_fields.items():
             attr_name = f"#{field}"
@@ -195,7 +163,6 @@ def handle_update_profile(event, user_id):
             expression_attribute_values[attr_value] = value
             update_expr_parts.append(f"{attr_name} = {attr_value}")
 
-        # If profile doesn't exist, set createdAt
         expression_attribute_names['#createdAt'] = 'createdAt'
         expression_attribute_values[':createdAt'] = now_iso
         update_expr_parts.append("#createdAt = if_not_exists(#createdAt, :createdAt)")
@@ -204,7 +171,6 @@ def handle_update_profile(event, user_id):
 
         logger.info(f"Updating profile for user {user_id} with fields: {list(update_fields.keys())}")
 
-        # Update DynamoDB
         response = table.update_item(
             Key={
                 'PK': f'USER#{user_id}',
@@ -216,7 +182,6 @@ def handle_update_profile(event, user_id):
             ReturnValues='ALL_NEW'
         )
 
-        # Extract updated profile
         item = response['Attributes']
         profile = {
             'userId': user_id,
@@ -239,7 +204,6 @@ def handle_update_profile(event, user_id):
 
 
 def build_success_response(data):
-    """Build successful response"""
     return {
         'statusCode': 200,
         'headers': {
@@ -256,7 +220,6 @@ def build_success_response(data):
 
 
 def build_error_response(status_code, message):
-    """Build error response"""
     return {
         'statusCode': status_code,
         'headers': {

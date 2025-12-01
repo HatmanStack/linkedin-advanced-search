@@ -15,7 +15,6 @@ export class SearchController {
     logger.info('=== SEARCH REQUEST RECEIVED ===');
     logger.info(`Request path: ${req.path}, method: ${req.method}`);
 
-    // Sanitize headers to remove sensitive data before logging
     const sanitizedHeaders = { ...req.headers };
     ['authorization', 'Authorization', 'cookie', 'Cookie'].forEach(key => {
       if (sanitizedHeaders[key]) {
@@ -30,7 +29,6 @@ export class SearchController {
     let jwtToken = this._extractJwtToken(req);
     logger.info(`JWT token extracted: ${jwtToken ? 'YES' : 'NO'}`);
 
-    // In development, allow requests without JWT for testing
     if (!jwtToken && config.nodeEnv === 'development') {
       logger.warn('No JWT token found, using development test token');
       jwtToken = 'development-test-token';
@@ -54,7 +52,6 @@ export class SearchController {
     }
 
     const { companyName, companyRole, companyLocation, linkedinCredentialsCiphertext } = req.body;
-    // Do not decrypt or extract plaintext here; pass ciphertext through and decrypt at login
     const searchName = null;
     const searchPassword = null;
 
@@ -77,7 +74,6 @@ export class SearchController {
     });
 
     if (!state.healPhase) {
-      // Fresh run: clear link and good-contact caches to avoid stale data
       await FileHelpers.writeJSON(config.paths.linksFile, []);
       await FileHelpers.writeJSON(config.paths.goodConnectionsFile, []);
     }
@@ -295,7 +291,6 @@ export class SearchController {
     };
   }
 
-  // Legacy method for backward compatibility
   async healAndRestart(params) {
     const healingManager = new HealingManager();
     await healingManager.healAndRestart(params);

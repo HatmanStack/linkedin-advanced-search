@@ -11,10 +11,8 @@ import ConfigInitializer from '../utils/configInitializer.js';
 
 const app = express();
 
-// CORS configuration - Secure origin validation
 app.use(cors({
   origin: function (origin, callback) {
-    // Allow requests with no origin only in development (Postman, curl, etc.)
     if (!origin) {
       if (config.nodeEnv === 'development') {
         return callback(null, true);
@@ -23,10 +21,8 @@ app.use(cors({
       return callback(new Error('Origin header required'));
     }
 
-    // Get configured origins from env
     const allowedOrigins = config.frontendUrls || [];
 
-    // In development, allow localhost/127.0.0.1 with proper hostname validation
     if (config.nodeEnv === 'development') {
       try {
         const originUrl = new URL(origin);
@@ -41,27 +37,23 @@ app.use(cors({
       }
     }
 
-    // Check if origin is in allowed list
     if (allowedOrigins.includes(origin)) {
       logger.debug(`CORS: Allowing configured origin: ${origin}`);
       return callback(null, true);
     }
 
-    // Reject all other origins
     logger.warn(`CORS: Rejecting origin: ${origin}`);
     callback(new Error(`Origin ${origin} not allowed by CORS`));
   },
   methods: ['POST', 'GET', 'OPTIONS', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
-  optionsSuccessStatus: 204 // Some legacy browsers (IE11) choke on 204
+  optionsSuccessStatus: 204
 }));
 
-// Body parser middleware
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// Request logging middleware
 app.use((req, res, next) => {
   logger.info(`${req.method} ${req.path}`, {
     ip: req.ip,
@@ -71,14 +63,11 @@ app.use((req, res, next) => {
   next();
 });
 
-// Routes
-// Mount search routes under /search to match frontend expectations
 app.use('/search', searchRoutes);
 app.use('/heal-restore', healAndRestoreRoutes);
 app.use('/profile-init', profileInitRoutes);
 app.use('/linkedin-interactions', linkedinInteractionRoutes);
 
-// Health check endpoint with configuration status
 app.get('/health', (req, res) => {
   try {
     const configStatus = ConfigInitializer.getInitializationStatus();
@@ -107,7 +96,6 @@ app.get('/health', (req, res) => {
   }
 });
 
-// Configuration status endpoint
 app.get('/config/status', (req, res) => {
   try {
     const report = ConfigInitializer.generateConfigurationReport();
@@ -121,7 +109,6 @@ app.get('/config/status', (req, res) => {
   }
 });
 
-// Error handling middleware
 app.use((error, req, res, next) => {
   logger.error('Unhandled error:', error);
 
@@ -132,7 +119,6 @@ app.use((error, req, res, next) => {
   });
 });
 
-// 404 handler
 app.use('*', (req, res) => {
   res.status(404).json({
     error: 'Route not found',
@@ -141,7 +127,6 @@ app.use('*', (req, res) => {
   });
 });
 
-// Initialize required directories
 async function initializeDirectories() {
   try {
     await FileHelpers.ensureDirectoryExists('logs');
@@ -154,7 +139,6 @@ async function initializeDirectories() {
   }
 }
 
-// Graceful shutdown
 process.on('SIGTERM', () => {
   logger.info('SIGTERM received, shutting down gracefully');
   process.exit(0);
@@ -165,12 +149,10 @@ process.on('SIGINT', () => {
   process.exit(0);
 });
 
-// Start server
 async function startServer() {
   try {
     await initializeDirectories();
     
-    // Initialize LinkedIn interaction configuration system
     logger.info('Initializing LinkedIn interaction configuration...');
     const configInitialized = await ConfigInitializer.initialize();
     

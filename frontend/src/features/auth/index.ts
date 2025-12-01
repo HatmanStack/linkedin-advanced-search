@@ -1,4 +1,3 @@
-// Auth feature barrel export
 export { default as ProtectedRoute } from './components/ProtectedRoute';
 export { CognitoAuthService } from './services/cognitoService';
 export type { CognitoUserData } from './services/cognitoService';

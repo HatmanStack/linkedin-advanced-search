@@ -19,26 +19,20 @@ export const useProfileInit = (): UseProfileInitReturn => {
   const { toast } = useToast();
 
   const initializeProfile = useCallback(async (onSuccess?: () => void) => {
-    // We no longer require plaintext here; ciphertext is attached by the API service
 
     setIsInitializing(true);
     setInitializationError('');
     setInitializationMessage('');
 
     try {
-      // Prepare the request payload following the same structure as search
-      // Note: JWT token is automatically handled by apiService via Authorization header
-      // Payload can be empty; puppeteerApiService will attach ciphertext credentials
-      const requestPayload = {} as unknown;
+      const requestPayload = {};
 
-      // Make API call using the apiService
       const response = await puppeteerApiService.initializeProfileDatabase(requestPayload);
 
       if (!response.success) {
         throw new Error(response.error || 'Failed to initialize profile database');
       }
 
-      // Handle successful response
       if (response.data?.success) {
         const successMessage = response.data.message || 'Profile database initialized successfully!';
         setInitializationMessage(successMessage);
@@ -46,12 +40,9 @@ export const useProfileInit = (): UseProfileInitReturn => {
           title: "Success",
           description: "Profile database has been initialized successfully.",
         });
-        // Flag connections as changed so dashboard can refresh once
         connectionChangeTracker.markChanged('init');
-        // Call success callback if provided
         onSuccess?.();
       } else if (response.data?.healing) {
-        // Handle healing/recovery response (202 status)
         const healingMessage = response.data.message || 'Profile initialization is in progress with healing...';
         setInitializationMessage(healingMessage);
         toast({
@@ -65,7 +56,6 @@ export const useProfileInit = (): UseProfileInitReturn => {
           title: "Success",
           description: "Profile database has been initialized successfully.",
         });
-        // Call success callback if provided
         onSuccess?.();
       }
 

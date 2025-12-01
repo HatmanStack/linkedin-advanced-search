@@ -11,7 +11,6 @@ export class ProfileInitController {
     const requestId = this._generateRequestId();
     const startTime = Date.now();
 
-    // Enhanced request logging with request ID for tracking
     this._logRequestDetails(req, requestId);
 
     try {
@@ -38,7 +37,6 @@ export class ProfileInitController {
         });
       }
 
-      // Do not decrypt here; pass ciphertext through and decrypt at login
       const searchName = null;
       const searchPassword = null;
       const credentialsCiphertext = req.body.linkedinCredentialsCiphertext;
@@ -60,7 +58,6 @@ export class ProfileInitController {
         ...opts
       });
 
-      // Start monitoring this request
       profileInitMonitor.startRequest(requestId, {
         username: searchName ? '[REDACTED]' : 'not provided',
         recursionCount: opts.recursionCount || 0,
@@ -78,7 +75,6 @@ export class ProfileInitController {
           recursionCount: state.recursionCount
         });
 
-        // Record healing in monitoring
         profileInitMonitor.recordHealing(requestId, {
           recursionCount: state.recursionCount,
           healPhase: state.healPhase,
@@ -106,7 +102,6 @@ export class ProfileInitController {
         errorCount: result.data?.errors || 0
       });
 
-      // Record success in monitoring
       profileInitMonitor.recordSuccess(requestId, result);
 
       res.json(this._buildSuccessResponse(result, requestId));
@@ -125,7 +120,6 @@ export class ProfileInitController {
         isRecoverable: errorDetails.isRecoverable
       });
 
-      // Log additional context for debugging
       if (error.context) {
         logger.error('Error context details', {
           requestId,
@@ -133,7 +127,6 @@ export class ProfileInitController {
         });
       }
 
-      // Record failure in monitoring
       profileInitMonitor.recordFailure(requestId, error, errorDetails);
 
       res.status(500).json(this._buildErrorResponse(error, requestId, errorDetails));
@@ -146,8 +139,6 @@ export class ProfileInitController {
     try {
       
 
-      // Note: Authentication is now handled within ProfileInitService
-      // to maintain consistency with the service's state management
       const profileData = await this._processUserProfile(services, state);
 
       return this._buildProfileInitResult(profileData);
@@ -165,12 +156,10 @@ export class ProfileInitController {
   }
 
 
-
   async _processUserProfile(services, state) {
     logger.info('Processing user profile initialization...');
 
     try {
-      // Initialize ProfileInitService with all required services
       const profileInitService = new ProfileInitService(
         services.puppeteerService,
         services.linkedInService,
@@ -178,10 +167,8 @@ export class ProfileInitController {
         services.dynamoDBService
       );
 
-      // Set auth token for DynamoDB operations
       services.dynamoDBService.setAuthToken(state.jwtToken);
 
-      // Process the profile initialization using the service
       const result = await profileInitService.initializeUserProfile(state);
 
       logger.info('Profile initialization processing completed successfully');
@@ -190,10 +177,9 @@ export class ProfileInitController {
     } catch (error) {
       logger.error('Profile initialization processing failed:', error);
 
-      // Check if this is a recoverable error that should trigger healing
       if (this._shouldTriggerHealing(error)) {
         await this._handleProfileInitHealing(state);
-        return undefined; // Signal healing in progress
+        return undefined;
       }
 
       throw error;
@@ -204,7 +190,6 @@ export class ProfileInitController {
     const requestId = state.requestId || 'unknown';
     const recursionCount = (state.recursionCount || 0) + 1;
 
-    // Check if this is a list creation healing scenario
     if (errorMessage.includes('LIST_CREATION_HEALING_NEEDED')) {
       try {
         const healingDataMatch = errorMessage.match(/LIST_CREATION_HEALING_NEEDED:(.+)$/);
@@ -247,7 +232,6 @@ export class ProfileInitController {
       recursionCount
     });
 
-    // Create healing state using ProfileInitStateManager
     const healingState = ProfileInitStateManager.createHealingState(
       state,
       'profile-init',
@@ -258,7 +242,6 @@ export class ProfileInitController {
       }
     );
 
-    // Log healing state for debugging
     logger.info('Created healing state for profile initialization', {
       requestId,
       healingState: {
@@ -275,13 +258,8 @@ export class ProfileInitController {
     await this._initiateHealing(healingState);
   }
 
-  /**
-   * Determine if an error should trigger healing/recovery
-   * @param {Error} error - The error that occurred
-   * @returns {boolean} True if healing should be triggered
-   */
+  
   _shouldTriggerHealing(error) {
-    // Define recoverable error patterns following SearchController patterns
     const recoverableErrors = [
       /login.*failed/i,
       /authentication.*failed/i,
@@ -299,13 +277,11 @@ export class ProfileInitController {
 
     const errorMessage = error.message || error.toString();
 
-    // Check for list creation healing specifically
     if (errorMessage.includes('LIST_CREATION_HEALING_NEEDED')) {
       logger.info(`List creation healing needed: ${errorMessage}`);
       return true;
     }
 
-    // Check if error matches any recoverable pattern
     const isRecoverable = recoverableErrors.some(pattern => pattern.test(errorMessage));
 
     if (isRecoverable) {
@@ -348,9 +324,6 @@ export class ProfileInitController {
   }
 
  
-
-
-
   _logRequestDetails(req, requestId) {
     logger.info('Profile init request details:', {
       requestId,
@@ -364,24 +337,16 @@ export class ProfileInitController {
     });
   }
 
-  /**
-   * Generate unique request ID for tracking
-   * @returns {string} Unique request identifier
-   */
+  
   _generateRequestId() {
     return `profile-init-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   }
 
-  /**
-   * Categorize errors for better handling and logging
-   * @param {Error} error - The error to categorize
-   * @returns {Object} Error categorization details
-   */
+  
   _categorizeError(error) {
     const errorMessage = error.message || error.toString();
     const errorStack = error.stack || '';
 
-    // Authentication errors
     if (/login.*failed|authentication.*failed|invalid.*credentials|unauthorized/i.test(errorMessage)) {
       return {
         type: 'AuthenticationError',
@@ -392,7 +357,6 @@ export class ProfileInitController {
       };
     }
 
-    // Network errors
     if (/network.*error|connection.*reset|timeout|ECONNRESET|ENOTFOUND|ETIMEDOUT/i.test(errorMessage)) {
       return {
         type: 'NetworkError',
@@ -403,7 +367,6 @@ export class ProfileInitController {
       };
     }
 
-    // LinkedIn-specific errors
     if (/captcha|checkpoint|rate.*limit|linkedin.*error|too.*many.*requests/i.test(errorMessage)) {
       return {
         type: 'LinkedInError',
@@ -414,7 +377,6 @@ export class ProfileInitController {
       };
     }
 
-    // Database errors
     if (/dynamodb|database|aws.*error|ValidationException|ResourceNotFoundException/i.test(errorMessage)) {
       return {
         type: 'DatabaseError',
@@ -425,7 +387,6 @@ export class ProfileInitController {
       };
     }
 
-    // Puppeteer/Browser errors
     if (/puppeteer|browser|page.*crashed|navigation.*failed|target.*closed/i.test(errorMessage)) {
       return {
         type: 'BrowserError',
@@ -436,7 +397,6 @@ export class ProfileInitController {
       };
     }
 
-    // Validation errors
     if (/validation|invalid.*input|missing.*required|bad.*request/i.test(errorMessage)) {
       return {
         type: 'ValidationError',
@@ -447,7 +407,6 @@ export class ProfileInitController {
       };
     }
 
-    // File system errors
     if (/ENOENT|EACCES|EMFILE|file.*not.*found|permission.*denied/i.test(errorMessage)) {
       return {
         type: 'FileSystemError',
@@ -458,7 +417,6 @@ export class ProfileInitController {
       };
     }
 
-    // Default categorization for unknown errors
     return {
       type: 'UnknownError',
       category: 'unknown',
@@ -493,7 +451,6 @@ export class ProfileInitController {
       timestamp: new Date().toISOString()
     };
 
-    // Include technical details in development mode
     if (process.env.NODE_ENV === 'development') {
       response.technicalDetails = {
         originalMessage: error.message,

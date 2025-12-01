@@ -1,7 +1,4 @@
-/**
- * Progress Indicator Component for Message Generation Workflow
- * Task 9: Comprehensive error handling and user feedback
- */
+
 
 import React from 'react';
 import { Progress } from '@/shared/components/ui/progress';
@@ -85,7 +82,7 @@ const ProgressIndicator: React.FC<ProgressIndicatorProps> = ({
     <Card className={`bg-slate-800 border-slate-700 ${className}`}>
       <CardContent className="p-4">
         <div className="space-y-3">
-          {/* Phase indicator */}
+          {}
           <div className="flex items-center space-x-2">
             {getPhaseIcon()}
             <span className="text-sm font-medium text-white">
@@ -93,7 +90,7 @@ const ProgressIndicator: React.FC<ProgressIndicatorProps> = ({
             </span>
           </div>
 
-          {/* Progress bar */}
+          {}
           {progressState.total > 0 && (
             <div className="space-y-2">
               <Progress 
@@ -109,14 +106,14 @@ const ProgressIndicator: React.FC<ProgressIndicatorProps> = ({
             </div>
           )}
 
-          {/* Loading message */}
+          {}
           {loadingState.message && (
             <div className="text-sm text-slate-300">
               {loadingState.message}
             </div>
           )}
 
-          {/* Estimated time */}
+          {}
           {getEstimatedTimeString() && (
             <div className="text-xs text-slate-400 flex items-center space-x-1">
               <Clock className="h-3 w-3" />
@@ -124,7 +121,7 @@ const ProgressIndicator: React.FC<ProgressIndicatorProps> = ({
             </div>
           )}
 
-          {/* Cancel button */}
+          {}
           {loadingState.canCancel && onCancel && (
             <div className="flex justify-end">
               <Button

@@ -18,7 +18,6 @@ interface UseSearchResultsReturn {
 }
 
 function useSearchResults(): UseSearchResultsReturn {
-  // Local storage for persistence
   const [results, setResults] = useLocalStorage<string[]>(
     STORAGE_KEYS.SEARCH_RESULTS,
     []
@@ -29,14 +28,11 @@ function useSearchResults(): UseSearchResultsReturn {
     {}
   );
 
-  // State for loading and errors
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // State for informational message from search API
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
 
-  // LinkedIn search via puppeteer backend
   const searchLinkedIn = useCallback(
     async (searchFormData: SearchFormData) => {
       setLoading(true);
@@ -44,20 +40,17 @@ function useSearchResults(): UseSearchResultsReturn {
       setInfoMessage(null);
 
       try {
-        // Call puppeteer backend for real LinkedIn automation
         const response = await puppeteerApiService.performLinkedInSearch(searchFormData);
 
-        // Extract and store info message from response
         if (response?.message) {
           setInfoMessage(response.message);
         }
 
-        // Mark that connections may have changed due to a search
         connectionChangeTracker.markChanged('search');
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Search failed';
         setError(errorMessage);
-        throw err; // Re-throw so Dashboard can handle it
+        throw err;
       } finally {
         setLoading(false);
       }
@@ -65,9 +58,7 @@ function useSearchResults(): UseSearchResultsReturn {
     []
   );
 
-  // We no longer store backend search results locally; DynamoDB is the source of truth
 
-  // Mark a profile as visited
   const markAsVisited = useCallback(
     (profileId: string) => {
       setVisitedLinks(prev => ({
@@ -78,12 +69,10 @@ function useSearchResults(): UseSearchResultsReturn {
     [setVisitedLinks]
   );
 
-  // Clear search results
   const clearResults = useCallback(() => {
     setResults([]);
   }, [setResults]);
 
-  // Clear visited links
   const clearVisitedLinks = useCallback(() => {
     setVisitedLinks({});
   }, [setVisitedLinks]);

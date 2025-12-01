@@ -7,7 +7,7 @@ import { Alert, AlertDescription } from "@/shared/components/ui/alert";
 import { UserPlus, Building, User, Search, X, Loader2, AlertCircle, Info } from 'lucide-react';
 import { VirtualConnectionList } from '@/features/connections';
 import { connectionCache } from '@/features/connections';
-import type { Connection } from '@/shared/types';
+import type { Connection, ConnectionStatus } from '@/shared/types';
 import { createLogger } from '@/shared/utils/logger';
 
 const logger = createLogger('NewConnectionsTab');
@@ -42,10 +42,8 @@ const NewConnectionsTab = ({
     });
     const [activeTags, setActiveTags] = useState<string[]>([]);
 
-    // Use real data from props instead of fake data, filtering for 'possible' status only
     const displayResults = searchResults.filter(connection => connection.status === 'possible');
 
-    // Sort connections based on active tags
     const sortedConnections = useMemo(() => {
         if (activeTags.length === 0) {
             return displayResults;
@@ -55,12 +53,10 @@ const NewConnectionsTab = ({
             const aTagsMatch = (a.tags || a.common_interests || []).filter(tag => activeTags.includes(tag)).length;
             const bTagsMatch = (b.tags || b.common_interests || []).filter(tag => activeTags.includes(tag)).length;
 
-            // Sort by number of matching tags (descending)
             if (aTagsMatch !== bTagsMatch) {
                 return bTagsMatch - aTagsMatch;
             }
 
-            // If same number of matches, sort alphabetically
             return `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`);
         });
     }, [displayResults, activeTags]);
@@ -77,17 +73,13 @@ const NewConnectionsTab = ({
         setActiveTags([]);
     };
 
-    // Handle connection removal with optimistic updates
     const handleRemoveConnection = useCallback((connectionId: string, newStatus: string) => {
         try {
-            // Validate that newStatus is a valid ConnectionStatus before updating cache
             const validStatuses = ['possible', 'incoming', 'outgoing', 'ally', 'processed'];
             if (validStatuses.includes(newStatus)) {
-                // API call is performed in the card component; here we just update UI/cache to trigger re-render
-                connectionCache.update(connectionId, { status: newStatus as unknown });
+                connectionCache.update(connectionId, { status: newStatus as ConnectionStatus });
             }
 
-            // Inform parent (Dashboard) so its source-of-truth updates and persists across tab switches
             if (onRemoveConnection && (newStatus === 'processed' || newStatus === 'outgoing')) {
                 onRemoveConnection(connectionId, newStatus as 'processed' | 'outgoing');
             }
@@ -96,7 +88,6 @@ const NewConnectionsTab = ({
         }
     }, [onRemoveConnection]);
 
-    // Handle tag clicks for filtering
     const handleTagClick = useCallback((tag: string) => {
         setActiveTags(prev =>
             prev.includes(tag)
@@ -127,7 +118,7 @@ const NewConnectionsTab = ({
                             )}
                         </div>
 
-                        {/* Demo Data Warning */}
+                        {}
                         {searchResults.length === 0 && (
                             <div className="bg-yellow-600/20 border border-yellow-500/30 rounded-lg p-3 mb-4">
                                 <p className="text-yellow-200 text-sm font-medium">
@@ -137,7 +128,7 @@ const NewConnectionsTab = ({
                             </div>
                         )}
 
-                        {/* Search Filters */}
+                        {}
                         <div className="grid grid-cols-3 gap-4 mt-4">
                             <div className="relative">
                                 <Building className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
@@ -168,7 +159,7 @@ const NewConnectionsTab = ({
                             </div>
                         </div>
 
-                        {/* Search Info Message Banner */}
+                        {}
                         {searchInfoMessage && (
                             <Alert className="mt-4 bg-blue-500/10 border-blue-500/30">
                                 <Info className="h-4 w-4 text-blue-400" />
@@ -179,7 +170,7 @@ const NewConnectionsTab = ({
                         )}
                     </CardHeader>
                     <CardContent className="p-2 pt-4">
-                        {/* Loading State */}
+                        {}
                         {connectionsLoading && (
                             <div className="flex items-center justify-center h-64 p-6">
                                 <div className="flex flex-col items-center space-y-4">
@@ -189,7 +180,7 @@ const NewConnectionsTab = ({
                             </div>
                         )}
 
-                        {/* Error State */}
+                        {}
                         {connectionsError && !connectionsLoading && (
                             <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-6 m-6">
                                 <div className="flex items-center space-x-3">
@@ -212,7 +203,7 @@ const NewConnectionsTab = ({
                             </div>
                         )}
 
-                        {/* New Connections with Virtual Scrolling */}
+                        {}
                         {!connectionsLoading && !connectionsError && (
                             <>
                                 {sortedConnections.length === 0 ? (
@@ -234,7 +225,7 @@ const NewConnectionsTab = ({
                                             onTagClick={handleTagClick}
                                             activeTags={activeTags}
                                             className="min-h-[80vh]"
-                                            itemHeight={260} // Card height + margins for proper spacing
+                                            itemHeight={260}
                                             showFilters={true}
                                             sortBy="conversion_likelihood"
                                             sortOrder="desc"
