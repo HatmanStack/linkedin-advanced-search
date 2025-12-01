@@ -33,6 +33,7 @@ export const useProfile = () => {
     fetchProfile();
   }, [fetchProfile]);
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const updateProfile = useCallback(async (_updates: Partial<UserProfile>): Promise<boolean> => {
     try {
       setError('Profile updating through puppeteerApiService is deprecated');

@@ -62,8 +62,7 @@ const PostEditor = ({
         const storedHook = sessionStorage.getItem(HOOK_STORAGE_KEY);
         setLocalHook(storedHook ?? null);
       }
-    } catch {
-    }
+    } catch { /* sessionStorage unavailable */ }
   }, [postReasoning, postHook]);
 
   useEffect(() => {
@@ -74,8 +73,7 @@ const PostEditor = ({
           onContentChange(stored);
           setLocalHydratedContent(stored);
         }
-      } catch {
-      }
+      } catch { /* sessionStorage unavailable */ }
     }
   }, []);
 

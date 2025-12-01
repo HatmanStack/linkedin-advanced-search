@@ -71,8 +71,7 @@ const Profile = () => {
         if (userProfile.linkedin_credentials) {
           setHasStoredCredentials(true);
         }
-      } catch {
-      }
+      } catch { /* ignored */ }
     })();
   }, [userProfile]);
 

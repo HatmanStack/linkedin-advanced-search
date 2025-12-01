@@ -47,9 +47,7 @@ const NewConnectionCard: React.FC<NewConnectionCardProps> = ({
       const pref = localStorage.getItem(REMOVE_CONFIRM_PREF_KEY) === 'true';
       setDontShowAgain(pref);
       setSkipRemoveConfirm(pref);
-    } catch {
-    }
-     
+    } catch { /* localStorage unavailable */ }
   }, [connection?.id]);
 
   const buildLinkedInProfileUrl = (): string | null => {
@@ -102,8 +100,7 @@ const NewConnectionCard: React.FC<NewConnectionCardProps> = ({
       try {
         const { connectionCache } = await import('@/features/connections/utils/connectionCache');
         connectionCache.update(connection.id, { status: 'processed' });
-      } catch {
-      }
+      } catch { /* cache update optional */ }
 
       toast({
         title: "Connection Removed",
@@ -159,8 +156,7 @@ const NewConnectionCard: React.FC<NewConnectionCardProps> = ({
     setSkipRemoveConfirm(value);
     try {
       localStorage.setItem(REMOVE_CONFIRM_PREF_KEY, String(value));
-    } catch {
-    }
+    } catch { /* localStorage unavailable */ }
   };
 
   useEffect(() => {
@@ -226,14 +222,12 @@ const NewConnectionCard: React.FC<NewConnectionCardProps> = ({
 
       try {
         await dbConnector.updateConnectionStatus(connection.id, 'outgoing', { profileId });
-      } catch {
-      }
+      } catch { /* puppeteer operation optional */ }
 
       try {
         const { connectionCache } = await import('@/features/connections/utils/connectionCache');
         connectionCache.update(connection.id, { status: 'outgoing' });
-      } catch {
-      }
+      } catch { /* cache update optional */ }
 
       toast({
         title: "Connection Request Sent",

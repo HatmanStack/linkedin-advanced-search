@@ -43,11 +43,9 @@ export const UserProfileProvider = ({ children }: { children: ReactNode }) => {
           setCiphertextState(response.data.linkedin_credentials);
           try {
             sessionStorage.setItem('li_credentials_ciphertext', response.data.linkedin_credentials);
-          } catch {
-      }
+          } catch { /* ignored */ }
         }
-        try { sessionStorage.setItem('profile_fetched', 'true'); } catch {
-      }
+        try { sessionStorage.setItem('profile_fetched', 'true'); } catch { /* ignored */ }
         fetchedFlag = true;
       }
     } catch (error) {
@@ -65,8 +63,7 @@ export const UserProfileProvider = ({ children }: { children: ReactNode }) => {
       const response = await lambdaApiService.updateUserProfile(updates);
       if (response.success) {
         await fetchUserProfile();
-        try { sessionStorage.setItem('profile_fetched', 'true'); } catch {
-      }
+        try { sessionStorage.setItem('profile_fetched', 'true'); } catch { /* ignored */ }
         fetchedFlag = true;
       } else {
         throw new Error(response.error || 'Failed to update profile');
@@ -106,8 +103,7 @@ export const UserProfileProvider = ({ children }: { children: ReactNode }) => {
       if (!alreadyFetched && !fetchedFlag) {
         fetchUserProfile();
         fetchedFlag = true;
-        try { sessionStorage.setItem('profile_fetched', 'true'); } catch {
-      }
+        try { sessionStorage.setItem('profile_fetched', 'true'); } catch { /* ignored */ }
       }
     }
   }, [user]);
@@ -128,8 +124,7 @@ export const UserProfileProvider = ({ children }: { children: ReactNode }) => {
           sessionStorage.removeItem('li_credentials_ciphertext');
           logger.debug('Credentials removed from sessionStorage');
         }
-      } catch {
-      }
+      } catch { /* ignored */ }
     },
     userProfile,
     updateUserProfile,

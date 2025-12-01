@@ -11,15 +11,13 @@ export const connectionChangeTracker = {
         at: new Date().toISOString(),
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
-    } catch {
-    }
+    } catch { /* localStorage unavailable */ }
   },
 
   clearChanged(): void {
     try {
       localStorage.removeItem(STORAGE_KEY);
-    } catch {
-    }
+    } catch { /* localStorage unavailable */ }
   },
 
   hasChanged(): boolean {
@@ -35,4 +33,3 @@ export const connectionChangeTracker = {
 };
 
 export default connectionChangeTracker;
-

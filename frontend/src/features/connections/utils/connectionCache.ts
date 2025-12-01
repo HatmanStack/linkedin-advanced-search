@@ -48,8 +48,7 @@ export class ConnectionCache {
         }
       }
       this.stats.size = this.cache.size;
-    } catch {
-    }
+    } catch { /* localStorage unavailable */ }
   }
 
   
@@ -59,8 +58,7 @@ export class ConnectionCache {
       const key = `${this.storageKeyBase}${this.namespace}`;
       const serialized = JSON.stringify(this.getAll());
       localStorage.setItem(key, serialized);
-    } catch {
-    }
+    } catch { /* localStorage unavailable */ }
   }
 
   

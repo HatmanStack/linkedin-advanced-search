@@ -33,6 +33,17 @@ interface LLMResponseData {
   jobId?: string;
 }
 
+function stripSensitiveFields(profile: UserProfile): Partial<UserProfile> {
+  const copy = { ...profile };
+  delete copy.unpublished_post_content;
+  delete copy.linkedin_credentials;
+  delete copy.ai_generated_ideas;
+  delete copy.ai_generated_research;
+  delete copy.ai_generated_post_hook;
+  delete copy.ai_generated_post_reasoning;
+  return copy;
+}
+
 export const postsService = {
   async saveUnsentPostToProfile(content: string): Promise<void> {
     const updates: Partial<UserProfile> = { unpublished_post_content: content };
@@ -58,9 +69,7 @@ export const postsService = {
       }
       ideasPollingInFlight = true;
 
-      const profileToSend = userProfile
-        ? (() => { const { unpublished_post_content, linkedin_credentials, ...rest } = userProfile; return rest; })()
-        : null;
+      const profileToSend = userProfile ? stripSensitiveFields(userProfile) : null;
 
       const jobId = uuidv4();
       const response = await lambdaApiService.sendLLMRequest('generate_ideas', {
@@ -91,8 +100,7 @@ export const postsService = {
               return ideas as string[];
             }
           }
-        } catch {
-        }
+        } catch { /* polling error, retry */ }
         if (i < maxChecks - 1) await sleep(intervalMs);
       }
       throw new Error('Idea generation polling timed out');
@@ -109,9 +117,7 @@ export const postsService = {
     try {
       const response = await lambdaApiService.sendLLMRequest('research_selected_ideas', {
         selected_ideas: topics,
-        user_profile: (userProfile
-          ? (() => { const { unpublished_post_content, linkedin_credentials, ...rest } = userProfile; return rest; })()
-          : null)
+        user_profile: userProfile ? stripSensitiveFields(userProfile) : null
       });
 
       if (!response.success) {
@@ -140,8 +146,7 @@ export const postsService = {
               return content;
             }
           }
-        } catch {
-        }
+        } catch { /* polling error, retry */ }
         if (i < maxChecks - 1) await sleep(intervalMs);
       }
       throw new Error('Deep research polling timed out');
@@ -161,9 +166,7 @@ export const postsService = {
       }
       synthPollingInFlight = true;
 
-      const profileToSend = userProfile
-        ? (() => { const { unpublished_post_content, linkedin_credentials, ai_generated_ideas, ai_generated_research, ai_generated_post_hook, ai_generated_post_reasoning, ...rest } = userProfile; return rest; })()
-        : null;
+      const profileToSend = userProfile ? stripSensitiveFields(userProfile) : null;
 
       const jobId = uuidv4();
       const response = await lambdaApiService.sendLLMRequest('synthesize_research', {
@@ -199,8 +202,7 @@ export const postsService = {
               };
             }
           }
-        } catch {
-        }
+        } catch { /* polling error, retry */ }
         if (i < maxChecks - 1) await sleep(intervalMs);
       }
       throw new Error('Synthesis polling timed out');

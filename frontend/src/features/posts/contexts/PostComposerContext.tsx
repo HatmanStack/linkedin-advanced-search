@@ -83,38 +83,30 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
       try {
         const pResearch = userProfile.ai_generated_research;
         if (typeof pResearch === 'string' && pResearch.trim()) {
-          try { sessionStorage.setItem(RESEARCH_STORAGE_KEY, pResearch); } catch {
-          }
+          try { sessionStorage.setItem(RESEARCH_STORAGE_KEY, pResearch); } catch { /* ignored */ }
         }
-      } catch {
-      }
+      } catch { /* ignored */ }
 
       try {
         const pContent = userProfile.unpublished_post_content;
         if (typeof pContent === 'string' && pContent.trim()) {
-          try { sessionStorage.setItem(CONTENT_STORAGE_KEY, pContent); } catch {
-          }
+          try { sessionStorage.setItem(CONTENT_STORAGE_KEY, pContent); } catch { /* ignored */ }
         }
-      } catch {
-      }
+      } catch { /* ignored */ }
 
       try {
         const pReasoning = userProfile.ai_generated_post_reasoning;
         if (typeof pReasoning === 'string' && pReasoning.trim()) {
-          try { sessionStorage.setItem(REASONING_STORAGE_KEY, pReasoning); } catch {
-          }
+          try { sessionStorage.setItem(REASONING_STORAGE_KEY, pReasoning); } catch { /* ignored */ }
         }
-      } catch {
-      }
+      } catch { /* ignored */ }
 
       try {
         const pHook = userProfile.ai_generated_post_hook;
         if (typeof pHook === 'string' && pHook.trim()) {
-          try { sessionStorage.setItem(HOOK_STORAGE_KEY, pHook); } catch {
-          }
+          try { sessionStorage.setItem(HOOK_STORAGE_KEY, pHook); } catch { /* ignored */ }
         }
-      } catch {
-      }
+      } catch { /* ignored */ }
 
       try {
         const storedIdeas = sessionStorage.getItem(IDEAS_STORAGE_KEY);
@@ -174,9 +166,8 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
       const ideas = await postsService.generateIdeas(prompt, userProfile || undefined);
       try {
         sessionStorage.setItem(IDEAS_STORAGE_KEY, JSON.stringify(ideas));
-      } catch {
-      }
-      
+      } catch { /* ignored */ }
+
       setIdeas(ideas);
       return ideas;
     } finally {
@@ -210,9 +201,7 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
         const parsed = JSON.parse(si);
         if (Array.isArray(parsed) && parsed.length > 0) selectedIdeas = parsed;
       }
-    } catch {
-      }
-
+    } catch { /* ignored */ }
 
     logger.debug('synthesize: start', { sourceLen: source.length, hasResearch: !!researchContent, ideasCount: selectedIdeas?.length || 0 });
     setIsSynthesizing(true);
@@ -224,18 +213,15 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
       }, userProfile || undefined);
       if (synthesized) {
         setContent(synthesized.content);
-        try { sessionStorage.setItem(RESEARCH_STORAGE_KEY, synthesized.content); } catch {
-      }
-        
+        try { sessionStorage.setItem(RESEARCH_STORAGE_KEY, synthesized.content); } catch { /* ignored */ }
+
         if (synthesized.reasoning) {
           setPostReasoning(synthesized.reasoning);
-          try { sessionStorage.setItem(REASONING_STORAGE_KEY, synthesized.reasoning); } catch {
-      }
+          try { sessionStorage.setItem(REASONING_STORAGE_KEY, synthesized.reasoning); } catch { /* ignored */ }
         }
         if (synthesized.hook) {
           setPostHook(synthesized.hook);
-          try { sessionStorage.setItem(HOOK_STORAGE_KEY, synthesized.hook); } catch {
-      }
+          try { sessionStorage.setItem(HOOK_STORAGE_KEY, synthesized.hook); } catch { /* ignored */ }
         }
       }
     } finally {
@@ -246,8 +232,7 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
   const clearResearch = useCallback(async () => {
     logger.debug('clearResearch');
     setResearchContent(null);
-    try { sessionStorage.removeItem(RESEARCH_STORAGE_KEY); } catch {
-      }
+    try { sessionStorage.removeItem(RESEARCH_STORAGE_KEY); } catch { /* ignored */ }
 
     try {
       await lambdaApiService.updateUserProfile({
@@ -266,8 +251,7 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
     try {
       sessionStorage.removeItem(REASONING_STORAGE_KEY);
       sessionStorage.removeItem(HOOK_STORAGE_KEY);
-    } catch {
-      }
+    } catch { /* ignored */ }
 
     try {
       await lambdaApiService.updateUserProfile({
