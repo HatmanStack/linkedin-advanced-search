@@ -4,11 +4,20 @@ Tests CRUD operations, authentication, CORS, and error handling
 """
 import base64
 import json
+import sys
+from pathlib import Path
 from unittest.mock import patch
 
 import boto3
 import pytest
 from moto import mock_aws
+
+LAMBDA_PATH = str(Path(__file__).parent.parent.parent.parent / 'backend' / 'lambdas' / 'dynamodb-api')
+sys.path.insert(0, LAMBDA_PATH)
+
+# Force reimport to avoid caching issues with multiple lambda_function modules
+if 'lambda_function' in sys.modules:
+    del sys.modules['lambda_function']
 
 
 @pytest.fixture

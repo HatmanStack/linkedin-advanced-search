@@ -3,7 +3,7 @@ import json
 import logging
 import os
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Dict
 
 import boto3
 from botocore.exceptions import ClientError

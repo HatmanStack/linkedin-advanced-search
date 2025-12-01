@@ -1,5 +1,9 @@
 """Tests for OpenAI Webhook Handler Lambda"""
 import json
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / 'backend' / 'lambdas' / 'webhook-handler'))
 
 
 def test_webhook_handler_success(lambda_context):
