@@ -635,14 +635,14 @@ chore(sanitize): final verification and cleanup
 
 This phase is complete when:
 
-- [ ] No `console.log`/`print()` debug statements remain
-- [ ] No comments or docstrings in source code
-- [ ] No dead code or unused imports
-- [ ] Utilities consolidated into logical files
-- [ ] Security patterns hardened
-- [ ] Historical documentation deleted
-- [ ] New documentation created (savorswipe pattern)
-- [ ] Root README is concise quickstart
+- [x] No `console.log`/`print()` debug statements remain
+- [x] No comments or docstrings in source code
+- [x] No dead code or unused imports
+- [x] Utilities consolidated into logical files
+- [x] Security patterns hardened
+- [x] Historical documentation deleted
+- [x] New documentation created (savorswipe pattern)
+- [x] Root README is concise quickstart
 - [ ] All tests pass
 - [ ] CI pipeline passes
 - [ ] Application deploys and runs correctly
