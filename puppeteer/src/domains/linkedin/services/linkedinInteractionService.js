@@ -1,6 +1,6 @@
 import { PuppeteerService } from '../../automation/services/puppeteerService.js';
 import { logger } from '../../shared/utils/logger.js';
-import config from '../../shared/config/index.js';
+import config from '../../../../config/index.js';
 import LinkedInErrorHandler from '../utils/linkedinErrorHandler.js';
 import ConfigManager from '../../shared/config/configManager.js';
 import DynamoDBService from '../../storage/services/dynamoDBService.js';

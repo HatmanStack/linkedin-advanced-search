@@ -1,5 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import config from '../../shared/config/index.js';
+import config from '../../../../config/index.js';
 import { logger } from '../../shared/utils/logger.js';
 import RandomHelpers from '../../shared/utils/randomHelpers.js';
 import DynamoDBService from '../../storage/services/dynamoDBService.js';

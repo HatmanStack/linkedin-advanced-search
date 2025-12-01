@@ -1,7 +1,7 @@
 
 
 import { S3Client, HeadObjectCommand, GetObjectCommand, DeleteObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
-import { logger } from './logger.js';
+import { logger } from '../../../shared/utils/logger.js';
 
 
 const clientCache = new Map();

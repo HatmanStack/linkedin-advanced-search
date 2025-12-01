@@ -1,5 +1,5 @@
-import { logger } from './logger.js';
-import FileHelpers from './fileHelpers.js';
+import { logger } from '../../../shared/utils/logger.js';
+import FileHelpers from '../../../shared/utils/fileHelpers.js';
 import fs from 'fs/promises';
 
 export class LinkCollector {

@@ -42,3 +42,6 @@ temp/
 user*.json
 repair*.json
 all*.json
+
+# Test coverage
+coverage/

@@ -1,4 +1,4 @@
-import { logger } from './logger.js';
+import { logger } from '../../../shared/utils/logger.js';
 import path from 'path';
 import fsSync from 'fs';
 

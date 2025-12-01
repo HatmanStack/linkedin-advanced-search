@@ -1,4 +1,4 @@
-import config from '../../../shared/config/index.js';
+import config from '../../../../config/index.js';
 import { logger } from '../../../shared/utils/logger.js';
 import { initializeLinkedInServices, cleanupLinkedInServices } from '../../../shared/utils/serviceFactory.js';
 import FileHelpers from '../../../shared/utils/fileHelpers.js';
