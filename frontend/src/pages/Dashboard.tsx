@@ -266,9 +266,8 @@ const Dashboard = () => {
     setMessageModalOpen(true);
 
     try {
-      // Fetch message history from database
-      // const messages = await dbConnector.getMessageHistory(connection.id);
-      const messages: Message[] = []; // Placeholder until API is implemented
+      // Placeholder until message history API is implemented
+      const messages: Message[] = [];
       setMessageHistory(messages);
     } catch (err: unknown) {
       logger.error('Error fetching message history', { error: err });
@@ -436,9 +435,6 @@ const Dashboard = () => {
 
   const generateMessageForConnection = useCallback(async (connection: Connection): Promise<string> => {
     try {
-      // Fetch message history for context
-      // const messageHistory = await dbConnector.getMessageHistory(connection.id);
-
       // Build request using shared context service for DRYness
       const cleanedTopic = connectionDataContextService.prepareConversationTopic(conversationTopic);
       const connectionWithHistory = { ...connection, message_history: messageHistory } as Connection;
