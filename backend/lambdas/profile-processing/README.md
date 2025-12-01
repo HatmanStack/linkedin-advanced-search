@@ -31,27 +31,19 @@ Attributes:
 
 ## Deployment
 
-1. **Package the Lambda**:
-   ```bash
-   cd lambda-processing/profile-processing
-   pip install -r requirements.txt -t .
-   zip -r profile-processing.zip .
-   ```
+Deploy via SAM from the backend directory:
 
-2. **Create Lambda Function**:
-   - Runtime: Python 3.9+
-   - Handler: `lambda_function.lambda_handler`
-   - Timeout: 5 minutes
-   - Memory: 1024 MB
+```bash
+cd backend
+npm run deploy
+```
 
-3. **Set Environment Variables**:
-   - `AWS_REGION`: us-west-2
-   - `DYNAMODB_TABLE_NAME`: linkedin-advanced-search
-
-4. **Configure S3 Trigger**:
-   - Event type: `s3:ObjectCreated:*`
-   - Prefix: `linkedin-profiles/`
-   - Suffix: `.png` or `.jpg`
+This Lambda is automatically deployed with:
+- Runtime: Python 3.13
+- Handler: `lambda_function.lambda_handler`
+- Timeout: 2 minutes
+- Memory: 1024 MB
+- SQS trigger from profile processing queue
 
 ## IAM Permissions
 
