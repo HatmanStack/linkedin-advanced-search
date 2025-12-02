@@ -27,12 +27,12 @@ export {
   createMockAppConfig,
 } from './appConfig';
 
-export const resetAllMocks = () => {
-  const { resetCognitoMocks } = require('./cognitoService');
-  const { resetApiMocks } = require('./apiServices');
-  const { resetAppConfigMocks } = require('./appConfig');
+export const resetAllMocks = async () => {
+  const cognitoModule = await import('./cognitoService');
+  const apiModule = await import('./apiServices');
+  const appConfigModule = await import('./appConfig');
 
-  resetCognitoMocks();
-  resetApiMocks();
-  resetAppConfigMocks();
+  cognitoModule.resetCognitoMocks();
+  apiModule.resetApiMocks();
+  appConfigModule.resetAppConfigMocks();
 };

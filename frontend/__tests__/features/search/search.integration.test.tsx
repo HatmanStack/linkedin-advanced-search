@@ -1,7 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
-import { act, renderHook } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import type { SearchFormData } from '@/shared/utils/validation';
 
 const mockPerformLinkedInSearch = vi.fn();
@@ -29,8 +27,6 @@ vi.mock('@/config/appConfig', () => ({
 import useSearchResults from '@/features/search/hooks/useSearchResults';
 
 describe('Search Flow Integration Tests', () => {
-  const user = userEvent.setup();
-
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();

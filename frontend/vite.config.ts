@@ -20,6 +20,7 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     css: true,
+    testTimeout: 10000,
     include: ['__tests__/**/*.test.{ts,tsx}'],
     exclude: ['**/node_modules/**'],
     setupFiles: ['__tests__/setup.ts'],

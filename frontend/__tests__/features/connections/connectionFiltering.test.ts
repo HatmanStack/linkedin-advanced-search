@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { filterConnections, sortConnections } from '@/features/connections/utils/connectionFiltering';
-import type { Connection, ConnectionFilters } from '@/shared/types';
+import type { ConnectionFilters } from '@/shared/types';
 import { createMockConnection, resetFactoryCounters } from '../../utils/mockFactories';
 
 describe('connectionFiltering', () => {

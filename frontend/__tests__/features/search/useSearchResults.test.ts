@@ -166,7 +166,7 @@ describe('useSearchResults', () => {
       await act(async () => {
         try {
           await result.current.searchLinkedIn(mockSearchData);
-        } catch (e) {
+        } catch {
           // Error is expected and rethrown by hook
         }
       });
