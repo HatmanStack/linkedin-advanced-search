@@ -23,28 +23,31 @@ export const createMockConnection = (
   connectionCounter++;
   const now = new Date().toISOString();
   return {
-    profileId: `profile-${connectionCounter}`,
-    name: `Connection ${connectionCounter}`,
-    headline: 'Software Engineer',
-    photoUrl: `https://example.com/photo${connectionCounter}.jpg`,
-    profileUrl: `https://linkedin.com/in/connection${connectionCounter}`,
+    id: `connection-${connectionCounter}`,
+    first_name: 'Test',
+    last_name: `User${connectionCounter}`,
+    position: 'Software Engineer',
+    company: 'Tech Company',
+    location: 'San Francisco, CA',
+    headline: 'Building great software',
     status: 'possible',
-    createdAt: now,
-    updatedAt: now,
+    date_added: now,
+    linkedin_url: `https://linkedin.com/in/testuser${connectionCounter}`,
+    tags: [],
+    conversion_likelihood: 75,
     ...overrides,
-  } as Connection;
+  };
 };
 
 export const createMockMessage = (overrides: Partial<Message> = {}): Message => {
   messageCounter++;
   return {
     id: `msg-${messageCounter}`,
-    recipientProfileId: `profile-${messageCounter}`,
-    messageContent: `Test message ${messageCounter}`,
+    content: `Test message ${messageCounter}`,
     timestamp: new Date().toISOString(),
-    status: 'sent',
+    sender: 'user',
     ...overrides,
-  } as Message;
+  };
 };
 
 export const createMockSearchResult = (overrides: Record<string, unknown> = {}) => {
