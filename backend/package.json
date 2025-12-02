@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "deploy": "node scripts/deploy.js",
-    "test": "pytest ../tests/backend -v --tb=short",
+    "test": "bash -c 'source ../.venv/bin/activate && PYTHONPATH=$PWD/lambdas pytest ../tests/backend -v --tb=short'",
     "lint": "uvx ruff check lambdas"
   },
   "devDependencies": {}

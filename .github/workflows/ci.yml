@@ -47,7 +47,6 @@ jobs:
       - name: Test
         working-directory: ./puppeteer
         run: npm test
-        continue-on-error: true  # No tests yet
 
   backend:
     name: Backend (Python)
