@@ -184,8 +184,8 @@ export class LinkedInContactService {
   }
 
   
-  async captureRequiredScreenshots(profileId, tempDir, status, options = {}) {
-    const page = this.puppeteer.getPage();
+  async captureRequiredScreenshots(profileId, tempDir, status, _options = {}) {
+    const _page = this.puppeteer.getPage();
     let defaultScreens;
     if (status === 'incoming' || status === 'outgoing' || status == 'ally') {
       defaultScreens = ['Reactions', 'Profile', 'Activity', 'Recent-Activity', 'About-This-Profile'];

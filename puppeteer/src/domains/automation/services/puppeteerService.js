@@ -315,7 +315,7 @@ export class PuppeteerService {
           try {
             if (href.startsWith('/')) {
               href = new URL(href, window.location.origin).toString();
-            } else if (!/^https?:\/\
+            } else if (!/^https?:\/\//.test(href)) {
               continue;
             }
           } catch (_) {

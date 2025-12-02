@@ -1,5 +1,5 @@
 import { logger } from '../../shared/utils/logger.js';
-import config from '../../../../config/index.js';
+import _config from '../../../../config/index.js';
 import { LinkedInInteractionService } from '../services/linkedinInteractionService.js';
 import LinkedInService from '../services/linkedinService.js';
 import LinkedInErrorHandler from '../utils/linkedinErrorHandler.js';

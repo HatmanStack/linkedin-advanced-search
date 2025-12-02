@@ -146,7 +146,7 @@ export class LinkedInErrorHandler {
   };
 
   
-  static categorizeError(error, context = {}) {
+  static categorizeError(error, _context = {}) {
     const errorMessage = error.message.toLowerCase();
 
     if (errorMessage.includes('jwt') || errorMessage.includes('token') || errorMessage.includes('unauthorized')) {
@@ -244,8 +244,8 @@ export class LinkedInErrorHandler {
     };
   }
 
-  
-  static getErrorCode(categorizedError, originalError) {
+
+  static getErrorCode(categorizedError, _originalError) {
     for (const [code, errorInfo] of Object.entries(this.ERROR_CODES)) {
       if (errorInfo === categorizedError) {
         return code;

@@ -109,7 +109,7 @@ app.get('/config/status', (req, res) => {
   }
 });
 
-app.use((error, req, res, next) => {
+app.use((error, req, res, _next) => {
   logger.error('Unhandled error:', error);
 
   res.status(500).json({

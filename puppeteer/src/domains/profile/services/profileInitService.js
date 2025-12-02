@@ -201,8 +201,8 @@ export class ProfileInitService {
     }
   }
 
-  
-  async _createMasterIndexFile(state) {
+
+  async _createMasterIndexFile(_state) {
     try {
       const timestamp = Date.now();
       const masterIndexFile = path.join('data', `profile-init-index-${timestamp}.json`);
@@ -1089,8 +1089,8 @@ export class ProfileInitService {
     return false;
   }
 
-  
-  async _handleDatabaseError(error, context, retryCount, errorDetails) {
+
+  async _handleDatabaseError(error, context, _retryCount, _errorDetails) {
     const requestId = context.requestId || 'unknown';
 
     logger.error('Database error - not retryable', {
@@ -1102,8 +1102,8 @@ export class ProfileInitService {
     return false;
   }
 
-  
-  async _handleConnectionError(error, context, retryCount, errorDetails) {
+
+  async _handleConnectionError(error, context, _retryCount, _errorDetails) {
     const requestId = context.requestId || 'unknown';
 
     logger.warn('Connection-level error - will skip this connection', {

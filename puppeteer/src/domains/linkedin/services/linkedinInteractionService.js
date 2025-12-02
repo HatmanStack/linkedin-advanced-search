@@ -1,6 +1,6 @@
 import { PuppeteerService } from '../../automation/services/puppeteerService.js';
 import { logger } from '../../shared/utils/logger.js';
-import config from '../../../../config/index.js';
+import _config from '../../../../config/index.js';
 import LinkedInErrorHandler from '../utils/linkedinErrorHandler.js';
 import ConfigManager from '../../shared/config/configManager.js';
 import DynamoDBService from '../../storage/services/dynamoDBService.js';
@@ -229,7 +229,7 @@ export class LinkedInInteractionService {
   }
 
   
-  async executeWithRetry(operation, context = {}, maxRetries = this.maxRetries) {
+  async executeWithRetry(operation, context = {}, _maxRetries = this.maxRetries) {
     try {
       context.attemptCount = 1;
       return await operation();
@@ -547,7 +547,7 @@ export class LinkedInInteractionService {
     logger.info(`Sending LinkedIn message to profile ${recipientProfileId} by user ${userId}`, context);
     await this.checkSuspiciousActivity();
 
-    const session = await this.getBrowserSession();
+    const _session = await this.getBrowserSession();
 
 
     const navigationSuccess = await this.navigateToProfile(recipientProfileId);
@@ -638,7 +638,7 @@ export class LinkedInInteractionService {
   async waitForMessagingInterface() {
     try {
       const session = await this.getBrowserSession();
-      const page = session.getPage();
+      const _page = session.getPage();
 
       const messagingSelectors = [
         '.msg-form__contenteditable',
@@ -744,7 +744,7 @@ export class LinkedInInteractionService {
   async waitForMessageSent() {
     try {
       const session = await this.getBrowserSession();
-      const page = session.getPage();
+      const _page = session.getPage();
 
       const sentIndicators = [
         '.msg-s-message-list-item--sent',
@@ -799,7 +799,7 @@ export class LinkedInInteractionService {
     logger.info(`Creating LinkedIn post by user ${userId}`, context);
     await this.checkSuspiciousActivity();
 
-    const session = await this.getBrowserSession();
+    const _session = await this.getBrowserSession();
 
 
     await this.navigateToPostCreator();
@@ -842,7 +842,7 @@ export class LinkedInInteractionService {
 
     try {
       const session = await this.getBrowserSession();
-      const page = session.getPage();
+      const _page = session.getPage();
 
 
       const navigationTimeout = this.configManager.get('navigationTimeout', 30000);
@@ -867,13 +867,13 @@ export class LinkedInInteractionService {
       ];
 
       let startPostButton = null;
-      let foundSelector = null;
+      let _foundSelector = null;
 
       for (const selector of startPostSelectors) {
         try {
           startPostButton = await session.waitForSelector(selector, { timeout: 5000 });
           if (startPostButton) {
-            foundSelector = selector;
+            _foundSelector = selector;
             logger.debug(`Found start post button with selector: ${selector}`);
             break;
           }
@@ -906,7 +906,7 @@ export class LinkedInInteractionService {
   async waitForPostCreationInterface() {
     try {
       const session = await this.getBrowserSession();
-      const page = session.getPage();
+      const _page = session.getPage();
 
       const postCreationSelectors = [
         '.ql-editor[contenteditable="true"]',
@@ -1071,7 +1071,7 @@ export class LinkedInInteractionService {
         }
 
         if (i < mediaAttachments.length - 1) {
-
+          // Intentionally empty
         }
       }
 
@@ -1170,7 +1170,7 @@ export class LinkedInInteractionService {
   async checkConnectionStatus() {
     try {
       const session = await this.getBrowserSession();
-      const page = session.getPage();
+      const _page = session.getPage();
 
 
       const connectedSelectors = [
@@ -1480,8 +1480,8 @@ export class LinkedInInteractionService {
     });
 
     try {
-      const session = await this.getBrowserSession();
-      const page = session.getPage();
+      const _session = await this.getBrowserSession();
+      const _page = _session.getPage();
 
       await this.humanBehavior.checkAndApplyCooldown();
 
@@ -1539,7 +1539,7 @@ export class LinkedInInteractionService {
     logger.info('Executing complete LinkedIn messaging workflow', context);
     await this.checkSuspiciousActivity();
 
-    const session = await this.getBrowserSession();
+    const _session = await this.getBrowserSession();
 
 
     logger.info('Step 1/4: Navigating to profile');
@@ -1621,7 +1621,7 @@ export class LinkedInInteractionService {
     logger.info('Executing complete LinkedIn connection workflow', context);
     await this.checkSuspiciousActivity();
 
-    const session = await this.getBrowserSession();
+    const _session = await this.getBrowserSession();
 
 
     logger.info('Step 1/4: Navigating to profile');
@@ -1701,7 +1701,7 @@ export class LinkedInInteractionService {
 
     await this.checkSuspiciousActivity();
 
-    const session = await this.getBrowserSession();
+    const _session = await this.getBrowserSession();
 
 
     logger.info('Step 1/5: Opening post creation interface');

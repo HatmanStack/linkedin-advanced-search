@@ -342,10 +342,10 @@ export class ProfileInitController {
     return `profile-init-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   }
 
-  
+
   _categorizeError(error) {
     const errorMessage = error.message || error.toString();
-    const errorStack = error.stack || '';
+    const _errorStack = error.stack || '';
 
     if (/login.*failed|authentication.*failed|invalid.*credentials|unauthorized/i.test(errorMessage)) {
       return {

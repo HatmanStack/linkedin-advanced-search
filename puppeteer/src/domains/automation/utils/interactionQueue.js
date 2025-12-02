@@ -1,5 +1,5 @@
 import { logger } from '../../../shared/utils/logger.js';
-import config from '../../../../config/index.js';
+import _config from '../../../../config/index.js';
 
 
 class InteractionQueue {
