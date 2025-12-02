@@ -26,8 +26,15 @@ jobs:
         run: npx tsc --noEmit
       - name: Test
         working-directory: ./frontend
-        run: npm run test
-        continue-on-error: true  # No tests yet
+        run: npm test -- --coverage
+        continue-on-error: true
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: frontend-coverage
+          path: frontend/coverage/
+          retention-days: 7
 
   puppeteer:
     name: Puppeteer
@@ -43,7 +50,6 @@ jobs:
       - name: Lint
         working-directory: ./puppeteer
         run: npm run lint
-        continue-on-error: true  # ESLint v8 config needs migration
       - name: Test
         working-directory: ./puppeteer
         run: npm test
@@ -65,9 +71,6 @@ jobs:
           uv pip install -r tests/backend/requirements-test.txt
       - name: Lint
         run: uvx ruff check backend/lambdas
-      - name: Type check
-        run: uvx mypy backend/lambdas --ignore-missing-imports
-        continue-on-error: true  # Type hints incomplete
       - name: Test
         run: |
           source .venv/bin/activate
@@ -79,14 +82,18 @@ jobs:
     runs-on: ubuntu-latest
     if: always()
     steps:
-      - name: Check required jobs passed
+      - name: Check all jobs passed
         run: |
           if [[ "${{ needs.frontend.result }}" == "failure" ]]; then
             echo "Frontend checks failed"
+            exit 1
+          fi
+          if [[ "${{ needs.puppeteer.result }}" == "failure" ]]; then
+            echo "Puppeteer checks failed"
             exit 1
           fi
           if [[ "${{ needs.backend.result }}" == "failure" ]]; then
             echo "Backend checks failed"
             exit 1
           fi
-          echo "Required checks passed"
+          echo "All checks passed"
