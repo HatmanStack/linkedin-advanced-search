@@ -51,9 +51,10 @@ describe('Test Infrastructure Smoke Tests', () => {
     });
 
     it('can create mock connections', () => {
-      const connection = createMockConnection({ name: 'Jane Doe' });
-      expect(connection.name).toBe('Jane Doe');
-      expect(connection.profileId).toBeDefined();
+      const connection = createMockConnection({ first_name: 'Jane', last_name: 'Doe' });
+      expect(connection.first_name).toBe('Jane');
+      expect(connection.last_name).toBe('Doe');
+      expect(connection.id).toBeDefined();
     });
   });
 
