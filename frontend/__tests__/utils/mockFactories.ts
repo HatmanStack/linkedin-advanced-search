@@ -4,6 +4,7 @@ import type { Connection, Message } from '@/shared/types';
 let userCounter = 0;
 let connectionCounter = 0;
 let messageCounter = 0;
+let searchResultCounter = 0;
 
 export const createMockUser = (overrides: Partial<User> = {}): User => {
   userCounter++;
@@ -51,14 +52,14 @@ export const createMockMessage = (overrides: Partial<Message> = {}): Message => 
 };
 
 export const createMockSearchResult = (overrides: Record<string, unknown> = {}) => {
-  const counter = connectionCounter++;
+  searchResultCounter++;
   return {
-    id: `search-${counter}`,
-    name: `Search Result ${counter}`,
+    id: `search-${searchResultCounter}`,
+    name: `Search Result ${searchResultCounter}`,
     title: 'Product Manager',
     company: 'Tech Company',
     location: 'San Francisco, CA',
-    profileUrl: `https://linkedin.com/in/result${counter}`,
+    profileUrl: `https://linkedin.com/in/result${searchResultCounter}`,
     ...overrides,
   };
 };
@@ -67,4 +68,5 @@ export const resetFactoryCounters = () => {
   userCounter = 0;
   connectionCounter = 0;
   messageCounter = 0;
+  searchResultCounter = 0;
 };

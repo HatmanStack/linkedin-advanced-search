@@ -333,11 +333,11 @@ describe('RandomHelpers', () => {
         adjustment = RandomHelpers.generateViewportAdjustment({ width: 1920, height: 1080 });
       }
 
-      if (adjustment) {
-        expect(
-          ('width' in adjustment && 'height' in adjustment) || 'zoom' in adjustment
-        ).toBe(true);
-      }
+      // Ensure we actually found an adjustment to test
+      expect(adjustment).not.toBeNull();
+      expect(
+        ('width' in adjustment && 'height' in adjustment) || 'zoom' in adjustment
+      ).toBe(true);
     });
 
     it('should maintain minimum dimensions for resize', () => {
@@ -350,6 +350,8 @@ describe('RandomHelpers', () => {
           expect(result.height).toBeGreaterThanOrEqual(600);
         }
       }
+      // Ensure we actually found a resize adjustment to test
+      expect(resizeFound).toBe(true);
     });
   });
 });

@@ -1069,10 +1069,6 @@ export class LinkedInInteractionService {
             logger.warn(`Failed to upload file ${attachment.filePath}:`, uploadError.message);
           }
         }
-
-        if (i < mediaAttachments.length - 1) {
-          // Intentionally empty
-        }
       }
 
       this.humanBehavior.recordAction('media_attached', {

@@ -66,17 +66,12 @@ describe('useSearchResults', () => {
 
   describe('searchLinkedIn', () => {
     const mockSearchData: SearchFormData = {
-      searchQuery: 'software engineer',
-      location: 'San Francisco',
-      company: 'Tech Corp',
-      title: 'Senior Engineer',
-      keywords: '',
-      school: '',
-      pastCompany: '',
-      firstName: '',
-      lastName: '',
-      industry: '',
-      sortBy: 'relevance',
+      companyName: 'Tech Corp',
+      companyRole: 'Senior Engineer',
+      companyLocation: 'San Francisco',
+      searchName: 'test@example.com',
+      searchPassword: 'password123',
+      userId: 'user-123',
     };
 
     it('sets loading to true during search', async () => {
@@ -175,14 +170,30 @@ describe('useSearchResults', () => {
     });
 
     it('clears error state on new search attempt', async () => {
-      mockPerformLinkedInSearch.mockResolvedValue({ success: true, data: [] });
-
       const { result } = renderHook(() => useSearchResults());
+
+      // First, establish an error state
+      const error = new Error('Initial error');
+      mockPerformLinkedInSearch.mockRejectedValueOnce(error);
+
+      await act(async () => {
+        try {
+          await result.current.searchLinkedIn(mockSearchData);
+        } catch {
+          // Expected
+        }
+      });
+
+      expect(result.current.error).toBe('Initial error');
+
+      // Now perform a successful search
+      mockPerformLinkedInSearch.mockResolvedValueOnce({ success: true, data: [] });
 
       await act(async () => {
         await result.current.searchLinkedIn(mockSearchData);
       });
 
+      // Error should be cleared
       expect(result.current.error).toBeNull();
     });
   });

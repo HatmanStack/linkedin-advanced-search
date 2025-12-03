@@ -101,8 +101,10 @@ describe('UserProfileContext', () => {
 
       renderHook(() => useUserProfile(), { wrapper });
 
-      // Wait a bit to ensure no calls happen
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Flush pending effects without arbitrary timing
+      await act(async () => {
+        await Promise.resolve();
+      });
 
       expect(mockGetUserProfile).not.toHaveBeenCalled();
     });

@@ -345,7 +345,6 @@ export class ProfileInitController {
 
   _categorizeError(error) {
     const errorMessage = error.message || error.toString();
-    const _errorStack = error.stack || '';
 
     if (/login.*failed|authentication.*failed|invalid.*credentials|unauthorized/i.test(errorMessage)) {
       return {
