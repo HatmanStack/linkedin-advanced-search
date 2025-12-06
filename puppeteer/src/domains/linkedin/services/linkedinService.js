@@ -171,7 +171,7 @@ export class LinkedInService {
       // The ember IDs are fallbacks - they're dynamically generated but sometimes stable.
       logger.info('Attempting to click Jobs tab...');
       const jobsTabSelectors = [
-        '::-p-aria(Organization's page navigation) >>>> ::-p-aria(Jobs)',
+        `::-p-aria(Organization's page navigation) >>>> ::-p-aria(Jobs)`,
         '::-p-xpath(//*[@id=\\"ember5530\\"])',
         ':scope >>> #ember5530',
         '#ember5530'
