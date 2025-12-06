@@ -30,9 +30,10 @@ export class SearchController {
     let jwtToken = this._extractJwtToken(req);
     logger.info(`JWT token extracted: ${jwtToken ? 'YES' : 'NO'}`);
 
-    // In development, allow requests without JWT for testing
-    if (!jwtToken && config.nodeEnv === 'development') {
-      logger.warn('No JWT token found, using development test token');
+    // In development with explicit bypass flag, allow requests without JWT for testing
+    // SECURITY: Requires both NODE_ENV=development AND explicit ALLOW_DEV_AUTH_BYPASS=true
+    if (!jwtToken && config.nodeEnv === 'development' && process.env.ALLOW_DEV_AUTH_BYPASS === 'true') {
+      logger.warn('No JWT token found, using development test token (ALLOW_DEV_AUTH_BYPASS enabled)');
       jwtToken = 'development-test-token';
     }
 
@@ -54,7 +55,9 @@ export class SearchController {
     }
 
     const { companyName, companyRole, companyLocation, linkedinCredentialsCiphertext } = req.body;
-    // Do not decrypt or extract plaintext here; pass ciphertext through and decrypt at login
+    // SECURITY: Credentials are passed as encrypted ciphertext only.
+    // Decryption happens just-in-time at login() to minimize plaintext exposure window.
+    // searchName/searchPassword are null here; LinkedInService.login() decrypts from ciphertext.
     const searchName = null;
     const searchPassword = null;
 
@@ -235,9 +238,18 @@ export class SearchController {
 
   async _loadLinksFromFile(filePath) {
     try {
-      const fileContent = await fs.readFile(filePath);
+      const fileContent = await fs.readFile(filePath, 'utf-8');
       return JSON.parse(fileContent);
     } catch (error) {
+      if (error.code === 'ENOENT') {
+        // File not found is expected on first run or after cache clear - not an error
+        logger.debug(`Links file not found at ${filePath}, starting fresh`);
+        return [];
+      }
+      // For other errors (permissions, corrupted JSON), log but continue with empty array.
+      // This allows the search to proceed rather than failing completely.
+      // The links will be re-collected from LinkedIn.
+      logger.error(`Failed to load links from ${filePath}:`, error.message);
       return [];
     }
   }
@@ -249,10 +261,18 @@ export class SearchController {
   }
 
   _logRequestDetails(req) {
-    logger.info('Raw request details:', {
+    // Sanitize headers to prevent credential leakage in logs
+    const sanitizedHeaders = { ...req.headers };
+    const sensitiveHeaders = ['authorization', 'cookie', 'x-api-key', 'x-auth-token'];
+    sensitiveHeaders.forEach(key => {
+      if (sanitizedHeaders[key]) sanitizedHeaders[key] = '[REDACTED]';
+      if (sanitizedHeaders[key.toLowerCase()]) sanitizedHeaders[key.toLowerCase()] = '[REDACTED]';
+    });
+
+    logger.info('Request details:', {
       method: req.method,
       url: req.url,
-      headers: req.headers,
+      headers: sanitizedHeaders,
       bodyType: typeof req.body,
       bodyKeys: req.body ? Object.keys(req.body) : 'no body'
     });

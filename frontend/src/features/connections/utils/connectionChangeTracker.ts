@@ -2,6 +2,13 @@ const STORAGE_KEY = 'connectionsChanged';
 
 type ChangeSource = 'search' | 'interaction' | 'init';
 
+/**
+ * Tracks whether connections have changed since last fetch.
+ * Uses localStorage as a cross-tab notification mechanism.
+ * All storage operations are wrapped in try-catch because localStorage
+ * may be unavailable (private browsing, disabled, quota exceeded).
+ * When storage fails, the app treats data as stale and refetches - safe fallback.
+ */
 export const connectionChangeTracker = {
   markChanged(source: ChangeSource = 'interaction'): void {
     try {
@@ -12,7 +19,7 @@ export const connectionChangeTracker = {
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
     } catch {
-      // Ignore storage errors
+      // Non-fatal: worst case is an extra API refetch
     }
   },
 
@@ -20,7 +27,7 @@ export const connectionChangeTracker = {
     try {
       localStorage.removeItem(STORAGE_KEY);
     } catch {
-      // Ignore storage errors
+      // Non-fatal: flag remains, causing an extra refetch next time
     }
   },
 

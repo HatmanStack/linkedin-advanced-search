@@ -12,7 +12,9 @@ from botocore.exceptions import ClientError
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-# Initialize AWS clients
+# Initialize AWS clients at module level (outside handler) for Lambda best practice:
+# This allows connection reuse across warm invocations, reducing cold start latency.
+# See: https://docs.aws.amazon.com/lambda/latest/dg/best-practices.html
 dynamodb = boto3.resource('dynamodb')
 
 # Environment variables
@@ -109,6 +111,9 @@ def lambda_handler(event: dict[str, Any], context) -> dict[str, Any]:
             }, _get_origin_from_event(event))
 
     except Exception as e:
+        # Intentionally catch broad Exception as top-level handler for Lambda.
+        # Specific exceptions (ClientError, ValidationError) are caught in individual functions.
+        # This ensures malformed requests don't crash the Lambda and always return valid HTTP.
         logger.error(f"Error processing request: {str(e)}")
         return create_response(500, {'error': 'Internal server error'})
 
@@ -123,7 +128,6 @@ def create_bad_contact_profile(user_id: str, body: dict[str, Any]) -> dict[str, 
         updates = body.get('updates', {})
         current_time = datetime.now(UTC).isoformat()
 
-        print(f'THIS IS THE BAD CONTACT:   PROFILE#{profile_id_b64}')
         # Create or update profile metadata
         profile_metadata = {
             'PK': f'PROFILE#{profile_id_b64}',
@@ -195,6 +199,8 @@ def validate_profile_field(field: str, value: Any) -> bool:
         'company': lambda v: isinstance(v, str) and len(v) <= 100,
         'interests': lambda v: isinstance(v, (str, list)) and len(str(v)) <= 1000,
         'unpublished_post_content': lambda v: isinstance(v, str) and len(v) <= 3000,
+        # linkedin_credentials accepts string (encrypted ciphertext) or dict (structured).
+        # Credentials are always encrypted client-side before storage; we never store plaintext.
         'linkedin_credentials': lambda v: isinstance(v, (str, dict)),
         'ai_generated_ideas': lambda v: isinstance(v, (str, list, dict)),
         'ai_generated_research': lambda v: isinstance(v, (str, list, dict)),
@@ -203,7 +209,8 @@ def validate_profile_field(field: str, value: Any) -> bool:
     }
     validator = validators.get(field)
     if not validator:
-        return True  # Unknown fields allowed by default
+        logger.warning(f'Rejected unknown profile field: {field}')
+        return False  # Reject unknown fields for security
     return validator(value)
 
 def update_user_settings(user_id: str, body: Dict[str, Any]) -> Dict[str, Any]:
@@ -267,7 +274,7 @@ def update_user_settings(user_id: str, body: Dict[str, Any]) -> Dict[str, Any]:
                 ExpressionAttributeValues=expr_attr_values
             )
         else:
-            print(f"No profile fields provided for update: {body}")
+            logger.debug('No profile fields provided for update')
 
 
         return create_response(200, {'success': True})
@@ -278,7 +285,6 @@ def update_user_settings(user_id: str, body: Dict[str, Any]) -> Dict[str, Any]:
 def get_profile_metadata(profile_id_b64: str) -> dict[str, Any] | None:
     """Helper function to get profile metadata"""
     try:
-        print(f'THIS IS THE PROFILE BEING CHECKED:  PROFILE#{profile_id_b64}')
         response = table.get_item(
             Key={
                 'PK': f'PROFILE#{profile_id_b64}',

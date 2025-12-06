@@ -1,6 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import VirtualConnectionList from '@/features/connections';
-import { useConnections } from '@/features/connections';
+import { VirtualConnectionList, useConnections } from '@/features/connections';
 import { useProfileInit } from '@/features/profile';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";

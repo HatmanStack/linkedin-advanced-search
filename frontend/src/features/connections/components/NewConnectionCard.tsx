@@ -133,7 +133,7 @@ const NewConnectionCard: React.FC<NewConnectionCardProps> = ({
 
       // Update local cache with new status to trigger re-render
       try {
-        const { connectionCache } = await import('@/utils/connectionCache');
+        const { connectionCache } = await import('@/features/connections/utils/connectionCache');
         connectionCache.update(connection.id, { status: 'processed' });
       } catch {
         // Ignore cache update failures
@@ -279,7 +279,7 @@ const NewConnectionCard: React.FC<NewConnectionCardProps> = ({
 
       // Update local cache with new status to trigger re-render
       try {
-        const { connectionCache } = await import('@/utils/connectionCache');
+        const { connectionCache } = await import('@/features/connections/utils/connectionCache');
         connectionCache.update(connection.id, { status: 'outgoing' });
       } catch {
         // Ignore cache update failures

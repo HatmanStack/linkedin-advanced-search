@@ -34,9 +34,6 @@ import { useUserProfile } from '@/features/profile';
 
 // Removed unused demo sampleConnections to reduce noise
 
-// Sample data for demonstration
-// Prevent duplicate initial fetches under React StrictMode double-mount
-let initialConnectionsFetchInFlight: Promise<Connection[]> | null = null;
 const Dashboard = () => {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
@@ -107,11 +104,19 @@ const Dashboard = () => {
   }, [startListening]);
 
   // Fetch the user profile once on dashboard mount (preferred fetch site)
+  // ESLint may warn about missing refreshUserProfile in deps, but this is intentional:
+  // we only want this to run once on mount, not on every function reference change.
+  // The function is stable (from context) but adding it would cause unnecessary refetches.
   useEffect(() => {
     refreshUserProfile();
-  }, []); // Empty dependency array - only run once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Initialize connections data on component mount
+  // This effect uses an IIFE pattern with AbortController for proper cleanup.
+  // This is the recommended React 18+ pattern for async operations in useEffect,
+  // avoiding the anti-pattern of making useEffect itself async.
+  // See: https://react.dev/learn/synchronizing-with-effects#fetching-data
   useEffect(() => {
     if (!user) return;
 
@@ -127,16 +132,17 @@ const Dashboard = () => {
     const shouldRefetch = hasChanged || (!hasInitializedThisSession && cached.length === 0);
 
     if (shouldRefetch) {
+      // Use AbortController to handle StrictMode double-mount cleanup
+      const controller = new AbortController();
+
       (async () => {
         setConnectionsLoading(true);
         setConnectionsError(null);
         try {
-          // Use a module-level in-flight promise to avoid duplicate calls in StrictMode
-          if (!initialConnectionsFetchInFlight) {
-            initialConnectionsFetchInFlight = dbConnector.getConnectionsByStatus();
-          }
-          const inFlight = initialConnectionsFetchInFlight as Promise<Connection[]>;
-          const fetchedConnections = await inFlight;
+          const fetchedConnections = await dbConnector.getConnectionsByStatus();
+
+          // Check if effect was cleaned up before setting state
+          if (controller.signal.aborted) return;
 
           setConnections(fetchedConnections);
           connectionCache.setMultiple(fetchedConnections);
@@ -158,13 +164,18 @@ const Dashboard = () => {
           // Mark initialized for this session so subsequent navigations don't refetch unnecessarily
           sessionStorage.setItem(sessionInitKey, 'true');
         } catch (err: unknown) {
+          if (controller.signal.aborted) return;
           const errorMessage = err instanceof ApiError ? err.message : 'Failed to fetch connections';
           setConnectionsError(errorMessage);
         } finally {
-          setConnectionsLoading(false);
-          initialConnectionsFetchInFlight = null;
+          if (!controller.signal.aborted) {
+            setConnectionsLoading(false);
+          }
         }
       })();
+
+      // Cleanup function to prevent state updates after unmount
+      return () => controller.abort();
     } else {
       setConnections(cached);
       const counts = {
