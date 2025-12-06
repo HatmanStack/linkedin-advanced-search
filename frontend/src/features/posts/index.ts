@@ -1,9 +1,9 @@
 // Posts feature barrel export
 
 // Components
-export { PostEditor } from './components/PostEditor';
-export { PostAIAssistant } from './components/PostAIAssistant';
-export { NewPostTab } from './components/NewPostTab';
+export { default as PostEditor } from './components/PostEditor';
+export { default as PostAIAssistant } from './components/PostAIAssistant';
+export { default as NewPostTab } from './components/NewPostTab';
 
 // Hooks
 export { useDrafts } from './hooks/useDrafts';

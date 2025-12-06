@@ -19,8 +19,10 @@ class HealAndRestoreService {
   private eventSource: EventSource | null = null;
   private listeners: ((notification: HealAndRestoreNotification) => void)[] = [];
   private isPolling = false;
-  // Temporarily unused but kept for future use
-  // @ts-expect-error - Will be used when uncommenting line 65
+  // isListening is scaffolding for WebSocket/SSE implementation.
+  // Currently unused because startListening() is a no-op stub.
+  // Keeping for when real-time notifications are implemented.
+  // @ts-expect-error - Reserved for WebSocket/SSE implementation
   private isListening = false;
   private ignoredSessionIds: Set<string> = new Set();
 
@@ -95,8 +97,10 @@ class HealAndRestoreService {
     this.listeners.forEach(listener => listener(notification));
   }
 
-  // Simple polling implementation (can be replaced with WebSocket/SSE later)
-  // @ts-expect-error - Reserved for future polling functionality
+  // Polling implementation ready but not currently wired up.
+  // Will be enabled when backend SSE/WebSocket is replaced with polling fallback.
+  // Method is intentionally defined to allow easy activation without code changes.
+  // @ts-expect-error - Method defined but not yet called; remove when activated
   private startPolling(): void {
     if (this.isPolling) return;
     this.isPolling = true;

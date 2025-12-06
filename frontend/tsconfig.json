@@ -7,7 +7,13 @@
       "@/shared/*": ["src/shared/*"],
       "@/config/*": ["src/config/*"],
       "@/constants/*": ["src/constants/*"],
-      "@/pages/*": ["src/pages/*"]
+      "@/pages/*": ["src/pages/*"],
+      "@/components/*": ["src/shared/components/*"],
+      "@/hooks/*": ["src/shared/hooks/*"],
+      "@/services/*": ["src/shared/services/*"],
+      "@/types": ["src/shared/types/index.ts"],
+      "@/types/*": ["src/shared/types/*"],
+      "@/utils/*": ["src/shared/utils/*"]
     }
   },
   "files": [],

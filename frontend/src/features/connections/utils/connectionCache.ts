@@ -59,7 +59,9 @@ export class ConnectionCache {
       }
       this.stats.size = this.cache.size;
     } catch {
-      // Ignore localStorage errors
+      // localStorage errors are non-fatal: private browsing mode, quota exceeded,
+      // or disabled storage. The app functions without persistence; data is
+      // re-fetched from the API on next session. This is graceful degradation.
     }
   }
 
@@ -73,7 +75,9 @@ export class ConnectionCache {
       const serialized = JSON.stringify(this.getAll());
       localStorage.setItem(key, serialized);
     } catch {
-      // Ignore localStorage errors
+      // localStorage errors are non-fatal: private browsing mode, quota exceeded,
+      // or disabled storage. The app functions without persistence; data is
+      // re-fetched from the API on next session. This is graceful degradation.
     }
   }
 

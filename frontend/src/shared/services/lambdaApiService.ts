@@ -103,8 +103,10 @@ export interface ApiResponse<T = unknown> {
  */
 class LambdaApiService {
   protected apiClient: AxiosInstance;
-  // Stored for potential future use
-  // @ts-expect-error - Reserved for future authentication enhancement
+  // authToken is set but currently authorization flows through Cognito JWT in headers.
+  // This field is scaffolding for potential token refresh or custom auth flows.
+  // Keeping it prevents breaking changes when auth enhancement is implemented.
+  // @ts-expect-error - Field is set by setAuthToken() but not yet consumed by requests
   private authToken: string | null = null;
   private readonly maxRetries: number = 3;
   private readonly retryDelay: number = 1000; // Base delay in milliseconds

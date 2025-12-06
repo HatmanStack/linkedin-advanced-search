@@ -4,8 +4,8 @@ import {
   AuthenticationDetails,
   CognitoUserAttribute,
   CognitoUserSession,
-  ISignUpResult,
 } from 'amazon-cognito-identity-js';
+import type { ISignUpResult } from 'amazon-cognito-identity-js';
 import { cognitoConfig } from '@/config/appConfig';
 import { createLogger } from '@/shared/utils/logger';
 import type { AuthError, CognitoAttributeList } from '../types';

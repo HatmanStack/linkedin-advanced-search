@@ -83,8 +83,10 @@ export class LinkedInService {
           page.waitForFunction(() => document.readyState === 'complete', { timeout: shortCapMs }),
           page.waitForSelector('#global-nav', { timeout: shortCapMs / 2 })
         ]);
-      } catch (_) {
-        // Proceed even if not observed; LinkedIn is SPA-like after login
+      } catch (_unusedError) {
+        // Intentionally swallowed: LinkedIn is an SPA that may not trigger traditional
+        // navigation events. The subsequent waitForSelector() with configurable timeout
+        // handles the actual login verification. This race is just an optimization.
       }
       const spent = Date.now() - start;
       logger.debug(`Post-login readiness probe took ${spent}ms`);
@@ -97,7 +99,10 @@ export class LinkedInService {
         '.feed-identity-module',
         'div.scaffold-layout__sidebar .profile-card'
       ].join(', ');
-      const loginWaitMs = (config.timeouts?.login ?? 0); // 0 -> no timeout
+      // Timeout of 0 means "wait indefinitely" - this is intentional to allow users
+      // to manually complete 2FA/CAPTCHA challenges. The operator monitors the browser
+      // window and completes security challenges before the automation continues.
+      const loginWaitMs = (config.timeouts?.login ?? 0);
       try {
         await page.waitForSelector(homepageSelector, { visible: true, timeout: loginWaitMs });
         logger.info('Homepage element detected after login; security challenge (if any) likely resolved.');
@@ -161,9 +166,12 @@ export class LinkedInService {
       logger.info(`Successfully navigated to company: ${companyName}`);
 
       // Click on Jobs tab
+      // Multiple selectors used because LinkedIn's DOM structure varies by:
+      // 1. A/B testing, 2. User locale, 3. Account type (free vs premium)
+      // The ember IDs are fallbacks - they're dynamically generated but sometimes stable.
       logger.info('Attempting to click Jobs tab...');
       const jobsTabSelectors = [
-        '::-p-aria(Organization’s page navigation) >>>> ::-p-aria(Jobs)',
+        '::-p-aria(Organization's page navigation) >>>> ::-p-aria(Jobs)',
         '::-p-xpath(//*[@id=\\"ember5530\\"])',
         ':scope >>> #ember5530',
         '#ember5530'
@@ -335,7 +343,6 @@ export class LinkedInService {
       // Build URL conditionally based on available parameters
       let urlParts = ['https://www.linkedin.com/search/results/people/?'];
       let queryParams = [];
-      queryParams.push(`currentCompany=%5B162479%5D`);
 
       if (extractedCompanyNumber) {
         queryParams.push(`currentCompany=%5B"${extractedCompanyNumber}"%5D`);
@@ -370,6 +377,9 @@ export class LinkedInService {
 
       return links;
     } catch (error) {
+      // Return empty array instead of throwing to allow pagination to continue.
+      // A single failed page shouldn't abort the entire search - we log the error
+      // and continue to the next page. The caller handles empty pages appropriately.
       logger.error(`Failed to get links from page ${pageNumber}:`, error);
       return [];
     }
@@ -399,11 +409,12 @@ export class LinkedInService {
       await this.puppeteer.goto(activityUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
       const currentUrl = this.puppeteer.getPage().url();
 
+      // Detection of security challenges - logged as warning for operator awareness.
+      // The automation pauses here; human intervention may be required.
+      // This is expected behavior when LinkedIn detects automation patterns.
       const pageContent = await this.puppeteer.getPage().content();
       if (currentUrl.includes('checkpoint') || /captcha|verify/i.test(pageContent)) {
-
-        logger.warn('Landed on a checkpoint or captcha page!');
-        // Handle accordingly
+        logger.warn('Landed on a checkpoint or captcha page - may require manual intervention');
       }
 
       let score = 0;

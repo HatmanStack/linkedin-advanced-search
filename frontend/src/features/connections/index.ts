@@ -1,13 +1,13 @@
 // Connections feature barrel export
 
 // Components
-export { ConnectionCard } from './components/ConnectionCard';
-export { ConnectionsTab } from './components/ConnectionsTab';
-export { ConnectionFilters } from './components/ConnectionFilters';
-export { VirtualConnectionList } from './components/VirtualConnectionList';
-export { NewConnectionCard } from './components/NewConnectionCard';
-export { NewConnectionsTab } from './components/NewConnectionsTab';
-export { ConnectionCardSkeleton, ConnectionListSkeleton } from './components/ConnectionCardSkeleton';
+export { default as ConnectionCard } from './components/ConnectionCard';
+export { default as ConnectionsTab } from './components/ConnectionsTab';
+export { default as ConnectionFilters } from './components/ConnectionFilters';
+export { default as VirtualConnectionList } from './components/VirtualConnectionList';
+export { default as NewConnectionCard } from './components/NewConnectionCard';
+export { default as NewConnectionsTab } from './components/NewConnectionsTab';
+export { default as ConnectionCardSkeleton, ConnectionListSkeleton } from './components/ConnectionCardSkeleton';
 
 // Hooks
 export { useConnections } from './hooks/useConnections';
