@@ -7,12 +7,17 @@
     "dev": "cd frontend && npm run dev",
     "dev:puppeteer": "cd puppeteer && npm run dev",
     "build": "cd frontend && npm run build",
-    "test": "echo 'Tests to be implemented'",
-    "lint": "npm run lint:frontend",
+    "test": "npm run test:frontend && npm run test:backend",
+    "test:frontend": "cd frontend && npm run test",
+    "test:backend": "cd tests/backend && python -m pytest unit/ -v --tb=short",
+    "lint": "npm run lint:frontend && npm run lint:puppeteer && npm run lint:backend",
     "lint:frontend": "cd frontend && npm run lint",
-    "lint:backend": "cd lambda-processing && uvx ruff check .",
-    "check": "npm run lint",
-    "benchmark": "node scripts/benchmarks/benchmark-performance.js"
+    "lint:puppeteer": "cd puppeteer && npm run lint",
+    "lint:backend": "cd backend && uvx ruff check lambdas --exclude .aws-sam",
+    "check": "npm run lint && npm run test",
+    "benchmark": "node scripts/benchmarks/benchmark-performance.js",
+    "cleanup": "bash scripts/cleanup/code-cleanup.sh",
+    "cleanup:audit": "bash scripts/cleanup/code-cleanup.sh audit"
   },
   "author": "HatmanStack",
   "license": "Apache-2.0"
