@@ -84,8 +84,8 @@ export class ContactProcessor {
           logger.info(`Retry success: ${retry}`);
           allRetriesFailed = false;
         }
-      } catch {
-        logger.error(`Retry failed: ${retry}`);
+      } catch (err) {
+        logger.error(`Retry failed: ${retry}`, { error: err.message, stack: err.stack });
       }
     }
 
