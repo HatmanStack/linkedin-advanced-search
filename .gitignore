@@ -80,3 +80,7 @@ backend/samconfig.toml
 # RAGStack configuration
 .ragstack-config.json
 .env.ragstack
+
+# Coverage reports
+coverage/
+**/coverage/
