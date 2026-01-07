@@ -109,6 +109,24 @@ router.post('/generate-personalized-message', async (req, res) => {
   }
 });
 
+// Follow profile endpoint
+router.post('/follow-profile', async (req, res) => {
+  try {
+    await linkedInInteractionController.followProfile(req, res);
+  } catch (error) {
+    logger.error('Follow profile route error:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Internal server error during profile follow',
+        details: process.env.NODE_ENV === 'development' ? error.message : 'Something went wrong'
+      },
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Session status endpoint
 router.get('/session-status', async (req, res) => {
   try {

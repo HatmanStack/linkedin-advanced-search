@@ -515,6 +515,114 @@ export class LinkedInInteractionController {
   }
 
   /**
+   * Follow a LinkedIn profile
+   * POST /linkedin-interactions/follow-profile
+   */
+  async followProfile(req, res) {
+    const requestId = uuidv4();
+
+    logger.info('LinkedIn follow profile request received', {
+      requestId,
+      hasToken: !!req.jwtToken,
+      bodyKeys: req.body ? Object.keys(req.body) : 'no body'
+    });
+
+    try {
+      // Extract and validate request parameters
+      const { profileId } = req.body || {};
+
+      // Validate required parameters
+      if (!profileId) {
+        const error = new Error('Missing required parameters: profileId is required');
+        const { response, httpStatus } = LinkedInErrorHandler.createErrorResponse(
+          error,
+          { operation: 'followProfile', validation: 'required_fields' },
+          requestId
+        );
+        return res.status(httpStatus).json(response);
+      }
+
+      // Validate profile ID format
+      if (typeof profileId !== 'string' || profileId.trim().length === 0) {
+        const error = new Error('Invalid profile ID: must be a non-empty string');
+        const { response, httpStatus } = LinkedInErrorHandler.createErrorResponse(
+          error,
+          { operation: 'followProfile', validation: 'profile_id_format' },
+          requestId
+        );
+        return res.status(httpStatus).json(response);
+      }
+
+      // Extract user ID from JWT token
+      const userId = this._extractUserIdFromToken(req.jwtToken);
+      if (!userId) {
+        const error = new Error('JWT token invalid: unable to extract user ID from token');
+        const { response, httpStatus } = LinkedInErrorHandler.createErrorResponse(
+          error,
+          { operation: 'followProfile', authentication: 'jwt_extraction' },
+          requestId
+        );
+        return res.status(httpStatus).json(response);
+      }
+
+      // Enqueue the interaction to prevent concurrent page access
+      const meta = { type: 'follow-profile', requestId, userId, profileId };
+      const result = await linkedInInteractionQueue.enqueue(async () => {
+        // Initialize LinkedIn interaction service
+        const linkedinService = new LinkedInInteractionService();
+
+        // Ensure we are logged in if no active authenticated session
+        try {
+          const sessionActive = await linkedinService.isSessionActive();
+          if (!sessionActive) {
+            const puppeteerService = await linkedinService.initializeBrowserSession();
+            const credentialsCiphertext = req.body?.linkedinCredentialsCiphertext;
+            const loginHelper = new LinkedInService(puppeteerService);
+            await loginHelper.login(
+              null,
+              null,
+              null,
+              credentialsCiphertext,
+              'interaction-controller'
+            );
+          }
+        } catch (loginErr) {
+          logger.error('LinkedIn login failed during follow profile', { error: loginErr.message, stack: loginErr.stack });
+          throw new Error(`Login required but failed to authenticate to LinkedIn: ${loginErr.message}`);
+        }
+
+        // Follow profile via service layer
+        logger.info('Attempting to follow LinkedIn profile', { requestId, profileId, userId });
+        return await linkedinService.followProfile(profileId, { jwtToken: req.jwtToken });
+      }, meta);
+
+      // Return success response
+      res.json({
+        success: true,
+        data: {
+          status: result.status,
+          profileId,
+          followedAt: result.followedAt
+        },
+        timestamp: new Date().toISOString(),
+        userId,
+        requestId
+      });
+
+    } catch (error) {
+      logger.error('Follow profile controller error:', { requestId, error: error.message, stack: error.stack });
+
+      const { response, httpStatus } = LinkedInErrorHandler.createErrorResponse(
+        error,
+        { operation: 'followProfile', userId: this._extractUserIdFromToken(req.jwtToken) },
+        requestId
+      );
+
+      return res.status(httpStatus).json(response);
+    }
+  }
+
+  /**
    * Get current browser session status
    * GET /linkedin-interactions/session-status
    */
