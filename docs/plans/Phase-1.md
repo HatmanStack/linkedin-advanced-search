@@ -489,13 +489,13 @@ feat(backend): add profile ingestion service
    - Environment variable references
 
 **Verification Checklist:**
-- [ ] Lambda handles search operation
-- [ ] Lambda handles ingest operation
-- [ ] API key retrieved from secure storage
-- [ ] JWT validation enforced
-- [ ] User ID extracted from claims
-- [ ] Error responses properly formatted
-- [ ] SAM template valid (`sam validate`)
+- [x] Lambda handles search operation
+- [x] Lambda handles ingest operation
+- [x] API key retrieved from secure storage
+- [x] JWT validation enforced
+- [x] User ID extracted from claims
+- [x] Error responses properly formatted
+- [x] SAM template valid (`sam validate`)
 
 **Testing Instructions:**
 
