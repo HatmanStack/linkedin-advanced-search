@@ -382,12 +382,12 @@ feat(backend): add RAGStack GraphQL client
    - Re-ingesting same profile updates existing document
 
 **Verification Checklist:**
-- [ ] Markdown uploaded to presigned S3 URL
-- [ ] Document ID derived from profile ID
-- [ ] Metadata attached to document
-- [ ] Handles upload failures gracefully
-- [ ] Idempotent for repeated ingestion
-- [ ] Returns status (indexed, pending, failed)
+- [x] Markdown uploaded to presigned S3 URL
+- [x] Document ID derived from profile ID
+- [x] Metadata attached to document
+- [x] Handles upload failures gracefully
+- [x] Idempotent for repeated ingestion
+- [x] Returns status (indexed, pending, failed)
 
 **Testing Instructions:**
 

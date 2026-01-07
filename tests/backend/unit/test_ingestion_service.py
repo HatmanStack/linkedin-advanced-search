@@ -1,0 +1,382 @@
+"""Tests for Profile Ingestion Service"""
+import sys
+from pathlib import Path
+from unittest.mock import MagicMock, Mock, patch
+
+import pytest
+import requests
+
+# Add ragstack-proxy to path
+RAGSTACK_PROXY_PATH = Path(__file__).parent.parent.parent.parent / 'backend' / 'lambdas' / 'ragstack-proxy'
+sys.path.insert(0, str(RAGSTACK_PROXY_PATH))
+
+from ingestion_service import IngestionError, IngestionService, UploadError
+from ragstack_client import RAGStackClient, RAGStackError
+
+
+@pytest.fixture
+def mock_ragstack_client():
+    """Create a mock RAGStack client"""
+    client = MagicMock(spec=RAGStackClient)
+    client.create_upload_url.return_value = {
+        "uploadUrl": "https://s3.example.com/upload?signature=xxx",
+        "documentId": "doc123",
+        "fields": {},
+    }
+    client.get_document_status.return_value = {
+        "status": "indexed",
+        "documentId": "doc123",
+        "error": None,
+    }
+    return client
+
+
+@pytest.fixture
+def ingestion_service(mock_ragstack_client):
+    """Create an ingestion service instance"""
+    return IngestionService(
+        ragstack_client=mock_ragstack_client,
+        max_upload_retries=2,
+        upload_retry_delay=0.01,  # Fast retries for tests
+    )
+
+
+class TestIngestionServiceInit:
+    """Tests for service initialization"""
+
+    def test_init_with_client(self, mock_ragstack_client):
+        """Test successful initialization"""
+        service = IngestionService(ragstack_client=mock_ragstack_client)
+        assert service.client == mock_ragstack_client
+
+
+class TestIngestProfile:
+    """Tests for profile ingestion"""
+
+    @patch('ingestion_service.requests.put')
+    def test_ingest_profile_uploads_markdown(self, mock_put, ingestion_service, mock_ragstack_client):
+        """Test successful profile ingestion"""
+        mock_put.return_value = Mock(status_code=200)
+
+        result = ingestion_service.ingest_profile(
+            profile_id="profile_abc",
+            markdown_content="# Test Profile\n\nContent here",
+        )
+
+        assert result["status"] == "uploaded"
+        assert result["documentId"] == "doc123"
+        assert result["profileId"] == "profile_abc"
+        assert result["error"] is None
+
+        # Verify upload URL was requested
+        mock_ragstack_client.create_upload_url.assert_called_once_with("profile_abc.md")
+
+        # Verify content was uploaded
+        mock_put.assert_called_once()
+
+    @patch('ingestion_service.requests.put')
+    def test_ingest_profile_with_metadata(self, mock_put, ingestion_service):
+        """Test ingestion with metadata"""
+        mock_put.return_value = Mock(status_code=200)
+
+        result = ingestion_service.ingest_profile(
+            profile_id="profile_abc",
+            markdown_content="# Test Profile",
+            metadata={"user_id": "user123"},
+        )
+
+        assert result["status"] == "uploaded"
+
+        # Verify metadata was included in uploaded content
+        call_args = mock_put.call_args
+        uploaded_data = call_args.kwargs["data"].decode("utf-8")
+        assert "user_id: user123" in uploaded_data
+        assert "profile_id: profile_abc" in uploaded_data
+        assert "source: linkedin_profile" in uploaded_data
+
+    @patch('ingestion_service.requests.put')
+    def test_ingest_profile_wait_for_indexing(self, mock_put, ingestion_service, mock_ragstack_client):
+        """Test ingestion with wait_for_indexing"""
+        mock_put.return_value = Mock(status_code=200)
+
+        result = ingestion_service.ingest_profile(
+            profile_id="profile_abc",
+            markdown_content="# Test Profile",
+            wait_for_indexing=True,
+        )
+
+        assert result["status"] == "indexed"
+        mock_ragstack_client.get_document_status.assert_called()
+
+    def test_ingest_profile_without_profile_id(self, ingestion_service):
+        """Test ingestion without profile_id raises error"""
+        with pytest.raises(ValueError, match="profile_id is required"):
+            ingestion_service.ingest_profile(
+                profile_id="",
+                markdown_content="# Test",
+            )
+
+    def test_ingest_profile_without_content(self, ingestion_service):
+        """Test ingestion without content raises error"""
+        with pytest.raises(ValueError, match="markdown_content is required"):
+            ingestion_service.ingest_profile(
+                profile_id="profile_abc",
+                markdown_content="",
+            )
+
+    @patch('ingestion_service.requests.put')
+    def test_ingest_profile_s3_upload_failure(self, mock_put, ingestion_service):
+        """Test handling of S3 upload failure"""
+        mock_put.return_value = Mock(status_code=500, text="Internal Server Error")
+
+        result = ingestion_service.ingest_profile(
+            profile_id="profile_abc",
+            markdown_content="# Test",
+        )
+
+        assert result["status"] == "failed"
+        assert "500" in result["error"]
+        # Should have retried
+        assert mock_put.call_count == 2
+
+    def test_ingest_profile_ragstack_error(self, ingestion_service, mock_ragstack_client):
+        """Test handling of RAGStack API error"""
+        mock_ragstack_client.create_upload_url.side_effect = RAGStackError("API error")
+
+        result = ingestion_service.ingest_profile(
+            profile_id="profile_abc",
+            markdown_content="# Test",
+        )
+
+        assert result["status"] == "failed"
+        assert "API error" in result["error"]
+
+    @patch('ingestion_service.requests.put')
+    def test_ingest_profile_idempotent(self, mock_put, ingestion_service, mock_ragstack_client):
+        """Test that repeated ingestion uses same filename"""
+        mock_put.return_value = Mock(status_code=200)
+
+        # Ingest same profile twice
+        ingestion_service.ingest_profile(
+            profile_id="profile_abc",
+            markdown_content="# Test v1",
+        )
+        ingestion_service.ingest_profile(
+            profile_id="profile_abc",
+            markdown_content="# Test v2",
+        )
+
+        # Both should use same filename
+        calls = mock_ragstack_client.create_upload_url.call_args_list
+        assert calls[0][0][0] == "profile_abc.md"
+        assert calls[1][0][0] == "profile_abc.md"
+
+
+class TestS3Upload:
+    """Tests for S3 upload functionality"""
+
+    @patch('ingestion_service.requests.put')
+    def test_upload_success_200(self, mock_put, ingestion_service):
+        """Test successful PUT upload with 200 response"""
+        mock_put.return_value = Mock(status_code=200)
+
+        result = ingestion_service.ingest_profile(
+            profile_id="profile_abc",
+            markdown_content="# Test",
+        )
+
+        assert result["status"] == "uploaded"
+
+    @patch('ingestion_service.requests.put')
+    def test_upload_success_204(self, mock_put, ingestion_service):
+        """Test successful PUT upload with 204 response"""
+        mock_put.return_value = Mock(status_code=204)
+
+        result = ingestion_service.ingest_profile(
+            profile_id="profile_abc",
+            markdown_content="# Test",
+        )
+
+        assert result["status"] == "uploaded"
+
+    @patch('ingestion_service.requests.post')
+    def test_upload_multipart_with_fields(self, mock_post, ingestion_service, mock_ragstack_client):
+        """Test multipart upload when fields are provided"""
+        mock_ragstack_client.create_upload_url.return_value = {
+            "uploadUrl": "https://s3.example.com/upload",
+            "documentId": "doc123",
+            "fields": {"key": "value", "policy": "xxx"},
+        }
+        mock_post.return_value = Mock(status_code=204)
+
+        result = ingestion_service.ingest_profile(
+            profile_id="profile_abc",
+            markdown_content="# Test",
+        )
+
+        assert result["status"] == "uploaded"
+        mock_post.assert_called_once()
+
+    @patch('ingestion_service.requests.put')
+    def test_upload_retry_on_timeout(self, mock_put, ingestion_service):
+        """Test upload retries on timeout"""
+        mock_put.side_effect = [
+            requests.exceptions.Timeout,
+            Mock(status_code=200),
+        ]
+
+        result = ingestion_service.ingest_profile(
+            profile_id="profile_abc",
+            markdown_content="# Test",
+        )
+
+        assert result["status"] == "uploaded"
+        assert mock_put.call_count == 2
+
+    @patch('ingestion_service.requests.put')
+    def test_upload_retry_on_connection_error(self, mock_put, ingestion_service):
+        """Test upload retries on connection error"""
+        mock_put.side_effect = [
+            requests.exceptions.ConnectionError,
+            Mock(status_code=200),
+        ]
+
+        result = ingestion_service.ingest_profile(
+            profile_id="profile_abc",
+            markdown_content="# Test",
+        )
+
+        assert result["status"] == "uploaded"
+
+
+class TestWaitForIndexing:
+    """Tests for indexing status polling"""
+
+    @patch('ingestion_service.requests.put')
+    def test_wait_returns_indexed_status(self, mock_put, ingestion_service, mock_ragstack_client):
+        """Test waiting returns when indexed"""
+        mock_put.return_value = Mock(status_code=200)
+        mock_ragstack_client.get_document_status.return_value = {
+            "status": "indexed",
+            "documentId": "doc123",
+            "error": None,
+        }
+
+        result = ingestion_service.ingest_profile(
+            profile_id="profile_abc",
+            markdown_content="# Test",
+            wait_for_indexing=True,
+        )
+
+        assert result["status"] == "indexed"
+
+    @patch('ingestion_service.requests.put')
+    @patch('ingestion_service.time.sleep')
+    def test_wait_polls_until_indexed(self, mock_sleep, mock_put, ingestion_service, mock_ragstack_client):
+        """Test polling until indexed"""
+        mock_put.return_value = Mock(status_code=200)
+        mock_ragstack_client.get_document_status.side_effect = [
+            {"status": "pending", "documentId": "doc123", "error": None},
+            {"status": "pending", "documentId": "doc123", "error": None},
+            {"status": "indexed", "documentId": "doc123", "error": None},
+        ]
+
+        result = ingestion_service.ingest_profile(
+            profile_id="profile_abc",
+            markdown_content="# Test",
+            wait_for_indexing=True,
+        )
+
+        assert result["status"] == "indexed"
+        assert mock_ragstack_client.get_document_status.call_count == 3
+
+    @patch('ingestion_service.requests.put')
+    def test_wait_returns_failed_status(self, mock_put, ingestion_service, mock_ragstack_client):
+        """Test waiting returns when failed"""
+        mock_put.return_value = Mock(status_code=200)
+        mock_ragstack_client.get_document_status.return_value = {
+            "status": "failed",
+            "documentId": "doc123",
+            "error": "Invalid document format",
+        }
+
+        result = ingestion_service.ingest_profile(
+            profile_id="profile_abc",
+            markdown_content="# Test",
+            wait_for_indexing=True,
+        )
+
+        assert result["status"] == "failed"
+        assert "Invalid document format" in result["error"]
+
+    @patch('ingestion_service.requests.put')
+    @patch('ingestion_service.time.time')
+    @patch('ingestion_service.time.sleep')
+    def test_wait_timeout_returns_pending(self, mock_sleep, mock_time, mock_put, ingestion_service, mock_ragstack_client):
+        """Test timeout returns pending status"""
+        mock_put.return_value = Mock(status_code=200)
+        mock_ragstack_client.get_document_status.return_value = {
+            "status": "pending",
+            "documentId": "doc123",
+            "error": None,
+        }
+        # Simulate time passing beyond timeout
+        mock_time.side_effect = [0, 0, 30, 61]
+
+        result = ingestion_service.ingest_profile(
+            profile_id="profile_abc",
+            markdown_content="# Test",
+            wait_for_indexing=True,
+            indexing_timeout=60,
+        )
+
+        assert result["status"] == "pending"
+
+
+class TestMetadataPreparation:
+    """Tests for content metadata preparation"""
+
+    @patch('ingestion_service.requests.put')
+    def test_frontmatter_format(self, mock_put, ingestion_service):
+        """Test YAML frontmatter format"""
+        mock_put.return_value = Mock(status_code=200)
+
+        ingestion_service.ingest_profile(
+            profile_id="profile_abc",
+            markdown_content="# Test Profile",
+            metadata={"user_id": "user123"},
+        )
+
+        uploaded_data = mock_put.call_args.kwargs["data"].decode("utf-8")
+        assert uploaded_data.startswith("---")
+        assert "---\n#" in uploaded_data  # Frontmatter ends with --- followed by content
+        assert "# Test Profile" in uploaded_data
+
+    @patch('ingestion_service.requests.put')
+    def test_metadata_with_list_values(self, mock_put, ingestion_service):
+        """Test metadata with list values"""
+        mock_put.return_value = Mock(status_code=200)
+
+        ingestion_service.ingest_profile(
+            profile_id="profile_abc",
+            markdown_content="# Test",
+            metadata={"tags": ["tag1", "tag2"]},
+        )
+
+        uploaded_data = mock_put.call_args.kwargs["data"].decode("utf-8")
+        assert '["tag1", "tag2"]' in uploaded_data
+
+    @patch('ingestion_service.requests.put')
+    def test_no_frontmatter_without_metadata(self, mock_put, ingestion_service):
+        """Test no frontmatter when metadata is None"""
+        mock_put.return_value = Mock(status_code=200)
+
+        ingestion_service.ingest_profile(
+            profile_id="profile_abc",
+            markdown_content="# Test Profile",
+            metadata=None,
+        )
+
+        uploaded_data = mock_put.call_args.kwargs["data"].decode("utf-8")
+        assert uploaded_data == "# Test Profile"
+        assert "---" not in uploaded_data
