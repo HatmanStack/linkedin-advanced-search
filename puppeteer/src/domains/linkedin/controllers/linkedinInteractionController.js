@@ -114,8 +114,9 @@ export class LinkedInInteractionController {
               'interaction-controller'
             );
           }
-        } catch {
-          throw new Error('Login required but failed to authenticate to LinkedIn');
+        } catch (loginErr) {
+          logger.error('LinkedIn login failed during message send', { error: loginErr.message, stack: loginErr.stack });
+          throw new Error(`Login required but failed to authenticate to LinkedIn: ${loginErr.message}`);
         }
 
         // Send message via service layer
@@ -261,8 +262,9 @@ export class LinkedInInteractionController {
               'interaction-controller'
             );
           }
-        } catch {
-          throw new Error('Login required but failed to authenticate to LinkedIn');
+        } catch (loginErr) {
+          logger.error('LinkedIn login failed during connection request', { error: loginErr.message, stack: loginErr.stack });
+          throw new Error(`Login required but failed to authenticate to LinkedIn: ${loginErr.message}`);
         }
 
         // Send connection request via service layer (single workflow)
