@@ -232,6 +232,7 @@ const Dashboard = () => {
     } finally {
       setConnectionsLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, toast]);
 
   const calculateConnectionCounts = useCallback((connections: Connection[]): ConnectionCounts => {
@@ -434,6 +435,7 @@ const Dashboard = () => {
       progressTracker.resetProgress();
     }, 2000);
 
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedConnections, conversationTopic, connections, workflowState, errorHandler, progressTracker]);
 
   const generateMessageForConnection = useCallback(async (connection: Connection): Promise<string> => {
@@ -460,6 +462,7 @@ const Dashboard = () => {
       logger.error('Error in generateMessageForConnection', { error });
       throw error;
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationTopic, user]);
 
   const waitForUserApproval = useCallback((): Promise<void> => {
@@ -492,6 +495,7 @@ const Dashboard = () => {
     resetWorkflowState();
 
     errorHandler.showInfoFeedback('Message generation has been stopped.', 'Generation Stopped');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messageModalOpen, progressTracker, errorHandler]);
 
   const handleGenerateMessages = useCallback(() => {

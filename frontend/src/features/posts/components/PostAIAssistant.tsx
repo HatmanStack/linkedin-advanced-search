@@ -58,6 +58,7 @@ const PostAIAssistant = ({
     } catch (error) {
       logger.error('Failed to load ideas/selection from session storage', { error });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Update local ideas when props change

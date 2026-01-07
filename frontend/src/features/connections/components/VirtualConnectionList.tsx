@@ -137,7 +137,7 @@ const VirtualConnectionList: React.FC<VirtualConnectionListProps> = ({
       const minHeight = Math.max(window.innerHeight * 0.9, 700);
       setContainerHeight(Math.max(minHeight, availableHeight));
     }
-  }, [containerRef, isNewConnection]);
+  }, [containerRef]);
 
   useEffect(() => {
     handleResize();

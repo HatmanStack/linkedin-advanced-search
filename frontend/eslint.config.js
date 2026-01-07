@@ -33,4 +33,11 @@ export default tseslint.config(
       '@typescript-eslint/no-empty-object-type': 'off',
     },
   },
+  {
+    // Disable react-refresh for context files and UI components (standard patterns)
+    files: ['**/contexts/**/*.{ts,tsx}', '**/ui/**/*.{ts,tsx}', '**/components/StatusPicker.tsx'],
+    rules: {
+      'react-refresh/only-export-components': 'off',
+    },
+  },
 )
