@@ -268,10 +268,10 @@ class TestStatusOperation:
 class TestDevMode:
     """Tests for development mode"""
 
-    @patch.dict(os.environ, {'DEV_MODE': 'true'})
+    @patch.dict(os.environ, {'DEV_MODE': 'true', 'STAGE': 'dev'})
     @patch('index._get_ragstack_client')
     def test_dev_mode_allows_unauthenticated(self, mock_get_client, lambda_context):
-        """Test DEV_MODE allows unauthenticated requests"""
+        """Test DEV_MODE allows unauthenticated requests in non-prod environment"""
         mock_client = MagicMock()
         mock_client.search.return_value = []
         mock_get_client.return_value = mock_client
@@ -287,3 +287,18 @@ class TestDevMode:
 
         # Should succeed, not 401
         assert response['statusCode'] == 200
+
+    @patch.dict(os.environ, {'DEV_MODE': 'true', 'STAGE': 'prod'})
+    def test_dev_mode_blocked_in_production(self, lambda_context):
+        """Test DEV_MODE is blocked in production environment"""
+        event = {
+            'body': json.dumps({
+                'operation': 'search',
+                'query': 'test',
+            }),
+        }
+
+        response = lambda_handler(event, lambda_context)
+
+        # Should be rejected with 401 even with DEV_MODE=true
+        assert response['statusCode'] == 401

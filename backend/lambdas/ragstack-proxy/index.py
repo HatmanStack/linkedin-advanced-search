@@ -69,10 +69,17 @@ def _extract_user_id(event: dict) -> str | None:
     if sub:
         return sub
 
-    # Check for dev mode fallback
+    # Check for dev mode fallback (blocked in production)
     dev_mode = os.environ.get("DEV_MODE", "false").lower() == "true"
     if dev_mode:
-        logger.warning("DEV_MODE: Using development user ID")
+        stage = os.environ.get("STAGE", "prod").lower()
+        is_local = os.environ.get("AWS_SAM_LOCAL", "false").lower() == "true"
+
+        if stage == "prod" and not is_local:
+            logger.error("DEV_MODE is enabled but blocked in production environment")
+            return None
+
+        logger.warning("DEV_MODE: Using development user ID (stage=%s, local=%s)", stage, is_local)
         return "test-user-development"
 
     logger.error("No authentication found")

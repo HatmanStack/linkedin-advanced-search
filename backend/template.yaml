@@ -432,6 +432,7 @@ Resources:
         Variables:
           RAGSTACK_GRAPHQL_ENDPOINT: !Ref RagstackGraphqlEndpoint
           RAGSTACK_API_KEY: !Ref RagstackApiKey
+          STAGE: !Ref Environment
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref ProfilesTable
