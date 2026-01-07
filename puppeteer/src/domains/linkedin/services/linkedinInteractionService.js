@@ -1135,7 +1135,8 @@ export class LinkedInInteractionService {
             logger.debug(`Found start post button with selector: ${selector}`);
             break;
           }
-        } catch {
+        } catch (err) {
+          logger.debug(`Selector failed for start post button: ${selector}`, { error: err.message });
           // Continue to next selector
         }
       }
