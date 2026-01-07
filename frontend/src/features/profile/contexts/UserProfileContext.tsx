@@ -118,11 +118,12 @@ export const UserProfileProvider = ({ children }: { children: ReactNode }) => {
     if (user) {
       const alreadyFetched = (() => { try { return sessionStorage.getItem('profile_fetched') === 'true'; } catch { return false; } })();
       if (!alreadyFetched) {
+        // Set flag BEFORE fetch to minimize race window with other components
+        try { sessionStorage.setItem('profile_fetched', 'true'); } catch {
+          // Ignore storage errors - still proceed with fetch
+        }
         // Guarded fetch for non-dashboard entry points
         fetchUserProfile();
-        try { sessionStorage.setItem('profile_fetched', 'true'); } catch {
-          // Ignore storage errors
-        }
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
