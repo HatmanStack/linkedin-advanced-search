@@ -78,17 +78,18 @@ export async function waitForHealAndRestoreAuthorization(sessionId) {
 }
 
 // Function to authorize heal and restore (called by API endpoint)
-export async function authorizeHealAndRestore(sessionId) {
+export async function authorizeHealAndRestore(sessionId, autoApprove = false) {
   const sessions = await loadSessions();
   const session = sessions[sessionId];
-  
+
   if (session && session.status === 'pending') {
     sessions[sessionId].status = 'authorized';
+    sessions[sessionId].autoApprove = autoApprove;
     await saveSessions(sessions);
-    logger.info(`Heal and restore authorized for session: ${sessionId}`);
+    logger.info(`Heal and restore authorized for session: ${sessionId}`, { autoApprove });
     return true;
   }
-  
+
   return false;
 }
 
