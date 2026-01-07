@@ -3,8 +3,20 @@ import { ProfileInitStateManager } from '../utils/profileInitStateManager.js';
 import { profileInitMonitor } from '../utils/profileInitMonitor.js';
 import RandomHelpers from '../../shared/utils/randomHelpers.js';
 import LinkedInErrorHandler from '../utils/linkedinErrorHandler.js';
+import { generateProfileMarkdown } from '../utils/profileMarkdownGenerator.js';
+import axios from 'axios';
 import fs from 'fs/promises';
 import path from 'path';
+
+/**
+ * Gets the API base URL from environment, with proper normalization
+ * @returns {string|undefined} Normalized API base URL or undefined
+ */
+function getApiBaseUrl() {
+  const baseUrl = process.env.API_GATEWAY_BASE_URL;
+  if (!baseUrl) return undefined;
+  return baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
+}
 
 
 export class ProfileInitService {
@@ -756,6 +768,17 @@ export class ProfileInitService {
         // Use central edge manager to create edge for this connection
         databaseResult = await this.dynamoDBService.upsertEdgeStatus(connectionProfileId, connectionType);
 
+        // Trigger RAGStack ingestion for non-'possible' connection types
+        // Note: 'possible' connections are not processed in profile init
+        // This is fire-and-forget - failures are logged but don't block processing
+        this.triggerRAGStackIngestion(connectionProfileId, state).catch(err => {
+          logger.debug('Async RAGStack ingestion failed (non-blocking)', {
+            requestId,
+            profileId: connectionProfileId,
+            error: err.message
+          });
+        });
+
         const processingDuration = Date.now() - startTime;
         logger.debug(`Successfully processed connection: ${connectionProfileId}`, {
           requestId,
@@ -1287,6 +1310,153 @@ export class ProfileInitService {
 
     // Connection errors should not fail the entire process
     return false; // Don't trigger healing, just skip this connection
+  }
+
+  /**
+   * Trigger RAGStack ingestion for a profile
+   * @param {string} profileId - Profile ID to ingest
+   * @param {Object} state - Current state with JWT token
+   * @returns {Promise<Object|null>} Ingestion result or null if skipped/failed
+   */
+  async triggerRAGStackIngestion(profileId, state) {
+    const requestId = state.requestId || 'unknown';
+
+    try {
+      const apiBaseUrl = getApiBaseUrl();
+      if (!apiBaseUrl) {
+        logger.debug('RAGStack ingestion skipped: API_GATEWAY_BASE_URL not configured', {
+          requestId,
+          profileId
+        });
+        return null;
+      }
+
+      // Fetch profile data from DynamoDB
+      const profileResponse = await this._fetchProfileForIngestion(profileId, state);
+
+      if (!profileResponse || !profileResponse.profile) {
+        logger.debug('RAGStack ingestion skipped: profile not found in DynamoDB', {
+          requestId,
+          profileId
+        });
+        return null;
+      }
+
+      const profile = profileResponse.profile;
+
+      // Check if already ingested
+      if (profile.ragstack_ingested) {
+        logger.debug('RAGStack ingestion skipped: already ingested', {
+          requestId,
+          profileId
+        });
+        return null;
+      }
+
+      // Check if profile has minimum required data
+      if (!profile.name) {
+        logger.debug('RAGStack ingestion skipped: profile missing required name field', {
+          requestId,
+          profileId
+        });
+        return null;
+      }
+
+      // Generate markdown
+      const markdown = generateProfileMarkdown({
+        name: profile.name,
+        headline: profile.headline || profile.currentTitle,
+        location: profile.location || profile.currentLocation,
+        profile_id: profileId,
+        about: profile.about || profile.summary,
+        current_position: profile.currentTitle ? {
+          title: profile.currentTitle,
+          company: profile.currentCompany
+        } : profile.current_position,
+        experience: profile.experience,
+        education: profile.education,
+        skills: profile.skills
+      });
+
+      // Call RAGStack proxy to ingest
+      const result = await this._callRAGStackProxy({
+        operation: 'ingest',
+        profileId: profileId,
+        markdown: markdown,
+        metadata: {
+          source: 'profile_init',
+          ingested_at: new Date().toISOString()
+        }
+      }, state);
+
+      logger.info('RAGStack ingestion triggered successfully', {
+        requestId,
+        profileId,
+        documentId: result?.documentId
+      });
+
+      return result;
+
+    } catch (error) {
+      // Log but don't fail - ingestion is best-effort
+      logger.warn('RAGStack ingestion failed (non-fatal)', {
+        requestId,
+        profileId,
+        error: error.message
+      });
+      return null;
+    }
+  }
+
+  /**
+   * Fetch profile data from DynamoDB for ingestion
+   * @param {string} profileId - Profile ID
+   * @param {Object} state - State with JWT token
+   * @returns {Promise<Object|null>} Profile data or null
+   */
+  async _fetchProfileForIngestion(profileId, state) {
+    try {
+      const apiBaseUrl = getApiBaseUrl();
+      if (!apiBaseUrl) return null;
+
+      const response = await axios.get(`${apiBaseUrl}profiles`, {
+        params: { profileId },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': state.jwtToken ? `Bearer ${state.jwtToken}` : undefined
+        }
+      });
+
+      return response.data;
+    } catch (error) {
+      logger.debug('Failed to fetch profile for ingestion', {
+        profileId,
+        error: error.message
+      });
+      return null;
+    }
+  }
+
+  /**
+   * Call RAGStack proxy Lambda
+   * @param {Object} payload - Request payload
+   * @param {Object} state - State with JWT token
+   * @returns {Promise<Object>} Response data
+   */
+  async _callRAGStackProxy(payload, state) {
+    const apiBaseUrl = getApiBaseUrl();
+    if (!apiBaseUrl) {
+      throw new Error('API_GATEWAY_BASE_URL not configured');
+    }
+
+    const response = await axios.post(`${apiBaseUrl}ragstack`, payload, {
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': state.jwtToken ? `Bearer ${state.jwtToken}` : undefined
+      }
+    });
+
+    return response.data;
   }
 
 }
