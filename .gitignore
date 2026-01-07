@@ -73,3 +73,6 @@ tests/**/__pycache__/
 backend/**/__pycache__/
 __pycache__/
 *.pyc
+.deploy-config.json
+samconfig.toml
+backend/samconfig.toml

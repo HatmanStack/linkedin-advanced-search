@@ -2,8 +2,8 @@
 
 // Components
 export { HealAndRestoreModal } from './components/HealAndRestoreModal';
-export { ProgressIndicator } from './components/ProgressIndicator';
-export { StatusPicker } from './components/StatusPicker';
+export { default as ProgressIndicator } from './components/ProgressIndicator';
+export { default as StatusPicker } from './components/StatusPicker';
 
 // Hooks
 export { useWorkflowProgress } from './hooks/useWorkflowProgress';

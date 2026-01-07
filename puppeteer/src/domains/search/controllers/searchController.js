@@ -7,7 +7,6 @@ import { SearchStateManager } from '../utils/searchStateManager.js';
 import { LinkCollector } from '../../linkedin/utils/linkCollector.js';
 import { ContactProcessor } from '../../linkedin/utils/contactProcessor.js';
 import { HealingManager } from '../../automation/utils/healingManager.js';
-import path from 'path';
 import fs from 'fs/promises';
 
 export class SearchController {

@@ -35,7 +35,7 @@ app.use(cors({
           logger.debug(`CORS: Allowing development origin: ${origin}`);
           return callback(null, true);
         }
-      } catch (err) {
+      } catch {
         logger.warn(`CORS: Invalid origin URL format: ${origin}`);
         return callback(new Error('Invalid origin format'));
       }
@@ -122,7 +122,7 @@ app.get('/config/status', (req, res) => {
 });
 
 // Error handling middleware
-app.use((error, req, res, next) => {
+app.use((error, req, res, _next) => {
   logger.error('Unhandled error:', error);
 
   res.status(500).json({

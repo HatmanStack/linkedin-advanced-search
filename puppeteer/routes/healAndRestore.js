@@ -26,7 +26,7 @@ router.get('/status', async (req, res) => {
 // Authorize heal and restore
 router.post('/authorize', async (req, res) => {
   try {
-    const { sessionId, autoApprove } = req.body;
+    const { sessionId, autoApprove = false } = req.body;
 
     if (!sessionId) {
       return res.status(400).json({
@@ -35,12 +35,13 @@ router.post('/authorize', async (req, res) => {
       });
     }
 
-    const success = await authorizeHealAndRestore(sessionId);
+    const success = await authorizeHealAndRestore(sessionId, autoApprove);
 
     if (success) {
       res.json({
         success: true,
-        message: 'Heal and restore authorized successfully'
+        message: 'Heal and restore authorized successfully',
+        autoApprove
       });
     } else {
       res.status(404).json({

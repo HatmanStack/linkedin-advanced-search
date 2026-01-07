@@ -175,11 +175,11 @@ export class TextExtractionService {
               await button.click({ delay: 300 });
               foundButtons = true;
               await RandomHelpers.randomDelay(500, 1000);
-            } catch (err) {
+            } catch {
               // Button may not be clickable, skip
             }
           }
-        } catch (error) {
+        } catch {
           // Selector didn't match, continue
         }
       }

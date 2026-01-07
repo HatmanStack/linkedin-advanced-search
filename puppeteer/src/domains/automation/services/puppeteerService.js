@@ -107,7 +107,7 @@ export class PuppeteerService {
         timeout: 5000,
         ...options
       });
-    } catch (error) {
+    } catch {
       logger.warn(`Selector not found: ${selector}`);
       return null;
     }
@@ -147,7 +147,7 @@ export class PuppeteerService {
       if (typeof text !== 'string') {
         try {
           text = String(text);
-        } catch (_) {
+        } catch {
           logger.warn(`safeType could not convert non-string text for selector: ${selector}`);
           return false;
         }
@@ -238,7 +238,7 @@ export class PuppeteerService {
           await this.page.waitForSelector(sel, { timeout: timeoutMs });
           anyFound = true;
           break;
-        } catch (_) {
+        } catch {
           // keep trying others
         }
       }
@@ -313,7 +313,7 @@ export class PuppeteerService {
             if (stableCount >= stableLimit) {
               break;
             }
-          } catch (_) {
+          } catch {
             break;
           }
         }
@@ -336,7 +336,7 @@ export class PuppeteerService {
               // Skip non-http(s) links
               continue;
             }
-          } catch (_) {
+          } catch {
             continue;
           }
 
@@ -345,7 +345,7 @@ export class PuppeteerService {
 
           try {
             href = decodeURIComponent(href);
-          } catch (_) {
+          } catch {
             // ignore decode errors
           }
 

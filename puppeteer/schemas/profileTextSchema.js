@@ -4,8 +4,6 @@
  * Defines the structure of extracted profile data and provides validation utilities
  */
 
-import { logger } from '../utils/logger.js';
-
 /**
  * Schema definition for extracted LinkedIn profile data
  */

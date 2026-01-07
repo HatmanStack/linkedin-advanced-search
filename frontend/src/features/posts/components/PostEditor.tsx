@@ -66,6 +66,7 @@ const PostEditor = ({
     } catch {
       // Ignore sessionStorage errors
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [postReasoning, postHook]);
 
   // Hydrate content from sessionStorage on mount if empty (mirrors ideas/research patterns)

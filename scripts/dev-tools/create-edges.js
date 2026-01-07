@@ -119,7 +119,6 @@ const createEdgesForExistingProfiles = async (userId, profileUrls) => {
 // Usage example - you'll provide these values when running the script
 const userId = '';
 const profileUrls = JSON.parse(await readFile('new_edges_urls.json'));
-console.log(profileUrls);
 if (!userId || !profileUrls) {
     logger.error('Usage: node create-edges.js <userId> <profileUrlsFile>');
     logger.error('Example: node create-edges.js abc123 ./profile-urls.json');

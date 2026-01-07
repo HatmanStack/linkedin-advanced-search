@@ -34,7 +34,7 @@ export const UserProfileProvider = ({ children }: { children: ReactNode }) => {
 
   // Avoid redundant fetches within a single session
   // This ensures we fetch once (e.g., from Dashboard) and reuse across the app
-  let fetchedFlag = false;
+  // Using sessionStorage check instead of component variable to persist across renders
 
   // Fetch user profile from API
   const fetchUserProfile = async () => {
@@ -56,9 +56,8 @@ export const UserProfileProvider = ({ children }: { children: ReactNode }) => {
       }
         }
         try { sessionStorage.setItem('profile_fetched', 'true'); } catch {
-        // Ignore storage errors
-      }
-        fetchedFlag = true;
+          // Ignore storage errors
+        }
       }
     } catch (error) {
       logger.error('Failed to fetch user profile', { error });
@@ -78,9 +77,8 @@ export const UserProfileProvider = ({ children }: { children: ReactNode }) => {
         // Refresh the profile to get updated data
         await fetchUserProfile();
         try { sessionStorage.setItem('profile_fetched', 'true'); } catch {
-        // Ignore storage errors
-      }
-        fetchedFlag = true;
+          // Ignore storage errors
+        }
       } else {
         throw new Error(response.error || 'Failed to update profile');
       }
@@ -119,15 +117,16 @@ export const UserProfileProvider = ({ children }: { children: ReactNode }) => {
 
     if (user) {
       const alreadyFetched = (() => { try { return sessionStorage.getItem('profile_fetched') === 'true'; } catch { return false; } })();
-      if (!alreadyFetched && !fetchedFlag) {
+      if (!alreadyFetched) {
+        // Set flag BEFORE fetch to minimize race window with other components
+        try { sessionStorage.setItem('profile_fetched', 'true'); } catch {
+          // Ignore storage errors - still proceed with fetch
+        }
         // Guarded fetch for non-dashboard entry points
         fetchUserProfile();
-        fetchedFlag = true;
-        try { sessionStorage.setItem('profile_fetched', 'true'); } catch {
-        // Ignore storage errors
-      }
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   // Memoize the context value to prevent unnecessary re-renders
@@ -155,6 +154,7 @@ export const UserProfileProvider = ({ children }: { children: ReactNode }) => {
     updateUserProfile,
     refreshUserProfile,
     isLoading
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [ciphertext, userProfile, isLoading]);
 
   return (

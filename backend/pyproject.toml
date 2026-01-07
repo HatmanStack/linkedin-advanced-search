@@ -22,6 +22,8 @@ select = [
     "UP",
     "B",
     "SIM",
+    "T20",
+    "ERA",
 ]
 
 ignore = [

@@ -1,6 +1,5 @@
 import { PuppeteerService } from '../../automation/services/puppeteerService.js';
 import { logger } from '../../shared/utils/logger.js';
-import config from '../../shared/config/index.js';
 // Removed human-like delay/behavior helpers for simplicity
 import LinkedInErrorHandler from '../utils/linkedinErrorHandler.js';
 import ConfigManager from '../../shared/config/configManager.js';
@@ -17,7 +16,7 @@ const RandomHelpers = {
       const span = Math.max(0, maxMs - minMs);
       const delayMs = minMs + Math.floor(Math.random() * (span + 1));
       await new Promise(resolve => setTimeout(resolve, delayMs));
-    } catch (_) {
+    } catch {
       // No-op on failure
     }
   }
@@ -298,7 +297,7 @@ export class LinkedInInteractionService {
    * @param {number} maxRetries - Maximum number of retries
    * @returns {Promise<any>} Operation result
    */
-  async executeWithRetry(operation, context = {}, maxRetries = this.maxRetries) {
+  async executeWithRetry(operation, context = {}) {
     // Disable retries for interactive flows; execute once
     try {
       context.attemptCount = 1;
@@ -370,7 +369,7 @@ export class LinkedInInteractionService {
         if (element) {
           return { element, selector };
         }
-      } catch (_) {
+      } catch {
         // try next selector
       }
     }
@@ -581,7 +580,7 @@ export class LinkedInInteractionService {
             logger.debug(`Profile page verified with selector: ${selector}`);
             return true;
           }
-        } catch (error) {
+        } catch {
           // Continue checking other selectors
         }
       }
@@ -658,7 +657,7 @@ export class LinkedInInteractionService {
         session.waitForSelector('[data-test-id]', { timeout: 2000 }),
         new Promise(resolve => setTimeout(resolve, 2000))
       ]);
-    } catch (error) {
+    } catch {
       logger.debug('LinkedIn page load heuristic finished without full stability; proceeding');
     }
   }
@@ -713,9 +712,7 @@ export class LinkedInInteractionService {
     await this.checkSuspiciousActivity();
 
     // Get or initialize browser session
-    const session = await this.getBrowserSession();
-
-
+    await this.getBrowserSession();
 
     // Navigate to recipient's profile
     const navigationSuccess = await this.navigateToProfile(recipientProfileId);
@@ -830,8 +827,7 @@ export class LinkedInInteractionService {
    */
   async waitForMessagingInterface() {
     try {
-      const session = await this.getBrowserSession();
-      const page = session.getPage();
+      await this.getBrowserSession();
 
       // Wait for messaging interface elements
       const messagingSelectors = [
@@ -964,7 +960,6 @@ export class LinkedInInteractionService {
   async waitForMessageSent() {
     try {
       const session = await this.getBrowserSession();
-      const page = session.getPage();
 
       // Wait for message sent indicators
       const sentIndicators = [
@@ -983,7 +978,7 @@ export class LinkedInInteractionService {
             sentConfirmed = true;
             break;
           }
-        } catch (error) {
+        } catch {
           // Continue checking other indicators
         }
       }
@@ -1047,9 +1042,7 @@ export class LinkedInInteractionService {
     await this.checkSuspiciousActivity();
 
     // Get or initialize browser session
-    const session = await this.getBrowserSession();
-
-
+    await this.getBrowserSession();
 
     // Navigate to post creation interface
     await this.navigateToPostCreator();
@@ -1106,9 +1099,6 @@ export class LinkedInInteractionService {
 
     try {
       const session = await this.getBrowserSession();
-      const page = session.getPage();
-
-
 
       // Navigate to LinkedIn home/feed page first
       const navigationTimeout = this.configManager.get('navigationTimeout', 30000);
@@ -1136,18 +1126,17 @@ export class LinkedInInteractionService {
       ];
 
       let startPostButton = null;
-      let foundSelector = null;
 
       // Try to find start post button with multiple selectors
       for (const selector of startPostSelectors) {
         try {
           startPostButton = await session.waitForSelector(selector, { timeout: 5000 });
           if (startPostButton) {
-            foundSelector = selector;
             logger.debug(`Found start post button with selector: ${selector}`);
             break;
           }
-        } catch (error) {
+        } catch (err) {
+          logger.debug(`Selector failed for start post button: ${selector}`, { error: err.message });
           // Continue to next selector
         }
       }
@@ -1190,7 +1179,6 @@ export class LinkedInInteractionService {
   async waitForPostCreationInterface() {
     try {
       const session = await this.getBrowserSession();
-      const page = session.getPage();
 
       // Wait for post creation interface elements
       const postCreationSelectors = [
@@ -1211,7 +1199,7 @@ export class LinkedInInteractionService {
             logger.debug(`Post creation interface loaded, found element: ${selector}`);
             break;
           }
-        } catch (error) {
+        } catch {
           // Continue to next selector
         }
       }
@@ -1264,7 +1252,7 @@ export class LinkedInInteractionService {
             logger.debug(`Found content input with selector: ${selector}`);
             break;
           }
-        } catch (error) {
+        } catch {
           // Continue to next selector
         }
       }
@@ -1341,7 +1329,7 @@ export class LinkedInInteractionService {
             logger.debug(`Found media button with selector: ${selector}`);
             break;
           }
-        } catch (error) {
+        } catch {
           // Continue to next selector
         }
       }
@@ -1501,10 +1489,6 @@ export class LinkedInInteractionService {
   async checkConnectionStatus() {
     try {
       const session = await this.getBrowserSession();
-      const page = session.getPage();
-
-      // Add human-like delay before checking
-
 
       // Look for indicators of existing connection
       const connectedSelectors = [
@@ -1529,7 +1513,7 @@ export class LinkedInInteractionService {
             logger.debug(`Found connection indicator: ${selector}`);
             return 'connected';
           }
-        } catch (error) {
+        } catch {
           // Continue checking
         }
       }
@@ -1542,7 +1526,7 @@ export class LinkedInInteractionService {
             logger.debug(`Found pending connection indicator: ${selector}`);
             return 'pending';
           }
-        } catch (error) {
+        } catch {
           // Continue checking
         }
       }
@@ -1829,7 +1813,7 @@ export class LinkedInInteractionService {
         if (currentUrl.includes('/posts/') || currentUrl.includes('/activity-')) {
           postUrl = currentUrl;
         }
-      } catch (error) {
+      } catch {
         logger.debug('Could not extract post URL from current page');
       }
 
@@ -1874,8 +1858,7 @@ export class LinkedInInteractionService {
     });
 
     try {
-      const session = await this.getBrowserSession();
-      const page = session.getPage();
+      await this.getBrowserSession();
 
       // Check for cooling-off period before starting
       await this.humanBehavior.checkAndApplyCooldown();
@@ -1951,8 +1934,7 @@ export class LinkedInInteractionService {
     await this.checkSuspiciousActivity();
 
     // Step 2: Ensure browser session is healthy
-    const session = await this.getBrowserSession();
-
+    await this.getBrowserSession();
 
     // Step 3: Navigate to recipient's profile
     logger.info('Step 1/4: Navigating to profile');
@@ -2026,7 +2008,7 @@ export class LinkedInInteractionService {
       const isPending = await this.isProfileContainer("pending");
       if (isPending) return 'outgoing';
       return null;
-    } catch (_) {
+    } catch {
       return null;
     }
   }
@@ -2053,8 +2035,7 @@ export class LinkedInInteractionService {
     await this.checkSuspiciousActivity();
 
     // Step 2: Ensure browser session is healthy
-    const session = await this.getBrowserSession();
-
+    await this.getBrowserSession();
 
     // Step 3: Navigate to target profile
     logger.info('Step 1/4: Navigating to profile');
@@ -2148,8 +2129,7 @@ export class LinkedInInteractionService {
     await this.checkSuspiciousActivity();
 
     // Step 2: Ensure browser session is healthy
-    const session = await this.getBrowserSession();
-
+    await this.getBrowserSession();
 
     // Step 3: Navigate to post creation interface
     logger.info('Step 1/5: Opening post creation interface');

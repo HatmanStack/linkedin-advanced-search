@@ -161,7 +161,7 @@ export class LinkedInErrorHandler {
   /**
    * Categorize error based on error message and context
    */
-  static categorizeError(error, context = {}) {
+  static categorizeError(error) {
     const errorMessage = error.message.toLowerCase();
 
     // Authentication errors
@@ -273,7 +273,7 @@ export class LinkedInErrorHandler {
   /**
    * Generate error code based on categorized error and original error
    */
-  static getErrorCode(categorizedError, originalError) {
+  static getErrorCode(categorizedError) {
     // Find matching error code
     for (const [code, errorInfo] of Object.entries(this.ERROR_CODES)) {
       if (errorInfo === categorizedError) {

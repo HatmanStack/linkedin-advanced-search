@@ -193,7 +193,7 @@ export class LinkedInContactService {
   async _createSessionDirectory(profileId) {
     try {
       await fs.mkdir(this.screenshotsBaseDir, { recursive: true });
-    } catch (error) {
+    } catch {
       // Directory might already exist, ignore error
     }
 
@@ -207,9 +207,8 @@ export class LinkedInContactService {
    * - incoming/outgoing: Reactions, Profile, Recent Activity, About This Profile
    * - possible: Reactions, Profile, Recent Activity
    */
-  async captureRequiredScreenshots(profileId, tempDir, status, options = {}) {
-    const page = this.puppeteer.getPage();
-    // Determine default screens by status; options.screens can override
+  async captureRequiredScreenshots(profileId, tempDir, status) {
+    // Determine default screens by status
     let defaultScreens;
     if (status === 'incoming' || status === 'outgoing' || status == 'ally') {
       defaultScreens = ['Reactions', 'Profile', 'Activity', 'Recent-Activity', 'About-This-Profile'];

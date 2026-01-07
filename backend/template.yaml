@@ -83,6 +83,7 @@ Resources:
 
   ScreenshotBucket:
     Type: AWS::S3::Bucket
+    DependsOn: S3ToSQSQueuePolicy
     Properties:
       BucketName: !Sub 'linkedin-screenshots-${AWS::AccountId}-${AWS::Region}'
       CorsConfiguration:
@@ -96,6 +97,15 @@ Resources:
             AllowedOrigins:
               - '*'
             MaxAge: 3000
+      NotificationConfiguration:
+        QueueConfigurations:
+          - Event: s3:ObjectCreated:*
+            Queue: !GetAtt ProfileProcessingQueue.Arn
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: prefix
+                    Value: linkedin-profiles/
 
   UserPool:
     Type: AWS::Cognito::UserPool
@@ -313,20 +323,6 @@ Resources:
       FunctionName: !Ref ProfileProcessingFunction
       Principal: sqs.amazonaws.com
       SourceArn: !GetAtt ProfileProcessingQueue.Arn
-
-  ScreenshotBucketNotification:
-    Type: AWS::S3::BucketNotification
-    DependsOn: S3ToSQSQueuePolicy
-    Properties:
-      Bucket: !Ref ScreenshotBucket
-      QueueConfigurations:
-        - Event: s3:ObjectCreated:*
-          Queue: !GetAtt ProfileProcessingQueue.Arn
-          Filter:
-            S3Key:
-              Rules:
-                - Name: prefix
-                  Value: linkedin-profiles/
 
   S3ToSQSQueuePolicy:
     Type: AWS::SQS::QueuePolicy

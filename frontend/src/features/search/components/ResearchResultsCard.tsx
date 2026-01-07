@@ -1,5 +1,5 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "./ui/button";
+import { Button } from "@/components/ui/button";
 import { useEffect, useState } from "react";
 import { X } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';

@@ -56,7 +56,7 @@ export class LinkCollector {
     try {
       const fileContent = await fs.readFile(this.config.paths.linksFile);
       return JSON.parse(fileContent);
-    } catch (error) {
+    } catch {
       return [];
     }
   }
