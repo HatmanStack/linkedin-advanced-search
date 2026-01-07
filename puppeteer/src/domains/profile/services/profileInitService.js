@@ -235,7 +235,7 @@ export class ProfileInitService {
    * @param {Object} state - Profile initialization state
    * @returns {Promise<string>} Path to master index file
    */
-  async _createMasterIndexFile(state) {
+  async _createMasterIndexFile() {
     try {
       const timestamp = Date.now();
       const masterIndexFile = path.join('data', `profile-init-index-${timestamp}.json`);
@@ -1260,7 +1260,7 @@ export class ProfileInitService {
   /**
    * Handle database-related errors
    */
-  async _handleDatabaseError(error, context, retryCount, errorDetails) {
+  async _handleDatabaseError(error, context) {
     const requestId = context.requestId || 'unknown';
 
     logger.error('Database error - not retryable', {
@@ -1276,7 +1276,7 @@ export class ProfileInitService {
   /**
    * Handle connection-level errors (profile-specific)
    */
-  async _handleConnectionError(error, context, retryCount, errorDetails) {
+  async _handleConnectionError(error, context) {
     const requestId = context.requestId || 'unknown';
 
     logger.warn('Connection-level error - will skip this connection', {

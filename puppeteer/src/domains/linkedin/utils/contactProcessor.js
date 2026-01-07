@@ -30,7 +30,7 @@ export class ContactProcessor {
           errorQueue = [];
         }
         i++;
-      } catch (error) {
+      } catch {
         logger.error(`Error collecting contact: ${link}`);
         errorQueue.push(link);
         i++;
@@ -84,7 +84,7 @@ export class ContactProcessor {
           logger.info(`Retry success: ${retry}`);
           allRetriesFailed = false;
         }
-      } catch (e) {
+      } catch {
         logger.error(`Retry failed: ${retry}`);
       }
     }
@@ -121,7 +121,7 @@ export class ContactProcessor {
     try {
       const fileContent = await fs.readFile(this.config.paths.goodConnectionsFile);
       return JSON.parse(fileContent);
-    } catch (error) {
+    } catch {
       return [];
     }
   }

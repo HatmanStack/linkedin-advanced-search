@@ -37,7 +37,7 @@ export class LinkedInService {
             username = obj?.email || username;
             password = obj?.password || password;
           }
-        } catch (e) {
+        } catch {
           logger.error('Failed to decrypt LinkedIn credentials for login');
           throw new Error('Credential decryption failed');
         }
@@ -83,7 +83,7 @@ export class LinkedInService {
           page.waitForFunction(() => document.readyState === 'complete', { timeout: shortCapMs }),
           page.waitForSelector('#global-nav', { timeout: shortCapMs / 2 })
         ]);
-      } catch (_unusedError) {
+      } catch {
         // Intentionally swallowed: LinkedIn is an SPA that may not trigger traditional
         // navigation events. The subsequent waitForSelector() with configurable timeout
         // handles the actual login verification. This race is just an optimization.
@@ -141,7 +141,7 @@ export class LinkedInService {
             searchBoxFound = true;
             break;
           }
-        } catch (e) {
+        } catch {
           logger.debug(`Search box not found with selector: ${selector}`);
         }
       }
@@ -188,7 +188,7 @@ export class LinkedInService {
             jobsTabClicked = true;
             break;
           }
-        } catch (e) {
+        } catch {
           logger.info(`Selector failed: ${selector}`);
         }
       }
@@ -226,7 +226,7 @@ export class LinkedInService {
             showAllClicked = true;
             break;
           }
-        } catch (e) {
+        } catch {
           logger.info(`Selector failed: ${selector}`);
         }
       }
@@ -241,7 +241,7 @@ export class LinkedInService {
             showAllClicked = true;
             logger.info('Clicked "Show all jobs" using XPath');
           }
-        } catch (e) {
+        } catch {
           logger.info('XPath fallback failed');
         }
       }

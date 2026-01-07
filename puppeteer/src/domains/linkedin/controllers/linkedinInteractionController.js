@@ -1,5 +1,4 @@
 import { logger } from '../../shared/utils/logger.js';
-import config from '../../shared/config/index.js';
 import { LinkedInInteractionService } from '../services/linkedinInteractionService.js';
 import LinkedInService from '../services/linkedinService.js';
 import LinkedInErrorHandler from '../utils/linkedinErrorHandler.js';
@@ -115,7 +114,7 @@ export class LinkedInInteractionController {
               'interaction-controller'
             );
           }
-        } catch (loginErr) {
+        } catch {
           throw new Error('Login required but failed to authenticate to LinkedIn');
         }
 
@@ -262,7 +261,7 @@ export class LinkedInInteractionController {
               'interaction-controller'
             );
           }
-        } catch (loginErr) {
+        } catch {
           throw new Error('Login required but failed to authenticate to LinkedIn');
         }
 

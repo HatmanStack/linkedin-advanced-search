@@ -9,7 +9,7 @@ async function loadSessions() {
   try {
     const data = await fs.readFile(SESSIONS_FILE, 'utf8');
     return JSON.parse(data);
-  } catch (error) {
+  } catch {
     return {};
   }
 }
