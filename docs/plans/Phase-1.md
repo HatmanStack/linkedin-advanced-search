@@ -71,11 +71,11 @@ Deploy a dedicated RAGStack instance and build the ingestion pipeline that popul
    - Run after lint step
 
 **Verification Checklist:**
-- [ ] `npm test` runs without errors (even with no tests)
-- [ ] Vitest config loads correctly
-- [ ] Setup file executes
-- [ ] CI workflow includes test step
-- [ ] Coverage report generates
+- [x] `npm test` runs without errors (even with no tests)
+- [x] Vitest config loads correctly
+- [x] Setup file executes
+- [x] CI workflow includes test step
+- [x] Coverage report generates
 
 **Testing Instructions:**
 - Create a simple smoke test to verify setup works
@@ -134,12 +134,12 @@ chore(puppeteer): add Vitest test infrastructure
    - `.env.ragstack`
 
 **Verification Checklist:**
-- [ ] Script prompts for missing configuration
-- [ ] Configuration persisted to `.ragstack-config.json`
-- [ ] `samconfig.toml` generated without interactive prompts
-- [ ] RAGStack stack deploys successfully
-- [ ] `.env.ragstack` contains all required values
-- [ ] Subsequent runs skip prompts and use saved config
+- [x] Script prompts for missing configuration
+- [x] Configuration persisted to `.ragstack-config.json`
+- [x] `samconfig.toml` generated without interactive prompts
+- [ ] RAGStack stack deploys successfully (requires manual test)
+- [ ] `.env.ragstack` contains all required values (requires manual test)
+- [x] Subsequent runs skip prompts and use saved config
 
 **Testing Instructions:**
 - Unit test configuration loading/saving logic

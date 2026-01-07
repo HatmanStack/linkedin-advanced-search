@@ -17,7 +17,8 @@
     "check": "npm run lint && npm run test",
     "benchmark": "node scripts/benchmarks/benchmark-performance.js",
     "cleanup": "bash scripts/cleanup/code-cleanup.sh",
-    "cleanup:audit": "bash scripts/cleanup/code-cleanup.sh audit"
+    "cleanup:audit": "bash scripts/cleanup/code-cleanup.sh audit",
+    "deploy:ragstack": "node scripts/deploy/deploy-ragstack.js"
   },
   "author": "HatmanStack",
   "license": "Apache-2.0"
