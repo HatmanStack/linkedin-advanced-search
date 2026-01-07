@@ -296,12 +296,12 @@ feat(puppeteer): add profile markdown generator
    - Raise typed exceptions for errors
 
 **Verification Checklist:**
-- [ ] Client initializes with endpoint and API key
-- [ ] `create_upload_url` returns presigned URL structure
-- [ ] `search` returns list of results with source IDs
-- [ ] GraphQL errors raise appropriate exceptions
-- [ ] Network errors handled with retry
-- [ ] API key included in all requests
+- [x] Client initializes with endpoint and API key
+- [x] `create_upload_url` returns presigned URL structure
+- [x] `search` returns list of results with source IDs
+- [x] GraphQL errors raise appropriate exceptions
+- [x] Network errors handled with retry
+- [x] API key included in all requests
 
 **Testing Instructions:**
 
