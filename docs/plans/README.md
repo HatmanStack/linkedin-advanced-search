@@ -1,121 +1,63 @@
-# LinkedIn Advanced Search - Monorepo Refactor Plan
+# RAGStack Integration for LinkedIn Profile Search
 
-## Overview
+## Feature Overview
 
-This plan restructures an existing LinkedIn automation and search application from a loosely organized codebase into a clean, standardized monorepo architecture. The refactor consolidates scattered code, enforces consistent patterns, standardizes CI/CD pipelines, and eliminates technical debt through aggressive sanitization.
+This implementation integrates RAGStack-Lambda as a dedicated knowledge base for LinkedIn profiles, enabling semantic search across your professional network. The hybrid architecture continues using Puppeteer for LinkedIn discovery and automation while leveraging RAGStack's vector search capabilities for the Connections tab.
 
-The current codebase consists of a React/Vite frontend (`src/`), a Puppeteer-based Node.js automation server (`puppeteer-backend/`), Python AWS Lambda functions (`lambda-processing/`), and scattered infrastructure definitions (`RAG-CloudStack/`). These will be reorganized into a cohesive structure with clear deployment boundaries, unified testing, and automated deployment scripts following established patterns.
+Profiles are ingested into RAGStack when a meaningful relationship is established: after sending a connection request, following a profile, or during initial database setup for existing contacts. The frontend Connections tab gains a semantic search box that queries RAGStack, returning profile IDs that are then enriched with existing DynamoDB profile cards. Existing client-side filtering remains intact for post-search refinement.
 
-The refactor prioritizes ruthless cleanup: dead code deletion, comment stripping, console.log removal, and consolidation of fragmented utilities. Historical migration documents will be deleted (they exist in git history), with only relevant information extracted into new streamlined documentation.
-
-## Target Structure
-
-```
-linkedin-advanced-search/
-├── frontend/              # Vite + React client
-│   ├── src/
-│   │   ├── features/
-│   │   ├── pages/
-│   │   └── shared/
-│   ├── package.json
-│   ├── vite.config.ts
-│   └── tsconfig.json
-├── backend/               # AWS Lambda (Python) + SAM
-│   ├── lambdas/
-│   │   ├── edge-processing/
-│   │   ├── dynamodb-api/
-│   │   ├── placeholder-search/
-│   │   ├── profile-api/
-│   │   ├── profile-processing/
-│   │   ├── llm/
-│   │   ├── webhook-handler/
-│   │   └── shared/
-│   ├── scripts/
-│   │   └── deploy.js
-│   ├── template.yaml
-│   ├── samconfig.toml
-│   └── package.json
-├── puppeteer/             # Local Node.js automation server
-│   ├── src/
-│   │   ├── domains/
-│   │   └── shared/
-│   ├── routes/
-│   ├── package.json
-│   └── .eslintrc.js
-├── docs/                  # Consolidated documentation
-│   ├── README.md
-│   └── DEPLOYMENT.md
-├── tests/                 # Centralized test suites
-│   ├── frontend/
-│   │   ├── unit/
-│   │   └── integration/
-│   ├── backend/
-│   │   ├── unit/
-│   │   └── integration/
-│   ├── puppeteer/
-│   │   └── unit/
-│   ├── e2e/
-│   └── fixtures/
-├── scripts/               # Consolidated utility scripts
-│   ├── deploy/
-│   ├── dev-tools/
-│   └── benchmarks/
-├── .github/
-│   └── workflows/
-│       └── ci.yml
-├── package.json           # Orchestration-only (cd into subdirs)
-└── README.md              # Concise quickstart
-```
+Security is paramount: the RAGStack API stays private behind API key authentication, with all requests proxied through the linkedin-advanced-search backend. This prevents direct browser access to the knowledge base while maintaining user-scoped data isolation.
 
 ## Prerequisites
 
-### Required Tools
-- **Node.js** v24 LTS (via nvm)
-- **Python** 3.13 (via uv)
-- **AWS CLI** configured with credentials
-- **AWS SAM CLI** v1.100+
-- **Docker** (for SAM local builds)
+### Tools Required
+- Node.js v24 LTS (via nvm)
+- Python 3.13 (via uv)
+- AWS CLI v2 configured with appropriate credentials
+- AWS SAM CLI
+- Git
+
+### AWS Services
+- AWS Bedrock (Nova Multimodal Embeddings access enabled)
+- AWS Lambda
+- Amazon S3
+- Amazon DynamoDB
+- Amazon API Gateway
+- AWS Cognito (existing user pool)
 
 ### Environment Setup
-```bash
-# Verify Node.js
-node --version  # Should be v24.x
-
-# Verify Python
-python3 --version  # Should be 3.13.x
-
-# Verify AWS
-aws sts get-caller-identity
-sam --version
-```
-
-### Existing Resources
-- AWS Cognito User Pool (will be preserved)
-- DynamoDB table with existing data (will be preserved)
-- S3 bucket for screenshots (will be preserved)
+- Clone RAGStack-Lambda repository to `~/war/RAGStack-Lambda/`
+- Existing linkedin-advanced-search deployment functional
+- Valid AWS credentials with permissions for Bedrock, Lambda, S3, DynamoDB, API Gateway
 
 ## Phase Summary
 
-| Phase | Goal | Estimated Tokens |
-|-------|------|------------------|
-| [Phase 0](Phase-0.md) | Foundation - ADRs, deployment scripts, testing strategy, shared patterns | ~15,000 |
-| [Phase 1](Phase-1.md) | Structure Migration - Move files, update imports, reorganize tests | ~45,000 |
-| [Phase 2](Phase-2.md) | Backend Consolidation - SAM template, deploy script, Lambda restructure | ~30,000 |
-| [Phase 3](Phase-3.md) | Sanitization & Docs - Dead code removal, comment stripping, documentation | ~25,000 |
-
-**Total Estimated Tokens:** ~115,000 (fits within 2 context windows with buffer)
-
-## Key Decisions
-
-1. **Orchestration-only root** - Root `package.json` delegates to subdirectories via `cd` commands
-2. **Python Lambdas preserved** - No runtime migration; restructure into `backend/lambdas/`
-3. **Tests by deployment target** - `tests/frontend/`, `tests/backend/`, `tests/puppeteer/`, `tests/e2e/`
-4. **Full sanitization** - Strip all console.log, comments, docstrings, dead code
-5. **react-stocks deployment pattern** - Interactive `deploy.js` script with `.deploy-config.json` persistence
+| Phase | Goal | Est. Tokens |
+|-------|------|-------------|
+| 0 | Foundation: Architecture, ADRs, Deploy Scripts, Testing Strategy | ~15k |
+| 1 | RAGStack Deployment & Ingestion Pipeline | ~45k |
+| 2 | Frontend Search Integration | ~35k |
 
 ## Navigation
 
-- [Phase 0: Foundation](Phase-0.md) - Start here
-- [Phase 1: Structure Migration](Phase-1.md)
-- [Phase 2: Backend Consolidation](Phase-2.md)
-- [Phase 3: Sanitization & Docs](Phase-3.md)
+- [Phase 0: Foundation](./Phase-0.md) - Architecture decisions, deployment scripts, testing strategy
+- [Phase 1: RAGStack & Ingestion](./Phase-1.md) - Deploy RAGStack, build ingestion triggers (9 tasks)
+- [Phase 2: Frontend Search](./Phase-2.md) - Search UI, API proxy, integration
+
+## Commit Guidelines
+
+**Important**: Do NOT include Co-Authored-By, Generated-By, or similar attribution lines in commit messages.
+
+**Commit Format:**
+```
+Author & Committer: HatmanStack
+Email: 82614182+HatmanStack@users.noreply.github.com
+
+type(scope): brief description
+
+- Detail 1
+- Detail 2
+```
+
+**Types**: feat, fix, refactor, test, docs, chore
+**Scopes**: backend, frontend, puppeteer, infra, ragstack

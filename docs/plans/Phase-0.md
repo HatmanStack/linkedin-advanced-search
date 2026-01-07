@@ -2,507 +2,441 @@
 
 ## Phase Goal
 
-Establish the foundational decisions, patterns, and infrastructure that all subsequent phases will inherit. This phase produces no deployable code changes but creates the "law" that governs the entire refactor: architecture decision records, deployment script specifications, testing strategy, and shared conventions.
+Establish architectural decisions, deployment automation, and testing strategy that govern all subsequent phases. This phase produces no runtime code but creates the infrastructure scaffolding and documentation that implementation phases inherit.
 
 **Success Criteria:**
-- All ADRs documented and approved
-- Deployment script specification complete
-- Testing strategy defined with mocking approach
-- CI/CD workflow specification finalized
-- Shared conventions documented
+- ADRs documented for key technical decisions
+- Deployment script specifications defined
+- Testing strategy established with mocking approach
+- Shared patterns and conventions documented
 
 **Estimated Tokens:** ~15,000
-
-## Prerequisites
-
-- Access to the repository
-- Familiarity with AWS SAM, React/Vite, and Python Lambda patterns
-- Review of existing codebase structure (see README.md)
 
 ---
 
 ## Architecture Decision Records (ADRs)
 
-### ADR-001: Monorepo Structure
+### ADR-001: Dedicated RAGStack Instance
 
-**Status:** Accepted
+**Context:** Need to choose between shared RAGStack deployment, dedicated instance, or direct Bedrock KB integration.
 
-**Context:** The codebase has grown organically with scattered directories (`src/`, `puppeteer-backend/`, `lambda-processing/`, `RAG-CloudStack/`). This makes deployment, testing, and onboarding difficult.
-
-**Decision:** Adopt a flat monorepo structure with clear deployment boundaries:
-- `frontend/` - React/Vite client (deploys to static hosting)
-- `backend/` - Lambda functions + SAM (deploys to AWS)
-- `puppeteer/` - Local automation server (runs locally)
-- `tests/` - Centralized test suites
-- `docs/` - Consolidated documentation
-- `scripts/` - Utility scripts
-
-**Consequences:**
-- Clear ownership per directory
-- Independent deployment pipelines
-- Simplified CI/CD configuration
-- Root `package.json` becomes orchestration-only
-
-### ADR-002: Orchestration-Only Root Package.json
-
-**Status:** Accepted
-
-**Context:** With multiple deployment targets (frontend, backend, puppeteer), a monorepo can use npm workspaces or simple orchestration scripts.
-
-**Decision:** Use orchestration-only approach (not npm workspaces):
-```json
-{
-  "scripts": {
-    "dev": "cd frontend && npm run dev",
-    "dev:puppeteer": "cd puppeteer && npm run dev",
-    "test": "npm run test:frontend && npm run test:backend && npm run test:puppeteer",
-    "test:frontend": "cd frontend && npm test",
-    "test:backend": "cd backend && npm run test",
-    "test:puppeteer": "cd puppeteer && npm test",
-    "lint": "npm run lint:frontend && npm run lint:backend && npm run lint:puppeteer",
-    "lint:frontend": "cd frontend && npm run lint",
-    "lint:backend": "cd backend && uvx ruff check lambdas",
-    "lint:puppeteer": "cd puppeteer && npm run lint",
-    "check": "npm run lint && npm run test",
-    "deploy": "cd backend && npm run deploy"
-  }
-}
-```
+**Decision:** Deploy a dedicated RAGStack-Lambda stack (`linkedin-profiles-kb`) for this project.
 
 **Rationale:**
-- Simpler than workspaces for mixed runtimes (Node.js + Python)
-- Each subdirectory fully self-contained with own `node_modules`
-- Explicit about what runs where
-- Matches the pattern used in react-stocks
+- Isolation: Profile data stays separate from other knowledge bases
+- Simplicity: No multi-tenant complexity
+- Control: Independent scaling, updates, and lifecycle management
+- Cost transparency: Clear attribution of Bedrock/S3 costs
 
 **Consequences:**
-- No shared `node_modules` hoisting
-- Must `cd` into directories for operations
-- Each package manages its own dependencies
+- Additional CloudFormation stack to manage
+- Separate deployment pipeline
+- Own API endpoint and API key
 
-### ADR-003: Test Organization by Deployment Target
+---
 
-**Status:** Accepted
+### ADR-002: Text Ingestion Without OCR
 
-**Context:** Tests are currently scattered in `tests/` with mixed concerns. Need clear organization for CI/CD optimization.
+**Context:** LinkedIn profiles can be captured as screenshots (requiring OCR) or extracted as structured text via DOM scraping.
 
-**Decision:** Organize tests by deployment target with type subdivisions:
-```
-tests/
-├── frontend/
-│   ├── unit/          # Component, hook, utility tests
-│   └── integration/   # Multi-component integration
-├── backend/
-│   ├── unit/          # Lambda handler unit tests
-│   └── integration/   # Lambda integration with mocked AWS
-├── puppeteer/
-│   └── unit/          # Server route and service tests
-├── e2e/               # Cross-system end-to-end tests
-└── fixtures/          # Shared mock data
-```
+**Decision:** Use existing `TextExtractionService` to generate markdown documents for ingestion. No OCR.
 
 **Rationale:**
-- CI can run `tests/backend/` only when `backend/` changes
-- Clear ownership: test failure path indicates broken system
-- `e2e/` sits at top level as it spans systems
+- Cost: Textract OCR costs ~$0.15/page; text extraction is free
+- Quality: Direct DOM extraction is more accurate than OCR
+- Speed: No image processing latency
+- Existing code: `TextExtractionService` already extracts name, headline, experience, education, skills, about
 
 **Consequences:**
-- Tests must be migrated from current locations
-- Import paths in tests must be updated
-- CI workflow jobs map directly to test directories
+- Must generate well-structured markdown from JSON profile data
+- Dependent on LinkedIn DOM selectors (existing maintenance burden)
+- Lose visual layout information (acceptable for search)
 
-### ADR-004: Python Lambdas Preserved
+---
 
-**Status:** Accepted
+### ADR-003: Ingestion Triggers
 
-**Context:** Current Lambda functions are Python 3.13. Converting to Node.js TypeScript would provide uniformity but requires significant effort.
+**Context:** Need to determine when profiles enter the knowledge base.
 
-**Decision:** Keep Python Lambdas, restructure into `backend/lambdas/`:
-```
-backend/
-├── lambdas/
-│   ├── edge-processing/
-│   │   ├── lambda_function.py
-│   │   ├── requirements.txt
-│   │   └── tests/
-│   ├── dynamodb-api/
-│   ├── placeholder-search/    # Already Node.js - keep as-is
-│   ├── profile-api/
-│   ├── profile-processing/
-│   ├── llm/
-│   ├── webhook-handler/
-│   └── shared/
-│       └── python/
-│           ├── config/
-│           └── utils/
-├── template.yaml
-└── samconfig.toml
-```
+**Decision:** Ingest profiles only when a relationship is established:
+1. After `sendConnectionRequest()` succeeds
+2. After `followProfile()` succeeds (new feature)
+3. During profile-init for existing connections
 
 **Rationale:**
-- Fastest path to target structure
-- No functional changes to working code
-- SAM handles mixed runtimes well
+- Data relevance: Only ingest profiles you have a relationship with
+- Cost control: Don't ingest "possible" contacts that may never be pursued
+- Privacy: Limit stored data to actual network
+- Future flexibility: Contact processing rework planned for separate PR
 
 **Consequences:**
-- Mixed runtimes in `backend/` (Python + one Node.js Lambda)
-- Testing requires both pytest and jest/vitest
+- "Possible" contacts from search are NOT searchable until acted upon
+- Need to track ingestion status per profile
+- Follow functionality must be implemented
 
-### ADR-005: Full Code Sanitization
+---
 
-**Status:** Accepted
+### ADR-004: Search Architecture
 
-**Context:** Codebase has accumulated debug statements, commented-out code, verbose docstrings, and dead code.
+**Context:** Choose between text search, chat interface, or hybrid.
 
-**Decision:** Aggressive sanitization:
-1. **Remove all `console.log`/`print()`** - Keep only structured error logging via Winston/Python logging
-2. **Strip all comments and docstrings** - Code should be self-documenting
-3. **Delete commented-out code blocks** - Git history preserves old code
-4. **Remove dead code** - Unused imports, functions, files
-5. **Delete debugger statements** - No `debugger;` or `breakpoint()`
+**Decision:** Text search only via RAGStack's `searchKnowledgeBase` query.
 
-**Exceptions:**
-- `console.error`/`console.warn` for error boundaries may remain if using structured format
-- Type annotations are preserved (they're not comments)
-- TODO comments linked to GitHub issues may remain temporarily
+**Rationale:**
+- Simplicity: Text search covers 90%+ of use cases
+- Cost: No LLM inference cost per search (embeddings only)
+- Performance: Direct vector search is faster than RAG chat
+- Extensibility: Chat can be added later on same KB
 
 **Consequences:**
-- Significant code reduction
-- Potential for accidental removal of necessary code (mitigated by tests)
-- Must verify test coverage before sanitization
+- No conversational refinement
+- No synthesis/aggregation queries
+- Users get profile matches, not natural language answers
 
-### ADR-006: Deployment Script Pattern (react-stocks)
+---
 
-**Status:** Accepted
+### ADR-005: Security Model
 
-**Context:** Need standardized deployment that doesn't rely on `sam deploy --guided` and persists configuration.
+**Context:** RAGStack API contains sensitive LinkedIn profile data.
 
-**Decision:** Adopt react-stocks deployment pattern:
-1. **Interactive prompts** for missing configuration
-2. **Persist to `.deploy-config.json`** (git-ignored)
-3. **Generate `samconfig.toml`** programmatically
-4. **Execute `sam build && sam deploy`**
-5. **Update `.env`** with stack outputs post-deployment
+**Decision:** Keep RAGStack API private with API key auth. All requests proxied through linkedin-advanced-search backend.
 
-**Script Location:** `backend/scripts/deploy.js`
+**Rationale:**
+- Data protection: Profile PII not exposed to browser
+- Cost protection: Prevent unauthorized query costs
+- Audit trail: All access logged through our API
+- Consistency: Matches existing auth pattern (Cognito → Backend → Lambda)
+
+**Architecture:**
+```
+Browser → linkedin-advanced-search API (Cognito JWT)
+       → Backend Lambda (has RAGStack API key)
+       → RAGStack GraphQL (API key auth)
+```
 
 **Consequences:**
-- Consistent deployment experience
-- No manual samconfig.toml editing
-- Secrets prompted at deploy time, not stored in config
+- Additional Lambda for proxying
+- API key must be stored securely (Secrets Manager or SSM)
+- Slight latency increase from proxy hop
+
+---
+
+### ADR-006: Result Hydration Pattern
+
+**Context:** RAGStack returns document IDs/sources. UI needs full profile cards.
+
+**Decision:** RAGStack returns profile IDs → fetch full profile cards from DynamoDB → display with existing components.
+
+**Rationale:**
+- Single source of truth: DynamoDB has authoritative profile data
+- UI consistency: Reuse existing `ConnectionCard` components
+- Flexibility: Can add/change displayed fields without re-ingesting
+
+**Flow:**
+```
+Search query → RAGStack → profile IDs (100 max)
+            → DynamoDB batch get → full profiles
+            → existing filtering → display cards
+```
+
+**Consequences:**
+- Two-step data fetch (RAGStack + DynamoDB)
+- Must maintain profile ID consistency between systems
+- Existing client-side filtering still works on results
+
+---
+
+## Tech Stack
+
+### RAGStack Instance
+- **Stack Name:** `linkedin-profiles-kb`
+- **Region:** Same as linkedin-advanced-search (us-west-2 or configured)
+- **Embedding Model:** Amazon Nova Multimodal Embeddings v1
+- **Storage:** S3 Vectors (not OpenSearch)
+- **API:** AppSync GraphQL with API key auth
+
+### New Components in linkedin-advanced-search
+| Component | Technology | Location |
+|-----------|------------|----------|
+| RAGStack Proxy Lambda | Python 3.13 | `backend/lambdas/ragstack-proxy/` |
+| Ingestion Trigger | Python (in edge-processing) | `backend/lambdas/edge-processing/` |
+| Profile Markdown Generator | JavaScript | `puppeteer/src/domains/profile/utils/` |
+| Search Service | TypeScript | `frontend/src/shared/services/` |
+| Search Hook | TypeScript | `frontend/src/features/connections/hooks/` |
+
+### Dependencies
+| Package | Version | Purpose |
+|---------|---------|---------|
+| `gql` | ^3.x | GraphQL client for RAGStack API |
+| `graphql-request` | ^6.x | Lightweight GraphQL HTTP client |
 
 ---
 
 ## Deployment Script Specification
 
-### Overview
+### Script: `npm run deploy:ragstack`
 
-The deployment script (`backend/scripts/deploy.js`) handles AWS infrastructure deployment using SAM CLI. It follows an interactive pattern that persists non-sensitive configuration.
+**Location:** `scripts/deploy-ragstack.js`
 
-### Flow
+**Behavior:**
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                     npm run deploy                               │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│  1. CHECK PREREQUISITES                                          │
-│     - AWS CLI configured (aws sts get-caller-identity)          │
-│     - SAM CLI installed (sam --version)                          │
-│     - Docker running (for Python Lambda builds)                  │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│  2. LOAD OR PROMPT CONFIG                                        │
-│     - Check for .deploy-config.json                              │
-│     - If exists: load and validate                               │
-│     - If missing fields: prompt user                             │
-│     - Save updated config to .deploy-config.json                 │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│  3. GENERATE SAMCONFIG.TOML                                      │
-│     - Build parameter_overrides from config                      │
-│     - Write samconfig.toml with stack_name, region, capabilities │
-│     - Do NOT include secrets in samconfig.toml                   │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│  4. BUILD AND DEPLOY                                             │
-│     - sam build (uses Docker for Python)                         │
-│     - sam deploy --no-confirm-changeset                          │
-│     - Stream output to console                                   │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│  5. UPDATE ENVIRONMENT                                           │
-│     - Fetch CloudFormation stack outputs                         │
-│     - Update root .env with:                                     │
-│       - VITE_API_GATEWAY_URL                                     │
-│       - VITE_COGNITO_USER_POOL_ID                                │
-│       - VITE_COGNITO_USER_POOL_WEB_CLIENT_ID                     │
-│       - VITE_S3_BUCKET                                           │
-└─────────────────────────────────────────────────────────────────┘
-```
+1. **Check Local Config**
+   - Look for `.ragstack-config.json` (git-ignored)
+   - If missing, prompt for required values
 
-### Configuration Schema
+2. **Required Configuration:**
+   ```json
+   {
+     "stackName": "linkedin-profiles-kb",
+     "region": "us-west-2",
+     "ragstackPath": "~/war/RAGStack-Lambda",
+     "s3Bucket": "linkedin-profiles-kb-{accountId}",
+     "bedrockModelAccess": true
+   }
+   ```
 
-**`.deploy-config.json`** (git-ignored):
-```json
-{
-  "region": "us-west-2",
-  "stackName": "linkedin-advanced-search",
-  "includeDevOrigins": true,
-  "productionOrigins": "https://myapp.example.com"
-}
-```
+3. **Generate samconfig.toml**
+   - Build from local config values
+   - DO NOT use `sam deploy --guided`
+   - Write to RAGStack-Lambda directory
 
-**Prompted Values (not persisted):**
-- Secrets are prompted each deployment and passed via `--parameter-overrides`
-- This project currently has no Lambda-level secrets (Cognito handles auth)
+4. **Execute Deployment**
+   ```bash
+   cd {ragstackPath}
+   sam build
+   sam deploy --config-file samconfig.toml
+   ```
 
-### samconfig.toml Generation
+5. **Capture Outputs**
+   - GraphQL endpoint URL
+   - API key ID
+   - Knowledge base ID
+   - Data source IDs
 
-```toml
-version = 0.1
-[default.deploy.parameters]
-stack_name = "linkedin-advanced-search"
-region = "us-west-2"
-capabilities = "CAPABILITY_IAM"
-resolve_s3 = true
-```
+6. **Update Environment**
+   - Write to `.env.ragstack` (git-ignored)
+   - Format:
+     ```
+     RAGSTACK_GRAPHQL_ENDPOINT=https://xxx.appsync-api.region.amazonaws.com/graphql
+     RAGSTACK_API_KEY=da2-xxxxxxxxxxxx
+     RAGSTACK_KB_ID=XXXXXXXXXX
+     ```
 
-### Error Handling
+### Script: `npm run deploy` (existing, enhanced)
 
-1. **Missing prerequisites** - Exit with clear error message
-2. **Invalid config** - Prompt user to fix or delete `.deploy-config.json`
-3. **Build failure** - Exit with SAM error output
-4. **Deploy failure** - Exit with CloudFormation error, suggest stack deletion
-5. **Output fetch failure** - Warn but don't fail (deployment succeeded)
+**Modifications:**
+- Add step to check for `.env.ragstack`
+- If present, inject RAGStack env vars into SAM parameters
+- Pass to backend Lambdas that need RAGStack access
 
 ---
 
 ## Testing Strategy
 
-### Principles
+### Unit Tests
+- **Location:** `tests/` directories in each package
+- **Framework:**
+  - Frontend: Vitest + React Testing Library (existing)
+  - Backend: pytest + pytest-mock (existing)
+  - Puppeteer: Vitest (must be set up in Phase 1, Task 1)
+- **Coverage Target:** 80% for new code
 
-1. **Unit tests are primary** - Fast, isolated, no external dependencies
-2. **Integration tests use mocks** - AWS SDK mocked, no live resources
-3. **E2E tests are optional** - Run locally, not in CI
-4. **CI runs tests in isolation** - No network calls, no AWS credentials needed
-
-### Framework Mapping
-
-| Target | Framework | Location |
-|--------|-----------|----------|
-| Frontend | Vitest + React Testing Library | `tests/frontend/` |
-| Backend (Python) | pytest + moto + pytest-mock | `tests/backend/` |
-| Backend (Node.js Lambda) | Vitest | `tests/backend/` |
-| Puppeteer | Vitest | `tests/puppeteer/` |
-| E2E | Playwright (future) | `tests/e2e/` |
+**Note:** Puppeteer currently has no test infrastructure. Phase 1 Task 1 must establish Vitest before any puppeteer tests can be written.
 
 ### Mocking Approach
 
-**Frontend:**
-- Mock `@aws-sdk/*` using Vitest mocks
-- Mock API calls using MSW or manual mocks
-- Mock Cognito auth context
+**RAGStack API Mocks:**
+```python
+# Mock GraphQL responses
+@pytest.fixture
+def mock_ragstack_client():
+    return Mock(
+        search=Mock(return_value={
+            "results": [
+                {"content": "...", "source": "profile_abc123", "score": 0.95}
+            ]
+        }),
+        ingest=Mock(return_value={"status": "success", "documentId": "..."})
+    )
+```
 
-**Backend (Python):**
-- Use `moto` for DynamoDB, S3, Cognito mocking
-- Use `pytest-mock` for external service calls
-- Environment variables set in conftest.py
+**DynamoDB Mocks:**
+```python
+# Use moto for DynamoDB mocking
+@pytest.fixture
+def dynamodb_table():
+    with mock_aws():
+        dynamodb = boto3.resource('dynamodb', region_name='us-west-2')
+        table = dynamodb.create_table(...)
+        yield table
+```
 
-**Backend (Node.js Lambda):**
-- Mock AWS SDK v3 using Vitest
-- Mock external APIs using `nock` or manual mocks
+**Frontend Service Mocks:**
+```typescript
+// Mock search service
+vi.mock('@/services/ragstackSearchService', () => ({
+  searchProfiles: vi.fn().mockResolvedValue({
+    profileIds: ['abc123', 'def456'],
+    totalResults: 2
+  })
+}));
+```
 
-**Puppeteer Server:**
-- Mock Puppeteer browser instance
-- Mock AWS SDK calls
-- Mock external LinkedIn responses
+### Integration Tests (Mocked)
 
-### Test File Naming
+All integration tests run against mocked services to ensure CI compatibility:
+- Mock RAGStack GraphQL endpoint responses
+- Mock DynamoDB with moto
+- Mock S3 operations with moto
+- No live AWS calls in CI
 
-- Unit tests: `*.test.ts`, `*.test.tsx`, `test_*.py`
-- Integration tests: `*.integration.test.ts`, `*_integration_test.py`
-- E2E tests: `*.e2e.test.ts`
+### CI Pipeline Configuration
 
-### Coverage Requirements
-
-- **Unit tests:** 80% line coverage minimum
-- **Integration tests:** Critical paths covered
-- **No coverage requirement for E2E** (optional)
-
----
-
-## CI/CD Workflow Specification
-
-### Workflow File: `.github/workflows/ci.yml`
-
-**Triggers:**
-- `push` to `main`, `develop`
-- `pull_request` to `main`, `develop`
-
-**Jobs:**
+**GitHub Actions:** `.github/workflows/ci.yml`
 
 ```yaml
-jobs:
-  frontend-lint:
-    runs-on: ubuntu-latest
-    steps:
-      - Checkout
-      - Setup Node.js 24
-      - Install deps (cd frontend && npm ci)
-      - Run lint (npm run lint)
-      - Run TypeScript check (npx tsc --noEmit)
-
-  frontend-tests:
-    runs-on: ubuntu-latest
-    steps:
-      - Checkout
-      - Setup Node.js 24
-      - Install deps
-      - Run tests (npm test -- --ci)
-
-  backend-lint:
-    runs-on: ubuntu-latest
-    steps:
-      - Checkout
-      - Setup Python 3.13
-      - Install uv
-      - Run ruff (uvx ruff check backend/lambdas)
-
-  backend-tests:
-    runs-on: ubuntu-latest
-    env:
-      AWS_DEFAULT_REGION: us-east-1
-      DYNAMODB_TABLE: test-table
-      PYTHONPATH: ${{ github.workspace }}/backend/lambdas
-    steps:
-      - Checkout
-      - Setup Python 3.13
-      - Install test deps (uv pip install pytest pytest-mock moto requests-mock)
-      - Run pytest (pytest tests/backend -v --tb=short)
-
-  puppeteer-lint:
-    runs-on: ubuntu-latest
-    steps:
-      - Checkout
-      - Setup Node.js 24
-      - Install deps (cd puppeteer && npm ci)
-      - Run lint (npm run lint)
-
-  puppeteer-tests:
-    runs-on: ubuntu-latest
-    steps:
-      - Checkout
-      - Setup Node.js 24
-      - Install deps
-      - Run tests (npm test -- --ci)
-
-  status-check:
-    needs: [frontend-lint, frontend-tests, backend-lint, backend-tests, puppeteer-lint, puppeteer-tests]
-    runs-on: ubuntu-latest
-    if: always()
-    steps:
-      - Check all jobs passed
-      - Fail if any dependency failed
+# Tests run without AWS credentials
+# All external services mocked
+# RAGStack tests use recorded GraphQL responses
 ```
-
-**Key Constraints:**
-- No deployment in CI
-- No AWS credentials in CI
-- All tests must pass with mocks only
-- Node.js 24 and Python 3.13 enforced
 
 ---
 
-## Shared Conventions
+## Shared Patterns and Conventions
 
-### Commit Message Format
+### Profile ID Consistency
 
+Profile IDs use base64-encoded LinkedIn URLs throughout:
 ```
-type(scope): brief description
-
-- Detail 1
-- Detail 2
-
-Author & Committer: HatmanStack
-Email: 82614182+HatmanStack@users.noreply.github.com
+LinkedIn URL: https://www.linkedin.com/in/johndoe
+Profile ID: aHR0cHM6Ly93d3cubGlua2VkaW4uY29tL2luL2pvaG5kb2U=
 ```
 
-**Types:** `feat`, `fix`, `refactor`, `test`, `docs`, `chore`, `ci`
+Both DynamoDB and RAGStack use this same ID for correlation.
 
-**Scopes:** `frontend`, `backend`, `puppeteer`, `tests`, `scripts`, `ci`
+### Markdown Profile Format
 
-### File Naming
+Standard markdown structure for ingestion:
+```markdown
+# {name}
 
-- **TypeScript/JavaScript:** `camelCase.ts`, `PascalCase.tsx` (components)
-- **Python:** `snake_case.py`
-- **Tests:** `{name}.test.ts`, `test_{name}.py`
-- **Config:** `lowercase.config.ts`
+**Headline:** {headline}
+**Location:** {location}
+**Profile ID:** {profile_id}
 
-### Import Order
+## About
+{about_text}
 
-**TypeScript:**
-1. Node built-ins
-2. External packages
-3. Internal aliases (`@/`)
-4. Relative imports
+## Current Position
+- **Title:** {current_title}
+- **Company:** {current_company}
+- **Duration:** {start_date} - Present
 
-**Python:**
-1. Standard library
-2. Third-party packages
-3. Local imports
+## Experience
+### {company_1}
+**{title_1}** | {dates_1}
+{description_1}
 
-### Error Handling
+### {company_2}
+...
 
-- **Frontend:** Error boundaries + toast notifications
-- **Backend Lambda:** Structured JSON responses with status codes
-- **Puppeteer:** Winston logger with error levels
+## Education
+### {school_1}
+{degree_1} in {field_1} | {dates_1}
 
-### Environment Variables
+## Skills
+{skill_1}, {skill_2}, {skill_3}, ...
+```
 
-**Frontend (VITE_*):**
-- `VITE_API_GATEWAY_URL`
-- `VITE_COGNITO_USER_POOL_ID`
-- `VITE_COGNITO_USER_POOL_WEB_CLIENT_ID`
-- `VITE_PUPPETEER_BACKEND_URL`
+### Error Handling Pattern
 
-**Backend Lambda:**
-- `DYNAMODB_TABLE`
-- `AWS_REGION`
-- `LOG_LEVEL`
+```typescript
+// Frontend: Wrap service calls
+try {
+  const results = await ragstackSearchService.searchProfiles(query);
+  return results;
+} catch (error) {
+  logger.error('RAGStack search failed', { error: error.message, query });
+  throw new SearchError('Profile search unavailable', { cause: error });
+}
+```
 
-**Puppeteer:**
-- `PORT`
-- `NODE_ENV`
-- `FRONTEND_URLS`
-- `HEADLESS`
+```python
+# Backend: Return structured errors
+try:
+    response = ragstack_client.search(query)
+    return {"statusCode": 200, "body": json.dumps(response)}
+except RAGStackError as e:
+    logger.error(f"RAGStack error: {e}")
+    return {"statusCode": 502, "body": json.dumps({"error": "Search service unavailable"})}
+```
+
+### Logging Convention
+
+All RAGStack operations logged with:
+- Operation type (search, ingest)
+- Profile ID (if applicable)
+- User ID (from JWT)
+- Duration
+- Result count or error
+
+---
+
+## File Structure Overview
+
+```
+linkedin-advanced-search/
+├── backend/
+│   ├── lambdas/
+│   │   ├── ragstack-proxy/          # NEW: Proxy Lambda
+│   │   │   ├── index.py
+│   │   │   ├── ragstack_client.py
+│   │   │   └── requirements.txt
+│   │   └── edge-processing/         # MODIFY: Add ingestion trigger
+│   │       └── lambda_function.py
+│   └── template.yaml                # MODIFY: Add new Lambda
+├── puppeteer/
+│   └── src/domains/profile/
+│       └── utils/
+│           └── profileMarkdownGenerator.js  # NEW
+├── frontend/
+│   └── src/
+│       ├── features/connections/
+│       │   ├── components/
+│       │   │   └── ConnectionSearchBar.tsx  # NEW
+│       │   └── hooks/
+│       │       └── useProfileSearch.ts      # NEW
+│       └── shared/services/
+│           └── ragstackSearchService.ts     # NEW
+├── scripts/
+│   └── deploy/
+│       └── deploy-ragstack.js       # NEW
+├── .ragstack-config.json            # NEW (git-ignored)
+├── .env.ragstack                    # NEW (git-ignored)
+└── docs/plans/
+    ├── README.md
+    ├── Phase-0.md
+    ├── Phase-1.md
+    └── Phase-2.md
+```
 
 ---
 
 ## Phase Verification
 
 This phase is complete when:
-
-- [ ] All ADRs reviewed and understood
-- [ ] Deployment script specification reviewed
-- [ ] Testing strategy reviewed
-- [ ] CI/CD workflow specification reviewed
-- [ ] Shared conventions reviewed
-
-**Note:** Phase 0 produces no code changes. It establishes the rules for Phases 1-3.
+- [ ] All ADRs reviewed and agreed upon
+- [ ] Deployment script specification approved
+- [ ] Testing strategy understood
+- [ ] File structure clear
+- [ ] No implementation code written (documentation only)
 
 ---
 
-## Next Phase
+## Known Limitations
 
-Proceed to [Phase 1: Structure Migration](Phase-1.md) to begin moving files and updating imports.
+1. **Follow functionality does not exist** - Must be implemented in Phase 1
+2. **No chat interface** - Text search only (can add later)
+3. **100 result limit** - RAGStack maxResults capped
+4. **Single-user scope** - No multi-tenant considerations yet
+5. **LinkedIn selector fragility** - Existing maintenance burden

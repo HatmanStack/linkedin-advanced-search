@@ -1,746 +1,886 @@
-# Phase 2: Backend Consolidation
+# Phase 2: Frontend Search Integration
 
 ## Phase Goal
 
-Consolidate all Lambda functions and AWS infrastructure into the `backend/` directory following the react-stocks deployment pattern. This phase creates the SAM template, deployment script, and restructures Lambda code for unified deployment.
+Integrate RAGStack semantic search into the frontend Connections tab, enabling users to search their network with natural language queries. Search results are hydrated from DynamoDB and displayed using existing connection card components.
 
 **Success Criteria:**
-- All Lambda functions organized in `backend/lambdas/`
-- Single SAM template defining all resources
-- Interactive deployment script following react-stocks pattern
-- `npm run deploy` successfully deploys to AWS
-- Stack outputs automatically update `.env`
+- Search bar visible in Connections tab
+- Queries sent to RAGStack via backend proxy
+- Results displayed as profile cards
+- Existing filtering works on search results
+- Loading and error states handled
+- All tests passing with mocked services
 
-**Estimated Tokens:** ~30,000
+**Estimated Tokens:** ~35,000
+
+---
 
 ## Prerequisites
 
-- Phase 1 complete (files migrated to new structure)
-- AWS CLI configured with credentials
-- SAM CLI installed
-- Docker running (for Python Lambda builds)
+- Phase 1 complete (RAGStack deployed, ingestion working)
+- RAGStack proxy Lambda accessible
+- Profiles ingested and searchable
+- Understanding of existing Connections tab architecture
 
 ---
 
-## Task 1: Create Backend Package Structure
+## Tasks
 
-**Goal:** Set up the `backend/` directory with proper package.json and configuration.
+### Task 1: RAGStack Search Service
+
+**Goal:** Create frontend service to communicate with RAGStack proxy Lambda for search operations.
 
 **Files to Create:**
-- `backend/package.json`
-- `backend/.gitignore`
-- `backend/pyproject.toml`
+- `frontend/src/shared/services/ragstackSearchService.ts` - Search service
+- `frontend/src/shared/services/ragstackSearchService.test.ts` - Unit tests
 
 **Prerequisites:**
-- Phase 1 Task 1 complete (directory scaffold exists)
+- Understanding of existing `puppeteerApiService` patterns
+- RAGStack proxy Lambda endpoint available
 
 **Implementation Steps:**
 
-1. Create `backend/package.json`:
-   ```json
+1. Create service with methods:
+   ```typescript
+   interface SearchResult {
+     profileId: string;
+     score: number;
+     snippet: string;
+   }
+
+   interface SearchResponse {
+     results: SearchResult[];
+     totalResults: number;
+   }
+
+   async function searchProfiles(query: string, maxResults?: number): Promise<SearchResponse>
+   ```
+
+2. HTTP client setup:
+   - Use same axios instance pattern as `puppeteerApiService`
+   - Attach JWT token from session storage
+   - Target RAGStack proxy endpoint
+
+3. Request format:
+   ```typescript
    {
-     "name": "linkedin-advanced-search-backend",
-     "version": "1.0.0",
-     "private": true,
-     "type": "module",
-     "scripts": {
-       "deploy": "node scripts/deploy.js",
-       "test": "pytest ../tests/backend -v --tb=short",
-       "lint": "uvx ruff check lambdas"
-     },
-     "devDependencies": {}
+     operation: 'search',
+     query: string,
+     maxResults: number // default 100
    }
    ```
 
-2. Create `backend/.gitignore`:
-   ```
-   .aws-sam/
-   .deploy-config.json
-   samconfig.toml
-   node_modules/
-   __pycache__/
-   *.pyc
-   .pytest_cache/
-   ```
+4. Response transformation:
+   - Extract profile IDs from RAGStack source field
+   - Parse scores for potential relevance display
+   - Extract snippet for search highlighting (future)
 
-3. Create `backend/pyproject.toml` (copy from lambda-processing with updates):
-   - Update target-version to "py313"
-   - Update exclude paths for new structure
+5. Error handling:
+   - Network errors → throw `SearchError`
+   - Empty results → return empty array (not error)
+   - Rate limiting → surface to UI
 
 **Verification Checklist:**
-- [ ] `backend/package.json` has deploy and test scripts
-- [ ] `.gitignore` excludes SAM build artifacts and config
-- [ ] `pyproject.toml` configured for Python 3.13
+- [ ] Service exports `searchProfiles` function
+- [ ] JWT token attached to requests
+- [ ] Response transformed to `SearchResponse` shape
+- [ ] Empty results handled correctly
+- [ ] Network errors throw typed exception
+- [ ] Timeout configured appropriately
 
 **Testing Instructions:**
-- Verify `cd backend && npm run lint` runs (will fail until lambdas exist)
-- Verify package.json is valid JSON
+
+Unit tests with mocked axios:
+```typescript
+describe('ragstackSearchService', () => {
+  it('should return profile IDs from search', async () => {
+    vi.mocked(axios.post).mockResolvedValue({
+      data: {
+        results: [
+          { source: 'profile_abc123', score: 0.95, content: '...' }
+        ],
+        totalResults: 1
+      }
+    });
+
+    const response = await searchProfiles('software engineer');
+
+    expect(response.results[0].profileId).toBe('abc123');
+    expect(response.totalResults).toBe(1);
+  });
+
+  it('should handle empty results', async () => {
+    vi.mocked(axios.post).mockResolvedValue({
+      data: { results: [], totalResults: 0 }
+    });
+
+    const response = await searchProfiles('nonexistent');
+
+    expect(response.results).toEqual([]);
+  });
+});
+```
 
 **Commit Message Template:**
 ```
-Author & Committer: HatmanStack
-Email: 82614182+HatmanStack@users.noreply.github.com
+feat(frontend): add RAGStack search service
 
-chore(backend): create package structure
-
-- Add package.json with deploy and test scripts
-- Add .gitignore for SAM artifacts
-- Add pyproject.toml for ruff configuration
+- Calls RAGStack proxy Lambda for profile search
+- Transforms responses to typed interface
+- Handles errors and empty results
 ```
 
 ---
 
-## Task 2: Migrate Lambda Functions
+### Task 2: Profile Search Hook
 
-**Goal:** Move all Lambda function code from `lambda-processing/` to `backend/lambdas/`.
-
-**Files to Modify/Create:**
-- Move `lambda-processing/linkedin-advanced-search-edge-processing-prod/` → `backend/lambdas/edge-processing/`
-- Move `lambda-processing/linkedin-advanced-search-dynamodb-api-prod/` → `backend/lambdas/dynamodb-api/`
-- Move `lambda-processing/linkedin-advanced-search-placeholder-search-prod/` → `backend/lambdas/placeholder-search/`
-- Move `lambda-processing/linkedin-advanced-search-profile-api-prod/` → `backend/lambdas/profile-api/`
-- Move `lambda-processing/linkedin-advanced-search-profile-processing-dev/` → `backend/lambdas/profile-processing/`
-- Move `lambda-processing/linkedin-advanced-search-llm-prod/` → `backend/lambdas/llm/`
-- Move `lambda-processing/openai-webhook-handler/` → `backend/lambdas/webhook-handler/`
-- Move `lambda-processing/shared/` → `backend/lambdas/shared/`
-- Move `lambda-processing/conftest.py` → `tests/backend/conftest.py`
-
-**Prerequisites:**
-- Task 1 complete
-
-**Implementation Steps:**
-
-1. Move each Lambda directory using git mv to preserve history
-2. Rename directories to shorter, cleaner names (remove prefixes)
-3. Move the shared Python utilities to `backend/lambdas/shared/`
-4. Move `conftest.py` to the test directory
-5. Update any relative imports in Lambda code that reference shared utilities
-6. Verify each Lambda's `requirements.txt` is present (see note below)
-7. Delete empty `lambda-processing/` directory
-
-**Note on requirements.txt:**
-- `profile-api` Lambda does NOT have a `requirements.txt` file - it uses only boto3 which is included in Lambda runtime
-- All other Lambdas have `requirements.txt` files
-- For Lambdas without `requirements.txt`, SAM will deploy with only standard library and boto3
-
-**Verification Checklist:**
-- [ ] All 7 Lambda directories exist in `backend/lambdas/`
-- [ ] Shared utilities in `backend/lambdas/shared/`
-- [ ] Each Lambda has `lambda_function.py` (or `index.js`)
-- [ ] Lambdas with external dependencies have `requirements.txt`
-- [ ] No Lambda code remains in old location
-
-**Testing Instructions:**
-- Verify Python syntax in each Lambda file
-- Run ruff check on lambdas directory
-- Verify imports resolve (may need PYTHONPATH adjustment)
-
-**Commit Message Template:**
-```
-Author & Committer: HatmanStack
-Email: 82614182+HatmanStack@users.noreply.github.com
-
-refactor(backend): migrate Lambda functions
-
-- Move all Lambdas to backend/lambdas/
-- Rename to cleaner directory names
-- Move shared utilities
-- Move conftest.py to tests/backend/
-```
-
----
-
-## Task 3: Create SAM Template
-
-**Goal:** Create a unified SAM template that defines all AWS resources.
+**Goal:** Create React hook that manages search state, debouncing, and result hydration from DynamoDB.
 
 **Files to Create:**
-- `backend/template.yaml`
+- `frontend/src/features/connections/hooks/useProfileSearch.ts` - Search hook
+- `frontend/src/features/connections/hooks/useProfileSearch.test.ts` - Unit tests
 
 **Prerequisites:**
-- Task 2 complete
+- Task 1 complete (search service)
+- Understanding of existing `useConnections` hook
+- Understanding of `lambdaApiService` for profile fetching
 
 **Implementation Steps:**
 
-1. Create `backend/template.yaml` based on `RAG-CloudStack/template.yaml` with these modifications:
+1. Create hook with state management:
+   ```typescript
+   interface UseProfileSearchResult {
+     searchQuery: string;
+     setSearchQuery: (query: string) => void;
+     searchResults: Connection[];
+     isSearching: boolean;
+     searchError: Error | null;
+     clearSearch: () => void;
+     isSearchActive: boolean;
+   }
 
-**Note on nested templates:** The existing `RAG-CloudStack/` has nested templates in `templates/` subdirectory (`cognito.yaml`, `dynamodb.yaml`, `lambdas.yaml`, `apigw-http.yaml`). For simplicity, **flatten all resources into a single `template.yaml`** file (like react-stocks does). This avoids nested stack complexity and makes the template easier to maintain. The existing `RAG-CloudStack/template.yaml` already contains all resources inline - the nested templates appear to be unused/legacy.
-
-2. Update the template structure:
-   - Parameters section for configurable values
-   - Globals section for shared Lambda config
-   - Resources section for all AWS resources
-   - Outputs section for stack values
-
-3. Define parameters:
-   ```yaml
-   Parameters:
-     Environment:
-       Type: String
-       Default: prod
-       AllowedValues: [dev, prod]
-     IncludeDevOrigins:
-       Type: String
-       Default: 'true'
-       AllowedValues: ['true', 'false']
-     ProductionOrigins:
-       Type: String
-       Default: ''
-       Description: Comma-separated production origins
+   function useProfileSearch(allConnections: Connection[]): UseProfileSearchResult
    ```
 
-4. Define global settings:
-   ```yaml
-   Globals:
-     Function:
-       Runtime: python3.13
-       Timeout: 30
-       MemorySize: 512
-       Environment:
-         Variables:
-           DYNAMODB_TABLE: !Ref ProfilesTable
-           LOG_LEVEL: INFO
-     HttpApi:
-       CorsConfiguration:
-         AllowOrigins: # Dynamic based on IncludeDevOrigins
-         AllowHeaders: [Content-Type, Authorization]
-         AllowMethods: [GET, POST, OPTIONS]
+2. Debounce search input:
+   - Wait 300ms after user stops typing
+   - Cancel pending searches on new input
+   - Clear results when query cleared
+
+3. Search flow:
+   ```
+   User types query
+   → Debounce 300ms
+   → Call ragstackSearchService.searchProfiles(query)
+   → Receive profile IDs
+   → Match against allConnections by ID
+   → Return matched connections in score order
    ```
 
-5. Define resources (preserve existing resource configurations):
-   - DynamoDB Table (ProfilesTable)
-   - Cognito User Pool and Client
-   - S3 Bucket (Screenshots)
-   - All Lambda Functions with updated CodeUri paths
-   - HTTP API (created implicitly by SAM)
+4. Result hydration:
+   - Match RAGStack profile IDs to existing connections
+   - Preserve RAGStack relevance ordering
+   - Fall back to DynamoDB fetch for missing profiles (edge case)
 
-6. Update all Lambda CodeUri paths:
-   ```yaml
-   EdgeProcessingFunction:
-     Type: AWS::Serverless::Function
-     Properties:
-       CodeUri: lambdas/edge-processing/
-       Handler: lambda_function.lambda_handler
-   ```
-
-7. Define outputs:
-   ```yaml
-   Outputs:
-     ApiUrl:
-       Value: !Sub 'https://${ServerlessHttpApi}.execute-api.${AWS::Region}.amazonaws.com'
-     UserPoolId:
-       Value: !Ref UserPool
-     UserPoolClientId:
-       Value: !Ref UserPoolClient
-     DynamoDBTableName:
-       Value: !Ref ProfilesTable
-     ScreenshotBucketName:
-       Value: !Ref ScreenshotBucket
-   ```
+5. State management:
+   - `isSearchActive` true when query has content
+   - `isSearching` true during API call
+   - Clear search returns to showing all connections
 
 **Verification Checklist:**
-- [ ] Template is valid YAML
-- [ ] `sam validate` passes
-- [ ] All Lambda CodeUri paths point to correct directories
-- [ ] All existing resources are defined
-- [ ] Outputs include all values needed for .env
+- [ ] Debounces input at 300ms
+- [ ] Cancels pending searches on new input
+- [ ] Returns hydrated Connection objects
+- [ ] Preserves relevance ordering
+- [ ] `isSearchActive` reflects query state
+- [ ] `isSearching` reflects loading state
+- [ ] `clearSearch` resets all state
 
 **Testing Instructions:**
-- Run `cd backend && sam validate`
-- Review template for correctness
-- Compare against original RAG-CloudStack template
+
+Unit tests with mocked services:
+```typescript
+describe('useProfileSearch', () => {
+  it('should debounce search queries', async () => {
+    const { result } = renderHook(() => useProfileSearch(mockConnections));
+
+    act(() => result.current.setSearchQuery('eng'));
+    act(() => result.current.setSearchQuery('engi'));
+    act(() => result.current.setSearchQuery('engineer'));
+
+    // Only one search after debounce
+    await waitFor(() => {
+      expect(mockSearchProfiles).toHaveBeenCalledTimes(1);
+      expect(mockSearchProfiles).toHaveBeenCalledWith('engineer', 100);
+    });
+  });
+
+  it('should hydrate results from connections', async () => {
+    vi.mocked(searchProfiles).mockResolvedValue({
+      results: [{ profileId: 'abc123', score: 0.9, snippet: '' }],
+      totalResults: 1
+    });
+
+    const { result } = renderHook(() => useProfileSearch([
+      { id: 'abc123', first_name: 'John', ...otherFields }
+    ]));
+
+    act(() => result.current.setSearchQuery('john'));
+
+    await waitFor(() => {
+      expect(result.current.searchResults[0].first_name).toBe('John');
+    });
+  });
+});
+```
 
 **Commit Message Template:**
 ```
-Author & Committer: HatmanStack
-Email: 82614182+HatmanStack@users.noreply.github.com
+feat(frontend): add useProfileSearch hook
 
-feat(backend): create unified SAM template
-
-- Define all Lambda functions
-- Configure DynamoDB, Cognito, S3 resources
-- Set up HTTP API with CORS
-- Add configurable parameters
+- Debounced search with 300ms delay
+- Hydrates results from existing connections
+- Manages loading and error states
 ```
 
 ---
 
-## Task 4: Create Deployment Script
+### Task 3: Connection Search Bar Component
 
-**Goal:** Create an interactive deployment script following the react-stocks pattern.
+**Goal:** Create search input component for the Connections tab with clear button and loading indicator.
 
 **Files to Create:**
-- `backend/scripts/deploy.js`
+- `frontend/src/features/connections/components/ConnectionSearchBar.tsx` - Component
+- `frontend/src/features/connections/components/ConnectionSearchBar.test.tsx` - Unit tests
 
 **Prerequisites:**
-- Task 3 complete
+- Understanding of existing UI components (Input, Button from shadcn/ui)
+- Design system patterns from existing components
 
 **Implementation Steps:**
 
-1. Create `backend/scripts/deploy.js` with these sections:
+1. Create component with props:
+   ```typescript
+   interface ConnectionSearchBarProps {
+     value: string;
+     onChange: (value: string) => void;
+     onClear: () => void;
+     isLoading: boolean;
+     placeholder?: string;
+     className?: string;
+   }
+   ```
 
-2. **Prerequisites Check:**
-   - Verify AWS CLI is configured (`aws sts get-caller-identity`)
-   - Verify SAM CLI is installed (`sam --version`)
-   - Verify Docker is running (for Python builds)
+2. UI elements:
+   - Search icon (left side)
+   - Text input (center)
+   - Loading spinner (replaces clear button when searching)
+   - Clear button (X icon, visible when has value)
 
-3. **Configuration Loading:**
-   - Check for `.deploy-config.json`
-   - If exists, load and validate
-   - Define defaults:
-     ```javascript
-     const defaults = {
-       region: 'us-west-2',
-       stackName: 'linkedin-advanced-search',
-       includeDevOrigins: true,
-       productionOrigins: ''
-     };
-     ```
+3. Styling:
+   - Match existing filter input styles
+   - Full width in container
+   - Focus ring on input
+   - Subtle background
 
-4. **Interactive Prompts:**
-   - Prompt for missing configuration values
-   - Show current/default values in brackets
-   - Validate inputs (region format, stack name format)
+4. Accessibility:
+   - `aria-label` for search input
+   - `aria-busy` when loading
+   - Clear button has label "Clear search"
+   - Keyboard accessible (Enter doesn't submit form)
 
-5. **Configuration Persistence:**
-   - Save non-sensitive values to `.deploy-config.json`
-   - Never persist secrets
-
-6. **SAM Config Generation:**
-   - Generate `samconfig.toml` programmatically:
-     ```toml
-     version = 0.1
-     [default.deploy.parameters]
-     stack_name = "linkedin-advanced-search"
-     region = "us-west-2"
-     capabilities = "CAPABILITY_IAM"
-     parameter_overrides = "Environment=prod IncludeDevOrigins=true"
-     resolve_s3 = true
-     ```
-
-7. **Build and Deploy:**
-   - Run `sam build` with Docker for Python Lambdas
-   - Run `sam deploy --no-confirm-changeset --no-fail-on-empty-changeset`
-   - Stream output to console
-
-8. **Environment Update:**
-   - Fetch CloudFormation outputs using AWS CLI
-   - Update root `.env` file with:
-     - `VITE_API_GATEWAY_URL`
-     - `VITE_COGNITO_USER_POOL_ID`
-     - `VITE_COGNITO_USER_POOL_WEB_CLIENT_ID`
-     - `VITE_DYNAMODB_TABLE`
-     - `VITE_S3_BUCKET`
-
-9. **Error Handling:**
-   - Clear error messages for each failure mode
-   - Suggest fixes (e.g., "Run 'aws configure' to set credentials")
-   - Non-zero exit code on failure
+5. Behavior:
+   - Clear button only visible when value present
+   - Loading spinner replaces clear button during search
+   - Escape key clears input
 
 **Verification Checklist:**
-- [ ] Script runs without syntax errors
-- [ ] Prerequisites check works
-- [ ] Configuration prompts appear correctly
-- [ ] `.deploy-config.json` is created/updated
-- [ ] `samconfig.toml` is generated correctly
-- [ ] Build command executes
-- [ ] Deploy command executes
-- [ ] `.env` is updated with outputs
+- [ ] Search icon displayed
+- [ ] Input accepts and displays value
+- [ ] Clear button visible when value present
+- [ ] Loading spinner shown when `isLoading`
+- [ ] `onClear` called when clear clicked
+- [ ] `onChange` called on input change
+- [ ] Escape key clears input
+- [ ] Accessible labels present
 
 **Testing Instructions:**
-- Run `cd backend && node scripts/deploy.js` (will prompt for config)
-- Verify config file is created
-- Verify samconfig.toml is generated
-- Test with `--dry-run` if implemented
+
+Component tests with React Testing Library:
+```typescript
+describe('ConnectionSearchBar', () => {
+  it('should show clear button when value present', () => {
+    render(
+      <ConnectionSearchBar
+        value="test"
+        onChange={vi.fn()}
+        onClear={vi.fn()}
+        isLoading={false}
+      />
+    );
+
+    expect(screen.getByRole('button', { name: /clear/i })).toBeInTheDocument();
+  });
+
+  it('should show loading spinner when isLoading', () => {
+    render(
+      <ConnectionSearchBar
+        value="test"
+        onChange={vi.fn()}
+        onClear={vi.fn()}
+        isLoading={true}
+      />
+    );
+
+    expect(screen.getByRole('status')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /clear/i })).not.toBeInTheDocument();
+  });
+
+  it('should call onChange on input', async () => {
+    const onChange = vi.fn();
+    render(
+      <ConnectionSearchBar
+        value=""
+        onChange={onChange}
+        onClear={vi.fn()}
+        isLoading={false}
+      />
+    );
+
+    await userEvent.type(screen.getByRole('textbox'), 'engineer');
+
+    expect(onChange).toHaveBeenCalled();
+  });
+});
+```
 
 **Commit Message Template:**
 ```
-Author & Committer: HatmanStack
-Email: 82614182+HatmanStack@users.noreply.github.com
+feat(frontend): add ConnectionSearchBar component
 
-feat(backend): create interactive deployment script
-
-- Add prerequisites checking
-- Implement configuration prompts and persistence
-- Generate samconfig.toml programmatically
-- Execute SAM build and deploy
-- Update .env with stack outputs
+- Search icon and input field
+- Clear button with loading state
+- Accessible with keyboard support
 ```
 
 ---
 
-## Task 5: Update Lambda Import Paths
+### Task 4: Integrate Search into Connections Tab
 
-**Goal:** Fix all import paths in Lambda code to work with the new structure.
+**Goal:** Wire up search functionality into the existing ConnectionsTab component, showing search results when active.
 
 **Files to Modify:**
-- All `lambda_function.py` files in `backend/lambdas/`
-- Any files importing from `shared/`
+- `frontend/src/features/connections/components/ConnectionsTab.tsx` - Add search integration
 
 **Prerequisites:**
-- Task 2 complete
+- Tasks 1-3 complete
+- Understanding of existing ConnectionsTab structure
 
 **Implementation Steps:**
 
-1. Audit all Lambda files for imports:
-   - Check for relative imports (`from ..shared import`)
-   - Check for absolute imports that assume old structure
+1. Import new components and hooks:
+   ```typescript
+   import { useProfileSearch } from '../hooks/useProfileSearch';
+   import { ConnectionSearchBar } from './ConnectionSearchBar';
+   ```
 
-2. Update shared utility imports:
-   - Lambdas may need to use relative imports or have PYTHONPATH set
-   - SAM handles PYTHONPATH for each Lambda individually
+2. Add search hook to component:
+   ```typescript
+   const {
+     searchQuery,
+     setSearchQuery,
+     searchResults,
+     isSearching,
+     searchError,
+     clearSearch,
+     isSearchActive
+   } = useProfileSearch(connections);
+   ```
 
-3. For Lambdas using shared utilities:
-   - Option A: Copy shared code into each Lambda (simpler for SAM)
-   - Option B: Use Lambda Layers for shared code
-   - Option C: Use relative imports with proper package structure
+3. Render search bar above existing content:
+   - Place below tab header, above filter controls
+   - Full width with appropriate spacing
 
-4. Recommended approach (Option A for simplicity):
-   - Include shared utilities in each Lambda's CodeUri
-   - Update imports to be relative within the Lambda
+4. Conditional rendering logic:
+   ```typescript
+   const displayedConnections = isSearchActive ? searchResults : connections;
+   ```
 
-5. Update any hardcoded paths or references to old structure
+5. Preserve existing filtering:
+   - Apply filters to `displayedConnections`
+   - Filters work on both search results and full list
+   - Sorting applies after filtering
 
-6. Verify each Lambda can be imported without errors
+6. Empty state handling:
+   - "No results found for '{query}'" when search returns empty
+   - Offer clear search button in empty state
+   - Differentiate from "No connections" state
+
+7. Error state:
+   - Show error message if `searchError` present
+   - Offer retry option
 
 **Verification Checklist:**
-- [ ] Each Lambda's imports resolve correctly
-- [ ] `python -c "import lambda_function"` works in each directory
-- [ ] No references to old `lambda-processing/` path
-- [ ] Shared utilities accessible where needed
+- [ ] Search bar visible in Connections tab
+- [ ] Typing triggers debounced search
+- [ ] Search results replace connection list
+- [ ] Existing filters apply to search results
+- [ ] Empty search state shows appropriate message
+- [ ] Clear search returns to full list
+- [ ] Error state displays with retry option
+- [ ] Loading state visible during search
 
 **Testing Instructions:**
-- Run `cd backend/lambdas/edge-processing && python -c "import lambda_function"`
-- Repeat for each Lambda
-- Run pytest on backend tests
+
+Integration tests with mocked hooks:
+```typescript
+describe('ConnectionsTab with search', () => {
+  it('should display search results when query active', async () => {
+    vi.mocked(useProfileSearch).mockReturnValue({
+      searchQuery: 'engineer',
+      setSearchQuery: vi.fn(),
+      searchResults: [mockConnection],
+      isSearching: false,
+      searchError: null,
+      clearSearch: vi.fn(),
+      isSearchActive: true
+    });
+
+    render(<ConnectionsTab connections={[]} />);
+
+    expect(screen.getByText(mockConnection.first_name)).toBeInTheDocument();
+  });
+
+  it('should show empty state for no results', () => {
+    vi.mocked(useProfileSearch).mockReturnValue({
+      searchQuery: 'nonexistent',
+      searchResults: [],
+      isSearchActive: true,
+      // ...other values
+    });
+
+    render(<ConnectionsTab connections={[]} />);
+
+    expect(screen.getByText(/no results found/i)).toBeInTheDocument();
+  });
+});
+```
 
 **Commit Message Template:**
 ```
-Author & Committer: HatmanStack
-Email: 82614182+HatmanStack@users.noreply.github.com
+feat(frontend): integrate search into Connections tab
 
-fix(backend): update Lambda import paths
-
-- Fix shared utility imports
-- Update relative import paths
-- Verify all Lambdas importable
+- Search bar above filter controls
+- Search results replace connection list when active
+- Preserves existing filtering on results
+- Empty and error states handled
 ```
 
 ---
 
-## Task 6: Create Backend Test Configuration
+### Task 5: Integrate Search into NewConnections Tab
 
-**Goal:** Set up pytest configuration for backend Lambda tests.
+**Goal:** Add same search functionality to NewConnectionsTab for searching "possible" contacts.
+
+**Files to Modify:**
+- `frontend/src/features/connections/components/NewConnectionsTab.tsx` - Add search integration
+
+**Prerequisites:**
+- Task 4 complete (ConnectionsTab integration)
+- Understanding that NewConnectionsTab shows `status='possible'` contacts
+
+**Implementation Steps:**
+
+1. Follow same pattern as ConnectionsTab:
+   - Import search hook and component
+   - Add search bar to UI
+   - Conditional rendering of results
+
+2. Consider search scope:
+   - NewConnections shows "possible" contacts
+   - These are NOT ingested into RAGStack (per ADR-003)
+   - Search should fall back to client-side filtering
+
+3. Hybrid search approach:
+   ```typescript
+   // For NewConnectionsTab, use client-side search since possible contacts aren't ingested
+   const filteredConnections = useMemo(() => {
+     if (!searchQuery) return connections;
+     const query = searchQuery.toLowerCase();
+     return connections.filter(c =>
+       c.first_name?.toLowerCase().includes(query) ||
+       c.last_name?.toLowerCase().includes(query) ||
+       c.company?.toLowerCase().includes(query) ||
+       c.position?.toLowerCase().includes(query) ||
+       c.headline?.toLowerCase().includes(query)
+     );
+   }, [connections, searchQuery]);
+   ```
+
+4. UI consistency:
+   - Same search bar component
+   - Same placement
+   - Same clear behavior
+   - No loading state (client-side is instant)
+
+5. Future consideration:
+   - When contact processing rework happens, this may change
+   - Keep architecture flexible for RAGStack integration later
+
+**Verification Checklist:**
+- [ ] Search bar visible in NewConnections tab
+- [ ] Client-side filtering works
+- [ ] Filters across name, company, position, headline
+- [ ] No loading spinner (instant results)
+- [ ] Clear search works
+- [ ] Empty state appropriate
+
+**Testing Instructions:**
+
+```typescript
+describe('NewConnectionsTab with search', () => {
+  it('should filter connections client-side', async () => {
+    render(<NewConnectionsTab connections={[
+      { ...mockConnection, first_name: 'John', company: 'Google' },
+      { ...mockConnection, first_name: 'Jane', company: 'Meta' }
+    ]} />);
+
+    await userEvent.type(screen.getByRole('textbox'), 'Google');
+
+    expect(screen.getByText('John')).toBeInTheDocument();
+    expect(screen.queryByText('Jane')).not.toBeInTheDocument();
+  });
+});
+```
+
+**Commit Message Template:**
+```
+feat(frontend): add search to NewConnections tab
+
+- Client-side filtering for possible contacts
+- Searches name, company, position, headline
+- Consistent UI with Connections tab
+```
+
+---
+
+### Task 6: Update Lambda API Service
+
+**Goal:** Add RAGStack search method to existing Lambda API service for consistency.
+
+**Files to Modify:**
+- `frontend/src/shared/services/lambdaApiService.ts` - Add search method
+
+**Prerequisites:**
+- Understanding of existing lambdaApiService structure
+- Task 1 search service as reference
+
+**Implementation Steps:**
+
+1. Add search method to service:
+   ```typescript
+   async searchProfiles(query: string, maxResults = 100): Promise<SearchResponse> {
+     const response = await this.post('/ragstack', {
+       operation: 'search',
+       query,
+       maxResults
+     });
+     return this.transformSearchResponse(response);
+   }
+   ```
+
+2. Add response transformation:
+   - Extract profile IDs from source field
+   - Map scores if needed
+   - Handle error responses
+
+3. Consider consolidation:
+   - Could replace standalone `ragstackSearchService`
+   - Or keep separate for separation of concerns
+   - Decision: Keep lambdaApiService as single entry point
+
+4. Update types file if needed:
+   - Add `SearchResponse` interface
+   - Add `SearchResult` interface
+
+**Verification Checklist:**
+- [ ] `searchProfiles` method added
+- [ ] Uses existing HTTP client
+- [ ] Response properly transformed
+- [ ] Types exported for consumers
+
+**Testing Instructions:**
+
+```typescript
+describe('lambdaApiService.searchProfiles', () => {
+  it('should call ragstack endpoint', async () => {
+    vi.mocked(axios.post).mockResolvedValue({
+      data: { results: [], totalResults: 0 }
+    });
+
+    await lambdaApiService.searchProfiles('test');
+
+    expect(axios.post).toHaveBeenCalledWith(
+      expect.stringContaining('/ragstack'),
+      expect.objectContaining({ operation: 'search', query: 'test' })
+    );
+  });
+});
+```
+
+**Commit Message Template:**
+```
+feat(frontend): add searchProfiles to lambdaApiService
+
+- Calls RAGStack proxy endpoint
+- Consistent with existing service patterns
+- Typed response interface
+```
+
+---
+
+### Task 7: Search Analytics and Logging
+
+**Goal:** Add logging and analytics for search usage to understand user behavior.
+
+**Files to Modify:**
+- `frontend/src/features/connections/hooks/useProfileSearch.ts` - Add logging
+- `frontend/src/shared/utils/logger.ts` - Use existing logger
+
+**Prerequisites:**
+- Task 2 complete (search hook)
+- Understanding of existing logging patterns
+
+**Implementation Steps:**
+
+1. Log search events:
+   ```typescript
+   // On search execution
+   logger.info('Profile search executed', {
+     queryLength: query.length,
+     resultCount: results.length,
+     durationMs: Date.now() - startTime
+   });
+   ```
+
+2. Log error events:
+   ```typescript
+   // On search error
+   logger.error('Profile search failed', {
+     query: query.substring(0, 50), // Truncate for privacy
+     error: error.message
+   });
+   ```
+
+3. Metrics to capture:
+   - Search query length (not content for privacy)
+   - Result count
+   - Search duration
+   - Error rate
+
+4. Privacy considerations:
+   - Do NOT log full search queries
+   - Log query length and result counts only
+   - Error messages can include query for debugging
+
+**Verification Checklist:**
+- [ ] Search success logged with metrics
+- [ ] Search failure logged with error
+- [ ] Query content not logged (privacy)
+- [ ] Duration captured
+
+**Testing Instructions:**
+
+```typescript
+describe('search logging', () => {
+  it('should log search metrics on success', async () => {
+    const logSpy = vi.spyOn(logger, 'info');
+
+    // Execute search
+    await executeSearch('test query');
+
+    expect(logSpy).toHaveBeenCalledWith(
+      'Profile search executed',
+      expect.objectContaining({
+        queryLength: 10,
+        resultCount: expect.any(Number)
+      })
+    );
+  });
+});
+```
+
+**Commit Message Template:**
+```
+feat(frontend): add search analytics logging
+
+- Log search metrics (count, duration)
+- Privacy-preserving (no query content)
+- Error tracking for failures
+```
+
+---
+
+### Task 8: End-to-End Integration Testing
+
+**Goal:** Create integration tests that verify the full search flow with mocked backend.
 
 **Files to Create:**
-- `tests/backend/conftest.py`
-- `tests/backend/pytest.ini`
-
-**Prerequisites:**
-- Task 2 complete (Lambda code migrated)
-- Phase 1 Task 5 complete (tests migrated)
-
-**Implementation Steps:**
-
-1. Create `tests/backend/pytest.ini`:
-   ```ini
-   [pytest]
-   testpaths = .
-   python_files = test_*.py
-   python_classes = Test*
-   python_functions = test_*
-   addopts = -v --tb=short
-   filterwarnings =
-       ignore::DeprecationWarning
-   ```
-
-2. Create `tests/backend/conftest.py`:
-   ```python
-   import os
-   import sys
-   import pytest
-
-   # Add lambdas directory to path
-   sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../backend/lambdas'))
-
-   # Set test environment variables
-   os.environ['AWS_DEFAULT_REGION'] = 'us-east-1'
-   os.environ['DYNAMODB_TABLE'] = 'test-table'
-   os.environ['LOG_LEVEL'] = 'DEBUG'
-
-   @pytest.fixture
-   def mock_dynamodb():
-       """Fixture for mocked DynamoDB using moto."""
-       from moto import mock_dynamodb
-       with mock_dynamodb():
-           # Create test table
-           import boto3
-           dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
-           table = dynamodb.create_table(
-               TableName='test-table',
-               KeySchema=[
-                   {'AttributeName': 'PK', 'KeyType': 'HASH'},
-                   {'AttributeName': 'SK', 'KeyType': 'RANGE'}
-               ],
-               AttributeDefinitions=[
-                   {'AttributeName': 'PK', 'AttributeType': 'S'},
-                   {'AttributeName': 'SK', 'AttributeType': 'S'},
-                   {'AttributeName': 'GSI1PK', 'AttributeType': 'S'},
-                   {'AttributeName': 'GSI1SK', 'AttributeType': 'S'}
-               ],
-               GlobalSecondaryIndexes=[
-                   {
-                       'IndexName': 'GSI1',
-                       'KeySchema': [
-                           {'AttributeName': 'GSI1PK', 'KeyType': 'HASH'},
-                           {'AttributeName': 'GSI1SK', 'KeyType': 'RANGE'}
-                       ],
-                       'Projection': {'ProjectionType': 'ALL'}
-                   }
-               ],
-               BillingMode='PAY_PER_REQUEST'
-           )
-           yield table
-
-   @pytest.fixture
-   def mock_s3():
-       """Fixture for mocked S3 using moto."""
-       from moto import mock_s3
-       with mock_s3():
-           import boto3
-           s3 = boto3.client('s3', region_name='us-east-1')
-           s3.create_bucket(Bucket='test-screenshots')
-           yield s3
-   ```
-
-3. Create `tests/backend/requirements-test.txt`:
-   ```
-   pytest>=7.0.0
-   pytest-mock>=3.0.0
-   moto>=4.0.0
-   requests-mock>=1.9.0
-   ```
-
-**Verification Checklist:**
-- [ ] pytest.ini configures test discovery correctly
-- [ ] conftest.py sets up PYTHONPATH
-- [ ] moto fixtures work for DynamoDB and S3
-- [ ] `pytest tests/backend` runs without import errors
-
-**Testing Instructions:**
-- Run `cd backend && pytest ../tests/backend -v`
-- Verify fixtures are available in tests
-- Check test discovery finds all test files
-
-**Commit Message Template:**
-```
-Author & Committer: HatmanStack
-Email: 82614182+HatmanStack@users.noreply.github.com
-
-test(backend): configure pytest for Lambda tests
-
-- Add pytest.ini with test settings
-- Create conftest.py with fixtures
-- Add moto fixtures for AWS mocking
-- Set PYTHONPATH for Lambda imports
-```
-
----
-
-## Task 7: Verify Full Deployment
-
-**Goal:** Perform a complete deployment to verify the entire backend pipeline works.
-
-**Files to Modify/Create:**
-- None (verification task)
+- `frontend/src/features/connections/__tests__/search-integration.test.tsx` - Integration tests
 
 **Prerequisites:**
 - All previous tasks complete
-- AWS credentials configured
-- Docker running
+- Understanding of MSW or similar mocking for integration tests
 
 **Implementation Steps:**
 
-1. Run the deployment:
-   ```bash
-   cd backend
-   npm run deploy
+1. Set up mock server:
+   ```typescript
+   const server = setupServer(
+     rest.post('/api/ragstack', (req, res, ctx) => {
+       return res(ctx.json({
+         results: [
+           { source: 'profile_abc', score: 0.9, content: 'John Doe...' }
+         ],
+         totalResults: 1
+       }));
+     })
+   );
    ```
 
-2. Verify each stage:
-   - Prerequisites check passes
-   - Configuration prompts work (or loads from file)
-   - `samconfig.toml` generated
-   - `sam build` succeeds
-   - `sam deploy` succeeds
-   - `.env` updated with outputs
+2. Test full flow:
+   - Render Dashboard with Connections tab
+   - Type in search bar
+   - Wait for debounce
+   - Verify API called
+   - Verify results displayed
 
-3. Verify AWS resources created:
-   ```bash
-   aws cloudformation describe-stacks --stack-name linkedin-advanced-search
-   ```
+3. Test scenarios:
+   - Successful search with results
+   - Search with no results
+   - Search error handling
+   - Clear search
+   - Filter on search results
 
-4. Test API endpoints:
-   - Hit the API Gateway URL from outputs
-   - Verify CORS headers present
-   - Check Lambda execution in CloudWatch
-
-5. Verify frontend can use new API:
-   - Start frontend with `npm run dev`
-   - Check API calls go to correct endpoint
-   - Verify authentication works
+4. Test accessibility:
+   - Keyboard navigation through results
+   - Screen reader announcements
+   - Focus management
 
 **Verification Checklist:**
-- [ ] `npm run deploy` completes successfully
-- [ ] CloudFormation stack created/updated
-- [ ] All Lambda functions deployed
-- [ ] API Gateway accessible
-- [ ] DynamoDB table exists
-- [ ] Cognito pool exists
-- [ ] `.env` contains correct values
-- [ ] Frontend can connect to API
+- [ ] Full flow tested end-to-end
+- [ ] Mock server intercepts requests
+- [ ] Results render correctly
+- [ ] Empty state renders
+- [ ] Error state renders
+- [ ] Clear search works
+- [ ] Filters apply to results
 
 **Testing Instructions:**
-- Full deployment verification
-- Manual API testing via curl or Postman
-- Frontend integration verification
+
+```typescript
+describe('Search Integration', () => {
+  beforeAll(() => server.listen());
+  afterEach(() => server.resetHandlers());
+  afterAll(() => server.close());
+
+  it('should search and display results', async () => {
+    render(<Dashboard />);
+
+    // Navigate to Connections tab
+    await userEvent.click(screen.getByRole('tab', { name: /connections/i }));
+
+    // Type search query
+    await userEvent.type(
+      screen.getByRole('textbox', { name: /search/i }),
+      'engineer'
+    );
+
+    // Wait for results
+    await waitFor(() => {
+      expect(screen.getByText('John Doe')).toBeInTheDocument();
+    });
+  });
+
+  it('should show empty state for no results', async () => {
+    server.use(
+      rest.post('/api/ragstack', (req, res, ctx) => {
+        return res(ctx.json({ results: [], totalResults: 0 }));
+      })
+    );
+
+    render(<Dashboard />);
+    await userEvent.click(screen.getByRole('tab', { name: /connections/i }));
+    await userEvent.type(screen.getByRole('textbox'), 'nonexistent');
+
+    await waitFor(() => {
+      expect(screen.getByText(/no results found/i)).toBeInTheDocument();
+    });
+  });
+});
+```
 
 **Commit Message Template:**
 ```
-Author & Committer: HatmanStack
-Email: 82614182+HatmanStack@users.noreply.github.com
+test(frontend): add search integration tests
 
-test(backend): verify full deployment pipeline
-
-- Confirm SAM build and deploy work
-- Verify all resources created
-- Test API endpoints
-- Validate .env updates
+- End-to-end search flow verification
+- Mock server for API responses
+- Tests success, empty, and error states
 ```
 
 ---
-
-## Task 8: Update Backend Tests for New Structure
-
-**Goal:** Ensure all backend tests pass with the new directory structure.
-
-**Files to Modify:**
-- All test files in `tests/backend/`
-- Import paths in test files
-
-**Prerequisites:**
-- Task 6 complete
-
-**Implementation Steps:**
-
-1. Update import paths in all backend test files:
-   - Use the PYTHONPATH set in conftest.py
-   - Update any relative imports
-
-2. Ensure moto mocks are properly configured:
-   - All AWS SDK calls should be mocked
-   - No live AWS calls in tests
-
-3. Run the full test suite:
-   ```bash
-   pytest tests/backend -v --tb=short
-   ```
-
-4. Fix any failing tests due to:
-   - Import path changes
-   - Missing fixtures
-   - Changed function signatures
-
-5. Verify test coverage:
-   ```bash
-   pytest tests/backend --cov=backend/lambdas --cov-report=term-missing
-   ```
-
-**Verification Checklist:**
-- [ ] All backend tests pass
-- [ ] No live AWS calls made during tests
-- [ ] Test coverage meets minimum threshold (80%)
-- [ ] Tests run in CI environment (no credentials needed)
-
-**Testing Instructions:**
-- Run `pytest tests/backend -v`
-- Check for moto mock warnings
-- Verify no network calls
-
-**Commit Message Template:**
-```
-Author & Committer: HatmanStack
-Email: 82614182+HatmanStack@users.noreply.github.com
-
-test(backend): update tests for new structure
-
-- Fix import paths in test files
-- Verify moto mocks work correctly
-- Ensure all tests pass
-```
-
----
-
-## Review Feedback (Iteration 1)
-
-### Critical: Frontend Build Fails
-
-> **Consider:** Running `npm run build` shows 150+ TypeScript errors. Have you verified the frontend compiles successfully?
->
-> **Think about:** Errors reference missing UI components (`@/components/ui/badge`, `@/components/ui/checkbox`, etc.) and type issues. Are these shadcn/ui components that need to be installed?
->
-> **Reflect:** The phase verification checklist marks items as complete, but does the build actually work? Should the frontend build be part of Phase 2 scope or deferred?
-
-### Critical: Backend Tests Failing (12 of 20)
-
-> **Consider:** Running `pytest tests/backend -v` shows 12 failing tests. The error logs show:
-> - `ERROR root:lambda_function.py:183 Lambda execution failed: 'Records'` - Why is the DynamoDB API test expecting `Records`?
-> - `ERROR root:lambda_function.py:75 No authentication found and DEV_MODE is not enabled` - This line number doesn't match dynamodb-api's lambda_function.py
->
-> **Think about:** The test files manipulate `sys.path` to import specific Lambda modules, but conftest.py also adds `backend/lambdas` to the path. Could there be module caching conflicts where tests import the wrong `lambda_function.py`?
->
-> **Reflect:** Look at `tests/backend/unit/test_dynamodb_api.py:15-21` where it manually manages sys.path and clears sys.modules. Is this approach reliable when multiple test files each try to import different `lambda_function.py` modules?
-
-### Issue: Test Module Import Conflicts
-
-> **Consider:** Each test file (test_dynamodb_api.py, test_profile_processing.py, etc.) inserts a different path to sys.path and imports `lambda_function`. When pytest runs all tests together, which module gets cached?
->
-> **Think about:** The pattern at test_dynamodb_api.py:19-20 clears `sys.modules['lambda_function']`, but what about other test files? Do they all need this cleanup?
->
-> **Reflect:** Would it be cleaner to use unique import names or pytest's `importlib` utilities to avoid conflicts?
-
-### Issue: DynamoDB API Test Fixtures
-
-> **Consider:** The test `test_cors_preflight_response` expects statusCode 204 but gets 500. The error message is `'Records'`. Looking at dynamodb-api's lambda_function.py, where does it reference `event['Records']`?
->
-> **Think about:** The dynamodb-api Lambda doesn't process SQS Records - that's profile-processing. Could the wrong Lambda module be getting imported?
-
-### Verification Status Update
-
-> **Consider:** The checklist shows "All backend tests pass with mocks (partial)" as checked. With 12/20 tests failing, is this accurate?
->
-> **Reflect:** Should failing tests block Phase 2 completion, or should they be tracked as known issues for Phase 3?
 
 ## Phase Verification
 
 This phase is complete when:
 
-- [x] `backend/` directory structure matches specification
-- [x] `backend/template.yaml` defines all AWS resources
-- [x] `npm run deploy` successfully deploys to AWS (SAM build verified)
-- [x] Stack outputs are captured in `.env` (deploy script configured)
-- [ ] All backend tests pass with mocks (**BLOCKED: 12 of 20 tests failing**)
-- [ ] CI can run backend tests without AWS credentials (**BLOCKED: tests fail**)
-- [ ] Frontend can connect to deployed API (requires actual deployment)
-- [ ] Frontend builds without errors (**BLOCKED: 150+ TypeScript errors**)
+- [ ] Search bar visible in Connections tab
+- [ ] Search bar visible in NewConnections tab
+- [ ] RAGStack search returns relevant results
+- [ ] Results display as connection cards
+- [ ] Existing filters work on search results
+- [ ] Empty state shows for no results
+- [ ] Error state handles failures gracefully
+- [ ] Loading indicator during search
+- [ ] Clear search restores full list
+- [ ] All unit tests pass
+- [ ] Integration tests pass
+- [ ] Accessibility requirements met
 
-**Known Limitations:**
-- Code sanitization not yet performed (Phase 3)
-- Documentation not yet consolidated (Phase 3)
-- Some Lambda tests may need additional fixtures
+**Manual Verification:**
+
+1. Navigate to Connections tab
+2. Type a search query (e.g., "software engineer")
+3. Verify loading indicator appears
+4. Verify results appear after debounce
+5. Verify results are relevant to query
+6. Apply a filter (e.g., location)
+7. Verify filter applies to search results
+8. Clear search
+9. Verify full connection list restored
+10. Repeat for NewConnections tab (client-side)
 
 ---
 
-## Next Phase
+## Known Limitations
 
-Proceed to [Phase 3: Sanitization & Docs](Phase-3.md) to perform code cleanup and documentation consolidation.
+1. **NewConnections uses client-side search** - "Possible" contacts not in RAGStack
+2. **No relevance score display** - Scores available but not shown in UI
+3. **No search highlighting** - Matching terms not highlighted in cards
+4. **100 result limit** - May miss relevant profiles beyond limit
+5. **No saved searches** - Users can't save frequent queries
+6. **No search history** - Recent searches not tracked
+
+---
+
+## Future Enhancements (Out of Scope)
+
+- Search suggestions/autocomplete
+- Relevance score visualization
+- Search term highlighting in results
+- Saved searches
+- Search history
+- Chat interface for complex queries
+- Export search results
