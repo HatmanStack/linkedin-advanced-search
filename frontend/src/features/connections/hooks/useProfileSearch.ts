@@ -78,6 +78,8 @@ export function useProfileSearch(allConnections: Connection[]): UseProfileSearch
       setIsSearching(true);
       setSearchError(null);
 
+      const startTime = Date.now();
+
       try {
         logger.debug('Executing search', { queryLength: query.length });
 
@@ -104,10 +106,11 @@ export function useProfileSearch(allConnections: Connection[]): UseProfileSearch
           }
         }
 
+        const durationMs = Date.now() - startTime;
         logger.info('Profile search executed', {
           queryLength: query.length,
           resultCount: hydratedResults.length,
-          durationMs: 0, // Could add timing if needed
+          durationMs,
         });
 
         setSearchResults(hydratedResults);
