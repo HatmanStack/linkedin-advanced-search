@@ -17,9 +17,15 @@ import base64
 import json
 import logging
 import os
+import sys
 from datetime import UTC, datetime
+from pathlib import Path
 
 import boto3
+
+# Add shared utils to path for profile markdown generator
+SHARED_PATH = Path(__file__).parent.parent / 'shared' / 'python'
+sys.path.insert(0, str(SHARED_PATH))
 
 # Common API response headers
 API_HEADERS = {
@@ -81,11 +87,98 @@ logger.setLevel(logging.INFO)
 
 # Configuration - read from environment variables
 DYNAMODB_TABLE_NAME = os.environ.get('DYNAMODB_TABLE_NAME', 'linkedin-advanced-search')
+RAGSTACK_PROXY_FUNCTION = os.environ.get('RAGSTACK_PROXY_FUNCTION', '')
 logger.info(f"Using DynamoDB table: {DYNAMODB_TABLE_NAME}")
+
+# Statuses that trigger RAGStack ingestion
+INGESTION_TRIGGER_STATUSES = {'outgoing', 'ally', 'followed'}
 
 # Initialize AWS clients
 dynamodb = boto3.resource('dynamodb')
 table = dynamodb.Table(DYNAMODB_TABLE_NAME)
+lambda_client = boto3.client('lambda')
+
+
+def trigger_ragstack_ingestion(profile_id_b64: str, user_id: str) -> dict:
+    """
+    Trigger RAGStack ingestion for a profile.
+
+    Fetches profile metadata from DynamoDB, generates markdown,
+    and invokes the RAGStack proxy Lambda for ingestion.
+
+    Args:
+        profile_id_b64: Base64-encoded profile ID
+        user_id: User ID from Cognito
+
+    Returns:
+        dict with success status and any error
+    """
+    if not RAGSTACK_PROXY_FUNCTION:
+        logger.warning("RAGSTACK_PROXY_FUNCTION not configured, skipping ingestion")
+        return {'success': False, 'error': 'RAGStack proxy not configured'}
+
+    try:
+        # Fetch profile metadata from DynamoDB
+        profile_response = table.get_item(
+            Key={
+                'PK': f'PROFILE#{profile_id_b64}',
+                'SK': '#METADATA'
+            }
+        )
+
+        profile_data = profile_response.get('Item')
+        if not profile_data:
+            logger.warning(f"No profile metadata found for {profile_id_b64}")
+            return {'success': False, 'error': 'Profile metadata not found'}
+
+        # Add profile_id to data for markdown generation
+        profile_data['profile_id'] = profile_id_b64
+
+        # Generate markdown from profile data
+        try:
+            from utils.profile_markdown import generate_profile_markdown
+            markdown_content = generate_profile_markdown(profile_data)
+        except Exception as e:
+            logger.error(f"Error generating markdown: {e}")
+            return {'success': False, 'error': f'Markdown generation failed: {str(e)}'}
+
+        # Invoke RAGStack proxy Lambda for ingestion
+        payload = {
+            'body': json.dumps({
+                'operation': 'ingest',
+                'profileId': profile_id_b64,
+                'markdownContent': markdown_content,
+                'metadata': {
+                    'user_id': user_id,
+                    'source': 'edge_processing'
+                }
+            }),
+            'requestContext': {
+                'authorizer': {
+                    'claims': {
+                        'sub': user_id
+                    }
+                }
+            }
+        }
+
+        response = lambda_client.invoke(
+            FunctionName=RAGSTACK_PROXY_FUNCTION,
+            InvocationType='Event',  # Async invocation
+            Payload=json.dumps(payload)
+        )
+
+        status_code = response.get('StatusCode', 0)
+        if status_code in (200, 202):
+            logger.info(f"RAGStack ingestion triggered for profile {profile_id_b64}")
+            return {'success': True, 'status': 'triggered'}
+        else:
+            logger.error(f"RAGStack invoke failed with status {status_code}")
+            return {'success': False, 'error': f'Lambda invoke failed: {status_code}'}
+
+    except Exception as e:
+        logger.error(f"Error triggering RAGStack ingestion: {e}")
+        return {'success': False, 'error': str(e)}
 
 
 class EdgeManager:
@@ -152,6 +245,10 @@ class EdgeManager:
             # Create path
             current_time = datetime.now(UTC).isoformat()
 
+            # Check if we should trigger RAGStack ingestion
+            should_ingest = status in INGESTION_TRIGGER_STATUSES
+            ragstack_ingested = False
+            ragstack_error = None
 
             user_profile_edge = {
                 'PK': f'USER#{user_id}',
@@ -178,11 +275,39 @@ class EdgeManager:
             }
             self.table.put_item(Item=profile_user_edge)
 
+            # Trigger RAGStack ingestion for established relationships
+            if should_ingest:
+                logger.info(f"Triggering RAGStack ingestion for profile {profile_id_b64} (status: {status})")
+                ingestion_result = trigger_ragstack_ingestion(profile_id_b64, user_id)
+
+                if ingestion_result.get('success'):
+                    ragstack_ingested = True
+                    # Update edge with ingestion status
+                    try:
+                        self.table.update_item(
+                            Key={
+                                'PK': f'USER#{user_id}',
+                                'SK': f'PROFILE#{profile_id_b64}'
+                            },
+                            UpdateExpression='SET ragstack_ingested = :ingested, ragstack_ingested_at = :ingested_at',
+                            ExpressionAttributeValues={
+                                ':ingested': True,
+                                ':ingested_at': current_time
+                            }
+                        )
+                    except Exception as update_err:
+                        logger.warning(f"Failed to update ingestion flag: {update_err}")
+                else:
+                    ragstack_error = ingestion_result.get('error')
+                    logger.warning(f"RAGStack ingestion failed: {ragstack_error}")
+
             return {
                 'success': True,
                 'message': 'Edge upserted successfully',
                 'profileId': profile_id_b64,
-                'status': status
+                'status': status,
+                'ragstack_ingested': ragstack_ingested,
+                'ragstack_error': ragstack_error
             }
         except Exception as e:
             logger.error(f"Error upserting edges: {str(e)}")

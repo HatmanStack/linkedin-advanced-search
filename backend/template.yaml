@@ -59,6 +59,7 @@ Globals:
 
 Conditions:
   IncludeDevOriginsCondition: !Equals [!Ref IncludeDevOrigins, 'true']
+  HasRagstackConfig: !Not [!Equals [!Ref RagstackGraphqlEndpoint, '']]
 
 Resources:
   ProfilesTable:
@@ -181,9 +182,20 @@ Resources:
       FunctionName: !Sub 'linkedin-edge-processing-${Environment}'
       CodeUri: lambdas/edge-processing/
       Handler: lambda_function.lambda_handler
+      Environment:
+        Variables:
+          RAGSTACK_PROXY_FUNCTION: !If
+            - HasRagstackConfig
+            - !Ref RAGStackProxyFunction
+            - ''
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref ProfilesTable
+        - LambdaInvokePolicy:
+            FunctionName: !If
+              - HasRagstackConfig
+              - !Ref RAGStackProxyFunction
+              - 'placeholder-function'
       Events:
         EdgeApi:
           Type: HttpApi

@@ -575,13 +575,13 @@ feat(backend): add RAGStack proxy Lambda
 6. Add `followed` status to connection status enum if not present
 
 **Verification Checklist:**
-- [ ] Ingestion triggered on `outgoing` status
-- [ ] Ingestion triggered on `ally` status
-- [ ] Ingestion triggered on `followed` status
-- [ ] Profile data fetched from DynamoDB
-- [ ] Markdown generated correctly
-- [ ] Ingestion failure doesn't fail edge operation
-- [ ] `ragstack_ingested` flag updated
+- [x] Ingestion triggered on `outgoing` status
+- [x] Ingestion triggered on `ally` status
+- [x] Ingestion triggered on `followed` status
+- [x] Profile data fetched from DynamoDB
+- [x] Markdown generated correctly
+- [x] Ingestion failure doesn't fail edge operation
+- [x] `ragstack_ingested` flag updated
 
 **Testing Instructions:**
 
