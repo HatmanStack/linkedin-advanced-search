@@ -37,9 +37,9 @@ export class LinkedInService {
             username = obj?.email || username;
             password = obj?.password || password;
           }
-        } catch {
-          logger.error('Failed to decrypt LinkedIn credentials for login');
-          throw new Error('Credential decryption failed');
+        } catch (err) {
+          logger.error('Failed to decrypt LinkedIn credentials for login', { error: err.message, stack: err.stack });
+          throw new Error(`Credential decryption failed: ${err.message}`);
         }
       }
 
