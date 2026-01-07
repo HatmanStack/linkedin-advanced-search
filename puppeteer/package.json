@@ -9,7 +9,9 @@
     "dev": "nodemon src/server.js",
     "build": "echo 'No build step required for Node.js backend'",
     "lint": "eslint . --max-warnings 0",
-    "test": "echo 'No tests specified yet'"
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.844.0",
@@ -29,9 +31,11 @@
     "@eslint/js": "^9.25.0",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.3",
+    "@vitest/coverage-v8": "^4.0.16",
     "eslint": "^9.25.0",
     "globals": "^16.0.0",
-    "nodemon": "^3.1.9"
+    "nodemon": "^3.1.9",
+    "vitest": "^4.0.16"
   },
   "keywords": [
     "linkedin",

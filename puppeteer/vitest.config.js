@@ -1,0 +1,25 @@
+import { defineConfig } from 'vitest/config';
+
+export default defineConfig({
+  test: {
+    // ES modules environment to match puppeteer's type: module
+    environment: 'node',
+
+    // Test file patterns
+    include: ['src/**/*.test.js'],
+
+    // Setup file for common mocks
+    setupFiles: ['./src/setupTests.js'],
+
+    // Coverage configuration
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'html', 'lcov'],
+      include: ['src/**/*.js'],
+      exclude: ['src/**/*.test.js', 'src/setupTests.js'],
+    },
+
+    // Globals for cleaner test syntax
+    globals: true,
+  },
+});

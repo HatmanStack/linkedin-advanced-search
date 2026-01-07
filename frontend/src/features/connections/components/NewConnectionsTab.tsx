@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { UserPlus, Building, User, Search, X, Loader2, AlertCircle, Info } from 'lucide-react';
 import { VirtualConnectionList, connectionCache } from '@/features/connections';
+import { ConnectionSearchBar } from './ConnectionSearchBar';
 import type { Connection } from '@/types';
 import { createLogger } from '@/shared/utils/logger';
 
@@ -41,16 +42,35 @@ const NewConnectionsTab = ({
     });
     const [activeTags, setActiveTags] = useState<string[]>([]);
 
+    // Local search query state for client-side filtering
+    // Note: NewConnections shows "possible" contacts which are NOT ingested into RAGStack
+    // per ADR-003, so we use client-side filtering instead of semantic search
+    const [searchQuery, setSearchQuery] = useState('');
+
     // Use real data from props instead of fake data, filtering for 'possible' status only
     const displayResults = searchResults.filter(connection => connection.status === 'possible');
+
+    // Client-side filtering for possible contacts (not in RAGStack)
+    const filteredBySearch = useMemo(() => {
+        if (!searchQuery.trim()) return displayResults;
+
+        const query = searchQuery.toLowerCase().trim();
+        return displayResults.filter(c =>
+            c.first_name?.toLowerCase().includes(query) ||
+            c.last_name?.toLowerCase().includes(query) ||
+            c.company?.toLowerCase().includes(query) ||
+            c.position?.toLowerCase().includes(query) ||
+            c.headline?.toLowerCase().includes(query)
+        );
+    }, [displayResults, searchQuery]);
 
     // Sort connections based on active tags
     const sortedConnections = useMemo(() => {
         if (activeTags.length === 0) {
-            return displayResults;
+            return filteredBySearch;
         }
 
-        return [...displayResults].sort((a, b) => {
+        return [...filteredBySearch].sort((a, b) => {
             const aTagsMatch = (a.tags || a.common_interests || []).filter(tag => activeTags.includes(tag)).length;
             const bTagsMatch = (b.tags || b.common_interests || []).filter(tag => activeTags.includes(tag)).length;
 
@@ -62,7 +82,7 @@ const NewConnectionsTab = ({
             // If same number of matches, sort alphabetically
             return `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`);
         });
-    }, [displayResults, activeTags]);
+    }, [filteredBySearch, activeTags]);
 
     const handleSearch = () => {
         logger.info("LinkedIn credentials are not persistent for security. Please add them each time the application is initiated");
@@ -74,6 +94,10 @@ const NewConnectionsTab = ({
 
     const clearAllTags = () => {
         setActiveTags([]);
+    };
+
+    const clearSearch = () => {
+        setSearchQuery('');
     };
 
     // Handle connection removal with optimistic updates
@@ -104,6 +128,8 @@ const NewConnectionsTab = ({
         );
     }, []);
 
+    const isSearchActive = searchQuery.trim().length > 0;
+
     return (
         <div className="grid lg:grid-cols-4 gap-8">
             <div className="lg:col-span-3">
@@ -130,13 +156,41 @@ const NewConnectionsTab = ({
                         {searchResults.length === 0 && (
                             <div className="bg-yellow-600/20 border border-yellow-500/30 rounded-lg p-3 mb-4">
                                 <p className="text-yellow-200 text-sm font-medium">
-                                    <strong>⚠️ Demo Mode:</strong> The data displayed below is sample data for demonstration purposes.
+                                    <strong>Demo Mode:</strong> The data displayed below is sample data for demonstration purposes.
                                     Connect to your DynamoDB backend to see real LinkedIn connections.
                                 </p>
                             </div>
                         )}
 
-                        {/* Search Filters */}
+                        {/* Client-side Search Bar */}
+                        <div className="mt-4 space-y-3">
+                            <ConnectionSearchBar
+                                value={searchQuery}
+                                onChange={setSearchQuery}
+                                onClear={clearSearch}
+                                isLoading={false}  // Client-side search is instant, no loading state
+                                placeholder="Filter new connections by name, company, position..."
+                            />
+
+                            {/* Empty Search Results */}
+                            {isSearchActive && sortedConnections.length === 0 && (
+                                <div className="bg-slate-700/30 border border-slate-600/30 rounded-lg p-4 text-center">
+                                    <p className="text-slate-300 mb-2">
+                                        No matches found for "{searchQuery}"
+                                    </p>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={clearSearch}
+                                        className="text-blue-400 hover:text-blue-300"
+                                    >
+                                        Clear search
+                                    </Button>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* LinkedIn Search Filters */}
                         <div className="grid grid-cols-3 gap-4 mt-4">
                             <div className="relative">
                                 <Building className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
@@ -220,7 +274,9 @@ const NewConnectionsTab = ({
                                             <UserPlus className="h-12 w-12 mx-auto mb-4 opacity-50" />
                                             <p className="text-lg mb-2">No new connections available</p>
                                             <p className="text-sm">
-                                                Check back later or use the search above to find new connections.
+                                                {isSearchActive
+                                                    ? 'Try a different search query or clear the search.'
+                                                    : 'Check back later or use the search above to find new connections.'}
                                             </p>
                                         </div>
                                     </div>

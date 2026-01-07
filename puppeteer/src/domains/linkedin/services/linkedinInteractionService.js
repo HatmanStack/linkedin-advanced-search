@@ -2186,6 +2186,229 @@ export class LinkedInInteractionService {
   }
 
   // Batch workflow removed: single-operation flows only
+
+  /**
+   * Follow a LinkedIn profile
+   * Creates an edge with 'followed' status which triggers RAGStack ingestion
+   * @param {string} profileId - Profile ID to follow
+   * @param {Object} options - Additional options (e.g., jwtToken)
+   * @returns {Promise<Object>} Follow result
+   */
+  async followProfile(profileId, options = {}) {
+    const context = {
+      operation: 'followProfile',
+      profileId,
+      options
+    };
+
+    logger.info('Executing LinkedIn follow profile workflow', context);
+
+    try {
+      // Step 1: Check for suspicious activity
+      await this.checkSuspiciousActivity();
+
+      // Step 2: Ensure browser session is healthy
+      await this.getBrowserSession();
+
+      // Step 3: Navigate to target profile
+      logger.info('Step 1/3: Navigating to profile');
+      const navigationSuccess = await this.navigateToProfile(profileId);
+      if (!navigationSuccess) {
+        throw new Error(`Failed to navigate to profile: ${profileId}`);
+      }
+
+      // Step 4: Check if already following
+      logger.info('Step 2/3: Checking follow status');
+      const alreadyFollowing = await this.checkFollowStatus();
+      if (alreadyFollowing) {
+        logger.info(`Already following profile: ${profileId}`);
+        // Ensure edge exists even if already following
+        await this.ensureEdge(profileId, 'followed', options?.jwtToken);
+        return {
+          status: 'already_following',
+          profileId,
+          followedAt: new Date().toISOString()
+        };
+      }
+
+      // Step 5: Find and click follow button
+      logger.info('Step 3/3: Clicking follow button');
+      const followResult = await this.clickFollowButton(profileId);
+
+      // Step 6: Create edge with 'followed' status (triggers RAGStack ingestion via edge-processing Lambda)
+      await this.ensureEdge(profileId, 'followed', options?.jwtToken);
+
+      // Update session activity
+      this.sessionManager.lastActivity = new Date();
+
+      // Record the action
+      this.humanBehavior.recordAction('profile_followed', {
+        profileId,
+        timestamp: new Date().toISOString()
+      });
+
+      logger.info('LinkedIn follow profile workflow completed successfully', {
+        profileId,
+        status: followResult.status
+      });
+
+      return {
+        status: followResult.status || 'followed',
+        profileId,
+        followedAt: new Date().toISOString()
+      };
+
+    } catch (error) {
+      logger.error(`Failed to follow profile ${profileId}:`, error);
+
+      // Record failed action
+      this.humanBehavior.recordAction('follow_profile_failed', {
+        profileId,
+        error: error.message
+      });
+
+      throw error;
+    }
+  }
+
+  /**
+   * Check if currently following a profile
+   * @returns {Promise<boolean>} True if already following
+   */
+  async checkFollowStatus() {
+    try {
+      const session = await this.getBrowserSession();
+      const page = session.getPage();
+
+      // Look for indicators that we're already following
+      const followingIndicators = [
+        'button[aria-label*="Following"]',
+        'button[aria-label*="following"]',
+        'button:has-text("Following")',
+        '[data-test-id="following-button"]'
+      ];
+
+      for (const selector of followingIndicators) {
+        try {
+          const element = await page.waitForSelector(selector, { timeout: 1000 });
+          if (element) {
+            logger.debug(`Found following indicator: ${selector}`);
+            return true;
+          }
+        } catch {
+          // Continue checking other selectors
+        }
+      }
+
+      return false;
+    } catch (error) {
+      logger.debug('Follow status check failed:', error.message);
+      return false;
+    }
+  }
+
+  /**
+   * Find and click the follow button on a profile
+   * @param {string} profileId - Profile ID being followed
+   * @returns {Promise<Object>} Click result
+   */
+  async clickFollowButton(profileId) {
+    try {
+      const session = await this.getBrowserSession();
+      const page = session.getPage();
+
+      // Follow button selectors (in priority order)
+      const followButtonSelectors = [
+        'button[aria-label*="Follow"]',
+        'button[aria-label*="follow"]',
+        'button:has-text("Follow")',
+        '[data-test-id="follow-button"]',
+        '.pvs-profile-actions__action button[aria-label*="Follow"]',
+        '.pv-s-profile-actions button[aria-label*="Follow"]'
+      ];
+
+      // First try direct follow button
+      let followButton = null;
+      let foundSelector = null;
+
+      for (const selector of followButtonSelectors) {
+        try {
+          const element = await page.waitForSelector(selector, { timeout: 2000 });
+          if (element) {
+            // Verify it's not the "Following" button
+            const ariaLabel = await element.getAttribute('aria-label');
+            const innerText = await element.innerText();
+            if (ariaLabel?.toLowerCase().includes('following') ||
+                innerText?.toLowerCase().includes('following')) {
+              logger.debug(`Skipping 'Following' button with selector: ${selector}`);
+              continue;
+            }
+            followButton = element;
+            foundSelector = selector;
+            logger.debug(`Found follow button with selector: ${selector}`);
+            break;
+          }
+        } catch {
+          // Continue to next selector
+        }
+      }
+
+      // If not found directly, try via "More" dropdown
+      if (!followButton) {
+        logger.info('Follow button not found directly, trying More dropdown');
+        const moreFound = await this.isProfileContainer('more');
+        if (moreFound) {
+          await RandomHelpers.randomDelay(500, 1000);
+
+          // Look for follow option in dropdown
+          const dropdownFollowSelectors = [
+            'div[role="menu"] button[aria-label*="Follow"]',
+            '.artdeco-dropdown__content button[aria-label*="Follow"]',
+            '[data-test-id="overflow-menu"] button[aria-label*="Follow"]'
+          ];
+
+          for (const selector of dropdownFollowSelectors) {
+            try {
+              const element = await page.waitForSelector(selector, { timeout: 2000 });
+              if (element) {
+                followButton = element;
+                foundSelector = selector;
+                logger.debug(`Found follow button in dropdown with selector: ${selector}`);
+                break;
+              }
+            } catch {
+              // Continue to next selector
+            }
+          }
+        }
+      }
+
+      if (!followButton) {
+        throw new Error('Follow button not found on profile page');
+      }
+
+      // Click the follow button
+      await this.clickElementHumanly(page, followButton);
+      logger.info(`Clicked follow button for profile: ${profileId}`);
+
+      // Wait for follow to be confirmed
+      await RandomHelpers.randomDelay(1000, 2000);
+
+      // Verify follow succeeded by checking for Following indicator
+      const followConfirmed = await this.checkFollowStatus();
+
+      return {
+        status: followConfirmed ? 'followed' : 'pending',
+        selector: foundSelector,
+        timestamp: new Date().toISOString()
+      };
+
+    } catch (error) {
+      logger.error(`Failed to click follow button for ${profileId}:`, error);
+      throw new Error(`Follow button click failed: ${error.message}`);
+    }
+  }
+
   /**
    * Validate workflow parameters before execution
    * @param {string} workflowType - Type of workflow to validate

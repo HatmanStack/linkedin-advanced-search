@@ -1,686 +1,786 @@
-# Phase 1: Structure Migration
+# Phase 1: RAGStack Deployment & Ingestion Pipeline
 
 ## Phase Goal
 
-Migrate the existing codebase into the target monorepo structure. This phase moves files to their new locations, updates all import paths, and reorganizes tests by deployment target. No functional changes are made to the code itself.
+Deploy a dedicated RAGStack instance and build the ingestion pipeline that populates it with LinkedIn profiles. By the end of this phase, profiles will be automatically ingested into RAGStack when connections are established.
 
 **Success Criteria:**
-- All source files moved to target locations
-- All import/require paths updated and working
-- All tests relocated and passing
-- Root package.json converted to orchestration-only
-- Application builds and runs from new structure
+- RAGStack stack deployed and accessible
+- Profiles ingested on connection request, follow, and profile-init
+- Markdown generation from profile data working
+- Ingestion status tracked in DynamoDB
+- All tests passing with mocked RAGStack
 
 **Estimated Tokens:** ~45,000
 
+---
+
 ## Prerequisites
 
-- Phase 0 complete (ADRs and conventions reviewed)
-- Clean git working tree
-- All current tests passing
+- Phase 0 documentation reviewed
+- AWS CLI configured with appropriate permissions
+- Bedrock Nova Embeddings access enabled in target region
+- RAGStack-Lambda repository cloned to `~/war/RAGStack-Lambda/`
 
 ---
 
-## Task 1: Create Directory Scaffold
+## Tasks
 
-**Goal:** Create the target directory structure before moving any files.
+### Task 1: Puppeteer Test Infrastructure
+
+**Goal:** Set up Vitest testing framework in puppeteer package to enable unit testing for new code.
 
 **Files to Create:**
-- `frontend/` directory
-- `backend/` directory
-- `backend/lambdas/` directory
-- `backend/scripts/` directory
-- `puppeteer/` directory
-- `tests/frontend/unit/` directory
-- `tests/frontend/integration/` directory
-- `tests/backend/unit/` directory
-- `tests/backend/integration/` directory
-- `tests/puppeteer/unit/` directory
-- `tests/e2e/` directory
-- `tests/fixtures/` directory
-- `scripts/deploy/` directory
-- `scripts/dev-tools/` directory
-- `scripts/benchmarks/` directory
+- `puppeteer/vitest.config.js` - Vitest configuration
+- `puppeteer/src/setupTests.js` - Test setup file
+
+**Files to Modify:**
+- `puppeteer/package.json` - Add test scripts and devDependencies
+- `.github/workflows/ci.yml` - Add puppeteer test job
 
 **Prerequisites:**
-- None
+- None (foundational task)
 
 **Implementation Steps:**
 
-1. Create the full directory tree for the target structure
-2. Add `.gitkeep` files to empty directories to ensure they're tracked
-3. Verify the structure matches the target diagram in the README
+1. Install Vitest and related packages:
+   - `vitest` as devDependency
+   - `@vitest/coverage-v8` for coverage reports
 
-**Verification Checklist:**
-- [x] All directories exist as specified
-- [x] `tree` command shows expected structure
-- [x] Git tracks the new directories
+2. Create Vitest configuration:
+   - ES modules environment (matches puppeteer's type: module)
+   - Include pattern: `src/**/*.test.js`
+   - Setup file for common mocks
 
-**Testing Instructions:**
-- No tests required for this task
-- Visual verification via `tree` command
-
-**Commit Message Template:**
-```
-Author & Committer: HatmanStack
-Email: 82614182+HatmanStack@users.noreply.github.com
-
-chore(structure): create target directory scaffold
-
-- Create frontend/, backend/, puppeteer/ directories
-- Create tests/ subdirectory structure
-- Create scripts/ subdirectory structure
-- Add .gitkeep files for empty directories
-```
-
----
-
-## Task 2: Migrate Frontend Source
-
-**Goal:** Move the React/Vite frontend from `src/` to `frontend/src/` with all configuration files.
-
-**Files to Modify/Create:**
-- Move `src/` → `frontend/src/`
-- Move `public/` → `frontend/public/`
-- Move `index.html` → `frontend/index.html`
-- Move `vite.config.ts` → `frontend/vite.config.ts`
-- Move `tsconfig.json` → `frontend/tsconfig.json`
-- Move `tsconfig.app.json` → `frontend/tsconfig.app.json`
-- Move `tsconfig.node.json` → `frontend/tsconfig.node.json`
-- Move `tailwind.config.ts` → `frontend/tailwind.config.ts`
-- Move `eslint.config.js` → `frontend/eslint.config.js`
-- Move `components.json` → `frontend/components.json`
-- Create `frontend/package.json` (extract frontend deps from root)
-
-**Note:** `postcss.config.js` does not exist in the current codebase (PostCSS config is likely inlined in vite.config.ts or uses Tailwind defaults).
-
-**Prerequisites:**
-- Task 1 complete
-
-**Implementation Steps:**
-
-1. Move the `src/` directory to `frontend/src/` using git mv to preserve history
-2. Move all frontend configuration files to `frontend/`
-3. Move `public/` and `index.html` to `frontend/`
-4. Create a new `frontend/package.json` by extracting:
-   - All runtime dependencies from root package.json
-   - Frontend-specific devDependencies (vite, vitest, typescript, eslint, tailwind, etc.)
-   - Scripts: `dev`, `build`, `preview`, `lint`, `test`, `test:watch`, `test:ui`
-5. Update `frontend/vite.config.ts`:
-   - Adjust any path references
-   - Ensure `@/` alias points to `./src/`
-6. Update `frontend/tsconfig.json` and `frontend/tsconfig.app.json`:
-   - Adjust `baseUrl` and `paths` for new location
-   - Update `include` and `exclude` patterns
-7. Update `frontend/eslint.config.js` for new file locations
-8. Update `frontend/tailwind.config.ts` content paths
-
-**Verification Checklist:**
-- [x] `cd frontend && npm install` succeeds
-- [x] `cd frontend && npm run dev` starts Vite server
-- [ ] `cd frontend && npm run build` produces `dist/` folder (pre-existing code issues)
-- [x] `cd frontend && npm run lint` passes (warnings only)
-- [x] No TypeScript errors (`npx tsc --noEmit`)
-
-**Testing Instructions:**
-- Run existing frontend tests after migration
-- Verify dev server shows the application correctly
-- Verify production build works
-
-**Commit Message Template:**
-```
-Author & Committer: HatmanStack
-Email: 82614182+HatmanStack@users.noreply.github.com
-
-refactor(frontend): migrate src/ to frontend/src/
-
-- Move source files preserving git history
-- Move all configuration files
-- Create frontend-specific package.json
-- Update path aliases and configs
-```
-
----
-
-## Task 3: Migrate Puppeteer Backend
-
-**Goal:** Move the puppeteer-backend to the top-level `puppeteer/` directory.
-
-**Files to Modify/Create:**
-- Move `puppeteer-backend/src/` → `puppeteer/src/`
-- Move `puppeteer-backend/routes/` → `puppeteer/routes/`
-- Move `puppeteer-backend/config/` → `puppeteer/config/`
-- Move `puppeteer-backend/schemas/` → `puppeteer/schemas/`
-- Move `puppeteer-backend/utils/uploadMetrics.js` → `puppeteer/utils/uploadMetrics.js`
-- Move `puppeteer-backend/package.json` → `puppeteer/package.json`
-- Move `puppeteer-backend/package-lock.json` → `puppeteer/package-lock.json`
-- Move `puppeteer-backend/.eslintrc.js` → `puppeteer/.eslintrc.js`
-- Move `puppeteer-backend/.gitignore` → `puppeteer/.gitignore`
-- Move `puppeteer-backend/README.md` → `puppeteer/README.md`
-- Move `puppeteer-backend/profileInitWorker.js` → `puppeteer/profileInitWorker.js`
-- Move `puppeteer-backend/searchWorker.js` → `puppeteer/searchWorker.js`
-- Move `puppeteer-backend/scripts/create-edges.js` → `scripts/dev-tools/create-edges.js`
-- Move `puppeteer-backend/scripts/generate-device-keypair.js` → `scripts/dev-tools/generate-device-keypair.js`
-
-**Prerequisites:**
-- Task 1 complete
-
-**Implementation Steps:**
-
-1. Move the entire `puppeteer-backend/` contents to `puppeteer/` using git mv
-2. Update `puppeteer/package.json`:
-   - Verify `main` field points to correct entry
-   - Verify scripts work from new location
-3. Move puppeteer-specific scripts from `puppeteer-backend/scripts/` to `scripts/dev-tools/`:
-   - `create-edges.js`
-   - `generate-device-keypair.js`
-4. Delete the empty `puppeteer-backend/` directory after all moves complete
-5. Update any hardcoded paths within puppeteer source files
-
-**Verification Checklist:**
-- [x] `cd puppeteer && npm install` succeeds
-- [ ] `cd puppeteer && npm run lint` passes (pre-existing lint errors)
-- [ ] `cd puppeteer && npm start` starts server (may require env vars)
-- [x] No broken imports within puppeteer code
-
-**Testing Instructions:**
-- Verify server starts without import errors
-- Check that routes register correctly
-- Verify lint passes
-
-**Commit Message Template:**
-```
-Author & Committer: HatmanStack
-Email: 82614182+HatmanStack@users.noreply.github.com
-
-refactor(puppeteer): migrate puppeteer-backend/ to puppeteer/
-
-- Move all source and config files
-- Relocate utility scripts to scripts/dev-tools/
-- Remove old directory
-```
-
----
-
-## Task 4: Update Frontend Import Paths
-
-**Goal:** Update all import statements in frontend code to work with the new structure.
-
-**Files to Modify/Create:**
-- All files in `frontend/src/` that use `@/` imports
-- `frontend/vite.config.ts` (alias configuration)
-- `frontend/tsconfig.app.json` (path mappings)
-
-**Prerequisites:**
-- Task 2 complete
-
-**Implementation Steps:**
-
-1. Update `frontend/vite.config.ts` to define the `@` alias:
-   ```typescript
-   resolve: {
-     alias: {
-       '@': path.resolve(__dirname, './src')
-     }
+3. Add package.json scripts:
+   ```json
+   {
+     "test": "vitest run",
+     "test:watch": "vitest",
+     "test:coverage": "vitest run --coverage"
    }
    ```
 
-2. Update `frontend/tsconfig.app.json` paths:
-   ```json
-   {
-     "compilerOptions": {
-       "baseUrl": ".",
-       "paths": {
-         "@/*": ["src/*"]
+4. Create setup file with common mocks:
+   - Mock logger to suppress output during tests
+   - Mock Puppeteer browser/page objects
+   - Mock axios for HTTP calls
+
+5. Update CI workflow:
+   - Add `npm test` step to puppeteer job
+   - Run after lint step
+
+**Verification Checklist:**
+- [x] `npm test` runs without errors (even with no tests)
+- [x] Vitest config loads correctly
+- [x] Setup file executes
+- [x] CI workflow includes test step
+- [x] Coverage report generates
+
+**Testing Instructions:**
+- Create a simple smoke test to verify setup works
+- Run `npm test` locally
+- Verify CI passes with new test step
+
+**Commit Message Template:**
+```
+chore(puppeteer): add Vitest test infrastructure
+
+- Configure Vitest for ES modules
+- Add test scripts to package.json
+- Create setup file with common mocks
+- Update CI workflow
+```
+
+---
+
+### Task 2: RAGStack Deployment Script
+
+**Goal:** Create automated deployment script for the dedicated RAGStack instance that prompts for configuration, persists settings locally, and captures outputs.
+
+**Files to Create:**
+- `scripts/deploy/deploy-ragstack.js` - Main deployment orchestration
+- `.gitignore` addition for config files
+
+**Prerequisites:**
+- RAGStack-Lambda repository available
+- AWS SAM CLI installed
+
+**Implementation Steps:**
+
+1. Create the deployment script that:
+   - Checks for existing `.ragstack-config.json`
+   - Prompts user interactively for missing values (stack name, region, S3 bucket prefix)
+   - Validates AWS credentials and Bedrock model access
+   - Generates `samconfig.toml` programmatically for RAGStack-Lambda
+   - Executes `sam build` and `sam deploy` in RAGStack directory
+   - Parses CloudFormation outputs after deployment
+   - Writes outputs to `.env.ragstack`
+
+2. Configuration schema to collect:
+   - Stack name (default: `linkedin-profiles-kb`)
+   - AWS region (default: `us-west-2`)
+   - Path to RAGStack-Lambda repo
+   - S3 bucket name for documents
+
+3. Output capture:
+   - GraphQL endpoint URL (from AppSync)
+   - API key value (retrieve via AWS CLI after deployment)
+   - Knowledge Base ID
+   - Text Data Source ID
+
+4. Add config files to `.gitignore`:
+   - `.ragstack-config.json`
+   - `.env.ragstack`
+
+**Verification Checklist:**
+- [x] Script prompts for missing configuration
+- [x] Configuration persisted to `.ragstack-config.json`
+- [x] `samconfig.toml` generated without interactive prompts
+- [ ] RAGStack stack deploys successfully (requires manual test)
+- [ ] `.env.ragstack` contains all required values (requires manual test)
+- [x] Subsequent runs skip prompts and use saved config
+
+**Testing Instructions:**
+- Unit test configuration loading/saving logic
+- Unit test samconfig.toml generation
+- Mock AWS CLI calls for deployment simulation
+- Integration test requires manual execution (not CI)
+
+**Commit Message Template:**
+```
+feat(infra): add RAGStack deployment script
+
+- Interactive config collection with persistence
+- Programmatic samconfig.toml generation
+- Output capture to .env.ragstack
+```
+
+---
+
+### Task 3: Profile Markdown Generator
+
+**Goal:** Create utility to convert structured profile JSON into well-formatted markdown suitable for RAGStack ingestion.
+
+**Files to Create:**
+- `puppeteer/src/domains/profile/utils/profileMarkdownGenerator.js` - Generator function
+- `puppeteer/src/domains/profile/utils/profileMarkdownGenerator.test.js` - Unit tests
+
+**Prerequisites:**
+- Task 1 complete (Vitest infrastructure)
+- Understanding of `puppeteer/schemas/profileTextSchema.js` structure
+- Understanding of RAGStack markdown ingestion format
+
+**Implementation Steps:**
+
+1. Create generator function that accepts profile object matching `profileTextSchema`:
+   ```javascript
+   function generateProfileMarkdown(profile) {
+     // Returns formatted markdown string
+   }
+   ```
+
+2. Markdown structure to generate:
+   - H1 header with full name
+   - Metadata block (headline, location, profile ID)
+   - About section (if present)
+   - Current position section
+   - Experience section with each role as H3
+   - Education section with each school as H3
+   - Skills as comma-separated list
+
+3. Handle missing/optional fields gracefully:
+   - Omit sections entirely if data not present
+   - Use "Not specified" for required fields with no data
+   - Truncate extremely long text (about > 5000 chars)
+
+4. Include profile ID in metadata for correlation:
+   - Profile ID must be in document for source attribution
+   - Use same base64 encoding as DynamoDB
+
+5. Export function for use in ingestion pipeline
+
+**Verification Checklist:**
+- [x] Generates valid markdown from complete profile
+- [x] Handles profiles with missing optional fields
+- [x] Profile ID included in output
+- [x] Skills formatted as searchable list
+- [x] Experience entries ordered chronologically
+- [x] Output is valid markdown (no broken formatting)
+
+**Testing Instructions:**
+
+Unit tests covering:
+- Complete profile with all fields populated
+- Minimal profile (only required fields)
+- Profile with empty arrays (no experience, no education)
+- Profile with very long about section (truncation)
+- Profile with special characters in text
+- Profile ID encoding consistency
+
+```javascript
+// Test pattern
+describe('generateProfileMarkdown', () => {
+  it('should generate markdown for complete profile', () => {
+    const profile = createMockProfile({ /* all fields */ });
+    const markdown = generateProfileMarkdown(profile);
+    expect(markdown).toContain('# John Doe');
+    expect(markdown).toContain('**Headline:**');
+    expect(markdown).toContain('## Experience');
+  });
+});
+```
+
+**Commit Message Template:**
+```
+feat(puppeteer): add profile markdown generator
+
+- Converts profile JSON to RAGStack-compatible markdown
+- Handles optional fields gracefully
+- Includes profile ID for source correlation
+```
+
+---
+
+### Task 4: RAGStack Client Library
+
+**Goal:** Create a Python client for RAGStack GraphQL API to be used by Lambda functions for ingestion and search operations.
+
+**Files to Create:**
+- `backend/lambdas/ragstack-proxy/ragstack_client.py` - GraphQL client
+- `tests/backend/unit/test_ragstack_client.py` - Unit tests
+
+**Prerequisites:**
+- RAGStack GraphQL schema understanding
+- API key authentication pattern
+
+**Implementation Steps:**
+
+1. Create client class with methods:
+   - `__init__(endpoint, api_key)` - Initialize with config
+   - `create_upload_url(filename)` - Get presigned URL for document upload
+   - `search(query, max_results=100)` - Search knowledge base
+   - `get_document_status(document_id)` - Check ingestion status
+
+2. GraphQL operations to implement:
+
+   ```graphql
+   mutation CreateUploadUrl($filename: String!) {
+     createUploadUrl(filename: $filename) {
+       uploadUrl
+       documentId
+       fields
+     }
+   }
+
+   query SearchKnowledgeBase($query: String!, $maxResults: Int) {
+     searchKnowledgeBase(query: $query, maxResults: $maxResults) {
+       results {
+         content
+         source
+         score
        }
      }
    }
    ```
 
-3. Scan all frontend source files for imports
-4. Verify all `@/` imports resolve correctly
-5. Fix any relative imports that broke due to the move
-6. Remove any imports that referenced `puppeteer-backend/` directly (these should go through API calls)
+3. HTTP client setup:
+   - Use `requests` library for HTTP calls
+   - Set `x-api-key` header for authentication
+   - Handle GraphQL errors and network failures
+   - Implement retry logic with exponential backoff
+
+4. Response parsing:
+   - Extract data from GraphQL response envelope
+   - Transform to simple Python dicts
+   - Raise typed exceptions for errors
 
 **Verification Checklist:**
-- [ ] `cd frontend && npx tsc --noEmit` shows no errors
-- [ ] `cd frontend && npm run build` succeeds
-- [ ] All IDE "cannot find module" errors resolved
-- [ ] `npm run lint` passes
+- [x] Client initializes with endpoint and API key
+- [x] `create_upload_url` returns presigned URL structure
+- [x] `search` returns list of results with source IDs
+- [x] GraphQL errors raise appropriate exceptions
+- [x] Network errors handled with retry
+- [x] API key included in all requests
 
 **Testing Instructions:**
-- Run frontend unit tests to verify imports work
-- Start dev server and verify all pages load
-- Check browser console for import errors
+
+Unit tests with mocked HTTP responses:
+```python
+def test_search_returns_results(mock_requests):
+    mock_requests.post.return_value.json.return_value = {
+        "data": {
+            "searchKnowledgeBase": {
+                "results": [{"content": "...", "source": "abc", "score": 0.9}]
+            }
+        }
+    }
+    client = RAGStackClient("https://api.example.com", "api-key")
+    results = client.search("test query")
+    assert len(results) == 1
+    assert results[0]["source"] == "abc"
+```
+
+Test scenarios:
+- Successful search with results
+- Search with no results (empty array)
+- GraphQL error response
+- Network timeout with retry
+- Invalid API key (401 response)
 
 **Commit Message Template:**
 ```
-Author & Committer: HatmanStack
-Email: 82614182+HatmanStack@users.noreply.github.com
+feat(backend): add RAGStack GraphQL client
 
-refactor(frontend): update import paths for new structure
-
-- Configure @ alias in vite.config.ts
-- Update tsconfig paths
-- Fix all broken imports
+- Implements search and upload URL mutations
+- API key authentication
+- Retry logic for transient failures
 ```
 
 ---
 
-## Task 5: Migrate Tests to New Structure
+### Task 5: Profile Ingestion Service
 
-**Goal:** Reorganize all tests into the centralized `tests/` directory organized by deployment target.
+**Goal:** Create service that uploads profile markdown to RAGStack, triggered when connections are established.
 
-**Files to Modify/Create:**
-- Move `tests/components/` → `tests/frontend/unit/components/`
-- Move `tests/hooks/` → `tests/frontend/unit/hooks/`
-- Move `tests/services/` → `tests/frontend/unit/services/`
-- Move `tests/frontend/services/` → `tests/frontend/unit/services/` (merge)
-- Move `tests/integration/` → `tests/frontend/integration/`
-- Move `tests/backend/` (puppeteer-backend tests, NOT Lambda tests) → `tests/puppeteer/unit/`
-- Move `tests/node-unit/` → `tests/puppeteer/unit/`
-- Move `tests/fixtures/` → `tests/fixtures/` (keep in place)
-- Move `tests/utils/` → `tests/fixtures/` (test utilities)
-- Move Lambda tests from `lambda-processing/*/tests/` → `tests/backend/unit/`
-- Move `tests/messageGenerationWorkflow.test.ts` → `tests/frontend/integration/`
-- Move `tests/jest.setup.js` → `tests/puppeteer/jest.setup.js` (for puppeteer tests)
-- Move `tests/setupTests.ts` → `tests/frontend/setupTests.ts`
-- Create `tests/frontend/vitest.config.ts`
-- Create `tests/backend/pytest.ini`
-- Create `tests/puppeteer/vitest.config.ts`
-- Delete: `tests/sanity.test.tsx` (sanity check no longer needed)
-- Delete: `tests/*.md` files (PROFILE_INIT_TEST_SUMMARY.md, README-profile-init-tests.md, TASK_10_COMPLETION_SUMMARY.md)
-- Delete: `tests/*.py` files at root (test_edge_processing.py, test_existing_files.py, test-lambda-edge-check.py, check-data-corruption.py)
+**Files to Create:**
+- `backend/lambdas/ragstack-proxy/ingestion_service.py` - Ingestion logic
+- `tests/backend/unit/test_ingestion_service.py` - Unit tests
 
 **Prerequisites:**
-- Tasks 2 and 3 complete
+- Task 4 (RAGStack client) complete
+- Understanding of S3 presigned URL upload pattern
 
 **Implementation Steps:**
 
-1. Create the test directory structure as specified in Phase 0
-2. Move frontend component tests:
-   - `tests/components/*.test.tsx` → `tests/frontend/unit/components/`
-3. Move frontend hook tests:
-   - `tests/hooks/*.test.ts` → `tests/frontend/unit/hooks/`
-4. Move frontend service tests:
-   - `tests/services/*.test.ts` → `tests/frontend/unit/services/`
-   - Merge with `tests/frontend/services/`
-5. Move frontend integration tests:
-   - `tests/integration/*.test.tsx` → `tests/frontend/integration/`
-6. Move puppeteer backend tests:
-   - `tests/backend/controllers/` → `tests/puppeteer/unit/controllers/`
-   - `tests/backend/services/` → `tests/puppeteer/unit/services/`
-   - `tests/backend/utils/` → `tests/puppeteer/unit/utils/`
-   - `tests/node-unit/` → `tests/puppeteer/unit/`
-7. Move Lambda tests:
-   - Each `lambda-processing/*/tests/` → `tests/backend/unit/{lambda-name}/`
-8. Move shared fixtures:
-   - `tests/fixtures/` stays in place
-   - `tests/utils/` (mockFactories, testHelpers) → `tests/fixtures/`
-9. Delete loose test files at `tests/` root:
-   - `sanity.test.tsx`
-   - All `.md` files (test documentation)
-   - All `.py` files at root level
-10. Create test configuration files:
-    - `tests/frontend/vitest.config.ts` pointing to frontend source
-    - `tests/backend/pytest.ini` for pytest configuration
-    - `tests/puppeteer/vitest.config.ts` pointing to puppeteer source
+1. Create ingestion service with methods:
+   - `ingest_profile(profile_id, markdown_content, metadata)` - Main entry point
+   - `_upload_to_s3(presigned_url, fields, content)` - Upload via presigned URL
+   - `_wait_for_indexing(document_id, timeout=60)` - Poll for completion
 
-**Verification Checklist:**
-- [ ] `tests/` structure matches Phase 0 specification
-- [ ] No test files remain outside the organized structure
-- [ ] `cd frontend && npm test` runs frontend tests
-- [ ] `pytest tests/backend` runs backend tests
-- [ ] All test imports resolve correctly
-
-**Testing Instructions:**
-- Run all test suites and verify they pass
-- Verify test coverage still collected correctly
-- Check that CI workflow paths will match new structure
-
-**Commit Message Template:**
-```
-Author & Committer: HatmanStack
-Email: 82614182+HatmanStack@users.noreply.github.com
-
-refactor(tests): reorganize tests by deployment target
-
-- Move frontend tests to tests/frontend/
-- Move puppeteer tests to tests/puppeteer/
-- Move Lambda tests to tests/backend/
-- Create per-target test configurations
-- Delete redundant test files
-```
-
----
-
-## Task 6: Update Test Import Paths
-
-**Goal:** Fix all import paths in test files to reference the new source locations.
-
-**Files to Modify/Create:**
-- All test files in `tests/frontend/`
-- All test files in `tests/puppeteer/`
-- All test files in `tests/backend/`
-- `tests/fixtures/mockFactories.ts`
-- `tests/fixtures/testHelpers.tsx`
-
-**Prerequisites:**
-- Task 5 complete
-
-**Implementation Steps:**
-
-1. Update frontend test imports:
-   - Tests now import from `../../frontend/src/` or use path aliases
-   - Configure vitest to resolve `@/` to frontend source
-
-2. Update puppeteer test imports:
-   - Tests import from `../../puppeteer/src/`
-   - Update any direct file references
-
-3. Update backend test imports (Python):
-   - Update `PYTHONPATH` references in conftest.py
-   - Update relative imports in test files
-
-4. Update shared fixture imports:
-   - `mockFactories.ts` and `testHelpers.tsx` may need path updates
-   - Consider making these import-agnostic where possible
-
-5. Create/update `tests/frontend/vitest.config.ts`:
-   ```typescript
-   export default defineConfig({
-     test: {
-       root: '../../frontend',
-       include: ['../../tests/frontend/**/*.test.{ts,tsx}']
-     },
-     resolve: {
-       alias: {
-         '@': path.resolve(__dirname, '../../frontend/src')
-       }
-     }
-   })
+2. Ingestion flow:
+   ```
+   1. Call ragstack_client.create_upload_url(f"{profile_id}.md")
+   2. Upload markdown content to presigned S3 URL
+   3. Optionally wait for indexing to complete
+   4. Return document_id and status
    ```
 
-6. Update `tests/backend/conftest.py` for Python tests:
-   - Set correct `PYTHONPATH`
-   - Configure moto mocks
+3. Metadata to include:
+   - `profile_id` - Base64 encoded LinkedIn URL
+   - `user_id` - Owner's Cognito sub
+   - `ingested_at` - ISO timestamp
+   - `source` - "linkedin_profile"
+
+4. Error handling:
+   - S3 upload failures → retry with backoff
+   - Indexing timeout → return pending status (don't fail)
+   - Document already exists → skip (idempotent)
+
+5. Idempotency:
+   - Use profile_id as document_id
+   - Re-ingesting same profile updates existing document
 
 **Verification Checklist:**
-- [ ] All frontend tests pass
-- [ ] All puppeteer tests pass
-- [ ] All backend tests pass
-- [ ] No "module not found" errors in any test suite
+- [x] Markdown uploaded to presigned S3 URL
+- [x] Document ID derived from profile ID
+- [x] Metadata attached to document
+- [x] Handles upload failures gracefully
+- [x] Idempotent for repeated ingestion
+- [x] Returns status (indexed, pending, failed)
 
 **Testing Instructions:**
-- Run each test suite independently
-- Verify imports resolve at runtime
-- Check coverage reports generate correctly
+
+Unit tests with mocked dependencies:
+```python
+def test_ingest_profile_uploads_markdown(mock_ragstack_client, mock_requests):
+    mock_ragstack_client.create_upload_url.return_value = {
+        "uploadUrl": "https://s3.example.com/upload",
+        "documentId": "doc123",
+        "fields": {}
+    }
+    mock_requests.post.return_value.status_code = 204
+
+    service = IngestionService(mock_ragstack_client)
+    result = service.ingest_profile("profile_abc", "# Test", {})
+
+    assert result["status"] == "uploaded"
+    mock_requests.post.assert_called_once()
+```
+
+Test scenarios:
+- Successful ingestion end-to-end
+- S3 upload failure with retry
+- Presigned URL generation failure
+- Metadata correctly attached
+- Duplicate ingestion (idempotency)
 
 **Commit Message Template:**
 ```
-Author & Committer: HatmanStack
-Email: 82614182+HatmanStack@users.noreply.github.com
+feat(backend): add profile ingestion service
 
-refactor(tests): update test import paths
-
-- Configure vitest aliases for frontend tests
-- Update puppeteer test imports
-- Update Python test PYTHONPATH
-- Fix shared fixture imports
+- Uploads markdown to RAGStack via presigned URLs
+- Supports metadata attachment
+- Idempotent profile updates
 ```
 
 ---
 
-## Task 7: Migrate Scripts
+### Task 6: RAGStack Proxy Lambda
 
-**Goal:** Consolidate all utility scripts into the `scripts/` directory with logical organization.
+**Goal:** Create Lambda function that proxies search and ingestion requests to RAGStack, keeping API key secure on backend.
 
-**Files to Modify/Create:**
-- Move `scripts/benchmark-performance.js` → `scripts/benchmarks/benchmark-performance.js`
-- Move `scripts/replace-console-logs.sh` → `scripts/dev-tools/replace-console-logs.sh`
-- Delete `scripts/deprecated/` entirely (contains README.md, repair-dynamodb-edges.js, restore-contacts.cjs, test-repair-script.js)
-- Move `RAG-CloudStack/deploy.sh` → `scripts/deploy/deploy-legacy.sh` (reference only)
-- Move `RAG-CloudStack/get-env-vars.sh` → `scripts/deploy/get-env-vars.sh`
-- Move `RAG-CloudStack/setup-dev.sh` → `scripts/dev-tools/setup-dev.sh`
-- Delete root shell scripts: `check-cognito-user.sh`, `check-env.sh`, `create-cognito-user.sh`
+**Files to Create:**
+- `backend/lambdas/ragstack-proxy/index.py` - Lambda handler
+- `backend/lambdas/ragstack-proxy/requirements.txt` - Dependencies
 
-**Note:** Puppeteer scripts (`create-edges.js`, `generate-device-keypair.js`) are moved in Task 3 directly from `puppeteer-backend/scripts/` to `scripts/dev-tools/`.
+**Files to Modify:**
+- `backend/template.yaml` - Add new Lambda resource
 
 **Prerequisites:**
-- Task 3 complete
+- Tasks 4-5 complete (client and ingestion service)
+- Understanding of existing Lambda patterns in backend
 
 **Implementation Steps:**
 
-1. Move benchmark scripts to `scripts/benchmarks/`
-2. Move development utility scripts to `scripts/dev-tools/`
-3. Move deployment-related scripts to `scripts/deploy/`
-4. Delete deprecated scripts directory entirely
-5. Delete root-level shell scripts (functionality will be in deploy.js or npm scripts)
-6. Update any cross-references between scripts
-7. Update any package.json scripts that reference old locations
-8. Create `scripts/README.md` documenting available scripts
+1. Create Lambda handler with operations:
+   - `search` - Search profiles in knowledge base
+   - `ingest` - Ingest a profile (internal use)
+   - `status` - Check ingestion status
 
-**Verification Checklist:**
-- [ ] `scripts/` contains only three subdirectories
-- [ ] No scripts remain at project root (except standard configs)
-- [ ] `npm run benchmark` works (after package.json update)
-- [ ] All script shebangs and paths are correct
+2. Handler structure:
+   ```python
+   def handler(event, context):
+       operation = event.get("operation")
+       if operation == "search":
+           return handle_search(event)
+       elif operation == "ingest":
+           return handle_ingest(event)
+       elif operation == "status":
+           return handle_status(event)
+       else:
+           return {"statusCode": 400, "body": "Unknown operation"}
+   ```
 
-**Testing Instructions:**
-- Run benchmark script to verify it works
-- Verify dev-tools scripts are executable
-- Check no broken script references remain
+3. Environment variables required:
+   - `RAGSTACK_GRAPHQL_ENDPOINT`
+   - `RAGSTACK_API_KEY` (from Secrets Manager or SSM)
 
-**Commit Message Template:**
-```
-Author & Committer: HatmanStack
-Email: 82614182+HatmanStack@users.noreply.github.com
+4. Request validation:
+   - Verify JWT token present
+   - Extract user_id from claims
+   - Validate required fields per operation
 
-refactor(scripts): consolidate utility scripts
-
-- Organize scripts into deploy/, dev-tools/, benchmarks/
-- Delete deprecated scripts
-- Delete redundant root shell scripts
-- Add scripts README
-```
-
----
-
-## Task 8: Create Root Orchestration Package.json
-
-**Goal:** Convert the root package.json to orchestration-only, delegating all work to subdirectories.
-
-**Files to Modify/Create:**
-- Rewrite `package.json` at root
-- Verify `package-lock.json` is regenerated correctly
-
-**Prerequisites:**
-- Tasks 2, 3, and 7 complete
-
-**Implementation Steps:**
-
-1. Create new root `package.json` with minimal content:
+5. Response format:
    ```json
    {
-     "name": "linkedin-advanced-search",
-     "version": "1.0.0",
-     "private": true,
-     "description": "LinkedIn Advanced Search - Monorepo",
-     "scripts": {
-       "dev": "cd frontend && npm run dev",
-       "dev:puppeteer": "cd puppeteer && npm run dev",
-       "build": "cd frontend && npm run build",
-       "test": "npm run test:frontend && npm run test:backend && npm run test:puppeteer",
-       "test:frontend": "cd frontend && npm test",
-       "test:backend": "cd backend && npm run test",
-       "test:puppeteer": "cd puppeteer && npm test",
-       "lint": "npm run lint:frontend && npm run lint:backend && npm run lint:puppeteer",
-       "lint:frontend": "cd frontend && npm run lint",
-       "lint:backend": "cd backend && uvx ruff check lambdas",
-       "lint:puppeteer": "cd puppeteer && npm run lint",
-       "check": "npm run lint && npm run test",
-       "deploy": "cd backend && npm run deploy",
-       "benchmark": "node scripts/benchmarks/benchmark-performance.js"
-     },
-     "author": "HatmanStack",
-     "license": "Apache-2.0"
+     "statusCode": 200,
+     "body": {
+       "results": [...],
+       "totalResults": 10
+     }
    }
    ```
 
-2. Remove all dependencies from root (they belong in subdirectories)
-3. Delete root `node_modules/` and `package-lock.json`
-4. Run `npm install` in each subdirectory: `frontend/`, `puppeteer/`, `backend/`
-5. Verify each subdirectory has its own `node_modules/`
+6. SAM template additions:
+   - New `RAGStackProxyFunction` resource
+   - API Gateway route: `POST /ragstack`
+   - IAM permissions for Secrets Manager/SSM
+   - Environment variable references
 
 **Verification Checklist:**
-- [ ] Root `package.json` has no dependencies
-- [ ] Root has no `node_modules/` directory
-- [ ] `npm run dev` starts frontend
-- [ ] `npm run dev:puppeteer` starts puppeteer server
-- [ ] `npm run test` runs all test suites
-- [ ] `npm run lint` runs all linters
-- [ ] `npm run check` runs lint + tests
+- [x] Lambda handles search operation
+- [x] Lambda handles ingest operation
+- [x] API key retrieved from secure storage
+- [x] JWT validation enforced
+- [x] User ID extracted from claims
+- [x] Error responses properly formatted
+- [x] SAM template valid (`sam validate`)
 
 **Testing Instructions:**
-- Run each npm script and verify it delegates correctly
-- Verify no "command not found" errors
-- Check that subdirectory commands execute from correct working directory
+
+Unit tests with mocked services:
+```python
+def test_search_operation(mock_ragstack_client):
+    event = {
+        "operation": "search",
+        "query": "software engineer",
+        "maxResults": 10,
+        "requestContext": {
+            "authorizer": {"claims": {"sub": "user123"}}
+        }
+    }
+    response = handler(event, None)
+    assert response["statusCode"] == 200
+    assert "results" in json.loads(response["body"])
+```
+
+Test scenarios:
+- Search with valid query
+- Search with missing query (validation error)
+- Ingest with valid profile data
+- Missing JWT token (401)
+- RAGStack API failure (502)
 
 **Commit Message Template:**
 ```
-Author & Committer: HatmanStack
-Email: 82614182+HatmanStack@users.noreply.github.com
+feat(backend): add RAGStack proxy Lambda
 
-refactor(root): convert to orchestration-only package.json
-
-- Remove all dependencies
-- Add delegation scripts for all targets
-- Each subdirectory now self-contained
+- Secure proxy for RAGStack GraphQL API
+- Supports search and ingest operations
+- API key stored in Secrets Manager
 ```
 
 ---
 
-## Task 9: Delete Obsolete Directories and Files
+### Task 7: Edge Processing Ingestion Trigger
 
-**Goal:** Remove all directories and files that are no longer needed after migration.
+**Goal:** Modify edge-processing Lambda to trigger profile ingestion when connection status changes to indicate an established relationship.
 
-**Files to Delete:**
-- `RAG-CloudStack/` (entire directory - will be replaced by backend/template.yaml)
-- `lambda-processing/` (entire directory - moved to backend/lambdas/)
-- `linkedin-profile-processor-mwaa/` (entire directory - MWAA deleted per spec)
-- `Migration/` (entire directory - historical docs)
-- `src/` (if any remnants - should be empty)
-- `puppeteer-backend/` (if any remnants - should be empty)
-- Root config files that moved: `vite.config.ts`, `tsconfig*.json`, `tailwind.config.ts`, `eslint.config.js`, `components.json`, `jest.config.js`
-- Loose files: `sample-repairs.json`, `check-*.sh`, `create-*.sh`
+**Files to Modify:**
+- `backend/lambdas/edge-processing/lambda_function.py` - Add ingestion trigger
 
 **Prerequisites:**
-- All previous tasks complete
-- All tests passing from new locations
+- Task 6 complete (proxy Lambda deployed)
+- Understanding of existing edge-processing logic
 
 **Implementation Steps:**
 
-1. Verify all content has been migrated before deletion
-2. Delete `RAG-CloudStack/` directory
-3. Delete `lambda-processing/` directory
-4. Delete `linkedin-profile-processor-mwaa/` directory
-5. Delete `Migration/` directory
-6. Delete empty `src/` if it exists
-7. Delete empty `puppeteer-backend/` if it exists
-8. Delete root config files that were moved to frontend
-9. Delete `jest.config.js` (tests use vitest now)
-10. Delete miscellaneous files: `sample-repairs.json`
-11. Run `git status` to verify deletions
+1. Identify trigger points in edge-processing:
+   - When status changes to `outgoing` (connection request sent)
+   - When status changes to `ally` (connection accepted)
+   - When status changes to `followed` (new status to add)
 
-**Verification Checklist:**
-- [ ] Only target directories remain: `frontend/`, `backend/`, `puppeteer/`, `tests/`, `docs/`, `scripts/`, `.github/`
-- [ ] No orphaned configuration files at root
-- [ ] `git status` shows expected deletions
-- [ ] Application still builds and runs
-
-**Testing Instructions:**
-- Run full test suite after deletions
-- Verify no "file not found" errors
-- Build and run application
-
-**Commit Message Template:**
-```
-Author & Committer: HatmanStack
-Email: 82614182+HatmanStack@users.noreply.github.com
-
-chore(cleanup): delete obsolete directories and files
-
-- Remove RAG-CloudStack/ (replaced by backend/)
-- Remove lambda-processing/ (moved to backend/lambdas/)
-- Remove linkedin-profile-processor-mwaa/ (MWAA deprecated)
-- Remove Migration/ (historical docs)
-- Remove migrated root config files
-```
-
----
-
-## Task 10: Update GitHub Actions Workflow
-
-**Goal:** Update CI workflow to work with new directory structure.
-
-**Files to Modify/Create:**
-- Rewrite `.github/workflows/ci.yml`
-- Delete `.github/workflows/lint-and-test.yml` (replaced by ci.yml)
-- Delete `.github/workflows/claude.yml` (if not needed)
-- Delete `.github/workflows/claude-code-review.yml` (if not needed)
-- Keep or update `.github/workflows/README.md`
-
-**Prerequisites:**
-- All previous tasks complete
-
-**Implementation Steps:**
-
-1. Create new `.github/workflows/ci.yml` following Phase 0 specification:
-   - Triggers: push/PR to main, develop
-   - Jobs: frontend-lint, frontend-tests, backend-lint, backend-tests, puppeteer-lint, puppeteer-tests, status-check
-   - Node.js 24, Python 3.13
-   - Working directories updated for new structure
-
-2. Delete old workflow files that are superseded
-
-3. Update workflow to use correct paths:
-   - Frontend: `cd frontend && npm ci && npm run lint`
-   - Backend: `uvx ruff check backend/lambdas`
-   - Puppeteer: `cd puppeteer && npm ci && npm run lint`
-   - Tests: `cd frontend && npm test`, `pytest tests/backend`, etc.
-
-4. Ensure backend tests have correct environment:
-   ```yaml
-   env:
-     AWS_DEFAULT_REGION: us-east-1
-     DYNAMODB_TABLE: test-table
-     PYTHONPATH: ${{ github.workspace }}/backend/lambdas
+2. Add ingestion logic after edge upsert:
+   ```python
+   if new_status in ['outgoing', 'ally', 'followed']:
+       trigger_profile_ingestion(profile_id, user_id)
    ```
 
-5. Add status-check job that depends on all others
+3. Fetch profile data for ingestion:
+   - Query profile metadata from DynamoDB
+   - Generate markdown from profile data
+   - Call RAGStack proxy for ingestion
+
+4. Handle ingestion failures gracefully:
+   - Log errors but don't fail edge operation
+   - Profile can be re-ingested later
+   - Consider SQS queue for async retry
+
+5. Track ingestion status:
+   - Add `ragstack_ingested` flag to edge record
+   - Store `ragstack_document_id` for reference
+   - Update on successful ingestion
+
+6. Add `followed` status to connection status enum if not present
 
 **Verification Checklist:**
-- [ ] Workflow file is valid YAML
-- [ ] All job paths reference new structure
-- [ ] `act` or GitHub Actions dry-run passes (if available)
-- [ ] No references to old directory names
+- [x] Ingestion triggered on `outgoing` status
+- [x] Ingestion triggered on `ally` status
+- [x] Ingestion triggered on `followed` status
+- [x] Profile data fetched from DynamoDB
+- [x] Markdown generated correctly
+- [x] Ingestion failure doesn't fail edge operation
+- [x] `ragstack_ingested` flag updated
 
 **Testing Instructions:**
-- Push to a branch and verify CI runs
-- Check all jobs execute in correct directories
-- Verify status-check job depends on all others
+
+Unit tests with mocked dependencies:
+```python
+def test_edge_upsert_triggers_ingestion(mock_dynamodb, mock_ragstack_proxy):
+    # Setup: profile exists in DynamoDB
+    mock_dynamodb.get_item.return_value = {"Item": {"name": "John"}}
+
+    # Execute: upsert edge to 'outgoing'
+    handler({"operation": "upsert_status", "profileId": "abc", "status": "outgoing"}, None)
+
+    # Verify: ingestion triggered
+    mock_ragstack_proxy.ingest.assert_called_once()
+```
+
+Test scenarios:
+- Status change to `outgoing` triggers ingestion
+- Status change to `ally` triggers ingestion
+- Status change to `processed` does NOT trigger
+- Profile not found in DynamoDB (skip ingestion)
+- Ingestion failure logged but edge succeeds
 
 **Commit Message Template:**
 ```
-Author & Committer: HatmanStack
-Email: 82614182+HatmanStack@users.noreply.github.com
+feat(backend): trigger RAGStack ingestion on connection events
 
-ci(workflows): update CI for new monorepo structure
+- Ingest profiles when connection request sent
+- Ingest when connection accepted
+- Track ingestion status in edge record
+```
 
-- Rewrite ci.yml for new directory layout
-- Remove obsolete workflow files
-- Add status-check aggregation job
-- Enforce Node.js 24 and Python 3.13
+---
+
+### Task 8: Profile Init Ingestion
+
+**Goal:** Modify profile initialization flow to ingest existing connections into RAGStack during initial database setup.
+
+**Files to Modify:**
+- `puppeteer/src/domains/profile/services/profileInitService.js` - Add ingestion call
+
+**Prerequisites:**
+- Task 6 complete (proxy Lambda available)
+- Task 3 complete (markdown generator)
+- Understanding of profile-init workflow
+
+**Implementation Steps:**
+
+1. Identify integration point in `ProfileInitService`:
+   - After profile is processed and stored in DynamoDB
+   - Before moving to next profile in batch
+
+2. Add ingestion call:
+   ```javascript
+   // After successful profile processing
+   if (connectionType !== 'possible') {
+     await this.triggerRAGStackIngestion(profileId, profileData);
+   }
+   ```
+
+3. Create ingestion trigger method:
+   - Generate markdown using `profileMarkdownGenerator`
+   - Call RAGStack proxy Lambda via HTTP
+   - Handle failures gracefully (log, don't fail init)
+
+4. Batch consideration:
+   - Profile init processes many profiles
+   - Consider async ingestion (fire and forget)
+   - Or batch ingestion requests
+
+5. Skip already-ingested profiles:
+   - Check `ragstack_ingested` flag before ingesting
+   - Avoid duplicate ingestion during re-init
+
+**Verification Checklist:**
+- [ ] Ally connections ingested during init
+- [ ] Incoming connections ingested during init
+- [ ] Outgoing connections ingested during init
+- [ ] Possible connections NOT ingested
+- [ ] Already-ingested profiles skipped
+- [ ] Init workflow completes despite ingestion failures
+
+**Testing Instructions:**
+
+Unit tests with mocked services:
+```javascript
+describe('ProfileInitService', () => {
+  it('should trigger ingestion for ally connections', async () => {
+    const mockIngest = vi.fn().mockResolvedValue({ status: 'success' });
+    const service = new ProfileInitService({ ingestProfile: mockIngest });
+
+    await service.processProfile(profileId, 'ally');
+
+    expect(mockIngest).toHaveBeenCalledWith(profileId, expect.any(String));
+  });
+
+  it('should not trigger ingestion for possible connections', async () => {
+    const mockIngest = vi.fn();
+    const service = new ProfileInitService({ ingestProfile: mockIngest });
+
+    await service.processProfile(profileId, 'possible');
+
+    expect(mockIngest).not.toHaveBeenCalled();
+  });
+});
+```
+
+**Commit Message Template:**
+```
+feat(puppeteer): ingest existing connections during profile init
+
+- Trigger RAGStack ingestion for ally/incoming/outgoing
+- Skip possible contacts
+- Graceful failure handling
+```
+
+---
+
+### Task 9: Follow Profile Functionality
+
+**Goal:** Implement follow functionality that triggers RAGStack ingestion, similar to connection requests.
+
+**Files to Modify:**
+- `puppeteer/src/domains/linkedin/services/linkedinInteractionService.js` - Add follow method
+- `puppeteer/routes/linkedinInteractionRoutes.js` - Add route
+- `puppeteer/src/domains/linkedin/controllers/linkedinInteractionController.js` - Add controller method
+
+**Prerequisites:**
+- Understanding of existing connection request flow
+- LinkedIn follow button selectors identified
+
+**Implementation Steps:**
+
+1. Add route for follow operation:
+   ```javascript
+   router.post('/linkedin-interactions/follow', controller.followProfile);
+   ```
+
+2. Add controller method:
+   - Validate request (profileId, JWT)
+   - Enqueue to interaction queue
+   - Return async response
+
+3. Add service method `followProfile(profileId, jwtToken)`:
+   - Navigate to profile
+   - Find and click follow button
+   - Verify follow succeeded
+   - Create edge with status `followed`
+   - Trigger RAGStack ingestion
+
+4. LinkedIn follow button selectors:
+   - Primary: `button[aria-label*="Follow"]`
+   - Fallback: `button:has-text("Follow")`
+   - Verify not already following
+
+5. Error handling:
+   - Already following → success (idempotent)
+   - Follow button not found → error
+   - LinkedIn rate limit → queue for retry
+
+6. Edge creation:
+   - Status: `followed`
+   - This triggers ingestion via Task 6 logic
+
+**Verification Checklist:**
+- [ ] Follow route accessible
+- [ ] Profile navigated correctly
+- [ ] Follow button clicked
+- [ ] Edge created with `followed` status
+- [ ] RAGStack ingestion triggered
+- [ ] Idempotent for already-followed profiles
+- [ ] Errors handled gracefully
+
+**Testing Instructions:**
+
+Unit tests with mocked Puppeteer:
+```javascript
+describe('followProfile', () => {
+  it('should click follow button and create edge', async () => {
+    const mockPage = createMockPage({
+      followButton: true,
+      alreadyFollowing: false
+    });
+
+    await service.followProfile('profile123', 'jwt-token');
+
+    expect(mockPage.click).toHaveBeenCalledWith(expect.stringContaining('Follow'));
+    expect(mockDynamoDB.upsertEdge).toHaveBeenCalledWith('profile123', 'followed');
+  });
+});
+```
+
+**Commit Message Template:**
+```
+feat(puppeteer): add follow profile functionality
+
+- New endpoint for following LinkedIn profiles
+- Creates edge with 'followed' status
+- Triggers RAGStack ingestion
 ```
 
 ---
@@ -689,74 +789,29 @@ ci(workflows): update CI for new monorepo structure
 
 This phase is complete when:
 
-- [ ] Directory structure matches target diagram in README
-- [ ] `npm run dev` starts frontend from new location
-- [ ] `npm run dev:puppeteer` starts puppeteer server
-- [ ] `npm run test` runs all test suites successfully
-- [ ] `npm run lint` passes for all targets
-- [ ] `npm run build` produces frontend build
-- [ ] CI workflow runs successfully on push
-- [ ] No references to old directory structure remain
-- [ ] Git history preserved for moved files
+- [ ] RAGStack deployment script works end-to-end
+- [ ] `.env.ragstack` contains valid credentials
+- [ ] Profile markdown generator produces valid output
+- [ ] RAGStack client can search and upload
+- [ ] Proxy Lambda deployed and accessible
+- [ ] Edge processing triggers ingestion on status changes
+- [ ] Profile init ingests existing connections
+- [ ] Follow functionality works and triggers ingestion
+- [ ] All unit tests pass
+- [ ] Integration tests pass with mocked RAGStack
 
-**Known Limitations:**
-- Backend deployment not yet functional (Phase 2)
-- Documentation not yet consolidated (Phase 3)
-- Code sanitization not yet performed (Phase 3)
-
----
-
-## Next Phase
-
-Proceed to [Phase 2: Backend Consolidation](Phase-2.md) to set up the Lambda deployment infrastructure.
+**Manual Verification:**
+1. Deploy RAGStack via `npm run deploy:ragstack`
+2. Run profile init for a few existing connections
+3. Verify profiles appear in RAGStack (via GraphQL explorer or search)
+4. Send a connection request, verify ingestion triggered
+5. Follow a profile, verify ingestion triggered
 
 ---
 
-## Review Feedback (Iteration 1)
+## Known Limitations
 
-### Critical Issue: Backend Lambda Code Missing
-
-> **Consider:** Looking at `backend/lambdas/`, it only contains a `.gitkeep` file. The plan at Task 2 (Phase 2) specifies migrating Lambda functions from `lambda-processing/` to `backend/lambdas/`. However, the old `lambda-processing/` directory has been deleted in Task 9.
->
-> **Think about:** Were the Lambda files moved before deletion, or were they lost? Check git history with `git log --oneline -- lambda-processing/` to see what happened.
->
-> **Reflect:** The backend tests in `tests/backend/unit/` expect Lambda code to exist. All 19 tests fail with `ModuleNotFoundError: No module named 'lambda_function'`.
-
-### Critical Issue: Frontend Tests Not Running
-
-> **Consider:** Running `cd frontend && npm test` shows all 53 tests fail with: `Cannot find module '.../tests/frontend/setupTests.ts'`
->
-> **Think about:** The setupTests.ts file exists at `tests/frontend/setupTests.ts`. The vite.config.ts references `../tests/frontend/setupTests.ts`. Is vitest resolving relative paths correctly from the frontend directory?
->
-> **Reflect:** Should the setupFiles path be absolute, or does the test runner need additional configuration to find files outside the frontend directory?
-
-### Issue: Root package.json Test Script Incomplete
-
-> **Consider:** The plan specifies the root `test` script should run all three test suites. Currently it runs:
-> ```
-> "test": "npm run test:frontend && npm run test:puppeteer"
-> ```
->
-> **Think about:** Where is `test:backend`? The plan at line 513 shows it should be included.
-
-### Issue: Puppeteer Lint Errors (Pre-existing)
-
-> **Reflect:** The puppeteer directory has 90 ESLint errors. The plan marks this as pre-existing, but the CI workflow will fail on `puppeteer-lint`. Should these be fixed as part of Phase 1, or should the CI be configured to allow warnings?
-
-### Verification Status
-
-| Check | Status | Notes |
-|-------|--------|-------|
-| Directory structure | ✓ | Matches target |
-| Frontend moved | ✓ | Files in frontend/src/ |
-| Puppeteer moved | ✓ | Files in puppeteer/ |
-| Tests reorganized | ⚠️ | Structure correct, but tests don't run |
-| Scripts consolidated | ✓ | All in scripts/{benchmarks,deploy,dev-tools}/ |
-| Old dirs deleted | ✓ | RAG-CloudStack, lambda-processing, Migration gone |
-| Root package.json | ⚠️ | Missing test:backend in test script |
-| CI workflow | ✓ | ci.yml created with correct structure |
-| Frontend tests | ✗ | 53 tests fail - setupTests path issue |
-| Backend tests | ✗ | 19 tests fail - Lambda code missing |
-| Lint passes | ⚠️ | Frontend ✓ (warnings), Puppeteer ✗ (90 errors) |
-
-**NOT APPROVED** - Critical issues must be resolved before proceeding to Phase 2.
+1. **Async ingestion** - Ingestion is fire-and-forget; failures logged but not retried automatically
+2. **No re-ingestion trigger** - Profile updates in DynamoDB don't trigger re-ingestion
+3. **Follow selectors** - LinkedIn follow button selectors may need maintenance
+4. **Batch limits** - Large profile-init may hit RAGStack rate limits

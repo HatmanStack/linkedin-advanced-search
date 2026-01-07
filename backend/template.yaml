@@ -33,6 +33,15 @@ Parameters:
     Type: String
     Default: us.meta.llama3-2-90b-instruct-v1:0
     Description: Bedrock model ID for LLM operations
+  RagstackGraphqlEndpoint:
+    Type: String
+    Default: ''
+    Description: RAGStack GraphQL API endpoint URL
+  RagstackApiKey:
+    Type: String
+    Default: ''
+    NoEcho: true
+    Description: RAGStack API key for authentication
 
 Globals:
   Function:
@@ -50,6 +59,7 @@ Globals:
 
 Conditions:
   IncludeDevOriginsCondition: !Equals [!Ref IncludeDevOrigins, 'true']
+  HasRagstackConfig: !Not [!Equals [!Ref RagstackGraphqlEndpoint, '']]
 
 Resources:
   ProfilesTable:
@@ -172,9 +182,20 @@ Resources:
       FunctionName: !Sub 'linkedin-edge-processing-${Environment}'
       CodeUri: lambdas/edge-processing/
       Handler: lambda_function.lambda_handler
+      Environment:
+        Variables:
+          RAGSTACK_PROXY_FUNCTION: !If
+            - HasRagstackConfig
+            - !Ref RAGStackProxyFunction
+            - ''
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref ProfilesTable
+        - !If
+          - HasRagstackConfig
+          - LambdaInvokePolicy:
+              FunctionName: !Ref RAGStackProxyFunction
+          - !Ref AWS::NoValue
       Events:
         EdgeApi:
           Type: HttpApi
@@ -396,6 +417,38 @@ Resources:
             ApiId: !Ref HttpApi
             Path: /webhooks/openai
             Method: POST
+            Auth:
+              Authorizer: NONE
+
+  RAGStackProxyFunction:
+    Type: AWS::Serverless::Function
+    Condition: HasRagstackConfig
+    Properties:
+      FunctionName: !Sub 'linkedin-ragstack-proxy-${Environment}'
+      CodeUri: lambdas/ragstack-proxy/
+      Handler: index.lambda_handler
+      Timeout: 60
+      Environment:
+        Variables:
+          RAGSTACK_GRAPHQL_ENDPOINT: !Ref RagstackGraphqlEndpoint
+          RAGSTACK_API_KEY: !Ref RagstackApiKey
+          STAGE: !Ref Environment
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ProfilesTable
+      Events:
+        RagstackApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /ragstack
+            Method: POST
+        RagstackOptionsApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /ragstack
+            Method: OPTIONS
             Auth:
               Authorizer: NONE
 

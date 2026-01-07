@@ -9,7 +9,7 @@
     "build": "cd frontend && npm run build",
     "test": "npm run test:frontend && npm run test:backend",
     "test:frontend": "cd frontend && npm run test",
-    "test:backend": "cd tests/backend && python -m pytest unit/ -v --tb=short",
+    "test:backend": "cd tests/backend && . .venv/bin/activate && python -m pytest unit/ -v --tb=short",
     "lint": "npm run lint:frontend && npm run lint:puppeteer && npm run lint:backend",
     "lint:frontend": "cd frontend && npm run lint",
     "lint:puppeteer": "cd puppeteer && npm run lint",
@@ -17,7 +17,8 @@
     "check": "npm run lint && npm run test",
     "benchmark": "node scripts/benchmarks/benchmark-performance.js",
     "cleanup": "bash scripts/cleanup/code-cleanup.sh",
-    "cleanup:audit": "bash scripts/cleanup/code-cleanup.sh audit"
+    "cleanup:audit": "bash scripts/cleanup/code-cleanup.sh audit",
+    "deploy:ragstack": "node scripts/deploy/deploy-ragstack.js"
   },
   "author": "HatmanStack",
   "license": "Apache-2.0"

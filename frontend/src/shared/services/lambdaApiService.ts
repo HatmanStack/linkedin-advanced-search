@@ -642,6 +642,28 @@ interface SearchResponse {
   };
 }
 
+/**
+ * RAGStack semantic search result
+ */
+export interface RAGStackSearchResult {
+  /** Profile ID extracted from source field */
+  profileId: string;
+  /** Relevance score (0-1) */
+  score: number;
+  /** Text snippet from matched content */
+  snippet: string;
+}
+
+/**
+ * RAGStack semantic search response format
+ */
+export interface RAGStackSearchResponse {
+  /** Array of matching profiles */
+  results: RAGStackSearchResult[];
+  /** Total number of results found */
+  totalResults: number;
+}
+
 class ExtendedLambdaApiService extends LambdaApiService {
   async getUserProfile(): Promise<{ success: boolean; data?: UserProfile; error?: string }> {
     try {
@@ -703,6 +725,65 @@ class ExtendedLambdaApiService extends LambdaApiService {
     });
     const data = (response.data?.data ?? response.data) as unknown;
     return data;
+  }
+
+  /**
+   * Search profiles using RAGStack semantic search
+   *
+   * @param query - Natural language search query
+   * @param maxResults - Maximum number of results (default: 100)
+   * @returns Promise resolving to RAGStack SearchResponse with profile IDs and scores
+   */
+  async searchProfilesSemantic(query: string, maxResults = 100): Promise<RAGStackSearchResponse> {
+    try {
+      const response = await this.apiClient.post('ragstack', {
+        operation: 'search',
+        query,
+        maxResults,
+      });
+
+      // Handle Lambda proxy response format
+      const responseData = response.data;
+      let parsedBody: { results: Array<{ source: string; score: number; content: string }>; totalResults: number };
+
+      if (responseData && typeof responseData === 'object' && 'statusCode' in responseData) {
+        if ((responseData as { statusCode: number }).statusCode !== 200) {
+          const errorBody = typeof responseData.body === 'string'
+            ? JSON.parse(responseData.body as string)
+            : responseData.body;
+          throw new ApiError({
+            message: errorBody?.error || `Search failed with status ${(responseData as { statusCode: number }).statusCode}`,
+            status: (responseData as { statusCode: number }).statusCode,
+          });
+        }
+        parsedBody = typeof responseData.body === 'string'
+          ? JSON.parse(responseData.body as string)
+          : responseData.body as { results: Array<{ source: string; score: number; content: string }>; totalResults: number };
+      } else {
+        parsedBody = responseData as { results: Array<{ source: string; score: number; content: string }>; totalResults: number };
+      }
+
+      // Transform results to extract profile IDs
+      const results = (parsedBody.results || []).map((result) => ({
+        profileId: result.source.startsWith('profile_') ? result.source.substring(8) : result.source,
+        score: result.score,
+        snippet: result.content || '',
+      }));
+
+      return {
+        results,
+        totalResults: parsedBody.totalResults || results.length,
+      };
+    } catch (error) {
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      logger.error('RAGStack search API error', { error });
+      throw new ApiError({
+        message: error instanceof Error ? error.message : 'Semantic search failed',
+        code: 'SEARCH_ERROR',
+      });
+    }
   }
 
   /**

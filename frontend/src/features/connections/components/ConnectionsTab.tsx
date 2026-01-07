@@ -1,11 +1,14 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { VirtualConnectionList, useConnections } from '@/features/connections';
 import { useProfileInit } from '@/features/profile';
+import { useProfileSearch } from '../hooks/useProfileSearch';
+import { ConnectionSearchBar } from './ConnectionSearchBar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, Users, Filter, X, Database } from 'lucide-react';
+import { Search, Users, Filter, X, Database, AlertCircle } from 'lucide-react';
+import type { Connection } from '@/shared/types';
 
 // Fake data for when server is unavailable
 const generateFakeConnections = (): unknown[] => [
@@ -107,13 +110,31 @@ interface ConnectionsTabProps {
   onSelectionChange?: (connectionIds: string[]) => void;
 }
 
+/**
+ * Transform connection data to the format expected by VirtualConnectionList
+ */
+const transformConnection = (c: unknown) => ({
+  id: (c as Record<string, unknown>).connection_id as string || (c as Connection).id,
+  first_name: (c as Connection).first_name,
+  last_name: (c as Connection).last_name,
+  position: (c as Connection).position || '',
+  company: (c as Connection).company || '',
+  location: (c as Connection).location,
+  last_action_summary: (c as Connection).last_activity_summary || (c as Connection).last_action_summary,
+  recent_activity: (c as Connection).recent_activity || (c as Connection).last_activity_summary,
+  common_interests: (c as Connection).tags || (c as Connection).common_interests,
+  tags: (c as Connection).tags || (c as Connection).common_interests,
+  messages: (c as Connection).messages,
+  date_added: (c as Connection).date_added,
+  status: (c as Connection).status || 'ally',
+  isFakeData: (c as Record<string, unknown>).isFakeData as boolean,
+});
+
 const ConnectionsTab: React.FC<ConnectionsTabProps> = ({
   onConnectionSelect,
   selectedConnections = [],
   onSelectionChange
 }) => {
-  const [searchQuery, setSearchQuery] = useState('');
-
   const [activeTags, setActiveTags] = useState<string[]>([]);
 
   const { connections, loading, error, refetch } = useConnections();
@@ -123,6 +144,39 @@ const ConnectionsTab: React.FC<ConnectionsTabProps> = ({
     initializationError,
     initializeProfile
   } = useProfileInit();
+
+  // Transform connections for the search hook
+  const typedConnections = useMemo(() => {
+    const rawConnections = connections.length > 0 ? connections : [];
+    return rawConnections.map((c) => ({
+      id: (c as Record<string, unknown>).connection_id as string || (c as Connection).id,
+      first_name: (c as Connection).first_name,
+      last_name: (c as Connection).last_name,
+      position: (c as Connection).position || '',
+      company: (c as Connection).company || '',
+      location: (c as Connection).location,
+      headline: (c as Connection).headline,
+      status: (c as Connection).status || 'ally' as const,
+      tags: (c as Connection).tags || [],
+      common_interests: (c as Connection).common_interests || [],
+      recent_activity: (c as Connection).recent_activity,
+      last_action_summary: (c as Connection).last_action_summary,
+      last_activity_summary: (c as Record<string, unknown>).last_activity_summary as string,
+      messages: (c as Connection).messages,
+      date_added: (c as Connection).date_added,
+    })) as Connection[];
+  }, [connections]);
+
+  // RAGStack semantic search hook
+  const {
+    searchQuery,
+    setSearchQuery,
+    searchResults,
+    isSearching,
+    searchError,
+    clearSearch,
+    isSearchActive
+  } = useProfileSearch(typedConnections);
 
   const [containerHeight, setContainerHeight] = useState(600);
   const [containerRef, setContainerRef] = useState<HTMLDivElement | null>(null);
@@ -145,32 +199,29 @@ const ConnectionsTab: React.FC<ConnectionsTabProps> = ({
   // Use fake data if no real connections are available
   const displayConnections = connections.length > 0 ? connections : generateFakeConnections();
 
+  // Determine which connections to show based on search state
+  const baseConnections = isSearchActive ? searchResults : displayConnections;
+
   // Get all unique tags from connections
   const allTags = useMemo(() => {
     const tagSet = new Set<string>();
     displayConnections.forEach(connection => {
-      (connection.tags || []).forEach((tag: string) => tagSet.add(tag));
+      ((connection as Connection).tags || []).forEach((tag: string) => tagSet.add(tag));
     });
     return Array.from(tagSet).sort();
   }, [displayConnections]);
 
-  // Filter and sort connections based on search and tags
+  // Apply tag filters to the displayed connections
   const filteredConnections = useMemo(() => {
-    let filtered = displayConnections.filter(connection => {
-      const matchesSearch = searchQuery === '' ||
-        connection.first_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        connection.last_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        connection.company?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        connection.position?.toLowerCase().includes(searchQuery.toLowerCase());
-
-      return matchesSearch;
-    });
+    let filtered = baseConnections as unknown[];
 
     // Sort by tag matches if tags are selected
     if (activeTags.length > 0) {
-      filtered = filtered.sort((a, b) => {
-        const aTagsMatch = (a.tags || []).filter((tag: string) => activeTags.includes(tag)).length;
-        const bTagsMatch = (b.tags || []).filter((tag: string) => activeTags.includes(tag)).length;
+      filtered = [...filtered].sort((a, b) => {
+        const aConn = a as Connection;
+        const bConn = b as Connection;
+        const aTagsMatch = (aConn.tags || []).filter((tag: string) => activeTags.includes(tag)).length;
+        const bTagsMatch = (bConn.tags || []).filter((tag: string) => activeTags.includes(tag)).length;
 
         // Sort by number of matching tags (descending)
         if (aTagsMatch !== bTagsMatch) {
@@ -178,15 +229,18 @@ const ConnectionsTab: React.FC<ConnectionsTabProps> = ({
         }
 
         // If same number of matches, sort alphabetically
-        return `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`);
+        return `${aConn.first_name} ${aConn.last_name}`.localeCompare(`${bConn.first_name} ${bConn.last_name}`);
       });
     }
 
     return filtered;
-  }, [displayConnections, searchQuery, activeTags]);
+  }, [baseConnections, activeTags]);
 
   const handleConnectionClick = (connectionId: string) => {
-    const connection = displayConnections.find(c => c.connection_id === connectionId);
+    const connection = displayConnections.find(c =>
+      ((c as Record<string, unknown>).connection_id as string) === connectionId ||
+      (c as Connection).id === connectionId
+    );
     if (connection && onConnectionSelect) {
       onConnectionSelect(connection);
     }
@@ -292,7 +346,7 @@ const ConnectionsTab: React.FC<ConnectionsTabProps> = ({
 
           <div className="bg-yellow-600/20 border border-yellow-500/30 rounded-lg p-3 mb-6">
             <p className="text-yellow-200 text-sm font-medium">
-              <strong>⚠️ Demo Mode:</strong> The data displayed below is sample data for demonstration purposes.
+              <strong>Demo Mode:</strong> The data displayed below is sample data for demonstration purposes.
               Fix the connection issue above to see your real LinkedIn connections.
             </p>
           </div>
@@ -313,21 +367,7 @@ const ConnectionsTab: React.FC<ConnectionsTabProps> = ({
           {/* Fake Connections using VirtualConnectionList for consistent spacing/VH */}
           <div ref={setContainerRef} style={{ height: containerHeight }} className="overflow-y-auto">
             <VirtualConnectionList
-              connections={generateFakeConnections().map((c) => ({
-                id: c.connection_id,
-                first_name: c.first_name,
-                last_name: c.last_name,
-                position: c.position || '',
-                company: c.company || '',
-                last_action_summary: c.last_activity_summary,
-                recent_activity: c.last_activity_summary,
-                common_interests: c.tags,
-                tags: c.tags,
-                messages: c.message_count,
-                date_added: c.created_at,
-                status: c.connection_status === 'connected' ? 'ally' : c.connection_status === 'pending' ? 'incoming' : 'ally',
-                isFakeData: true
-              }))}
+              connections={generateFakeConnections().map(transformConnection)}
               onSelect={handleConnectionClick}
               onTagClick={handleTagClick}
               activeTags={activeTags}
@@ -385,7 +425,7 @@ const ConnectionsTab: React.FC<ConnectionsTabProps> = ({
         {initializationMessage && (
           <div className="bg-green-600/20 border border-green-500/30 rounded-lg p-3 mt-4">
             <p className="text-green-200 text-sm font-medium">
-              <strong>✓ Success:</strong> {initializationMessage}
+              <strong>Success:</strong> {initializationMessage}
             </p>
           </div>
         )}
@@ -393,23 +433,56 @@ const ConnectionsTab: React.FC<ConnectionsTabProps> = ({
         {initializationError && (
           <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 mt-4">
             <p className="text-red-300 text-sm font-medium">
-              <strong>✗ Error:</strong> {initializationError}
+              <strong>Error:</strong> {initializationError}
             </p>
           </div>
         )}
       </CardHeader>
       <CardContent>
-        {/* Search and Filter Controls */}
+        {/* Semantic Search Bar */}
         <div className="space-y-4 mb-6">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-            <Input
-              placeholder="Search connections by name, company, or position..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-            />
-          </div>
+          <ConnectionSearchBar
+            value={searchQuery}
+            onChange={setSearchQuery}
+            onClear={clearSearch}
+            isLoading={isSearching}
+            placeholder="Search your connections with natural language..."
+          />
+
+          {/* Search Error */}
+          {searchError && (
+            <div className="flex items-center gap-2 bg-red-500/10 border border-red-500/20 rounded-lg p-3">
+              <AlertCircle className="h-4 w-4 text-red-400 flex-shrink-0" />
+              <p className="text-red-300 text-sm">
+                Search failed: {searchError.message}
+              </p>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSearchQuery(searchQuery)}
+                className="ml-auto text-red-300 hover:text-red-200 hover:bg-red-500/10"
+              >
+                Retry
+              </Button>
+            </div>
+          )}
+
+          {/* Empty Search Results */}
+          {isSearchActive && !isSearching && searchResults.length === 0 && !searchError && (
+            <div className="bg-slate-700/30 border border-slate-600/30 rounded-lg p-4 text-center">
+              <p className="text-slate-300 mb-2">
+                No results found for "{searchQuery}"
+              </p>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={clearSearch}
+                className="text-blue-400 hover:text-blue-300"
+              >
+                Clear search
+              </Button>
+            </div>
+          )}
 
           {/* Tag Filters */}
           {allTags.length > 0 && (
@@ -445,21 +518,7 @@ const ConnectionsTab: React.FC<ConnectionsTabProps> = ({
         {/* Connections List using VirtualConnectionList for consistent spacing/VH */}
         <div ref={setContainerRef} style={{ height: containerHeight }} className="overflow-y-auto">
           <VirtualConnectionList
-            connections={filteredConnections.map((c) => ({
-              id: c.connection_id,
-              first_name: c.first_name,
-              last_name: c.last_name,
-              position: c.position || '',
-              company: c.company || '',
-              location: c.location,
-              last_action_summary: c.last_activity_summary,
-              recent_activity: c.last_activity_summary,
-              common_interests: c.tags,
-              tags: c.tags,
-              messages: c.message_count,
-              date_added: c.created_at,
-              status: c.connection_status === 'connected' ? 'ally' : c.connection_status === 'pending' ? 'incoming' : 'ally'
-            }))}
+            connections={filteredConnections.map(transformConnection)}
             onSelect={handleConnectionClick}
             onTagClick={handleTagClick}
             activeTags={activeTags}

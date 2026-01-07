@@ -35,7 +35,7 @@ jobs:
         run: npm run test
 
   puppeteer:
-    name: Puppeteer (Lint)
+    name: Puppeteer (Lint + Test)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -50,6 +50,9 @@ jobs:
       - name: ESLint (strict)
         working-directory: ./puppeteer
         run: npm run lint
+      - name: Run tests
+        working-directory: ./puppeteer
+        run: npm run test
 
   backend:
     name: Backend (Lint + Test)
