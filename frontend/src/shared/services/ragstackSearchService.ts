@@ -17,13 +17,16 @@ export class SearchError extends Error {
   status?: number;
   code?: string;
   retryable: boolean;
+  override cause?: Error;
 
   constructor(message: string, options?: { status?: number; code?: string; cause?: Error }) {
     super(message);
     this.name = 'SearchError';
     this.status = options?.status;
     this.code = options?.code;
-    this.cause = options?.cause;
+    if (options?.cause) {
+      this.cause = options.cause;
+    }
     this.retryable = this.isRetryable();
   }
 
@@ -75,7 +78,7 @@ class RAGStackSearchService {
   private readonly timeout = 30000; // 30 second timeout for search operations
 
   constructor() {
-    const apiBaseUrl = (import.meta.env as unknown).VITE_API_GATEWAY_URL || '';
+    const apiBaseUrl = import.meta.env.VITE_API_GATEWAY_URL || '';
 
     // Normalize base URL to ensure trailing slash
     const normalizedBaseUrl = apiBaseUrl
