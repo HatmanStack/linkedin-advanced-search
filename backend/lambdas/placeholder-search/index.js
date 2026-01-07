@@ -19,22 +19,17 @@ import { randomUUID } from 'crypto';
  * @returns {Promise<Object>} API Gateway response object
  */
 export const handler = async (event) => {
-  // Log the full request for debugging
-  console.log('Search request received:', JSON.stringify(event, null, 2));
-
   try {
     // Parse request body
     const body = typeof event.body === 'string' ? JSON.parse(event.body) : event.body;
 
     // Validate request - query is required
     if (!body || !body.query) {
-      console.warn('Invalid request: missing query field');
       return buildErrorResponse(400, 'Invalid request: query is required');
     }
 
     // Validate query is a non-empty string
     if (typeof body.query !== 'string' || body.query.trim().length === 0) {
-      console.warn('Invalid request: query must be a non-empty string');
       return buildErrorResponse(400, 'Invalid request: query must be a non-empty string');
     }
 
@@ -42,7 +37,6 @@ export const handler = async (event) => {
     if (body.limit !== undefined) {
       const limit = parseInt(body.limit);
       if (isNaN(limit) || limit < 1 || limit > 100) {
-        console.warn(`Invalid request: limit must be between 1 and 100, got ${body.limit}`);
         return buildErrorResponse(400, 'Invalid request: limit must be between 1 and 100');
       }
     }
@@ -51,7 +45,6 @@ export const handler = async (event) => {
     if (body.offset !== undefined) {
       const offset = parseInt(body.offset);
       if (isNaN(offset) || offset < 0) {
-        console.warn(`Invalid request: offset must be non-negative, got ${body.offset}`);
         return buildErrorResponse(400, 'Invalid request: offset must be non-negative');
       }
     }
@@ -61,34 +54,6 @@ export const handler = async (event) => {
 
     // Generate unique search ID using cryptographically secure random UUID
     const searchId = `search-${Date.now()}-${randomUUID()}`;
-
-    // Log search query for debugging and future analysis
-    const searchLog = {
-      searchId,
-      userId,
-      query: body.query,
-      filters: body.filters || {},
-      limit: body.limit || 10,
-      offset: body.offset || 0,
-      timestamp: new Date().toISOString(),
-    };
-    console.log('Search query:', JSON.stringify(searchLog, null, 2));
-
-    // FUTURE: Call external search system here
-    // const results = await externalSearchService.search(body.query, body.filters);
-    // return buildSuccessResponse({
-    //   success: true,
-    //   message: "Search completed successfully",
-    //   query: body.query,
-    //   results: results.data,
-    //   total: results.total,
-    //   timestamp: new Date().toISOString(),
-    //   metadata: {
-    //     search_id: searchId,
-    //     status: "active",
-    //     userId: userId
-    //   }
-    // });
 
     // Return placeholder response with empty results
     const response = {
@@ -105,15 +70,9 @@ export const handler = async (event) => {
       },
     };
 
-    console.log('Returning placeholder response:', JSON.stringify({ searchId, success: true }));
     return buildSuccessResponse(response);
 
   } catch (error) {
-    // Log error with full stack trace
-    console.error('Search error:', error);
-    console.error('Error stack:', error.stack);
-
-    // Return generic error response (don't expose internal details)
     return buildErrorResponse(500, 'Internal server error');
   }
 };

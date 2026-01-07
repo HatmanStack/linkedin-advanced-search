@@ -102,8 +102,6 @@ def handle_generate_ideas(user_profile: dict, prompt: str = "", job_id: str | No
         if user_profile and user_profile.get('name') != "Tom, Dick, And Harry":
             for key, value in user_profile.items():
                 user_data += f"{key}: {value}\n"
-        print(f'RAW_IDEAS: {raw_ideas}')
-        print(f'USER_PROFILE: {user_profile}')
         llm_prompt = LINKEDIN_IDEAS_PROMPT.format(
             user_data=user_data,
             raw_ideas=raw_ideas
@@ -171,9 +169,6 @@ def handle_research_selected_ideas(user_data: dict, selected_ideas: list, user_i
             user_data=formatted_user_data
         )
 
-        print(f"Research prompt created for job {job_id}")
-        print(f"Selected ideas: {selected_ideas}")
-
         client.responses.create(
             model="o4-mini-deep-research",
             input=research_prompt,
@@ -227,8 +222,6 @@ def handle_get_research_result(user_id: str, job_id: str, kind: str | None = Non
         found_kind = None
 
         for prefix in prefixes:
-            print(f'PK:     USER#{user_id}')
-            print(f'SK:     {prefix}#{job_id}')
             response = _table.get_item(
                 Key={
                     'PK': f'USER#{user_id}',
@@ -429,7 +422,6 @@ def handle_apply_post_style(existing_content, style):
             contentType='application/json'
         )
         response_body = json.loads(response['body'].read())
-        print(f'STYLE RESPONSE: {response_body}')
 
         return {
             'success': True,
