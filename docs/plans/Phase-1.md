@@ -201,12 +201,12 @@ feat(infra): add RAGStack deployment script
 5. Export function for use in ingestion pipeline
 
 **Verification Checklist:**
-- [ ] Generates valid markdown from complete profile
-- [ ] Handles profiles with missing optional fields
-- [ ] Profile ID included in output
-- [ ] Skills formatted as searchable list
-- [ ] Experience entries ordered chronologically
-- [ ] Output is valid markdown (no broken formatting)
+- [x] Generates valid markdown from complete profile
+- [x] Handles profiles with missing optional fields
+- [x] Profile ID included in output
+- [x] Skills formatted as searchable list
+- [x] Experience entries ordered chronologically
+- [x] Output is valid markdown (no broken formatting)
 
 **Testing Instructions:**
 
