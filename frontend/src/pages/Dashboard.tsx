@@ -6,30 +6,21 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/features/auth';
 import { useHealAndRestore } from '@/features/workflow'; // Added
 import { useToast } from '@/shared/hooks';
-import { useSearchResults } from '@/hooks';
+import { useSearchResults } from '@/features/search';
 import { useProfileInit } from '@/features/profile';
 import type { SearchFormData } from '@/shared/utils/validation';
-import ConversationTopicPanel from '@/features/messages';
-import NewConnectionsTab from '@/features/connections';
-import NewPostTab from '@/features/posts';
-import StatusPicker from '@/features/workflow';
+import { ConversationTopicPanel, MessageModal, messageGenerationService } from '@/features/messages';
+import { NewConnectionsTab, VirtualConnectionList, connectionCache, connectionChangeTracker, ConnectionListSkeleton, connectionDataContextService } from '@/features/connections';
+import { NewPostTab } from '@/features/posts';
+import { StatusPicker, useProgressTracker, ProgressIndicator } from '@/features/workflow';
 import type { StatusValue, ConnectionCounts } from '@/types';
-import VirtualConnectionList from '@/features/connections';
-import MessageModal from '@/features/messages';
 import { lambdaApiService as dbConnector, ApiError } from '@/shared/services';
 import type { Connection, Message } from '@/types';
 import { createLogger } from '@/shared/utils/logger';
 
 const logger = createLogger('Dashboard');
-import { connectionCache } from '@/features/connections';
-import { connectionChangeTracker } from '@/features/connections';
-import { ConnectionListSkeleton } from '@/features/connections';
 import { NoConnectionsState } from '@/shared/components/ui/empty-state';
-import { messageGenerationService } from '@/features/messages';
-import { connectionDataContextService } from '@/features/connections';
 import { useErrorHandler } from '@/shared/hooks';
-import { useProgressTracker } from '@/features/workflow';
-import ProgressIndicator from '@/features/workflow';
 import { useUserProfile } from '@/features/profile';
 
 // Removed unused demo sampleConnections to reduce noise
