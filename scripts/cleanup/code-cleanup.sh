@@ -1,11 +1,18 @@
 #!/bin/bash
 # Code Cleanup Script for linkedin-advanced-search
 # Uses AST-aware tools: knip (JS/TS), vulture (Python), ruff (Python)
-set -e
+set -euo pipefail
 
-REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPORT_DIR="$REPO_ROOT/reports"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+
+# Source lib modules
+source "$SCRIPT_DIR/lib/analyze-js.sh"
+source "$SCRIPT_DIR/lib/analyze-py.sh"
+source "$SCRIPT_DIR/lib/sanitize.sh"
+source "$SCRIPT_DIR/lib/report.sh"
 
 echo "=== Code Cleanup Script ==="
 echo "Repository: $REPO_ROOT"
@@ -21,7 +28,7 @@ check_tool() {
     return 0
 }
 
-# --- JavaScript/TypeScript Cleanup ---
+# --- JavaScript/TypeScript Cleanup (Legacy) ---
 js_cleanup() {
     echo "=== JavaScript/TypeScript Cleanup ==="
 
@@ -42,7 +49,7 @@ js_cleanup() {
     npm run lint 2>&1 || echo "ESLint found issues (expected during cleanup)"
 }
 
-# --- Python Cleanup ---
+# --- Python Cleanup (Legacy) ---
 py_cleanup() {
     echo ""
     echo "=== Python Cleanup ==="
@@ -63,7 +70,7 @@ py_cleanup() {
     uvx ruff check lambdas --exclude .aws-sam 2>&1 || echo "Ruff found issues (expected during cleanup)"
 }
 
-# --- Generate Summary ---
+# --- Generate Summary (Legacy) ---
 generate_summary() {
     echo ""
     echo "=== Cleanup Summary ==="
@@ -77,6 +84,51 @@ generate_summary() {
     echo "To view reports:"
     echo "  cat $REPORT_DIR/knip-report-$TIMESTAMP.json"
     echo "  cat $REPORT_DIR/vulture-report-$TIMESTAMP.txt"
+}
+
+# --- Full Analysis Phase ---
+run_analysis() {
+    local start_time=$(date +%s)
+    echo ""
+    echo "=== Analysis Phase ==="
+
+    analyze_frontend
+    analyze_puppeteer
+    analyze_backend
+    scan_js_secrets
+    scan_py_secrets
+
+    local end_time=$(date +%s)
+    echo "  Analysis completed in $((end_time - start_time))s"
+}
+
+# --- Sanitization Phase ---
+run_sanitization() {
+    local start_time=$(date +%s)
+    echo ""
+    echo "=== Sanitization Phase ==="
+
+    remove_console_logs
+    remove_print_statements
+    remove_debugger_statements
+    find_todo_comments
+
+    local end_time=$(date +%s)
+    echo "  Sanitization completed in $((end_time - start_time))s"
+}
+
+# --- Report Generation Phase ---
+run_report() {
+    local start_time=$(date +%s)
+    echo ""
+    echo "=== Report Generation Phase ==="
+
+    generate_json_report
+    generate_markdown_report
+    print_summary
+
+    local end_time=$(date +%s)
+    echo "  Report generation completed in $((end_time - start_time))s"
 }
 
 # --- Main ---
@@ -97,12 +149,29 @@ main() {
             ;;
         audit)
             echo "Audit-only mode: generating reports without modifications"
-            js_cleanup
-            py_cleanup
-            generate_summary
+            run_analysis
+            run_report
+            ;;
+        sanitize)
+            echo "Sanitize mode: applying automated fixes only"
+            run_sanitization
+            ;;
+        full)
+            echo "Full mode: analysis + sanitization + report"
+            run_analysis
+            run_sanitization
+            run_report
             ;;
         *)
-            echo "Usage: $0 [js|py|all|audit]"
+            echo "Usage: $0 [js|py|all|audit|sanitize|full]"
+            echo ""
+            echo "Modes:"
+            echo "  js       - JavaScript/TypeScript cleanup (legacy)"
+            echo "  py       - Python cleanup (legacy)"
+            echo "  all      - All legacy cleanup (default)"
+            echo "  audit    - Analysis and report only (no modifications)"
+            echo "  sanitize - Apply automated fixes only"
+            echo "  full     - Complete: analysis + sanitization + report"
             exit 1
             ;;
     esac

@@ -84,3 +84,6 @@ backend/samconfig.toml
 # Coverage reports
 coverage/
 **/coverage/
+
+# Cleanup reports
+reports/
