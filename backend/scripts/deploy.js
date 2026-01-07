@@ -200,11 +200,7 @@ async function ensureDeployBucket(config) {
   } catch {
     console.log(`  Creating bucket: ${bucketName}`);
     try {
-      if (config.region === 'us-east-1') {
-        exec(`aws s3 mb s3://${bucketName} --region ${config.region}`, { stdio: 'pipe' });
-      } else {
-        exec(`aws s3 mb s3://${bucketName} --region ${config.region}`, { stdio: 'pipe' });
-      }
+      exec(`aws s3 mb s3://${bucketName} --region ${config.region}`, { stdio: 'pipe' });
       console.log(`  ✅ Created bucket: ${bucketName}`);
     } catch (err) {
       console.error(`  ❌ Failed to create bucket: ${err.message}`);
@@ -216,7 +212,7 @@ async function ensureDeployBucket(config) {
 }
 
 async function buildAndDeploy(config) {
-  const deployBucket = await ensureDeployBucket(config);
+  await ensureDeployBucket(config);
 
   console.log('\n🔨 Building Lambda functions...\n');
 
