@@ -198,7 +198,7 @@ describe('ProfileInitService', () => {
         expect.objectContaining({
           operation: 'ingest',
           profileId: 'profile123',
-          markdown: expect.any(String),
+          markdownContent: expect.any(String),
           metadata: expect.objectContaining({
             source: 'profile_init'
           })

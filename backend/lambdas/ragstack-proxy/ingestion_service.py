@@ -5,14 +5,13 @@ Uploads profile markdown documents to RAGStack for indexing.
 Handles S3 presigned URL uploads and status tracking.
 """
 
-import json
 import logging
 import time
 from datetime import UTC, datetime
 from typing import Any
 
 import requests
-
+import yaml
 from ragstack_client import RAGStackClient, RAGStackError
 
 logger = logging.getLogger(__name__)
@@ -175,17 +174,14 @@ class IngestionService:
             **metadata,
         }
 
-        # Create YAML frontmatter
-        frontmatter_lines = ["---"]
-        for key, value in full_metadata.items():
-            if isinstance(value, (list, dict)):
-                frontmatter_lines.append(f"{key}: {json.dumps(value)}")
-            else:
-                frontmatter_lines.append(f"{key}: {value}")
-        frontmatter_lines.append("---")
-        frontmatter_lines.append("")
-
-        return "\n".join(frontmatter_lines) + markdown_content
+        # Create YAML frontmatter using safe_dump to properly escape special characters
+        frontmatter = yaml.safe_dump(
+            full_metadata,
+            default_flow_style=False,
+            allow_unicode=True,
+            sort_keys=False
+        )
+        return f"---\n{frontmatter}---\n\n{markdown_content}"
 
     def _upload_to_s3(
         self,

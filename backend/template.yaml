@@ -191,11 +191,11 @@ Resources:
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref ProfilesTable
-        - LambdaInvokePolicy:
-            FunctionName: !If
-              - HasRagstackConfig
-              - !Ref RAGStackProxyFunction
-              - 'placeholder-function'
+        - !If
+          - HasRagstackConfig
+          - LambdaInvokePolicy:
+              FunctionName: !Ref RAGStackProxyFunction
+          - !Ref AWS::NoValue
       Events:
         EdgeApi:
           Type: HttpApi
@@ -422,6 +422,7 @@ Resources:
 
   RAGStackProxyFunction:
     Type: AWS::Serverless::Function
+    Condition: HasRagstackConfig
     Properties:
       FunctionName: !Sub 'linkedin-ragstack-proxy-${Environment}'
       CodeUri: lambdas/ragstack-proxy/

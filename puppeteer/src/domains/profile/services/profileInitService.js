@@ -1382,7 +1382,7 @@ export class ProfileInitService {
       const result = await this._callRAGStackProxy({
         operation: 'ingest',
         profileId: profileId,
-        markdown: markdown,
+        markdownContent: markdown,
         metadata: {
           source: 'profile_init',
           ingested_at: new Date().toISOString()
@@ -1423,7 +1423,7 @@ export class ProfileInitService {
         params: { profileId },
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': state.jwtToken ? `Bearer ${state.jwtToken}` : undefined
+          ...(state.jwtToken && { 'Authorization': `Bearer ${state.jwtToken}` })
         }
       });
 
@@ -1452,7 +1452,7 @@ export class ProfileInitService {
     const response = await axios.post(`${apiBaseUrl}ragstack`, payload, {
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': state.jwtToken ? `Bearer ${state.jwtToken}` : undefined
+        ...(state.jwtToken && { 'Authorization': `Bearer ${state.jwtToken}` })
       }
     });
 

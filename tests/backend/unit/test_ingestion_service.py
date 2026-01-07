@@ -349,12 +349,12 @@ class TestMetadataPreparation:
 
         uploaded_data = mock_put.call_args.kwargs["data"].decode("utf-8")
         assert uploaded_data.startswith("---")
-        assert "---\n#" in uploaded_data  # Frontmatter ends with --- followed by content
+        assert "---\n\n#" in uploaded_data  # Frontmatter ends with --- followed by blank line and content
         assert "# Test Profile" in uploaded_data
 
     @patch('ingestion_service.requests.put')
     def test_metadata_with_list_values(self, mock_put, ingestion_service):
-        """Test metadata with list values"""
+        """Test metadata with list values (YAML format)"""
         mock_put.return_value = Mock(status_code=200)
 
         ingestion_service.ingest_profile(
@@ -364,7 +364,9 @@ class TestMetadataPreparation:
         )
 
         uploaded_data = mock_put.call_args.kwargs["data"].decode("utf-8")
-        assert '["tag1", "tag2"]' in uploaded_data
+        # yaml.safe_dump formats lists as YAML list syntax
+        assert "- tag1" in uploaded_data
+        assert "- tag2" in uploaded_data
 
     @patch('ingestion_service.requests.put')
     def test_no_frontmatter_without_metadata(self, mock_put, ingestion_service):
