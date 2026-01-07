@@ -12,6 +12,7 @@ const ROOT_DIR = join(BACKEND_DIR, '..');
 const CONFIG_FILE = join(BACKEND_DIR, '.deploy-config.json');
 const SAMCONFIG_FILE = join(BACKEND_DIR, 'samconfig.toml');
 const ENV_FILE = join(ROOT_DIR, '.env');
+const FRONTEND_ENV_FILE = join(ROOT_DIR, 'frontend', '.env');
 
 const DEFAULTS = {
   region: 'us-west-2',
@@ -100,9 +101,9 @@ function loadConfig() {
 }
 
 function saveConfig(config) {
-  const { openaiApiKey, openaiWebhookSecret, ...safeConfig } = config;
-  writeFileSync(CONFIG_FILE, JSON.stringify(safeConfig, null, 2));
-  console.log('\n💾 Configuration saved to .deploy-config.json');
+  // Now persisting ALL config including secrets
+  writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
+  console.log('\n💾 Configuration saved to .deploy-config.json (including secrets)');
 }
 
 async function promptConfig(config) {
@@ -123,51 +124,101 @@ async function promptConfig(config) {
   const productionOrigins = await question(`  Production origins (comma-separated) [${config.productionOrigins || 'none'}]: `);
   if (productionOrigins && productionOrigins !== 'none') config.productionOrigins = productionOrigins;
 
-  console.log('\n🔐 Secrets (not persisted - will prompt each deployment)\n');
+  console.log('\n🔐 Secrets (persisted in .deploy-config.json)\n');
 
-  const openaiApiKey = await question('  OpenAI API Key (press Enter to skip): ');
-  if (openaiApiKey) config.openaiApiKey = openaiApiKey;
+  // OpenAI API Key - show masked value if exists
+  if (config.openaiApiKey) {
+    const masked = config.openaiApiKey.slice(0, 8) + '...' + config.openaiApiKey.slice(-4);
+    const openaiApiKey = await question(`  OpenAI API Key [${masked}] (Enter to keep, or paste new): `);
+    if (openaiApiKey) config.openaiApiKey = openaiApiKey;
+  } else {
+    const openaiApiKey = await question('  OpenAI API Key (press Enter to skip): ');
+    if (openaiApiKey) config.openaiApiKey = openaiApiKey;
+  }
 
-  const openaiWebhookSecret = await question('  OpenAI Webhook Secret (press Enter to skip): ');
-  if (openaiWebhookSecret) config.openaiWebhookSecret = openaiWebhookSecret;
+  // OpenAI Webhook Secret - show masked value if exists
+  if (config.openaiWebhookSecret) {
+    const masked = config.openaiWebhookSecret.slice(0, 8) + '...' + config.openaiWebhookSecret.slice(-4);
+    const openaiWebhookSecret = await question(`  OpenAI Webhook Secret [${masked}] (Enter to keep, or paste new): `);
+    if (openaiWebhookSecret) config.openaiWebhookSecret = openaiWebhookSecret;
+  } else {
+    const openaiWebhookSecret = await question('  OpenAI Webhook Secret (press Enter to skip): ');
+    if (openaiWebhookSecret) config.openaiWebhookSecret = openaiWebhookSecret;
+  }
 
   console.log('');
   return config;
 }
 
 function generateSamconfig(config) {
-  const paramOverrides = [
-    `Environment=${config.environment}`,
-    `IncludeDevOrigins=${config.includeDevOrigins}`
-  ];
+  // Build parameter overrides as individual TOML array entries to avoid quoting issues
+  const params = {
+    Environment: config.environment,
+    IncludeDevOrigins: String(config.includeDevOrigins)
+  };
 
   if (config.productionOrigins) {
-    paramOverrides.push(`ProductionOrigins="${config.productionOrigins}"`);
+    params.ProductionOrigins = config.productionOrigins;
   }
 
   if (config.openaiApiKey) {
-    paramOverrides.push(`OpenAIApiKey="${config.openaiApiKey}"`);
+    params.OpenAIApiKey = config.openaiApiKey;
   }
 
   if (config.openaiWebhookSecret) {
-    paramOverrides.push(`OpenAIWebhookSecret="${config.openaiWebhookSecret}"`);
+    params.OpenAIWebhookSecret = config.openaiWebhookSecret;
   }
 
+  // Format as TOML array of "Key=Value" strings (handles special chars properly)
+  const paramLines = Object.entries(params)
+    .map(([k, v]) => `    "${k}=${v}"`)
+    .join(',\n');
+
+  const deployBucket = `sam-deploy-linkedin-${config.region}`;
   const samconfig = `version = 0.1
 [default.deploy.parameters]
 stack_name = "${config.stackName}"
 region = "${config.region}"
 capabilities = "CAPABILITY_IAM"
-resolve_s3 = true
-parameter_overrides = "${paramOverrides.join(' ')}"
+s3_bucket = "${deployBucket}"
+parameter_overrides = [
+${paramLines}
+]
 `;
 
   writeFileSync(SAMCONFIG_FILE, samconfig);
   console.log('📄 Generated samconfig.toml\n');
 }
 
+async function ensureDeployBucket(config) {
+  const bucketName = `sam-deploy-linkedin-${config.region}`;
+  console.log(`\n📦 Checking deployment bucket: ${bucketName}\n`);
+
+  try {
+    exec(`aws s3 ls s3://${bucketName} --region ${config.region}`, { stdio: 'pipe' });
+    console.log(`  ✅ Bucket exists: ${bucketName}`);
+  } catch {
+    console.log(`  Creating bucket: ${bucketName}`);
+    try {
+      if (config.region === 'us-east-1') {
+        exec(`aws s3 mb s3://${bucketName} --region ${config.region}`, { stdio: 'pipe' });
+      } else {
+        exec(`aws s3 mb s3://${bucketName} --region ${config.region}`, { stdio: 'pipe' });
+      }
+      console.log(`  ✅ Created bucket: ${bucketName}`);
+    } catch (err) {
+      console.error(`  ❌ Failed to create bucket: ${err.message}`);
+      process.exit(1);
+    }
+  }
+
+  return bucketName;
+}
+
 async function buildAndDeploy(config) {
-  console.log('🔨 Building Lambda functions...\n');
+  const deployBucket = await ensureDeployBucket(config);
+
+  console.log('\n🔨 Building Lambda functions...\n');
 
   try {
     await streamExec('sam build --use-container', BACKEND_DIR);
@@ -191,6 +242,26 @@ async function buildAndDeploy(config) {
   console.log('\n✅ Deployment successful!\n');
 }
 
+function updateEnvVars(filePath, envVars) {
+  let envContent = '';
+  if (existsSync(filePath)) {
+    envContent = readFileSync(filePath, 'utf8');
+  }
+
+  for (const [key, value] of Object.entries(envVars)) {
+    if (!value) continue;
+    const regex = new RegExp(`^${key}=.*$`, 'm');
+    if (regex.test(envContent)) {
+      envContent = envContent.replace(regex, `${key}=${value}`);
+    } else {
+      envContent += `\n${key}=${value}`;
+    }
+  }
+
+  envContent = envContent.trim() + '\n';
+  writeFileSync(filePath, envContent);
+}
+
 async function updateEnvFile(config) {
   console.log('📤 Fetching stack outputs...\n');
 
@@ -207,43 +278,37 @@ async function updateEnvFile(config) {
       outputMap[output.OutputKey] = output.OutputValue;
     }
 
-    let envContent = '';
-    if (existsSync(ENV_FILE)) {
-      envContent = readFileSync(ENV_FILE, 'utf8');
-    }
-
     const envVars = {
       VITE_API_GATEWAY_URL: outputMap.ApiUrl || '',
       VITE_COGNITO_USER_POOL_ID: outputMap.UserPoolId || '',
       VITE_COGNITO_USER_POOL_WEB_CLIENT_ID: outputMap.UserPoolClientId || '',
+      VITE_COGNITO_REGION: config.region,
       VITE_DYNAMODB_TABLE: outputMap.DynamoDBTableName || '',
-      VITE_S3_BUCKET: outputMap.ScreenshotBucketName || ''
+      VITE_S3_BUCKET: outputMap.ScreenshotBucketName || '',
+      VITE_AWS_REGION: config.region
     };
 
-    for (const [key, value] of Object.entries(envVars)) {
-      const regex = new RegExp(`^${key}=.*$`, 'm');
-      if (regex.test(envContent)) {
-        envContent = envContent.replace(regex, `${key}=${value}`);
-      } else {
-        envContent += `\n${key}=${value}`;
-      }
-    }
+    // Update root .env
+    updateEnvVars(ENV_FILE, envVars);
+    console.log('✅ Updated root .env with stack outputs');
 
-    envContent = envContent.trim() + '\n';
-    writeFileSync(ENV_FILE, envContent);
+    // Update frontend/.env (Vite needs this location)
+    updateEnvVars(FRONTEND_ENV_FILE, envVars);
+    console.log('✅ Updated frontend/.env with stack outputs\n');
 
-    console.log('✅ Updated .env with stack outputs:\n');
+    console.log('Stack outputs:\n');
     for (const [key, value] of Object.entries(envVars)) {
-      console.log(`  ${key}=${value}`);
+      if (value) console.log(`  ${key}=${value}`);
     }
     console.log('');
 
   } catch (error) {
-    console.warn('⚠️  Could not fetch stack outputs. The .env file was not updated.');
-    console.log('   You may need to manually update the .env file with the following values:');
+    console.warn('⚠️  Could not fetch stack outputs. The .env files were not updated.');
+    console.log('   You may need to manually update the .env files with the following values:');
     console.log('   - VITE_API_GATEWAY_URL');
     console.log('   - VITE_COGNITO_USER_POOL_ID');
     console.log('   - VITE_COGNITO_USER_POOL_WEB_CLIENT_ID');
+    console.log('   - VITE_COGNITO_REGION');
     console.log('   - VITE_DYNAMODB_TABLE');
     console.log('   - VITE_S3_BUCKET\n');
   }
