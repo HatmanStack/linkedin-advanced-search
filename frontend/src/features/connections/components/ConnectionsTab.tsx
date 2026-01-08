@@ -149,7 +149,7 @@ const ConnectionsTab: React.FC<ConnectionsTabProps> = ({
   const typedConnections = useMemo(() => {
     const rawConnections = connections.length > 0 ? connections : [];
     return rawConnections.map((c) => ({
-      id: (c as Record<string, unknown>).connection_id as string || (c as Connection).id,
+      id: (c as unknown as Record<string, unknown>).connection_id as string || (c as Connection).id,
       first_name: (c as Connection).first_name,
       last_name: (c as Connection).last_name,
       position: (c as Connection).position || '',
@@ -161,7 +161,7 @@ const ConnectionsTab: React.FC<ConnectionsTabProps> = ({
       common_interests: (c as Connection).common_interests || [],
       recent_activity: (c as Connection).recent_activity,
       last_action_summary: (c as Connection).last_action_summary,
-      last_activity_summary: (c as Record<string, unknown>).last_activity_summary as string,
+      last_activity_summary: (c as unknown as Record<string, unknown>).last_activity_summary as string,
       messages: (c as Connection).messages,
       date_added: (c as Connection).date_added,
     })) as Connection[];

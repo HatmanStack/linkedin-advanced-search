@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { validateConnections, validateConnection, BatchValidationResult } from './validators';
+import { validateConnections, validateConnection } from './validators';
+import type { BatchValidationResult } from './validators';
 import type { Connection } from './index';
 
 // Test fixtures
