@@ -8,7 +8,6 @@ import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { createHash } from 'crypto';
 import { logger } from '../../shared/utils/logger.js';
 import config from '../../shared/config/index.js';
-import { UploadMetrics } from '../utils/uploadMetrics.js';
 import { checkFileExists } from '../utils/s3Helpers.js';
 
 export class S3TextUploadService {
@@ -20,7 +19,8 @@ export class S3TextUploadService {
     this.prefix = config.s3.profileText.prefix;
     this.maxRetries = 3;
     this.retryDelay = 1000; // Initial delay in ms
-    this.metrics = new UploadMetrics();
+    // Simple inline metrics tracking
+    this.metrics = { uploads: 0, successes: 0, failures: 0, totalBytes: 0, totalRetries: 0 };
 
     logger.debug('S3TextUploadService initialized', {
       bucket: this.bucket,
@@ -125,8 +125,15 @@ export class S3TextUploadService {
         uploadDuration: duration
       };
     } finally {
-      const duration = Date.now() - startTime;
-      this.metrics.recordUpload(success, duration, bytes, retries, profileId, errorMessage);
+      // Record simple metrics
+      this.metrics.uploads++;
+      if (success) {
+        this.metrics.successes++;
+        this.metrics.totalBytes += bytes;
+      } else {
+        this.metrics.failures++;
+      }
+      this.metrics.totalRetries += retries;
     }
   }
 
@@ -311,14 +318,14 @@ export class S3TextUploadService {
    * @returns {Object} - Current metrics snapshot
    */
   getMetrics() {
-    return this.metrics.getMetrics();
+    return { ...this.metrics };
   }
 
   /**
    * Reset upload metrics
    */
   resetMetrics() {
-    this.metrics.resetMetrics();
+    this.metrics = { uploads: 0, successes: 0, failures: 0, totalBytes: 0, totalRetries: 0 };
   }
 
   /**
@@ -326,7 +333,15 @@ export class S3TextUploadService {
    * @returns {Object} - Summary statistics
    */
   getMetricsSummary() {
-    return this.metrics.getSummary();
+    const { uploads, successes, failures, totalBytes, totalRetries } = this.metrics;
+    return {
+      uploads,
+      successes,
+      failures,
+      successRate: uploads > 0 ? (successes / uploads * 100).toFixed(1) + '%' : 'N/A',
+      totalBytes,
+      avgRetries: uploads > 0 ? (totalRetries / uploads).toFixed(2) : 0
+    };
   }
 }
 

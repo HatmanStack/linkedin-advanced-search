@@ -7,7 +7,7 @@ import DynamoDBService from '../../storage/services/dynamoDBService.js';
 import LinkedInContactService from './linkedinContactService.js';
 // edgeManager removed; using DynamoDBService unified methods
 // fs and path imports removed; temp directories are now managed by LinkedInContactService
-import { decryptSealboxB64Tag } from '../utils/crypto.js';
+import { decryptSealboxB64Tag } from '../../../shared/utils/crypto.js';
 
 
 export class LinkedInService {

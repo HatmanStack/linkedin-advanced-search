@@ -5,7 +5,7 @@ import path from 'path';
 import { logger } from '../../shared/utils/logger.js';
 import RandomHelpers from '../../shared/utils/randomHelpers.js';
 import sharp from 'sharp';
-import TextExtractionService from '../services/textExtractionService.js';
+import TextExtractionService from '../../profile/services/textExtractionService.js';
 import S3TextUploadService from '../../storage/services/s3TextUploadService.js';
 
 
