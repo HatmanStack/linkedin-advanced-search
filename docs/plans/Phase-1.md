@@ -1,817 +1,508 @@
-# Phase 1: RAGStack Deployment & Ingestion Pipeline
+# Phase 1: Cleanup Script Development + Analysis
+
+**Estimated Tokens:** ~18,000
 
 ## Phase Goal
 
-Deploy a dedicated RAGStack instance and build the ingestion pipeline that populates it with LinkedIn profiles. By the end of this phase, profiles will be automatically ingested into RAGStack when connections are established.
+Enhance the existing cleanup bash script (`scripts/cleanup/code-cleanup.sh`) to perform comprehensive AST-based dead code analysis, automated sanitization, and generate a structured audit report. Execute the script to produce the baseline audit that guides Phase 2 manual cleanup.
 
-**Success Criteria:**
-- RAGStack stack deployed and accessible
-- Profiles ingested on connection request, follow, and profile-init
-- Markdown generation from profile data working
-- Ingestion status tracked in DynamoDB
-- All tests passing with mocked RAGStack
-
-**Estimated Tokens:** ~45,000
+### Success Criteria
+- `scripts/cleanup/code-cleanup.sh` enhanced and executes without errors
+- Audit report generated at `reports/audit-report.json`
+- Human-readable summary at `reports/audit-report.md`
+- All automated fixes (unused imports, console.log removal) applied
+- Existing test suite still passes after automated fixes
 
 ---
 
 ## Prerequisites
 
-- Phase 0 documentation reviewed
-- AWS CLI configured with appropriate permissions
-- Bedrock Nova Embeddings access enabled in target region
-- RAGStack-Lambda repository cloned to `~/war/RAGStack-Lambda/`
+- [x] Phase 0 read and understood
+- [x] Node.js 24 LTS active (`nvm use 24`)
+- [x] Python 3.13 available (`python3 --version`)
+- [x] Project dependencies installed in all components
+- [x] Clean git working tree (`git status` shows no uncommitted changes)
 
 ---
 
 ## Tasks
 
-### Task 1: Puppeteer Test Infrastructure
+### Task 1: Enhance Existing Cleanup Script Structure
 
-**Goal:** Set up Vitest testing framework in puppeteer package to enable unit testing for new code.
+**Goal:** Enhance the existing `scripts/cleanup/code-cleanup.sh` with modular lib functions for comprehensive cleanup capabilities.
+
+**Existing Script:** `scripts/cleanup/code-cleanup.sh` already provides:
+- knip integration for JS/TS dead code detection
+- vulture integration for Python dead code detection
+- ruff linting integration
+- Report output to `reports/` directory
+- Modes: js, py, all, audit
 
 **Files to Create:**
-- `puppeteer/vitest.config.js` - Vitest configuration
-- `puppeteer/src/setupTests.js` - Test setup file
+- `scripts/cleanup/lib/analyze-js.sh` - Enhanced JavaScript/TypeScript analysis functions
+- `scripts/cleanup/lib/analyze-py.sh` - Enhanced Python analysis functions
+- `scripts/cleanup/lib/sanitize.sh` - Automated sanitization functions
+- `scripts/cleanup/lib/report.sh` - Structured report generation functions
 
 **Files to Modify:**
-- `puppeteer/package.json` - Add test scripts and devDependencies
-- `.github/workflows/ci.yml` - Add puppeteer test job
+- `scripts/cleanup/code-cleanup.sh` - Add lib sourcing and enhanced modes
 
 **Prerequisites:**
-- None (foundational task)
+- None (first task)
 
 **Implementation Steps:**
+1. Create the `scripts/cleanup/lib` subdirectory for modular functions
+2. Modify `code-cleanup.sh` to:
+   - Add `set -euo pipefail` for strict error handling (upgrade from `set -e`)
+   - Add source statements for lib scripts
+   - Add new modes: `sanitize`, `full` (analysis + sanitize + report)
+3. Create stub lib scripts that will be implemented in subsequent tasks
+4. Ensure `reports/` directory is gitignored (check `.gitignore`)
 
-1. Install Vitest and related packages:
-   - `vitest` as devDependency
-   - `@vitest/coverage-v8` for coverage reports
+**Verification Checklist:**
+- [x] `scripts/cleanup/code-cleanup.sh` still runs existing modes (js, py, all, audit)
+- [x] `scripts/cleanup/lib/` directory exists with stub scripts
+- [x] Running `./scripts/cleanup/code-cleanup.sh all` works as before
 
-2. Create Vitest configuration:
-   - ES modules environment (matches puppeteer's type: module)
-   - Include pattern: `src/**/*.test.js`
-   - Setup file for common mocks
+**Testing Instructions:**
+- No unit tests for bash scripts in this project
+- Verification is manual execution and output inspection
+- Run `./scripts/cleanup/code-cleanup.sh audit` to verify existing functionality
 
-3. Add package.json scripts:
-   ```json
-   {
-     "test": "vitest run",
-     "test:watch": "vitest",
-     "test:coverage": "vitest run --coverage"
+**Commit Message Template:**
+```
+chore(scripts): add modular lib structure to cleanup script
+
+- Add lib/ directory with stub modules
+- Prepare code-cleanup.sh for enhanced functionality
+```
+
+---
+
+### Task 2: Implement JavaScript/TypeScript Analysis Module
+
+**Goal:** Create the analysis module that runs knip on frontend and puppeteer components, capturing dead code findings.
+
+**Files to Modify/Create:**
+- `scripts/cleanup/lib/analyze-js.sh` - Full implementation
+- `frontend/knip.config.ts` - Knip configuration for frontend
+- `puppeteer/knip.config.js` - Knip configuration for puppeteer
+
+**Prerequisites:**
+- Task 1 complete
+
+**Implementation Steps:**
+1. Research knip configuration options for monorepo usage
+2. Create `frontend/knip.config.ts`:
+   - Set entry points to `src/main.tsx` and `src/pages/**/*.tsx`
+   - Configure project files pattern for `src/**/*.{ts,tsx}`
+   - Exclude test files from dead code detection
+   - Ignore Vite/Tailwind config files
+3. Create `puppeteer/knip.config.js`:
+   - Set entry point to `src/server.js`
+   - Configure project files for `src/**/*.js`
+   - Exclude test files and config files
+4. Implement `analyze-js.sh` functions:
+   - `analyze_frontend()` - Run `npx knip` in frontend directory, capture JSON output
+   - `analyze_puppeteer()` - Run `npx knip` in puppeteer directory, capture JSON output
+   - `get_js_dead_code()` - Combine results into unified format
+5. Handle knip exit codes (non-zero when issues found is expected)
+6. Transform knip JSON output to match audit report schema
+
+**Verification Checklist:**
+- [x] `npx knip` runs successfully in `frontend/` directory
+- [x] `npx knip` runs successfully in `puppeteer/` directory
+- [x] `analyze_frontend` function returns JSON with dead code findings
+- [x] `analyze_puppeteer` function returns JSON with dead code findings
+- [x] Knip configs exclude test files from analysis
+
+**Testing Instructions:**
+- Run `cd frontend && npx knip --reporter json` and verify output
+- Run `cd puppeteer && npx knip --reporter json` and verify output
+- Source lib script and call functions to verify they work
+
+**Commit Message Template:**
+```
+chore(scripts): implement JS/TS dead code analysis
+
+- Add knip configuration for frontend component
+- Add knip configuration for puppeteer component
+- Implement analyze-js.sh with knip integration
+```
+
+---
+
+### Task 3: Implement Python Analysis Module
+
+**Goal:** Create the analysis module that runs vulture on backend Python lambdas, capturing dead code findings.
+
+**Files to Modify/Create:**
+- `scripts/cleanup/lib/analyze-py.sh` - Full implementation
+- `backend/.vulture-whitelist.py` - Vulture whitelist for false positives
+
+**Prerequisites:**
+- Task 1 complete
+
+**Implementation Steps:**
+1. Research vulture configuration and whitelist syntax
+2. Create `backend/.vulture-whitelist.py`:
+   - Whitelist Lambda handler function names (`lambda_handler`, `handler`)
+   - Whitelist pytest fixtures if they appear as unused
+   - Whitelist any `__all__` exports
+3. Implement `analyze-py.sh` functions:
+   - `analyze_backend()` - Run `uvx vulture` on backend/lambdas directory
+   - `get_py_dead_code()` - Parse vulture output into JSON format
+4. Handle vulture output format (plain text, needs parsing)
+5. Exclude `.aws-sam/` directory from analysis
+6. Exclude test files from dead code detection
+
+**Verification Checklist:**
+- [x] `uvx vulture backend/lambdas --exclude .aws-sam` runs without errors
+- [x] Whitelist prevents false positives on Lambda handlers
+- [x] `analyze_backend` function returns JSON with dead code findings
+- [x] Output excludes `.aws-sam/build/` artifacts
+
+**Testing Instructions:**
+- Run `uvx vulture backend/lambdas --exclude .aws-sam` manually
+- Verify Lambda handlers are not flagged (if they are, update whitelist)
+- Source lib script and verify function output
+
+**Commit Message Template:**
+```
+chore(scripts): implement Python dead code analysis
+
+- Add vulture whitelist for Lambda handlers
+- Implement analyze-py.sh with vulture integration
+- Exclude .aws-sam build artifacts from analysis
+```
+
+---
+
+### Task 4: Implement Secrets Detection Module
+
+**Goal:** Integrate detect-secrets to scan for hardcoded high-entropy strings across all components.
+
+**Files to Modify/Create:**
+- `scripts/cleanup/lib/analyze-js.sh` - Add secrets scanning function
+- `scripts/cleanup/lib/analyze-py.sh` - Add secrets scanning function
+- `.secrets.baseline` - Baseline file for detect-secrets (gitignored)
+
+**Prerequisites:**
+- Tasks 2 and 3 complete
+
+**Implementation Steps:**
+1. Research detect-secrets configuration and baseline workflow
+2. Add secrets scanning to analyze-js.sh:
+   - `scan_js_secrets()` - Run detect-secrets on frontend and puppeteer
+   - Exclude node_modules, dist, coverage directories
+   - Exclude `.env*` files (already environment variables)
+3. Add secrets scanning to analyze-py.sh:
+   - `scan_py_secrets()` - Run detect-secrets on backend/lambdas
+   - Exclude `.aws-sam/`, `__pycache__/`, `.venv/`
+4. Configure detect-secrets to reduce false positives:
+   - Disable base64 detector (too many false positives with encoded assets)
+   - Keep high-entropy string detector active
+   - Keep AWS key patterns active
+5. Generate baseline file that can be updated as secrets are remediated
+
+**Verification Checklist:**
+- [x] `uvx detect-secrets scan frontend/src` runs without errors
+- [x] `uvx detect-secrets scan puppeteer/src` runs without errors
+- [x] `uvx detect-secrets scan backend/lambdas` runs without errors
+- [x] Output identifies high-entropy strings with file:line references
+- [x] False positive rate is acceptable (review output manually)
+
+**Testing Instructions:**
+- Run detect-secrets manually on each component
+- Review findings for false positives
+- Adjust plugin configuration if too noisy
+
+**Commit Message Template:**
+```
+chore(scripts): implement secrets detection scanning
+
+- Integrate detect-secrets for high-entropy string detection
+- Configure plugins to reduce false positives
+- Add scanning functions for all components
+```
+
+---
+
+### Task 5: Implement Automated Sanitization Module
+
+**Goal:** Create functions that automatically remove console.log, print statements, debugger statements, and commented-out code.
+
+**Files to Modify/Create:**
+- `scripts/cleanup/lib/sanitize.sh` - Full implementation
+
+**Prerequisites:**
+- Task 1 complete
+
+**Implementation Steps:**
+1. Implement `remove_console_logs()`:
+   - Use grep to find `console.log`, `console.warn`, `console.error`, `console.debug`, `console.info`
+   - Preserve console statements in error handlers where they serve logging purpose
+   - Use sed to remove single-line console statements
+   - Handle multi-line console statements (template literals)
+   - Track removed statements for audit report
+2. Implement `remove_print_statements()`:
+   - Find Python `print(` statements that aren't in string context
+   - Exclude print statements in test files
+   - Handle f-strings and multi-line prints
+3. Implement `remove_debugger_statements()`:
+   - Remove JavaScript `debugger;` statements
+   - Remove Python `breakpoint()` and `pdb.set_trace()` calls
+4. Implement `remove_commented_code()`:
+   - This is complex—focus on obvious patterns:
+     - Lines that are valid code syntax but commented
+     - Blocks starting with `// if (`, `// function`, `// const`, etc.
+     - Python `# def `, `# class `, `# if ` patterns
+   - Be conservative—better to miss some than delete valid comments
+5. Implement `remove_todo_comments()`:
+   - Find `// TODO`, `// FIXME`, `// XXX`, `// HACK`
+   - Find `# TODO`, `# FIXME`, `# XXX`, `# HACK`
+   - Log findings but DO NOT auto-remove (they may be important)
+   - Include in audit report for manual review
+
+**Verification Checklist:**
+- [x] `remove_console_logs` finds console.log statements from JS/TS files
+- [x] `remove_print_statements` finds print() from Python files
+- [x] `remove_debugger_statements` finds debugger/breakpoint calls
+- [x] `find_todo_comments` logs but does not remove TODO/FIXME
+- [x] No test files are modified by sanitization
+
+**Testing Instructions:**
+- Create a test file with various console.log patterns
+- Run sanitization function and verify removal
+- Verify original files are backed up or changes are tracked
+
+**Commit Message Template:**
+```
+chore(scripts): implement automated sanitization module
+
+- Add console.log/print/debugger removal functions
+- Add commented-out code detection
+- Add TODO/FIXME identification for audit
+```
+
+---
+
+### Task 6: Implement Audit Report Generator
+
+**Goal:** Create the report generation module that combines all analysis results into JSON and markdown formats.
+
+**Files to Modify/Create:**
+- `scripts/cleanup/lib/report.sh` - Full implementation
+
+**Prerequisites:**
+- Tasks 2, 3, 4, 5 complete
+
+**Implementation Steps:**
+1. Implement `generate_json_report()`:
+   - Combine dead code findings from all analyzers
+   - Include sanitization findings (console.log locations, etc.)
+   - Include secrets findings
+   - Add timestamp and summary statistics
+   - Write to `reports/audit-report.json`
+2. Implement `generate_markdown_report()`:
+   - Create human-readable summary
+   - Group findings by component (frontend, puppeteer, backend)
+   - Group by category (dead code, sanitization, secrets)
+   - Include file paths and line numbers for easy navigation
+   - Write to `reports/audit-report.md`
+3. Implement `print_summary()`:
+   - Output key statistics to stdout
+   - Total issues by category
+   - Component with most issues
+   - Recommended priority order for manual cleanup
+4. Use `jq` for JSON manipulation (available on most systems)
+   - If `jq` not available, fall back to Python json module via uvx
+
+**Verification Checklist:**
+- [x] `audit-report.json` is valid JSON (parseable by `jq`)
+- [x] `audit-report.md` is valid Markdown
+- [x] All analyzer outputs are included in report
+- [x] Summary statistics are accurate
+- [x] Report includes actionable file:line references
+
+**Testing Instructions:**
+- Run report generator with sample data
+- Validate JSON with `jq . audit-report.json`
+- Review markdown for formatting issues
+- Verify statistics match raw data
+
+**Commit Message Template:**
+```
+chore(scripts): implement audit report generator
+
+- Add JSON report generation with full findings
+- Add Markdown summary report for human review
+- Add summary statistics output
+```
+
+---
+
+### Task 7: Integrate Script Components and Run Analysis
+
+**Goal:** Wire together all modules in the main script and execute to generate baseline audit.
+
+**Files to Modify/Create:**
+- `scripts/cleanup/code-cleanup.sh` - Full integration with lib modules
+
+**Prerequisites:**
+- Tasks 1-6 complete
+
+**Implementation Steps:**
+1. Update main script to source all lib modules
+2. Implement main execution flow:
+   ```
+   main() {
+     echo "Starting code hygiene analysis..."
+
+     # Phase 1: Analysis
+     analyze_frontend
+     analyze_puppeteer
+     analyze_backend
+     scan_js_secrets
+     scan_py_secrets
+
+     # Phase 2: Automated fixes
+     remove_console_logs
+     remove_print_statements
+     remove_debugger_statements
+
+     # Phase 3: Report
+     generate_json_report
+     generate_markdown_report
+     print_summary
    }
    ```
-
-4. Create setup file with common mocks:
-   - Mock logger to suppress output during tests
-   - Mock Puppeteer browser/page objects
-   - Mock axios for HTTP calls
-
-5. Update CI workflow:
-   - Add `npm test` step to puppeteer job
-   - Run after lint step
+3. Add new execution mode `full`:
+   - Existing `audit` mode: Skip automated fixes, only generate report
+   - New `sanitize` mode: Apply sanitization fixes only
+   - New `full` mode: analysis + sanitization + report generation
+   - Default (`all`): Keep existing behavior for backward compatibility
+4. Add timing output for each phase
+5. Exit with code 1 if issues found (for CI integration potential)
+6. Run full script execution and review output
 
 **Verification Checklist:**
-- [x] `npm test` runs without errors (even with no tests)
-- [x] Vitest config loads correctly
-- [x] Setup file executes
-- [x] CI workflow includes test step
-- [x] Coverage report generates
+- [x] `./scripts/cleanup/code-cleanup.sh full` executes without errors
+- [x] `reports/audit-report.json` generated with findings
+- [x] `reports/audit-report.md` generated with summary
+- [x] Sanitization findings generated for manual review
+- [x] `npm run test` passes after automated fixes
+- [x] Script completes in reasonable time (<5 minutes)
 
 **Testing Instructions:**
-- Create a simple smoke test to verify setup works
-- Run `npm test` locally
-- Verify CI passes with new test step
+- Run full script: `./scripts/cleanup/code-cleanup.sh full`
+- Run analysis only: `./scripts/cleanup/code-cleanup.sh audit`
+- Review generated reports in `reports/`
+- Run test suite to verify no breakage
 
 **Commit Message Template:**
 ```
-chore(puppeteer): add Vitest test infrastructure
+chore(scripts): integrate cleanup script and run baseline analysis
 
-- Configure Vitest for ES modules
-- Add test scripts to package.json
-- Create setup file with common mocks
-- Update CI workflow
+- Wire together all analysis and sanitization modules
+- Add command-line flags for execution modes
+- Generate initial audit report baseline
 ```
 
 ---
 
-### Task 2: RAGStack Deployment Script
+### Task 8: Apply Automated Fixes and Verify Tests
 
-**Goal:** Create automated deployment script for the dedicated RAGStack instance that prompts for configuration, persists settings locally, and captures outputs.
+**Goal:** Run the full cleanup script, apply all automated fixes, and ensure the test suite passes.
 
-**Files to Create:**
-- `scripts/deploy/deploy-ragstack.js` - Main deployment orchestration
-- `.gitignore` addition for config files
+**Files to Modify/Create:**
+- Various source files (automated modifications)
+- `reports/audit-report.json` - Generated
+- `reports/audit-report.md` - Generated
 
 **Prerequisites:**
-- RAGStack-Lambda repository available
-- AWS SAM CLI installed
+- Task 7 complete
 
 **Implementation Steps:**
-
-1. Create the deployment script that:
-   - Checks for existing `.ragstack-config.json`
-   - Prompts user interactively for missing values (stack name, region, S3 bucket prefix)
-   - Validates AWS credentials and Bedrock model access
-   - Generates `samconfig.toml` programmatically for RAGStack-Lambda
-   - Executes `sam build` and `sam deploy` in RAGStack directory
-   - Parses CloudFormation outputs after deployment
-   - Writes outputs to `.env.ragstack`
-
-2. Configuration schema to collect:
-   - Stack name (default: `linkedin-profiles-kb`)
-   - AWS region (default: `us-west-2`)
-   - Path to RAGStack-Lambda repo
-   - S3 bucket name for documents
-
-3. Output capture:
-   - GraphQL endpoint URL (from AppSync)
-   - API key value (retrieve via AWS CLI after deployment)
-   - Knowledge Base ID
-   - Text Data Source ID
-
-4. Add config files to `.gitignore`:
-   - `.ragstack-config.json`
-   - `.env.ragstack`
+1. Ensure git working tree is clean (commit or stash any changes)
+2. Run the cleanup script: `./scripts/cleanup/code-cleanup.sh full`
+3. Review automated changes via `git diff`
+4. Run full test suite: `npm run test`
+5. If tests fail:
+   - Identify which automated fix caused the failure
+   - Adjust sanitization logic to be more conservative
+   - Re-run cleanup and tests
+6. If tests pass:
+   - Review audit report for manual cleanup items
+   - Commit automated fixes
 
 **Verification Checklist:**
-- [x] Script prompts for missing configuration
-- [x] Configuration persisted to `.ragstack-config.json`
-- [x] `samconfig.toml` generated without interactive prompts
-- [ ] RAGStack stack deploys successfully (requires manual test)
-- [ ] `.env.ragstack` contains all required values (requires manual test)
-- [x] Subsequent runs skip prompts and use saved config
+- [x] Sanitization findings generated for manual review
+- [x] `npm run test:frontend` passes (66 tests)
+- [x] `npm run test:backend` passes (78 tests, 2 skipped)
+- [x] `cd puppeteer && npm run test` passes (38 tests)
+- [x] Audit report exists and contains findings
+- [x] No unintended file modifications
 
 **Testing Instructions:**
-- Unit test configuration loading/saving logic
-- Unit test samconfig.toml generation
-- Mock AWS CLI calls for deployment simulation
-- Integration test requires manual execution (not CI)
+- Run each component's test suite independently
+- If failures occur, check if related to removed console statements
+- Verify test assertions don't depend on console output
 
 **Commit Message Template:**
 ```
-feat(infra): add RAGStack deployment script
-
-- Interactive config collection with persistence
-- Programmatic samconfig.toml generation
-- Output capture to .env.ragstack
-```
-
----
-
-### Task 3: Profile Markdown Generator
-
-**Goal:** Create utility to convert structured profile JSON into well-formatted markdown suitable for RAGStack ingestion.
-
-**Files to Create:**
-- `puppeteer/src/domains/profile/utils/profileMarkdownGenerator.js` - Generator function
-- `puppeteer/src/domains/profile/utils/profileMarkdownGenerator.test.js` - Unit tests
-
-**Prerequisites:**
-- Task 1 complete (Vitest infrastructure)
-- Understanding of `puppeteer/schemas/profileTextSchema.js` structure
-- Understanding of RAGStack markdown ingestion format
-
-**Implementation Steps:**
-
-1. Create generator function that accepts profile object matching `profileTextSchema`:
-   ```javascript
-   function generateProfileMarkdown(profile) {
-     // Returns formatted markdown string
-   }
-   ```
-
-2. Markdown structure to generate:
-   - H1 header with full name
-   - Metadata block (headline, location, profile ID)
-   - About section (if present)
-   - Current position section
-   - Experience section with each role as H3
-   - Education section with each school as H3
-   - Skills as comma-separated list
-
-3. Handle missing/optional fields gracefully:
-   - Omit sections entirely if data not present
-   - Use "Not specified" for required fields with no data
-   - Truncate extremely long text (about > 5000 chars)
-
-4. Include profile ID in metadata for correlation:
-   - Profile ID must be in document for source attribution
-   - Use same base64 encoding as DynamoDB
-
-5. Export function for use in ingestion pipeline
-
-**Verification Checklist:**
-- [x] Generates valid markdown from complete profile
-- [x] Handles profiles with missing optional fields
-- [x] Profile ID included in output
-- [x] Skills formatted as searchable list
-- [x] Experience entries ordered chronologically
-- [x] Output is valid markdown (no broken formatting)
-
-**Testing Instructions:**
-
-Unit tests covering:
-- Complete profile with all fields populated
-- Minimal profile (only required fields)
-- Profile with empty arrays (no experience, no education)
-- Profile with very long about section (truncation)
-- Profile with special characters in text
-- Profile ID encoding consistency
-
-```javascript
-// Test pattern
-describe('generateProfileMarkdown', () => {
-  it('should generate markdown for complete profile', () => {
-    const profile = createMockProfile({ /* all fields */ });
-    const markdown = generateProfileMarkdown(profile);
-    expect(markdown).toContain('# John Doe');
-    expect(markdown).toContain('**Headline:**');
-    expect(markdown).toContain('## Experience');
-  });
-});
-```
-
-**Commit Message Template:**
-```
-feat(puppeteer): add profile markdown generator
-
-- Converts profile JSON to RAGStack-compatible markdown
-- Handles optional fields gracefully
-- Includes profile ID for source correlation
-```
-
----
-
-### Task 4: RAGStack Client Library
-
-**Goal:** Create a Python client for RAGStack GraphQL API to be used by Lambda functions for ingestion and search operations.
-
-**Files to Create:**
-- `backend/lambdas/ragstack-proxy/ragstack_client.py` - GraphQL client
-- `tests/backend/unit/test_ragstack_client.py` - Unit tests
-
-**Prerequisites:**
-- RAGStack GraphQL schema understanding
-- API key authentication pattern
-
-**Implementation Steps:**
-
-1. Create client class with methods:
-   - `__init__(endpoint, api_key)` - Initialize with config
-   - `create_upload_url(filename)` - Get presigned URL for document upload
-   - `search(query, max_results=100)` - Search knowledge base
-   - `get_document_status(document_id)` - Check ingestion status
-
-2. GraphQL operations to implement:
-
-   ```graphql
-   mutation CreateUploadUrl($filename: String!) {
-     createUploadUrl(filename: $filename) {
-       uploadUrl
-       documentId
-       fields
-     }
-   }
-
-   query SearchKnowledgeBase($query: String!, $maxResults: Int) {
-     searchKnowledgeBase(query: $query, maxResults: $maxResults) {
-       results {
-         content
-         source
-         score
-       }
-     }
-   }
-   ```
-
-3. HTTP client setup:
-   - Use `requests` library for HTTP calls
-   - Set `x-api-key` header for authentication
-   - Handle GraphQL errors and network failures
-   - Implement retry logic with exponential backoff
-
-4. Response parsing:
-   - Extract data from GraphQL response envelope
-   - Transform to simple Python dicts
-   - Raise typed exceptions for errors
-
-**Verification Checklist:**
-- [x] Client initializes with endpoint and API key
-- [x] `create_upload_url` returns presigned URL structure
-- [x] `search` returns list of results with source IDs
-- [x] GraphQL errors raise appropriate exceptions
-- [x] Network errors handled with retry
-- [x] API key included in all requests
-
-**Testing Instructions:**
-
-Unit tests with mocked HTTP responses:
-```python
-def test_search_returns_results(mock_requests):
-    mock_requests.post.return_value.json.return_value = {
-        "data": {
-            "searchKnowledgeBase": {
-                "results": [{"content": "...", "source": "abc", "score": 0.9}]
-            }
-        }
-    }
-    client = RAGStackClient("https://api.example.com", "api-key")
-    results = client.search("test query")
-    assert len(results) == 1
-    assert results[0]["source"] == "abc"
-```
-
-Test scenarios:
-- Successful search with results
-- Search with no results (empty array)
-- GraphQL error response
-- Network timeout with retry
-- Invalid API key (401 response)
-
-**Commit Message Template:**
-```
-feat(backend): add RAGStack GraphQL client
-
-- Implements search and upload URL mutations
-- API key authentication
-- Retry logic for transient failures
-```
-
----
-
-### Task 5: Profile Ingestion Service
-
-**Goal:** Create service that uploads profile markdown to RAGStack, triggered when connections are established.
-
-**Files to Create:**
-- `backend/lambdas/ragstack-proxy/ingestion_service.py` - Ingestion logic
-- `tests/backend/unit/test_ingestion_service.py` - Unit tests
-
-**Prerequisites:**
-- Task 4 (RAGStack client) complete
-- Understanding of S3 presigned URL upload pattern
-
-**Implementation Steps:**
-
-1. Create ingestion service with methods:
-   - `ingest_profile(profile_id, markdown_content, metadata)` - Main entry point
-   - `_upload_to_s3(presigned_url, fields, content)` - Upload via presigned URL
-   - `_wait_for_indexing(document_id, timeout=60)` - Poll for completion
-
-2. Ingestion flow:
-   ```
-   1. Call ragstack_client.create_upload_url(f"{profile_id}.md")
-   2. Upload markdown content to presigned S3 URL
-   3. Optionally wait for indexing to complete
-   4. Return document_id and status
-   ```
-
-3. Metadata to include:
-   - `profile_id` - Base64 encoded LinkedIn URL
-   - `user_id` - Owner's Cognito sub
-   - `ingested_at` - ISO timestamp
-   - `source` - "linkedin_profile"
-
-4. Error handling:
-   - S3 upload failures → retry with backoff
-   - Indexing timeout → return pending status (don't fail)
-   - Document already exists → skip (idempotent)
-
-5. Idempotency:
-   - Use profile_id as document_id
-   - Re-ingesting same profile updates existing document
-
-**Verification Checklist:**
-- [x] Markdown uploaded to presigned S3 URL
-- [x] Document ID derived from profile ID
-- [x] Metadata attached to document
-- [x] Handles upload failures gracefully
-- [x] Idempotent for repeated ingestion
-- [x] Returns status (indexed, pending, failed)
-
-**Testing Instructions:**
-
-Unit tests with mocked dependencies:
-```python
-def test_ingest_profile_uploads_markdown(mock_ragstack_client, mock_requests):
-    mock_ragstack_client.create_upload_url.return_value = {
-        "uploadUrl": "https://s3.example.com/upload",
-        "documentId": "doc123",
-        "fields": {}
-    }
-    mock_requests.post.return_value.status_code = 204
-
-    service = IngestionService(mock_ragstack_client)
-    result = service.ingest_profile("profile_abc", "# Test", {})
-
-    assert result["status"] == "uploaded"
-    mock_requests.post.assert_called_once()
-```
-
-Test scenarios:
-- Successful ingestion end-to-end
-- S3 upload failure with retry
-- Presigned URL generation failure
-- Metadata correctly attached
-- Duplicate ingestion (idempotency)
-
-**Commit Message Template:**
-```
-feat(backend): add profile ingestion service
-
-- Uploads markdown to RAGStack via presigned URLs
-- Supports metadata attachment
-- Idempotent profile updates
-```
-
----
-
-### Task 6: RAGStack Proxy Lambda
-
-**Goal:** Create Lambda function that proxies search and ingestion requests to RAGStack, keeping API key secure on backend.
-
-**Files to Create:**
-- `backend/lambdas/ragstack-proxy/index.py` - Lambda handler
-- `backend/lambdas/ragstack-proxy/requirements.txt` - Dependencies
-
-**Files to Modify:**
-- `backend/template.yaml` - Add new Lambda resource
-
-**Prerequisites:**
-- Tasks 4-5 complete (client and ingestion service)
-- Understanding of existing Lambda patterns in backend
-
-**Implementation Steps:**
-
-1. Create Lambda handler with operations:
-   - `search` - Search profiles in knowledge base
-   - `ingest` - Ingest a profile (internal use)
-   - `status` - Check ingestion status
-
-2. Handler structure:
-   ```python
-   def handler(event, context):
-       operation = event.get("operation")
-       if operation == "search":
-           return handle_search(event)
-       elif operation == "ingest":
-           return handle_ingest(event)
-       elif operation == "status":
-           return handle_status(event)
-       else:
-           return {"statusCode": 400, "body": "Unknown operation"}
-   ```
-
-3. Environment variables required:
-   - `RAGSTACK_GRAPHQL_ENDPOINT`
-   - `RAGSTACK_API_KEY` (from Secrets Manager or SSM)
-
-4. Request validation:
-   - Verify JWT token present
-   - Extract user_id from claims
-   - Validate required fields per operation
-
-5. Response format:
-   ```json
-   {
-     "statusCode": 200,
-     "body": {
-       "results": [...],
-       "totalResults": 10
-     }
-   }
-   ```
-
-6. SAM template additions:
-   - New `RAGStackProxyFunction` resource
-   - API Gateway route: `POST /ragstack`
-   - IAM permissions for Secrets Manager/SSM
-   - Environment variable references
-
-**Verification Checklist:**
-- [x] Lambda handles search operation
-- [x] Lambda handles ingest operation
-- [x] API key retrieved from secure storage
-- [x] JWT validation enforced
-- [x] User ID extracted from claims
-- [x] Error responses properly formatted
-- [x] SAM template valid (`sam validate`)
-
-**Testing Instructions:**
-
-Unit tests with mocked services:
-```python
-def test_search_operation(mock_ragstack_client):
-    event = {
-        "operation": "search",
-        "query": "software engineer",
-        "maxResults": 10,
-        "requestContext": {
-            "authorizer": {"claims": {"sub": "user123"}}
-        }
-    }
-    response = handler(event, None)
-    assert response["statusCode"] == 200
-    assert "results" in json.loads(response["body"])
-```
-
-Test scenarios:
-- Search with valid query
-- Search with missing query (validation error)
-- Ingest with valid profile data
-- Missing JWT token (401)
-- RAGStack API failure (502)
-
-**Commit Message Template:**
-```
-feat(backend): add RAGStack proxy Lambda
-
-- Secure proxy for RAGStack GraphQL API
-- Supports search and ingest operations
-- API key stored in Secrets Manager
-```
-
----
-
-### Task 7: Edge Processing Ingestion Trigger
-
-**Goal:** Modify edge-processing Lambda to trigger profile ingestion when connection status changes to indicate an established relationship.
-
-**Files to Modify:**
-- `backend/lambdas/edge-processing/lambda_function.py` - Add ingestion trigger
-
-**Prerequisites:**
-- Task 6 complete (proxy Lambda deployed)
-- Understanding of existing edge-processing logic
-
-**Implementation Steps:**
-
-1. Identify trigger points in edge-processing:
-   - When status changes to `outgoing` (connection request sent)
-   - When status changes to `ally` (connection accepted)
-   - When status changes to `followed` (new status to add)
-
-2. Add ingestion logic after edge upsert:
-   ```python
-   if new_status in ['outgoing', 'ally', 'followed']:
-       trigger_profile_ingestion(profile_id, user_id)
-   ```
-
-3. Fetch profile data for ingestion:
-   - Query profile metadata from DynamoDB
-   - Generate markdown from profile data
-   - Call RAGStack proxy for ingestion
-
-4. Handle ingestion failures gracefully:
-   - Log errors but don't fail edge operation
-   - Profile can be re-ingested later
-   - Consider SQS queue for async retry
-
-5. Track ingestion status:
-   - Add `ragstack_ingested` flag to edge record
-   - Store `ragstack_document_id` for reference
-   - Update on successful ingestion
-
-6. Add `followed` status to connection status enum if not present
-
-**Verification Checklist:**
-- [x] Ingestion triggered on `outgoing` status
-- [x] Ingestion triggered on `ally` status
-- [x] Ingestion triggered on `followed` status
-- [x] Profile data fetched from DynamoDB
-- [x] Markdown generated correctly
-- [x] Ingestion failure doesn't fail edge operation
-- [x] `ragstack_ingested` flag updated
-
-**Testing Instructions:**
-
-Unit tests with mocked dependencies:
-```python
-def test_edge_upsert_triggers_ingestion(mock_dynamodb, mock_ragstack_proxy):
-    # Setup: profile exists in DynamoDB
-    mock_dynamodb.get_item.return_value = {"Item": {"name": "John"}}
-
-    # Execute: upsert edge to 'outgoing'
-    handler({"operation": "upsert_status", "profileId": "abc", "status": "outgoing"}, None)
-
-    # Verify: ingestion triggered
-    mock_ragstack_proxy.ingest.assert_called_once()
-```
-
-Test scenarios:
-- Status change to `outgoing` triggers ingestion
-- Status change to `ally` triggers ingestion
-- Status change to `processed` does NOT trigger
-- Profile not found in DynamoDB (skip ingestion)
-- Ingestion failure logged but edge succeeds
-
-**Commit Message Template:**
-```
-feat(backend): trigger RAGStack ingestion on connection events
-
-- Ingest profiles when connection request sent
-- Ingest when connection accepted
-- Track ingestion status in edge record
-```
-
----
-
-### Task 8: Profile Init Ingestion
-
-**Goal:** Modify profile initialization flow to ingest existing connections into RAGStack during initial database setup.
-
-**Files to Modify:**
-- `puppeteer/src/domains/profile/services/profileInitService.js` - Add ingestion call
-
-**Prerequisites:**
-- Task 6 complete (proxy Lambda available)
-- Task 3 complete (markdown generator)
-- Understanding of profile-init workflow
-
-**Implementation Steps:**
-
-1. Identify integration point in `ProfileInitService`:
-   - After profile is processed and stored in DynamoDB
-   - Before moving to next profile in batch
-
-2. Add ingestion call:
-   ```javascript
-   // After successful profile processing
-   if (connectionType !== 'possible') {
-     await this.triggerRAGStackIngestion(profileId, profileData);
-   }
-   ```
-
-3. Create ingestion trigger method:
-   - Generate markdown using `profileMarkdownGenerator`
-   - Call RAGStack proxy Lambda via HTTP
-   - Handle failures gracefully (log, don't fail init)
-
-4. Batch consideration:
-   - Profile init processes many profiles
-   - Consider async ingestion (fire and forget)
-   - Or batch ingestion requests
-
-5. Skip already-ingested profiles:
-   - Check `ragstack_ingested` flag before ingesting
-   - Avoid duplicate ingestion during re-init
-
-**Verification Checklist:**
-- [ ] Ally connections ingested during init
-- [ ] Incoming connections ingested during init
-- [ ] Outgoing connections ingested during init
-- [ ] Possible connections NOT ingested
-- [ ] Already-ingested profiles skipped
-- [ ] Init workflow completes despite ingestion failures
-
-**Testing Instructions:**
-
-Unit tests with mocked services:
-```javascript
-describe('ProfileInitService', () => {
-  it('should trigger ingestion for ally connections', async () => {
-    const mockIngest = vi.fn().mockResolvedValue({ status: 'success' });
-    const service = new ProfileInitService({ ingestProfile: mockIngest });
-
-    await service.processProfile(profileId, 'ally');
-
-    expect(mockIngest).toHaveBeenCalledWith(profileId, expect.any(String));
-  });
-
-  it('should not trigger ingestion for possible connections', async () => {
-    const mockIngest = vi.fn();
-    const service = new ProfileInitService({ ingestProfile: mockIngest });
-
-    await service.processProfile(profileId, 'possible');
-
-    expect(mockIngest).not.toHaveBeenCalled();
-  });
-});
-```
-
-**Commit Message Template:**
-```
-feat(puppeteer): ingest existing connections during profile init
-
-- Trigger RAGStack ingestion for ally/incoming/outgoing
-- Skip possible contacts
-- Graceful failure handling
-```
-
----
-
-### Task 9: Follow Profile Functionality
-
-**Goal:** Implement follow functionality that triggers RAGStack ingestion, similar to connection requests.
-
-**Files to Modify:**
-- `puppeteer/src/domains/linkedin/services/linkedinInteractionService.js` - Add follow method
-- `puppeteer/routes/linkedinInteractionRoutes.js` - Add route
-- `puppeteer/src/domains/linkedin/controllers/linkedinInteractionController.js` - Add controller method
-
-**Prerequisites:**
-- Understanding of existing connection request flow
-- LinkedIn follow button selectors identified
-
-**Implementation Steps:**
-
-1. Add route for follow operation:
-   ```javascript
-   router.post('/linkedin-interactions/follow', controller.followProfile);
-   ```
-
-2. Add controller method:
-   - Validate request (profileId, JWT)
-   - Enqueue to interaction queue
-   - Return async response
-
-3. Add service method `followProfile(profileId, jwtToken)`:
-   - Navigate to profile
-   - Find and click follow button
-   - Verify follow succeeded
-   - Create edge with status `followed`
-   - Trigger RAGStack ingestion
-
-4. LinkedIn follow button selectors:
-   - Primary: `button[aria-label*="Follow"]`
-   - Fallback: `button:has-text("Follow")`
-   - Verify not already following
-
-5. Error handling:
-   - Already following → success (idempotent)
-   - Follow button not found → error
-   - LinkedIn rate limit → queue for retry
-
-6. Edge creation:
-   - Status: `followed`
-   - This triggers ingestion via Task 6 logic
-
-**Verification Checklist:**
-- [ ] Follow route accessible
-- [ ] Profile navigated correctly
-- [ ] Follow button clicked
-- [ ] Edge created with `followed` status
-- [ ] RAGStack ingestion triggered
-- [ ] Idempotent for already-followed profiles
-- [ ] Errors handled gracefully
-
-**Testing Instructions:**
-
-Unit tests with mocked Puppeteer:
-```javascript
-describe('followProfile', () => {
-  it('should click follow button and create edge', async () => {
-    const mockPage = createMockPage({
-      followButton: true,
-      alreadyFollowing: false
-    });
-
-    await service.followProfile('profile123', 'jwt-token');
-
-    expect(mockPage.click).toHaveBeenCalledWith(expect.stringContaining('Follow'));
-    expect(mockDynamoDB.upsertEdge).toHaveBeenCalledWith('profile123', 'followed');
-  });
-});
-```
-
-**Commit Message Template:**
-```
-feat(puppeteer): add follow profile functionality
-
-- New endpoint for following LinkedIn profiles
-- Creates edge with 'followed' status
-- Triggers RAGStack ingestion
+chore: apply automated code sanitization
+
+- Remove console.log/print/debugger statements
+- Remove unused imports via knip --fix
+- Generate baseline audit report for Phase 2
 ```
 
 ---
 
 ## Phase Verification
 
-This phase is complete when:
+### Phase Complete When:
+1. `scripts/cleanup/code-cleanup.sh full` executes successfully
+2. `reports/audit-report.json` exists and contains valid data
+3. `reports/audit-report.md` provides readable summary
+4. All automated fixes have been applied
+5. Full test suite passes: `npm run test`
+6. All commits made with proper format
 
-- [ ] RAGStack deployment script works end-to-end
-- [ ] `.env.ragstack` contains valid credentials
-- [ ] Profile markdown generator produces valid output
-- [ ] RAGStack client can search and upload
-- [ ] Proxy Lambda deployed and accessible
-- [ ] Edge processing triggers ingestion on status changes
-- [ ] Profile init ingests existing connections
-- [ ] Follow functionality works and triggers ingestion
-- [ ] All unit tests pass
-- [ ] Integration tests pass with mocked RAGStack
+### Audit Report Contains:
+- Dead code findings for frontend (from knip)
+- Dead code findings for puppeteer (from knip)
+- Dead code findings for backend (from vulture)
+- Secrets/high-entropy string findings
+- TODO/FIXME comment locations
+- Summary statistics
 
-**Manual Verification:**
-1. Deploy RAGStack via `npm run deploy:ragstack`
-2. Run profile init for a few existing connections
-3. Verify profiles appear in RAGStack (via GraphQL explorer or search)
-4. Send a connection request, verify ingestion triggered
-5. Follow a profile, verify ingestion triggered
+### Integration Points Verified:
+- [x] knip integrates with existing ESLint config
+- [x] vulture integrates with existing Ruff config
+- [x] Cleanup script respects .gitignore patterns
+- [x] No modifications to node_modules, .aws-sam, or other artifacts
+
+### Known Limitations:
+- Knip may have false positives for dynamically imported modules
+- Vulture may flag pytest fixtures as unused (whitelist needed)
+- Commented-out code detection is heuristic, not AST-based
+- Secrets detection may have false positives (manual review required)
+
+### Technical Debt Introduced:
+- None—this phase is foundational tooling
 
 ---
 
-## Known Limitations
+## Handoff to Phase 2
 
-1. **Async ingestion** - Ingestion is fire-and-forget; failures logged but not retried automatically
-2. **No re-ingestion trigger** - Profile updates in DynamoDB don't trigger re-ingestion
-3. **Follow selectors** - LinkedIn follow button selectors may need maintenance
-4. **Batch limits** - Large profile-init may hit RAGStack rate limits
+The audit report generated in this phase (`reports/audit-report.json`) is the primary input for Phases 2 and 3. Key sections:
+
+1. **Dead Code** - Files and exports to delete
+2. **Impactless Code** - Functions to trace and potentially delete
+3. **Secrets** - Hardcoded strings to extract to environment variables
+4. **TODO/FIXME** - Comments to review and remove
+5. **Utility Duplicates** - Functions to consolidate (if detected)
+
+Phase 2 focuses on **frontend cleanup** using this report. Phase 3 handles **puppeteer and backend cleanup**.
