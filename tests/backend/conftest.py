@@ -15,8 +15,17 @@ BACKEND_LAMBDAS = Path(__file__).parent.parent.parent / 'backend' / 'lambdas'
 # Path to shared python modules
 SHARED_PYTHON = BACKEND_LAMBDAS / 'shared' / 'python'
 
+# Path to edge-processing services
+EDGE_PROCESSING = BACKEND_LAMBDAS / 'edge-processing'
+
 # Add shared python path to sys.path for imports
 sys.path.insert(0, str(SHARED_PYTHON))
+
+# Add Lambda-specific paths for service imports
+# We use a helper function to load Lambda services
+EDGE_PROCESSING_SERVICES = BACKEND_LAMBDAS / 'edge-processing' / 'services'
+PROFILE_PROCESSING_SERVICES = BACKEND_LAMBDAS / 'profile-processing' / 'services'
+LLM_SERVICES = BACKEND_LAMBDAS / 'llm' / 'services'
 
 # Set test environment variables before any Lambda imports
 os.environ['DYNAMODB_TABLE_NAME'] = 'test-table'
@@ -60,6 +69,60 @@ def load_lambda_module(lambda_name: str):
         # Remove the Lambda's directory from sys.path
         if lambda_dir in sys.path:
             sys.path.remove(lambda_dir)
+
+    return module
+
+
+def load_service_class(lambda_name: str, service_name: str):
+    """
+    Load a service class from a Lambda's services directory.
+
+    Args:
+        lambda_name: Name of the Lambda directory (e.g., 'edge-processing')
+        service_name: Name of the service module (e.g., 'edge_service')
+
+    Returns:
+        The service module (access class via module.ClassName)
+    """
+    service_path = BACKEND_LAMBDAS / lambda_name / 'services' / f'{service_name}.py'
+
+    if not service_path.exists():
+        raise FileNotFoundError(f"Service not found: {service_path}")
+
+    # Create a unique module name
+    module_name = f"service_{lambda_name.replace('-', '_')}_{service_name}"
+
+    # Load the module spec
+    spec = importlib.util.spec_from_file_location(module_name, service_path)
+    module = importlib.util.module_from_spec(spec)
+
+    # Paths for imports
+    lambda_dir = str(BACKEND_LAMBDAS / lambda_name)
+    shared_dir = str(SHARED_PYTHON)
+
+    # Save original path state
+    original_path = sys.path.copy()
+
+    # Clear any cached module imports that might conflict
+    for mod_name in list(sys.modules.keys()):
+        if mod_name.startswith('services') or mod_name.startswith('errors') or mod_name.startswith('models'):
+            if 'shared' not in str(sys.modules.get(mod_name, '')):
+                del sys.modules[mod_name]
+
+    # Build clean path with shared FIRST, then lambda-specific
+    # This ensures shared modules (services.base_service, errors, models) are found first
+    clean_path = [shared_dir, lambda_dir]
+    for p in original_path:
+        if p not in clean_path:
+            clean_path.append(p)
+
+    sys.path[:] = clean_path
+
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        # Restore original path
+        sys.path[:] = original_path
 
     return module
 
