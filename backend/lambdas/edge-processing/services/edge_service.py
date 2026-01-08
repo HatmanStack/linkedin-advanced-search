@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from boto3.dynamodb.types import TypeSerializer
 from botocore.exceptions import ClientError
 
 # Set up shared path for imports
@@ -120,8 +121,6 @@ class EdgeService(BaseService):
             if status == 'processed':
                 user_profile_edge['processedAt'] = current_time
 
-            self.table.put_item(Item=user_profile_edge)
-
             # Create profile-to-user edge
             profile_user_edge = {
                 'PK': f'PROFILE#{profile_id_b64}',
@@ -132,7 +131,15 @@ class EdgeService(BaseService):
                 'lastAttempt': current_time,
                 'updatedAt': current_time
             }
-            self.table.put_item(Item=profile_user_edge)
+
+            # Use transactional write for atomicity - both edges succeed or both fail
+            table_name = self.table.table_name
+            self.table.meta.client.transact_write_items(
+                TransactItems=[
+                    {'Put': {'TableName': table_name, 'Item': self._serialize_item(user_profile_edge)}},
+                    {'Put': {'TableName': table_name, 'Item': self._serialize_item(profile_user_edge)}}
+                ]
+            )
 
             # Trigger RAGStack ingestion for established relationships
             ragstack_ingested = False
@@ -381,6 +388,11 @@ class EdgeService(BaseService):
     # =========================================================================
     # Private helper methods
     # =========================================================================
+
+    def _serialize_item(self, item: dict) -> dict:
+        """Serialize a Python dict to DynamoDB low-level format for transact_write_items."""
+        serializer = TypeSerializer()
+        return {k: serializer.serialize(v) for k, v in item.items()}
 
     def _get_profile_metadata(self, profile_id: str) -> dict:
         """Fetch profile metadata from DynamoDB."""

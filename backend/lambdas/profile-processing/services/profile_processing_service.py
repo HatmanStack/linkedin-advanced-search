@@ -69,10 +69,22 @@ class ProfileProcessingService(BaseService):
         self.ai_model_id = ai_model_id
 
     def health_check(self) -> dict[str, Any]:
-        """Check service health by verifying S3 access."""
+        """Check service health by verifying clients are configured."""
         try:
-            self.s3_client.head_bucket(Bucket='health-check-bucket')
-            return {'healthy': True, 'details': {}}
+            # Verify clients are available (don't make actual calls to avoid hardcoded bucket names)
+            clients_configured = (
+                self.s3_client is not None and
+                self.bedrock_client is not None and
+                self.table is not None
+            )
+            return {
+                'healthy': clients_configured,
+                'details': {
+                    's3_client': self.s3_client is not None,
+                    'bedrock_client': self.bedrock_client is not None,
+                    'table': self.table is not None
+                }
+            }
         except Exception as e:
             return {'healthy': False, 'details': {'error': str(e)}}
 

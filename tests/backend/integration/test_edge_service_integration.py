@@ -15,7 +15,7 @@ class TestEdgeServiceIntegration:
     """Integration tests for EdgeService with moto-mocked DynamoDB."""
 
     @mock_aws
-    def test_full_upsert_flow(self, edge_service_module, create_test_edge):
+    def test_full_upsert_flow(self, edge_service_module):
         """Test complete upsert flow with mocked DynamoDB."""
         import boto3
 

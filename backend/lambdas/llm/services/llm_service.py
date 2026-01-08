@@ -46,6 +46,9 @@ else:
 
 logger = logging.getLogger(__name__)
 
+# Placeholder name used for demo/test profiles that should be skipped
+PROFILE_PLACEHOLDER_NAME = "Tom, Dick, And Harry"
+
 
 class LLMService(BaseService):
     """
@@ -109,7 +112,7 @@ class LLMService(BaseService):
         """
         try:
             user_data = ''
-            if user_profile and user_profile.get('name') != "Tom, Dick, And Harry":
+            if user_profile and user_profile.get('name') != PROFILE_PLACEHOLDER_NAME:
                 for key, value in user_profile.items():
                     user_data += f"{key}: {value}\n"
 
@@ -118,12 +121,15 @@ class LLMService(BaseService):
                 raw_ideas=prompt or ''
             )
 
+            # Use IDEM_KEY from env, or fall back to job_id for idempotency
+            idempotency_key = os.environ.get('IDEM_KEY') or job_id or str(uuid.uuid4())
+
             self.openai_client.responses.create(
                 model="gpt-5",
                 input=llm_prompt,
                 background=True,
                 metadata={"job_id": job_id, "user_id": user_id, "kind": "IDEAS"},
-                extra_headers={"Idempotency-Key": os.environ.get('IDEM_KEY')},
+                extra_headers={"Idempotency-Key": idempotency_key},
             )
 
             return {'success': True, 'status': 'queued'}
@@ -331,6 +337,10 @@ class LLMService(BaseService):
             dict with success status and transformed content
         """
         try:
+            if self.bedrock_client is None:
+                logger.error(f"Bedrock client not configured; cannot apply style with model {self.bedrock_model_id}")
+                return {'success': False, 'error': 'Bedrock client not configured'}
+
             llm_prompt = APPLY_POST_STYLE_PROMPT.format(
                 existing_content=existing_content,
                 style=style

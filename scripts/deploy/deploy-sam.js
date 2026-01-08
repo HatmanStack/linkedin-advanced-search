@@ -12,11 +12,15 @@
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { execSync, spawn } from 'child_process';
 import { createInterface } from 'readline';
-import { resolve, join } from 'path';
+import { resolve, join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 
-const CONFIG_FILE = '.deploy-config.json';
-const PROJECT_ROOT = resolve(process.cwd());
+// Derive PROJECT_ROOT from script location, not cwd()
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const PROJECT_ROOT = resolve(__dirname, '..', '..');  // scripts/deploy -> root
 const BACKEND_DIR = join(PROJECT_ROOT, 'backend');
+const CONFIG_FILE = '.deploy-config.json';
 
 /**
  * Prompts user for input
@@ -228,10 +232,32 @@ async function runSamDeploy() {
 }
 
 /**
+ * Validates AWS stack name (alphanumeric, hyphens, underscores, 1-128 chars)
+ */
+function isValidStackName(name) {
+  return /^[a-zA-Z0-9_-]{1,128}$/.test(name);
+}
+
+/**
+ * Validates AWS region format (e.g., us-west-2, eu-central-1)
+ */
+function isValidRegion(region) {
+  return /^[a-z]{2}-[a-z]+-\d{1}$/.test(region);
+}
+
+/**
  * Retrieves CloudFormation stack outputs
  */
 function getStackOutputs(stackName, region) {
   console.log('\n📋 Retrieving stack outputs...');
+
+  // Validate inputs to prevent shell injection
+  if (!isValidStackName(stackName)) {
+    throw new Error(`Invalid stack name: ${stackName}. Must be alphanumeric with hyphens/underscores, 1-128 chars.`);
+  }
+  if (!isValidRegion(region)) {
+    throw new Error(`Invalid region: ${region}. Must be a valid AWS region (e.g., us-west-2).`);
+  }
 
   try {
     const result = execSync(
@@ -325,12 +351,20 @@ async function collectConfiguration(config) {
   if (existsSync(ragstackEnvPath)) {
     console.log('\n✓ Found .env.ragstack - loading RAGStack configuration');
     const ragstackEnv = readFileSync(ragstackEnvPath, 'utf-8');
+
+    // Helper to trim and strip surrounding quotes from env values
+    const cleanEnvValue = (value) => {
+      const trimmed = value.trim();
+      // Remove surrounding single or double quotes
+      return trimmed.replace(/^["']|["']$/g, '');
+    };
+
     for (const line of ragstackEnv.split('\n')) {
       if (line.startsWith('RAGSTACK_GRAPHQL_ENDPOINT=')) {
-        config.ragstackEndpoint = line.substring(line.indexOf('=') + 1);
+        config.ragstackEndpoint = cleanEnvValue(line.substring(line.indexOf('=') + 1));
       }
       if (line.startsWith('RAGSTACK_API_KEY=')) {
-        config.ragstackApiKey = line.substring(line.indexOf('=') + 1);
+        config.ragstackApiKey = cleanEnvValue(line.substring(line.indexOf('=') + 1));
       }
     }
   } else {

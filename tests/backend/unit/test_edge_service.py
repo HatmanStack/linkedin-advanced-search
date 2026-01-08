@@ -43,8 +43,9 @@ class TestEdgeServiceUpsertStatus:
     """Tests for upsert_status operation."""
 
     def test_upsert_status_creates_edges(self):
-        """Should create user-to-profile and profile-to-user edges."""
+        """Should create user-to-profile and profile-to-user edges atomically."""
         mock_table = MagicMock()
+        mock_table.table_name = 'test-table'
         service = EdgeService(table=mock_table)
 
         result = service.upsert_status(
@@ -54,11 +55,15 @@ class TestEdgeServiceUpsertStatus:
         )
 
         assert result['success'] is True
-        assert mock_table.put_item.call_count == 2
+        # Now uses transact_write_items for atomic writes
+        mock_table.meta.client.transact_write_items.assert_called_once()
+        call_args = mock_table.meta.client.transact_write_items.call_args
+        assert len(call_args.kwargs['TransactItems']) == 2
 
     def test_upsert_status_returns_profile_id_b64(self):
         """Should return base64-encoded profile ID."""
         mock_table = MagicMock()
+        mock_table.table_name = 'test-table'
         service = EdgeService(table=mock_table)
 
         result = service.upsert_status(
@@ -74,6 +79,7 @@ class TestEdgeServiceUpsertStatus:
     def test_upsert_status_triggers_ragstack_for_ally(self):
         """Should trigger RAGStack ingestion for 'ally' status."""
         mock_table = MagicMock()
+        mock_table.table_name = 'test-table'
         mock_table.get_item.return_value = {'Item': {'name': 'John Doe'}}
         mock_lambda = MagicMock()
         mock_lambda.invoke.return_value = {'StatusCode': 202}
@@ -100,6 +106,7 @@ class TestEdgeServiceUpsertStatus:
     def test_upsert_status_skips_ragstack_for_possible(self):
         """Should NOT trigger RAGStack for 'possible' status."""
         mock_table = MagicMock()
+        mock_table.table_name = 'test-table'
         mock_lambda = MagicMock()
 
         service = EdgeService(
@@ -398,9 +405,10 @@ class TestEdgeServiceErrorHandling:
     def test_dynamo_error_raises_external_service_error(self):
         """Should raise ExternalServiceError on DynamoDB failures."""
         mock_table = MagicMock()
-        mock_table.put_item.side_effect = ClientError(
+        mock_table.table_name = 'test-table'
+        mock_table.meta.client.transact_write_items.side_effect = ClientError(
             {'Error': {'Code': 'InternalServerError', 'Message': 'Test error'}},
-            'PutItem'
+            'TransactWriteItems'
         )
 
         service = EdgeService(table=mock_table)
