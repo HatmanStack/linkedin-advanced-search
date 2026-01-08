@@ -3,12 +3,13 @@
 # Generates JSON and Markdown reports
 
 # Global variables for report data (set by analysis functions)
-FRONTEND_DEAD_CODE=""
-PUPPETEER_DEAD_CODE=""
-BACKEND_DEAD_CODE=""
-JS_SECRETS=""
-PY_SECRETS=""
-SANITIZATION_FINDINGS=""
+# Only initialize if not already set by other modules
+: "${FRONTEND_DEAD_CODE:=}"
+: "${PUPPETEER_DEAD_CODE:=}"
+: "${BACKEND_DEAD_CODE:=}"
+: "${JS_SECRETS:=}"
+: "${PY_SECRETS:=}"
+: "${SANITIZATION_FINDINGS:=}"
 
 # Generate JSON audit report
 generate_json_report() {
