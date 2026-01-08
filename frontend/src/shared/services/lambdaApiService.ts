@@ -114,7 +114,7 @@ class LambdaApiService {
   constructor() {
     // Initialize axios client with API Gateway base URL
     const apiBaseUrl =
-      (import.meta.env as unknown).VITE_API_GATEWAY_URL ||  '';
+      import.meta.env.VITE_API_GATEWAY_URL || '';
 
     if (!apiBaseUrl) {
       logger.warn(
@@ -204,9 +204,9 @@ class LambdaApiService {
     if (error.response) {
       // Server responded with error status
       const status = error.response.status;
-      const responseData = error.response.data as unknown;
-      const message = responseData?.message || 
-                     responseData?.error || 
+      const responseData = error.response.data as Record<string, unknown> | null;
+      const message = (responseData?.message as string) ||
+                     (responseData?.error as string) ||
                      `HTTP ${status} error`;
       
       return new ApiError({
@@ -610,7 +610,7 @@ class LambdaApiService {
   async sendLLMRequest(operation: string, params: Record<string, unknown> = {}): Promise<{ success: boolean; data?: unknown; error?: string }> {
     try {
       const response = await this.makeLLMRequest<unknown>(operation, params);
-      logger.debug('LLM response received', { responseLength: response?.length });
+      logger.debug('LLM response received', { hasResponse: response !== undefined });
       return { success: true, data: response };
     } catch (error) {
       logger.error('LLM request failed', { error });
@@ -674,8 +674,8 @@ class ExtendedLambdaApiService extends LambdaApiService {
      
       return { success: true, data };
     } catch (error) {
-      const err = error as AxiosError<unknown>;
-      const message = (err.response?.data as unknown)?.error || err.message || 'Failed to fetch profile';
+      const err = error as AxiosError<Record<string, unknown>>;
+      const message = (err.response?.data?.error as string) || err.message || 'Failed to fetch profile';
       return { success: false, error: message };
     }
   }
@@ -692,8 +692,8 @@ class ExtendedLambdaApiService extends LambdaApiService {
       const data = (response.data?.data ?? response.data) as UserProfile;
       return { success: true, data };
     } catch (error) {
-      const err = error as AxiosError<unknown>;
-      const message = (err.response?.data as unknown)?.error || err.message || 'Failed to update profile';
+      const err = error as AxiosError<Record<string, unknown>>;
+      const message = (err.response?.data?.error as string) || err.message || 'Failed to update profile';
       return { success: false, error: message };
     }
   }
@@ -708,8 +708,8 @@ class ExtendedLambdaApiService extends LambdaApiService {
       const data = (response.data?.data ?? response.data) as UserProfile;
       return { success: true, data };
     } catch (error) {
-      const err = error as AxiosError<unknown>;
-      const message = (err.response?.data as unknown)?.error || err.message || 'Failed to create profile';
+      const err = error as AxiosError<Record<string, unknown>>;
+      const message = (err.response?.data?.error as string) || err.message || 'Failed to create profile';
       return { success: false, error: message };
     }
   }
@@ -723,7 +723,7 @@ class ExtendedLambdaApiService extends LambdaApiService {
       operation,
       ...params,
     });
-    const data = (response.data?.data ?? response.data) as unknown;
+    const data = (response.data?.data ?? response.data) as { success?: boolean; data?: T } & Record<string, unknown>;
     return data;
   }
 

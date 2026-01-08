@@ -14,14 +14,14 @@ let synthPollingInFlight = false;
 export const postsService = {
   async saveUnsentPostToProfile(content: string): Promise<void> {
     // Save only the textarea content
-    const updates: Partial<UserProfile> = { unpublished_post_content: content } as unknown;
+    const updates = { unpublished_post_content: content };
     const resp = await lambdaApiService.updateUserProfile(updates);
     if (!resp.success) throw new Error(resp.error || 'Failed to save unsent post');
   },
 
   async clearUnsentPostFromProfile(): Promise<void> {
     // Clear only the draft field
-    const updates: Partial<UserProfile> = { unpublished_post_content: '' } as unknown;
+    const updates = { unpublished_post_content: '' };
     const resp = await lambdaApiService.updateUserProfile(updates);
     if (!resp.success) throw new Error(resp.error || 'Failed to clear unsent post');
   },
@@ -38,10 +38,15 @@ export const postsService = {
       }
       ideasPollingInFlight = true;
 
-      const profileToSend = userProfile
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        ? (() => { const { unsent_post_content, unpublished_post_content, ai_generated_post_content, linkedin_credentials, ...rest } = userProfile as unknown; return rest; })()
-        : null;
+      // Filter out sensitive/temporary fields from userProfile
+      let profileToSend = null;
+      if (userProfile) {
+        const profile = userProfile as Record<string, unknown>;
+        const { unsent_post_content, unpublished_post_content, ai_generated_post_content, linkedin_credentials, ...rest } = profile;
+        profileToSend = rest;
+        // Silence unused vars
+        void unsent_post_content; void unpublished_post_content; void ai_generated_post_content; void linkedin_credentials;
+      }
 
       // Generate a client-side job id and request async idea generation
       const jobId = uuidv4();
@@ -62,16 +67,18 @@ export const postsService = {
 
       for (let i = 0; i < maxChecks; i++) {
         try {
-          const poll = await lambdaApiService.callProfilesOperation<{ ideas?: string[] }>('get_research_result', {
+          const poll = await lambdaApiService.callProfilesOperation<{ ideas?: string[]; status?: string }>('get_research_result', {
             job_id: jobId,
             kind: 'IDEAS',
           });
           if (poll && (poll.success === true || poll.status === 'ok')) {
-            const ideas = (poll as unknown).ideas || (poll as unknown).data?.ideas;
+            const pollData = poll as Record<string, unknown>;
+            const nestedData = pollData.data as Record<string, unknown> | undefined;
+            const ideas = (pollData.ideas as string[]) || (nestedData?.ideas as string[]);
             if (Array.isArray(ideas) && ideas.length > 0) {
               logger.debug('Ideas generated', { ideas });
               ideasPollingInFlight = false;
-              return ideas as string[];
+              return ideas;
             }
           }
         } catch {
@@ -91,18 +98,25 @@ export const postsService = {
 
   async researchTopics(topics: string[], userProfile?: UserProfile): Promise<string> {
     try {
+      // Filter out sensitive fields from userProfile
+      let filteredProfile = null;
+      if (userProfile) {
+        const profile = userProfile as Record<string, unknown>;
+        const { unsent_post_content, unpublished_post_content, ai_generated_post_content, linkedin_credentials, ...rest } = profile;
+        filteredProfile = rest;
+        // Silence unused vars
+        void unsent_post_content; void unpublished_post_content; void ai_generated_post_content; void linkedin_credentials;
+      }
       const response = await lambdaApiService.sendLLMRequest('research_selected_ideas', {
         selected_ideas: topics,
-        user_profile: (userProfile
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
-          ? (() => { const { unsent_post_content, unpublished_post_content, ai_generated_post_content, linkedin_credentials, ...rest } = userProfile as unknown; return rest; })()
-          : null)
+        user_profile: filteredProfile,
       });
-      
+
       if (!response.success) {
         throw new Error(response.error || 'Failed to research topics');
       }
-      const jobId: string | undefined = (response.data?.job_id || response.data?.jobId) as (string | undefined);
+      const responseData = response.data as Record<string, unknown> | undefined;
+      const jobId: string | undefined = (responseData?.job_id as string) || (responseData?.jobId as string);
       if (!jobId) {
         throw new Error('No job_id returned for research request');
       }
@@ -118,11 +132,13 @@ export const postsService = {
       await sleep(delayMs);
       for (let i = 0; i < maxChecks; i++) {
         try {
-          const poll = await lambdaApiService.callProfilesOperation<{ content?: string }>('get_research_result', { 
+          const poll = await lambdaApiService.callProfilesOperation<{ content?: string; status?: string }>('get_research_result', {
             job_id: jobId,
             kind: 'RESEARCH', });
           if (poll && (poll.success === true || poll.status === 'ok')) {
-            const content = (poll as unknown).content || (poll as unknown).data?.content;
+            const pollData = poll as Record<string, unknown>;
+            const nestedData = pollData.data as Record<string, unknown> | undefined;
+            const content = (pollData.content as string) || (nestedData?.content as string);
             if (content && typeof content === 'string' && content.trim().length > 0) {
               return content;
             }
@@ -149,10 +165,15 @@ export const postsService = {
       }
       synthPollingInFlight = true;
 
-      const profileToSend = userProfile
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        ? (() => { const { unpublished_post_content, linkedin_credentials, ai_generated_ideas, ai_generated_research, ai_generated_post_hook, ai_generated_post_reasoning,...rest } = userProfile as unknown; return rest; })()
-        : null;
+      // Filter out sensitive/temporary fields from userProfile
+      let profileToSend = null;
+      if (userProfile) {
+        const profile = userProfile as Record<string, unknown>;
+        const { unpublished_post_content, linkedin_credentials, ai_generated_ideas, ai_generated_research, ai_generated_post_hook, ai_generated_post_reasoning, ...rest } = profile;
+        profileToSend = rest;
+        // Silence unused vars
+        void unpublished_post_content; void linkedin_credentials; void ai_generated_ideas; void ai_generated_research; void ai_generated_post_hook; void ai_generated_post_reasoning;
+      }
 
       // Generate a client-side job id and request async synthesis
       const jobId = uuidv4();
@@ -175,14 +196,16 @@ export const postsService = {
 
       for (let i = 0; i < maxChecks; i++) {
         try {
-          const poll = await lambdaApiService.callProfilesOperation<{ sections?: unknown }>('get_research_result', {
+          const poll = await lambdaApiService.callProfilesOperation<{ sections?: Record<string, string>; status?: string }>('get_research_result', {
             job_id: jobId,
             // Use a distinct kind for synthesis; backend will fallback to RESEARCH if unknown
             kind: 'SYNTHESIZE',
           });
-          if (poll && (poll.success === true || (poll as unknown).status === 'ok')) {
-            const sections = (poll as unknown).sections || (poll as unknown).data?.sections;
-            if (sections ) {
+          if (poll && (poll.success === true || poll.status === 'ok')) {
+            const pollData = poll as Record<string, unknown>;
+            const nestedData = pollData.data as Record<string, unknown> | undefined;
+            const sections = (pollData.sections as Record<string, string>) || (nestedData?.sections as Record<string, string>);
+            if (sections) {
               synthPollingInFlight = false;
               return {
                 content: sections['1'] || '',
@@ -215,11 +238,12 @@ export const postsService = {
       if (!response.success) {
         throw new Error(response.error || 'Failed to apply post style');
       }
-      const data = (response.data as unknown) || {};
+      const data = (response.data || {}) as Record<string, unknown>;
       // Support either { content } or { data: { content } }
-      const content = data.content ?? data.data?.content;
+      const nestedData = data.data as Record<string, unknown> | undefined;
+      const content = (data.content as string) ?? (nestedData?.content as string);
       if (typeof content === 'string' && content.trim().length > 0) {
-        return content as string;
+        return content;
       }
       // If backend returns full object, attempt common field names
       if (typeof data.result === 'string') return data.result;

@@ -1,442 +1,305 @@
 # Phase 0: Foundation
 
-## Phase Goal
+**Estimated Tokens:** ~8,000
 
-Establish architectural decisions, deployment automation, and testing strategy that govern all subsequent phases. This phase produces no runtime code but creates the infrastructure scaffolding and documentation that implementation phases inherit.
-
-**Success Criteria:**
-- ADRs documented for key technical decisions
-- Deployment script specifications defined
-- Testing strategy established with mocking approach
-- Shared patterns and conventions documented
-
-**Estimated Tokens:** ~15,000
+This phase establishes the architectural decisions, patterns, and strategies that apply to all subsequent phases. Engineers should read this entire document before beginning any implementation work.
 
 ---
 
 ## Architecture Decision Records (ADRs)
 
-### ADR-001: Dedicated RAGStack Instance
+### ADR-001: AST Tools via npx/uvx (No Permanent Dependencies)
 
-**Context:** Need to choose between shared RAGStack deployment, dedicated instance, or direct Bedrock KB integration.
+**Context:** Dead code detection requires AST-aware tools. Options include adding them as devDependencies or running them ephemerally.
 
-**Decision:** Deploy a dedicated RAGStack-Lambda stack (`linkedin-profiles-kb`) for this project.
+**Decision:** Use `npx` for JavaScript/TypeScript tools (knip) and `uvx` for Python tools (vulture, detect-secrets). No permanent additions to package.json or pyproject.toml.
 
 **Rationale:**
-- Isolation: Profile data stays separate from other knowledge bases
-- Simplicity: No multi-tenant complexity
-- Control: Independent scaling, updates, and lifecycle management
-- Cost transparency: Clear attribution of Bedrock/S3 costs
+- Cleanup is a one-time operation, not ongoing development workflow
+- Avoids bloating devDependencies with single-use tools
+- npx/uvx cache tools locally for fast subsequent runs
+- No version conflicts with existing dependencies
 
 **Consequences:**
-- Additional CloudFormation stack to manage
-- Separate deployment pipeline
-- Own API endpoint and API key
+- First run downloads tools (one-time ~30s delay)
+- No IDE integration for these tools
+- Must specify versions explicitly for reproducibility
 
 ---
 
-### ADR-002: Text Ingestion Without OCR
+### ADR-002: Comment Removal Strategy
 
-**Context:** LinkedIn profiles can be captured as screenshots (requiring OCR) or extracted as structured text via DOM scraping.
+**Context:** Original spec requested removing ALL comments. Refined requirement: remove dead/obvious comments only.
 
-**Decision:** Use existing `TextExtractionService` to generate markdown documents for ingestion. No OCR.
+**Decision:** Remove the following categories:
+1. **TODO/FIXME comments** - Stale action items
+2. **Commented-out code blocks** - Dead code masquerading as comments
+3. **Obvious/redundant comments** - Comments that restate what code does
 
-**Rationale:**
-- Cost: Textract OCR costs ~$0.15/page; text extraction is free
-- Quality: Direct DOM extraction is more accurate than OCR
-- Speed: No image processing latency
-- Existing code: `TextExtractionService` already extracts name, headline, experience, education, skills, about
+**Preserve:**
+1. **JSDoc/docstrings** for public APIs
+2. **Suppression flags** (`@ts-ignore`, `# noqa`, `eslint-disable`)
+3. **License headers** if present
+4. **Complex algorithm explanations** that add value
 
-**Consequences:**
-- Must generate well-structured markdown from JSON profile data
-- Dependent on LinkedIn DOM selectors (existing maintenance burden)
-- Lose visual layout information (acceptable for search)
-
----
-
-### ADR-003: Ingestion Triggers
-
-**Context:** Need to determine when profiles enter the knowledge base.
-
-**Decision:** Ingest profiles only when a relationship is established:
-1. After `sendConnectionRequest()` succeeds
-2. After `followProfile()` succeeds (new feature)
-3. During profile-init for existing connections
-
-**Rationale:**
-- Data relevance: Only ingest profiles you have a relationship with
-- Cost control: Don't ingest "possible" contacts that may never be pursued
-- Privacy: Limit stored data to actual network
-- Future flexibility: Contact processing rework planned for separate PR
-
-**Consequences:**
-- "Possible" contacts from search are NOT searchable until acted upon
-- Need to track ingestion status per profile
-- Follow functionality must be implemented
+**Detection Approach:**
+- Regex for TODO/FIXME patterns
+- AST analysis for commented-out code (syntactically valid code in comments)
+- Manual review for redundant comments during optimization pass
 
 ---
 
-### ADR-004: Search Architecture
+### ADR-003: Aggressive Performance Optimization Scope
 
-**Context:** Choose between text search, chat interface, or hybrid.
+**Context:** Requirement specifies "prefer performance over readability" with aggressive optimization.
 
-**Decision:** Text search only via RAGStack's `searchKnowledgeBase` query.
+**Decision:** Apply the following optimization patterns:
 
-**Rationale:**
-- Simplicity: Text search covers 90%+ of use cases
-- Cost: No LLM inference cost per search (embeddings only)
-- Performance: Direct vector search is faster than RAG chat
-- Extensibility: Chat can be added later on same KB
+**JavaScript/TypeScript:**
+- Replace `.forEach()` with `for` loops where iteration count is known
+- Replace `.map().filter()` chains with single-pass loops
+- Use `for...of` over `for...in` for array iteration
+- Inline small utility functions called in hot paths
+- Replace spread operators with direct mutation where safe
+- Use `Object.assign` over spread for object merging in loops
 
-**Consequences:**
-- No conversational refinement
-- No synthesis/aggregation queries
-- Users get profile matches, not natural language answers
+**Python:**
+- Replace list comprehensions with generator expressions for large datasets
+- Use `dict.get()` over `try/except KeyError`
+- Replace multiple `if/elif` with dictionary dispatch tables
+- Use `itertools` for complex iterations
+- Inline small lambdas used once
+
+**Boundaries:**
+- Do NOT optimize code that isn't on a hot path
+- Do NOT break existing public APIs
+- Do NOT sacrifice type safety for performance
+- All optimizations must maintain test parity
 
 ---
 
-### ADR-005: Security Model
+### ADR-004: Secrets Handling
 
-**Context:** RAGStack API contains sensitive LinkedIn profile data.
+**Context:** Hardcoded high-entropy strings may contain secrets. Requirement: auto-replace with environment variables.
 
-**Decision:** Keep RAGStack API private with API key auth. All requests proxied through linkedin-advanced-search backend.
+**Decision:**
+1. Use `detect-secrets` to scan for high-entropy strings
+2. For confirmed secrets, replace with:
+   - JavaScript/TypeScript: `process.env.VAR_NAME`
+   - Python: `os.environ.get('VAR_NAME')`
+3. Add discovered variables to `.env.example` with placeholder values
+4. Document new environment variables in README
 
-**Rationale:**
-- Data protection: Profile PII not exposed to browser
-- Cost protection: Prevent unauthorized query costs
-- Audit trail: All access logged through our API
-- Consistency: Matches existing auth pattern (Cognito → Backend → Lambda)
+**False Positive Handling:**
+- Base64-encoded static assets → ignore
+- UUIDs used as test fixtures → ignore
+- Hash constants (SHA patterns) → review case-by-case
+- API version strings → ignore
 
-**Architecture:**
+---
+
+### ADR-005: Utility Consolidation Boundaries
+
+**Context:** Redundant utility functions exist. Requirement: merge within components only.
+
+**Decision:** Consolidation scope is strictly per-component:
+- `frontend/` utilities merge within frontend only
+- `puppeteer/` utilities merge within puppeteer only
+- `backend/` utilities merge within backend only
+
+**NO cross-component consolidation.** Even if identical functions exist in frontend and puppeteer, they remain separate.
+
+**Consolidation Target Files:**
+- Frontend: `frontend/src/shared/lib/utils.ts`
+- Puppeteer: `puppeteer/src/shared/utils/` (7 existing util files) + `puppeteer/utils/uploadMetrics.js`
+- Backend: `backend/lambdas/shared/` (per existing structure)
+
+---
+
+### ADR-006: Test Update Strategy
+
+**Context:** Aggressive optimization will change implementation details. Tests must pass.
+
+**Decision:**
+1. Run full test suite before any changes (baseline)
+2. After each optimization, run affected component's tests
+3. Update test assertions that depend on implementation details
+4. Delete tests for deleted code
+5. Add tests for any new utility consolidations
+6. Final full test suite run before phase completion
+
+**Test Files Never Deleted Without Corresponding Code Deletion:**
+- If code is removed, its tests are removed
+- If code is optimized, tests are updated to match new behavior
+- No orphan test files
+
+---
+
+## Cleanup Script Architecture
+
+### Script Location
+`scripts/cleanup/code-cleanup.sh` (existing script - will be enhanced)
+
+**Note:** An existing cleanup script already provides knip, vulture, and ruff integration. Phase 1 enhances this script rather than creating a new one.
+
+### Script Responsibilities
+
 ```
-Browser → linkedin-advanced-search API (Cognito JWT)
-       → Backend Lambda (has RAGStack API key)
-       → RAGStack GraphQL (API key auth)
+┌─────────────────────────────────────────────────────────────┐
+│                  code-cleanup.sh                            │
+├─────────────────────────────────────────────────────────────┤
+│  1. ANALYSIS PHASE                                          │
+│     ├── Run knip on frontend/                               │
+│     ├── Run knip on puppeteer/                              │
+│     ├── Run vulture on backend/lambdas/                     │
+│     ├── Run detect-secrets scan                             │
+│     └── Generate audit-report.json                          │
+├─────────────────────────────────────────────────────────────┤
+│  2. AUTOMATED FIXES                                         │
+│     ├── Remove unused imports (knip --fix)                  │
+│     ├── Remove console.log/print statements (sed/grep)      │
+│     ├── Remove debugger statements                          │
+│     └── Flag secrets for manual env var extraction          │
+├─────────────────────────────────────────────────────────────┤
+│  3. REPORT GENERATION                                       │
+│     ├── audit-report.json (machine-readable)                │
+│     ├── audit-report.md (human-readable summary)            │
+│     └── Exit code: 0=clean, 1=issues found                  │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-**Consequences:**
-- Additional Lambda for proxying
-- API key must be stored securely (Secrets Manager or SSM)
-- Slight latency increase from proxy hop
+### Audit Report Schema
 
----
-
-### ADR-006: Result Hydration Pattern
-
-**Context:** RAGStack returns document IDs/sources. UI needs full profile cards.
-
-**Decision:** RAGStack returns profile IDs → fetch full profile cards from DynamoDB → display with existing components.
-
-**Rationale:**
-- Single source of truth: DynamoDB has authoritative profile data
-- UI consistency: Reuse existing `ConnectionCard` components
-- Flexibility: Can add/change displayed fields without re-ingesting
-
-**Flow:**
+```json
+{
+  "timestamp": "ISO-8601",
+  "components": {
+    "frontend": {
+      "deadCode": {
+        "unusedExports": ["path:export"],
+        "unusedFiles": ["path"],
+        "unreachableFunctions": ["path:function"]
+      },
+      "sanitization": {
+        "consoleLogs": ["path:line"],
+        "commentedCode": ["path:line"],
+        "todoComments": ["path:line"]
+      },
+      "secrets": {
+        "highEntropyStrings": ["path:line:preview"]
+      }
+    },
+    "puppeteer": { /* same structure */ },
+    "backend": { /* same structure */ }
+  },
+  "summary": {
+    "totalIssues": 0,
+    "byCategory": {}
+  }
+}
 ```
-Search query → RAGStack → profile IDs (100 max)
-            → DynamoDB batch get → full profiles
-            → existing filtering → display cards
-```
 
-**Consequences:**
-- Two-step data fetch (RAGStack + DynamoDB)
-- Must maintain profile ID consistency between systems
-- Existing client-side filtering still works on results
+### Script Execution Model
 
----
-
-## Tech Stack
-
-### RAGStack Instance
-- **Stack Name:** `linkedin-profiles-kb`
-- **Region:** Same as linkedin-advanced-search (us-west-2 or configured)
-- **Embedding Model:** Amazon Nova Multimodal Embeddings v1
-- **Storage:** S3 Vectors (not OpenSearch)
-- **API:** AppSync GraphQL with API key auth
-
-### New Components in linkedin-advanced-search
-| Component | Technology | Location |
-|-----------|------------|----------|
-| RAGStack Proxy Lambda | Python 3.13 | `backend/lambdas/ragstack-proxy/` |
-| Ingestion Trigger | Python (in edge-processing) | `backend/lambdas/edge-processing/` |
-| Profile Markdown Generator | JavaScript | `puppeteer/src/domains/profile/utils/` |
-| Search Service | TypeScript | `frontend/src/shared/services/` |
-| Search Hook | TypeScript | `frontend/src/features/connections/hooks/` |
-
-### Dependencies
-| Package | Version | Purpose |
-|---------|---------|---------|
-| `gql` | ^3.x | GraphQL client for RAGStack API |
-| `graphql-request` | ^6.x | Lightweight GraphQL HTTP client |
-
----
-
-## Deployment Script Specification
-
-### Script: `npm run deploy:ragstack`
-
-**Location:** `scripts/deploy-ragstack.js`
-
-**Behavior:**
-
-1. **Check Local Config**
-   - Look for `.ragstack-config.json` (git-ignored)
-   - If missing, prompt for required values
-
-2. **Required Configuration:**
-   ```json
-   {
-     "stackName": "linkedin-profiles-kb",
-     "region": "us-west-2",
-     "ragstackPath": "~/war/RAGStack-Lambda",
-     "s3Bucket": "linkedin-profiles-kb-{accountId}",
-     "bedrockModelAccess": true
-   }
-   ```
-
-3. **Generate samconfig.toml**
-   - Build from local config values
-   - DO NOT use `sam deploy --guided`
-   - Write to RAGStack-Lambda directory
-
-4. **Execute Deployment**
-   ```bash
-   cd {ragstackPath}
-   sam build
-   sam deploy --config-file samconfig.toml
-   ```
-
-5. **Capture Outputs**
-   - GraphQL endpoint URL
-   - API key ID
-   - Knowledge base ID
-   - Data source IDs
-
-6. **Update Environment**
-   - Write to `.env.ragstack` (git-ignored)
-   - Format:
-     ```
-     RAGSTACK_GRAPHQL_ENDPOINT=https://xxx.appsync-api.region.amazonaws.com/graphql
-     RAGSTACK_API_KEY=da2-xxxxxxxxxxxx
-     RAGSTACK_KB_ID=XXXXXXXXXX
-     ```
-
-### Script: `npm run deploy` (existing, enhanced)
-
-**Modifications:**
-- Add step to check for `.env.ragstack`
-- If present, inject RAGStack env vars into SAM parameters
-- Pass to backend Lambdas that need RAGStack access
+**One-shot execution** - no prompts, applies fixes automatically:
+1. Script runs all analysis tools
+2. Applies safe automated fixes (unused imports, console.log)
+3. Generates comprehensive audit report
+4. Manual optimization work uses audit report as input
 
 ---
 
 ## Testing Strategy
 
-### Unit Tests
-- **Location:** `tests/` directories in each package
-- **Framework:**
-  - Frontend: Vitest + React Testing Library (existing)
-  - Backend: pytest + pytest-mock (existing)
-  - Puppeteer: Vitest (must be set up in Phase 1, Task 1)
-- **Coverage Target:** 80% for new code
+### Test Requirements
+- **All existing tests must pass** after cleanup
+- Tests for deleted code are deleted
+- Tests for optimized code are updated
 
-**Note:** Puppeteer currently has no test infrastructure. Phase 1 Task 1 must establish Vitest before any puppeteer tests can be written.
+### Test Execution Order
+1. **Pre-cleanup baseline:** `npm run test` (all components)
+2. **Per-task verification:** Component-specific tests after each change
+3. **Phase completion:** Full test suite
 
-### Mocking Approach
+### CI Pipeline Compatibility
+All tests must run without live AWS resources:
+- Frontend: Vitest with React Testing Library (no AWS)
+- Puppeteer: Vitest with mocked dependencies
+- Backend: pytest with moto (AWS mocking)
 
-**RAGStack API Mocks:**
-```python
-# Mock GraphQL responses
-@pytest.fixture
-def mock_ragstack_client():
-    return Mock(
-        search=Mock(return_value={
-            "results": [
-                {"content": "...", "source": "profile_abc123", "score": 0.95}
-            ]
-        }),
-        ingest=Mock(return_value={"status": "success", "documentId": "..."})
-    )
-```
+### Test Commands
+```bash
+# Full suite
+npm run test
 
-**DynamoDB Mocks:**
-```python
-# Use moto for DynamoDB mocking
-@pytest.fixture
-def dynamodb_table():
-    with mock_aws():
-        dynamodb = boto3.resource('dynamodb', region_name='us-west-2')
-        table = dynamodb.create_table(...)
-        yield table
-```
-
-**Frontend Service Mocks:**
-```typescript
-// Mock search service
-vi.mock('@/services/ragstackSearchService', () => ({
-  searchProfiles: vi.fn().mockResolvedValue({
-    profileIds: ['abc123', 'def456'],
-    totalResults: 2
-  })
-}));
-```
-
-### Integration Tests (Mocked)
-
-All integration tests run against mocked services to ensure CI compatibility:
-- Mock RAGStack GraphQL endpoint responses
-- Mock DynamoDB with moto
-- Mock S3 operations with moto
-- No live AWS calls in CI
-
-### CI Pipeline Configuration
-
-**GitHub Actions:** `.github/workflows/ci.yml`
-
-```yaml
-# Tests run without AWS credentials
-# All external services mocked
-# RAGStack tests use recorded GraphQL responses
+# Component-specific
+npm run test:frontend
+npm run test:backend
+npm run test:puppeteer  # or: cd puppeteer && npm run test
 ```
 
 ---
 
-## Shared Patterns and Conventions
+## Shared Patterns & Conventions
 
-### Profile ID Consistency
+### Dead Code Identification Criteria
 
-Profile IDs use base64-encoded LinkedIn URLs throughout:
-```
-LinkedIn URL: https://www.linkedin.com/in/johndoe
-Profile ID: aHR0cHM6Ly93d3cubGlua2VkaW4uY29tL2luL2pvaG5kb2U=
-```
+Code is considered "dead" if ANY of these apply:
+1. **Unreachable:** No execution path leads to it from entry points
+2. **Unused export:** Exported but never imported elsewhere
+3. **Orphaned file:** File has no imports from live code
+4. **Impactless:** Code runs but output never reaches a sink (I/O, state mutation, network)
 
-Both DynamoDB and RAGStack use this same ID for correlation.
+### Entry Points (Sinks originate from these)
 
-### Markdown Profile Format
+**Frontend:**
+- `frontend/src/main.tsx` (React app entry)
+- `frontend/src/pages/*.tsx` (Route components)
 
-Standard markdown structure for ingestion:
-```markdown
-# {name}
+**Puppeteer:**
+- `puppeteer/src/server.js` (Express entry)
+- `puppeteer/routes/*.js` (API handlers - NOT under src/)
 
-**Headline:** {headline}
-**Location:** {location}
-**Profile ID:** {profile_id}
+**Backend:**
+- `backend/lambdas/*/lambda_function.py` or `index.py` (Lambda handlers)
+- Functions named `lambda_handler` or `handler`
 
-## About
-{about_text}
+### File Modification Tracking
 
-## Current Position
-- **Title:** {current_title}
-- **Company:** {current_company}
-- **Duration:** {start_date} - Present
+Track all modifications in commit messages:
+- List files modified
+- Categorize changes (dead code, optimization, sanitization)
+- Reference audit report findings where applicable
 
-## Experience
-### {company_1}
-**{title_1}** | {dates_1}
-{description_1}
+### Rollback Safety
 
-### {company_2}
-...
-
-## Education
-### {school_1}
-{degree_1} in {field_1} | {dates_1}
-
-## Skills
-{skill_1}, {skill_2}, {skill_3}, ...
-```
-
-### Error Handling Pattern
-
-```typescript
-// Frontend: Wrap service calls
-try {
-  const results = await ragstackSearchService.searchProfiles(query);
-  return results;
-} catch (error) {
-  logger.error('RAGStack search failed', { error: error.message, query });
-  throw new SearchError('Profile search unavailable', { cause: error });
-}
-```
-
-```python
-# Backend: Return structured errors
-try:
-    response = ragstack_client.search(query)
-    return {"statusCode": 200, "body": json.dumps(response)}
-except RAGStackError as e:
-    logger.error(f"RAGStack error: {e}")
-    return {"statusCode": 502, "body": json.dumps({"error": "Search service unavailable"})}
-```
-
-### Logging Convention
-
-All RAGStack operations logged with:
-- Operation type (search, ingest)
-- Profile ID (if applicable)
-- User ID (from JWT)
-- Duration
-- Result count or error
+Before starting cleanup:
+1. Ensure working tree is clean (`git status`)
+2. Create checkpoint: `git stash` or commit WIP
+3. Each phase can be reverted independently via git
 
 ---
 
-## File Structure Overview
+## Environment Configuration
 
-```
-linkedin-advanced-search/
-├── backend/
-│   ├── lambdas/
-│   │   ├── ragstack-proxy/          # NEW: Proxy Lambda
-│   │   │   ├── index.py
-│   │   │   ├── ragstack_client.py
-│   │   │   └── requirements.txt
-│   │   └── edge-processing/         # MODIFY: Add ingestion trigger
-│   │       └── lambda_function.py
-│   └── template.yaml                # MODIFY: Add new Lambda
-├── puppeteer/
-│   └── src/domains/profile/
-│       └── utils/
-│           └── profileMarkdownGenerator.js  # NEW
-├── frontend/
-│   └── src/
-│       ├── features/connections/
-│       │   ├── components/
-│       │   │   └── ConnectionSearchBar.tsx  # NEW
-│       │   └── hooks/
-│       │       └── useProfileSearch.ts      # NEW
-│       └── shared/services/
-│           └── ragstackSearchService.ts     # NEW
-├── scripts/
-│   └── deploy/
-│       └── deploy-ragstack.js       # NEW
-├── .ragstack-config.json            # NEW (git-ignored)
-├── .env.ragstack                    # NEW (git-ignored)
-└── docs/plans/
-    ├── README.md
-    ├── Phase-0.md
-    ├── Phase-1.md
-    └── Phase-2.md
+### Required Environment Variables (Existing)
+Review `.env.example` for current requirements. New variables discovered during secrets extraction will be added here.
+
+### Local Development After Cleanup
+No changes to local development workflow. Same commands:
+```bash
+cd frontend && npm run dev
+cd puppeteer && npm start
+cd backend && npm run deploy  # SAM deployment
 ```
 
 ---
 
-## Phase Verification
+## Verification Checklist (Phase 0)
 
-This phase is complete when:
-- [ ] All ADRs reviewed and agreed upon
-- [ ] Deployment script specification approved
-- [ ] Testing strategy understood
-- [ ] File structure clear
-- [ ] No implementation code written (documentation only)
+This phase has no implementation tasks—it establishes patterns. Verification:
 
----
-
-## Known Limitations
-
-1. **Follow functionality does not exist** - Must be implemented in Phase 1
-2. **No chat interface** - Text search only (can add later)
-3. **100 result limit** - RAGStack maxResults capped
-4. **Single-user scope** - No multi-tenant considerations yet
-5. **LinkedIn selector fragility** - Existing maintenance burden
+- [ ] Engineer has read and understood all ADRs
+- [ ] Engineer understands cleanup script architecture
+- [ ] Engineer can run test suites for all components
+- [ ] Engineer has clean git working tree before proceeding

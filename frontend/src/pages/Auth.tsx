@@ -89,7 +89,7 @@ const Auth = () => {
           variant: "destructive"
         });
       } else {
-        if (isCognitoConfigured && (result as unknown).needsVerification) {
+        if (isCognitoConfigured && (result as { needsVerification?: boolean }).needsVerification) {
           // Show verification step for Cognito
           setVerificationEmail(signUpData.email);
           setShowVerification(true);

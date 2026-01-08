@@ -102,7 +102,7 @@ const log = (level: LogLevel, message: string, context?: LogContext): void => {
     timestamp: new Date().toISOString(),
     level,
     message,
-    context: context ? maskSensitiveData(context) : undefined
+    context: context ? maskSensitiveData(context) as LogContext : undefined
   };
 
   // In production, only log warnings and errors

@@ -1,63 +1,79 @@
-# RAGStack Integration for LinkedIn Profile Search
+# Code Hygiene Cleanup - Implementation Plan
 
 ## Feature Overview
 
-This implementation integrates RAGStack-Lambda as a dedicated knowledge base for LinkedIn profiles, enabling semantic search across your professional network. The hybrid architecture continues using Puppeteer for LinkedIn discovery and automation while leveraging RAGStack's vector search capabilities for the Connections tab.
+This plan implements a comprehensive code hygiene cleanup across the entire monorepo (frontend, puppeteer, backend). The cleanup focuses on removing dead code, eliminating technical debt, enforcing performance standards, and standardizing development patterns—all while maintaining existing test coverage.
 
-Profiles are ingested into RAGStack when a meaningful relationship is established: after sending a connection request, following a profile, or during initial database setup for existing contacts. The frontend Connections tab gains a semantic search box that queries RAGStack, returning profile IDs that are then enriched with existing DynamoDB profile cards. Existing client-side filtering remains intact for post-search refinement.
+The implementation delivers two primary artifacts: (1) an audit report identifying all impactless code, commented-out blocks, potential secrets, and optimization opportunities, and (2) a one-shot bash cleanup script that programmatically executes AST-based analysis and applies automated fixes. Manual intervention handles aggressive performance optimizations and utility consolidation that require human judgment.
 
-Security is paramount: the RAGStack API stays private behind API key authentication, with all requests proxied through the linkedin-advanced-search backend. This prevents direct browser access to the knowledge base while maintaining user-scoped data isolation.
+The cleanup enforces strict test-passing requirements—all existing tests must pass after modifications, with test updates made as needed to reflect optimized implementations.
 
 ## Prerequisites
 
 ### Tools Required
-- Node.js v24 LTS (via nvm)
-- Python 3.13 (via uv)
-- AWS CLI v2 configured with appropriate credentials
-- AWS SAM CLI
-- Git
+- **Node.js 24 LTS** (managed via nvm)
+- **Python 3.13** (managed via uv)
+- **npm** (comes with Node.js)
+- **uvx** (Python tool runner via uv)
+- **npx** (Node.js tool runner via npm)
+- **git** (version control)
 
-### AWS Services
-- AWS Bedrock (Nova Multimodal Embeddings access enabled)
-- AWS Lambda
-- Amazon S3
-- Amazon DynamoDB
-- Amazon API Gateway
-- AWS Cognito (existing user pool)
+### AST Analysis Tools (run via npx/uvx - not installed permanently)
+- **knip** - Dead code detection for JavaScript/TypeScript
+- **vulture** - Dead code detection for Python
+- **detect-secrets** - High-entropy string detection
 
 ### Environment Setup
-- Clone RAGStack-Lambda repository to `~/war/RAGStack-Lambda/`
-- Existing linkedin-advanced-search deployment functional
-- Valid AWS credentials with permissions for Bedrock, Lambda, S3, DynamoDB, API Gateway
+1. Ensure Node.js 24 LTS is active: `nvm use 24`
+2. Ensure Python 3.13 is available: `python3 --version`
+3. Install project dependencies in each component:
+   - `cd frontend && npm ci`
+   - `cd puppeteer && npm ci`
+   - `cd tests/backend && pip install -r requirements-test.txt`
 
 ## Phase Summary
 
 | Phase | Goal | Est. Tokens |
 |-------|------|-------------|
-| 0 | Foundation: Architecture, ADRs, Deploy Scripts, Testing Strategy | ~15k |
-| 1 | RAGStack Deployment & Ingestion Pipeline | ~45k |
-| 2 | Frontend Search Integration | ~35k |
+| **0** | Foundation: ADRs, script architecture, testing strategy, patterns | ~8,000 |
+| **1** | Cleanup Script Development + Analysis & Audit Report Generation | ~20,000 |
+| **2** | Frontend Cleanup (dead code, optimization, secrets, utils, comments, tests) | ~25,000 |
+| **3** | Puppeteer + Backend Cleanup + CI Tweaks + Final Verification | ~30,000 |
+
+**Total Estimated Tokens:** ~83,000 (fits in 3 context windows after Phase-0)
 
 ## Navigation
 
-- [Phase 0: Foundation](./Phase-0.md) - Architecture decisions, deployment scripts, testing strategy
-- [Phase 1: RAGStack & Ingestion](./Phase-1.md) - Deploy RAGStack, build ingestion triggers (9 tasks)
-- [Phase 2: Frontend Search](./Phase-2.md) - Search UI, API proxy, integration
+- [Phase-0.md](./Phase-0.md) - Foundation (applies to all phases)
+- [Phase-1.md](./Phase-1.md) - Script Development + Analysis
+- [Phase-2.md](./Phase-2.md) - Frontend Cleanup
+- [Phase-3.md](./Phase-3.md) - Puppeteer + Backend + CI
 
-## Commit Guidelines
+## Commit Message Convention
 
 **Important**: Do NOT include Co-Authored-By, Generated-By, or similar attribution lines in commit messages.
 
-**Commit Format:**
-```
+```text
 Author & Committer: HatmanStack
 Email: 82614182+HatmanStack@users.noreply.github.com
 
 type(scope): brief description
 
-- Detail 1
-- Detail 2
+Detail 1
+Detail 2
 ```
 
-**Types**: feat, fix, refactor, test, docs, chore
-**Scopes**: backend, frontend, puppeteer, infra, ragstack
+### Commit Types
+- `chore`: Maintenance, cleanup, tooling
+- `refactor`: Code restructuring without behavior change
+- `perf`: Performance improvements
+- `fix`: Bug fixes
+- `test`: Test additions/modifications
+- `ci`: CI/CD configuration changes
+
+### Scopes
+- `frontend`: React/TypeScript frontend
+- `puppeteer`: Node.js/Puppeteer backend
+- `backend`: Python Lambda functions
+- `scripts`: Cleanup scripts and tooling
+- `ci`: GitHub Actions workflows

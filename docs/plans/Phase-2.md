@@ -1,886 +1,382 @@
-# Phase 2: Frontend Search Integration
+# Phase 2: Frontend Cleanup
+
+**Estimated Tokens:** ~25,000
 
 ## Phase Goal
 
-Integrate RAGStack semantic search into the frontend Connections tab, enabling users to search their network with natural language queries. Search results are hydrated from DynamoDB and displayed using existing connection card components.
+Execute manual cleanup of the frontend component using the audit report from Phase 1. Remove dead code, apply aggressive performance optimizations, extract secrets to environment variables, consolidate utilities, clean up comments, and update tests.
 
-**Success Criteria:**
-- Search bar visible in Connections tab
-- Queries sent to RAGStack via backend proxy
-- Results displayed as profile cards
-- Existing filtering works on search results
-- Loading and error states handled
-- All tests passing with mocked services
-
-**Estimated Tokens:** ~35,000
+### Success Criteria
+- All frontend dead code identified in audit report is removed
+- Aggressive performance optimizations applied to React components and hooks
+- All frontend hardcoded secrets extracted to environment variables
+- Frontend utility functions consolidated in `shared/lib/utils.ts`
+- TODO/FIXME comments reviewed and removed where stale
+- Frontend test suite passes after all changes
 
 ---
 
 ## Prerequisites
 
-- Phase 1 complete (RAGStack deployed, ingestion working)
-- RAGStack proxy Lambda accessible
-- Profiles ingested and searchable
-- Understanding of existing Connections tab architecture
+- [ ] Phase 1 complete
+- [ ] `reports/audit-report.json` exists
+- [ ] `reports/audit-report.md` reviewed (frontend section)
+- [ ] `npm run test:frontend` passes
+- [ ] Clean git working tree
 
 ---
 
 ## Tasks
 
-### Task 1: RAGStack Search Service
+### Task 1: Frontend Dead Code Removal
 
-**Goal:** Create frontend service to communicate with RAGStack proxy Lambda for search operations.
+**Goal:** Remove all dead code from frontend identified by knip analysis.
 
-**Files to Create:**
-- `frontend/src/shared/services/ragstackSearchService.ts` - Search service
-- `frontend/src/shared/services/ragstackSearchService.test.ts` - Unit tests
+**Files to Modify/Create:**
+- Files listed in `reports/audit-report.json` under `components.frontend.deadCode`
+- `frontend/src/**/*.ts` and `frontend/src/**/*.tsx` (various)
 
 **Prerequisites:**
-- Understanding of existing `puppeteerApiService` patterns
-- RAGStack proxy Lambda endpoint available
+- Phase 1 Task 8 complete
+- Review `reports/audit-report.md` frontend section
 
 **Implementation Steps:**
-
-1. Create service with methods:
-   ```typescript
-   interface SearchResult {
-     profileId: string;
-     score: number;
-     snippet: string;
-   }
-
-   interface SearchResponse {
-     results: SearchResult[];
-     totalResults: number;
-   }
-
-   async function searchProfiles(query: string, maxResults?: number): Promise<SearchResponse>
-   ```
-
-2. HTTP client setup:
-   - Use same axios instance pattern as `puppeteerApiService`
-   - Attach JWT token from session storage
-   - Target RAGStack proxy endpoint
-
-3. Request format:
-   ```typescript
-   {
-     operation: 'search',
-     query: string,
-     maxResults: number // default 100
-   }
-   ```
-
-4. Response transformation:
-   - Extract profile IDs from RAGStack source field
-   - Parse scores for potential relevance display
-   - Extract snippet for search highlighting (future)
-
-5. Error handling:
-   - Network errors → throw `SearchError`
-   - Empty results → return empty array (not error)
-   - Rate limiting → surface to UI
+1. Open `reports/audit-report.json` and locate `components.frontend.deadCode`
+2. For each item in `unusedExports`:
+   - Navigate to the file and export
+   - Verify the export is truly unused (search codebase for imports)
+   - Delete the export and its implementation
+   - If entire file becomes empty, delete the file
+3. For each item in `unusedFiles`:
+   - Verify no dynamic imports reference the file
+   - Delete the file
+   - Remove any import statements that referenced it
+4. For each item in `unreachableFunctions`:
+   - Trace call chain from entry points
+   - If truly unreachable, delete the function
+5. Run `npm run lint:frontend` after changes to catch any broken references
+6. Run `npm run test:frontend` after each significant deletion
 
 **Verification Checklist:**
-- [ ] Service exports `searchProfiles` function
-- [ ] JWT token attached to requests
-- [ ] Response transformed to `SearchResponse` shape
-- [ ] Empty results handled correctly
-- [ ] Network errors throw typed exception
-- [ ] Timeout configured appropriately
+- [ ] All items from `unusedExports` addressed
+- [ ] All items from `unusedFiles` addressed
+- [ ] All items from `unreachableFunctions` addressed
+- [ ] `npm run lint:frontend` passes with no errors
+- [ ] `npm run test:frontend` passes
+- [ ] No TypeScript errors in IDE
 
 **Testing Instructions:**
-
-Unit tests with mocked axios:
-```typescript
-describe('ragstackSearchService', () => {
-  it('should return profile IDs from search', async () => {
-    vi.mocked(axios.post).mockResolvedValue({
-      data: {
-        results: [
-          { source: 'profile_abc123', score: 0.95, content: '...' }
-        ],
-        totalResults: 1
-      }
-    });
-
-    const response = await searchProfiles('software engineer');
-
-    expect(response.results[0].profileId).toBe('abc123');
-    expect(response.totalResults).toBe(1);
-  });
-
-  it('should handle empty results', async () => {
-    vi.mocked(axios.post).mockResolvedValue({
-      data: { results: [], totalResults: 0 }
-    });
-
-    const response = await searchProfiles('nonexistent');
-
-    expect(response.results).toEqual([]);
-  });
-});
-```
+- Run lint: `cd frontend && npm run lint`
+- Run type check: `cd frontend && npx tsc --noEmit`
+- Run tests: `cd frontend && npm run test`
+- Manually verify app builds: `cd frontend && npm run build`
 
 **Commit Message Template:**
 ```
-feat(frontend): add RAGStack search service
+refactor(frontend): remove dead code identified by knip
 
-- Calls RAGStack proxy Lambda for profile search
-- Transforms responses to typed interface
-- Handles errors and empty results
+- Delete unused exports: [list key removals]
+- Delete unused files: [list files]
+- Remove unreachable functions
 ```
 
 ---
 
-### Task 2: Profile Search Hook
+### Task 2: Frontend Performance Optimization
 
-**Goal:** Create React hook that manages search state, debouncing, and result hydration from DynamoDB.
+**Goal:** Apply aggressive performance optimizations to frontend code, focusing on hot paths and React rendering.
 
-**Files to Create:**
-- `frontend/src/features/connections/hooks/useProfileSearch.ts` - Search hook
-- `frontend/src/features/connections/hooks/useProfileSearch.test.ts` - Unit tests
+**Files to Modify/Create:**
+- `frontend/src/features/**/*.tsx` - Feature components
+- `frontend/src/shared/hooks/*.ts` - Custom hooks
+- `frontend/src/shared/lib/*.ts` - Utility functions
 
 **Prerequisites:**
-- Task 1 complete (search service)
-- Understanding of existing `useConnections` hook
-- Understanding of `lambdaApiService` for profile fetching
+- Task 1 complete
 
 **Implementation Steps:**
-
-1. Create hook with state management:
-   ```typescript
-   interface UseProfileSearchResult {
-     searchQuery: string;
-     setSearchQuery: (query: string) => void;
-     searchResults: Connection[];
-     isSearching: boolean;
-     searchError: Error | null;
-     clearSearch: () => void;
-     isSearchActive: boolean;
-   }
-
-   function useProfileSearch(allConnections: Connection[]): UseProfileSearchResult
-   ```
-
-2. Debounce search input:
-   - Wait 300ms after user stops typing
-   - Cancel pending searches on new input
-   - Clear results when query cleared
-
-3. Search flow:
-   ```
-   User types query
-   → Debounce 300ms
-   → Call ragstackSearchService.searchProfiles(query)
-   → Receive profile IDs
-   → Match against allConnections by ID
-   → Return matched connections in score order
-   ```
-
-4. Result hydration:
-   - Match RAGStack profile IDs to existing connections
-   - Preserve RAGStack relevance ordering
-   - Fall back to DynamoDB fetch for missing profiles (edge case)
-
-5. State management:
-   - `isSearchActive` true when query has content
-   - `isSearching` true during API call
-   - Clear search returns to showing all connections
+1. **Optimize array operations:**
+   - Find `.map().filter()` chains, replace with single-pass `reduce()` or `for` loop
+   - Find `.forEach()` on known-length arrays, replace with `for` loop
+   - Find spread in loops (`[...arr, item]`), replace with `push()` mutation where safe
+2. **Optimize React patterns:**
+   - Find inline function definitions in JSX, extract to `useCallback`
+   - Find expensive computations in render, wrap with `useMemo`
+   - Find prop drilling patterns, consider if optimization needed
+3. **Optimize object operations:**
+   - Find `Object.keys().forEach()`, replace with `for...in` or `Object.entries()`
+   - Find repeated object spreads, use `Object.assign()` in loops
+4. **Inline small utilities:**
+   - Find utility functions called once, inline them
+   - Find tiny wrapper functions, inline them
+5. **Verify each optimization:**
+   - Run tests after each file modification
+   - Ensure behavior is identical
 
 **Verification Checklist:**
-- [ ] Debounces input at 300ms
-- [ ] Cancels pending searches on new input
-- [ ] Returns hydrated Connection objects
-- [ ] Preserves relevance ordering
-- [ ] `isSearchActive` reflects query state
-- [ ] `isSearching` reflects loading state
-- [ ] `clearSearch` resets all state
+- [ ] No `.map().filter()` chains in hot paths
+- [ ] No `.forEach()` on arrays where `for` loop is better
+- [ ] React hooks optimizations applied where beneficial
+- [ ] `npm run test:frontend` passes
+- [ ] Build size has not increased: `cd frontend && npm run build`
 
 **Testing Instructions:**
-
-Unit tests with mocked services:
-```typescript
-describe('useProfileSearch', () => {
-  it('should debounce search queries', async () => {
-    const { result } = renderHook(() => useProfileSearch(mockConnections));
-
-    act(() => result.current.setSearchQuery('eng'));
-    act(() => result.current.setSearchQuery('engi'));
-    act(() => result.current.setSearchQuery('engineer'));
-
-    // Only one search after debounce
-    await waitFor(() => {
-      expect(mockSearchProfiles).toHaveBeenCalledTimes(1);
-      expect(mockSearchProfiles).toHaveBeenCalledWith('engineer', 100);
-    });
-  });
-
-  it('should hydrate results from connections', async () => {
-    vi.mocked(searchProfiles).mockResolvedValue({
-      results: [{ profileId: 'abc123', score: 0.9, snippet: '' }],
-      totalResults: 1
-    });
-
-    const { result } = renderHook(() => useProfileSearch([
-      { id: 'abc123', first_name: 'John', ...otherFields }
-    ]));
-
-    act(() => result.current.setSearchQuery('john'));
-
-    await waitFor(() => {
-      expect(result.current.searchResults[0].first_name).toBe('John');
-    });
-  });
-});
-```
+- Run tests after each optimization: `npm run test:frontend`
+- Verify no regressions in functionality
+- Build and check bundle size
 
 **Commit Message Template:**
 ```
-feat(frontend): add useProfileSearch hook
+perf(frontend): optimize array and React patterns
 
-- Debounced search with 300ms delay
-- Hydrates results from existing connections
-- Manages loading and error states
+- Replace map/filter chains with single-pass loops
+- Add useMemo/useCallback for expensive operations
+- Inline trivial utility functions
 ```
 
 ---
 
-### Task 3: Connection Search Bar Component
+### Task 3: Frontend Secrets Extraction
 
-**Goal:** Create search input component for the Connections tab with clear button and loading indicator.
+**Goal:** Extract any hardcoded secrets in frontend code to environment variables.
 
-**Files to Create:**
-- `frontend/src/features/connections/components/ConnectionSearchBar.tsx` - Component
-- `frontend/src/features/connections/components/ConnectionSearchBar.test.tsx` - Unit tests
+**Files to Modify/Create:**
+- Files listed in `reports/audit-report.json` under `components.frontend.secrets`
+- `frontend/.env.example` - Document new variables
+- `frontend/src/shared/config/*.ts` - Configuration files
 
 **Prerequisites:**
-- Understanding of existing UI components (Input, Button from shadcn/ui)
-- Design system patterns from existing components
+- Task 1 complete
 
 **Implementation Steps:**
-
-1. Create component with props:
-   ```typescript
-   interface ConnectionSearchBarProps {
-     value: string;
-     onChange: (value: string) => void;
-     onClear: () => void;
-     isLoading: boolean;
-     placeholder?: string;
-     className?: string;
-   }
-   ```
-
-2. UI elements:
-   - Search icon (left side)
-   - Text input (center)
-   - Loading spinner (replaces clear button when searching)
-   - Clear button (X icon, visible when has value)
-
-3. Styling:
-   - Match existing filter input styles
-   - Full width in container
-   - Focus ring on input
-   - Subtle background
-
-4. Accessibility:
-   - `aria-label` for search input
-   - `aria-busy` when loading
-   - Clear button has label "Clear search"
-   - Keyboard accessible (Enter doesn't submit form)
-
-5. Behavior:
-   - Clear button only visible when value present
-   - Loading spinner replaces clear button during search
-   - Escape key clears input
+1. Review `components.frontend.secrets.highEntropyStrings` in `reports/audit-report.json`
+2. For each finding:
+   - Determine if it's a true secret or false positive
+   - False positives: Base64 images, UUIDs in tests, hash constants → skip
+   - True secrets: API keys, tokens, credentials → extract
+3. For true secrets:
+   - Create environment variable name following pattern: `VITE_[SERVICE]_[TYPE]`
+   - Replace hardcoded value with `import.meta.env.VITE_[NAME]`
+   - Add variable to `.env.example` with placeholder value
+   - Add TypeScript type declaration if needed
+4. Verify Vite environment variable handling:
+   - Only `VITE_` prefixed variables are exposed to browser
+   - Ensure no sensitive backend secrets are exposed
 
 **Verification Checklist:**
-- [ ] Search icon displayed
-- [ ] Input accepts and displays value
-- [ ] Clear button visible when value present
-- [ ] Loading spinner shown when `isLoading`
-- [ ] `onClear` called when clear clicked
-- [ ] `onChange` called on input change
-- [ ] Escape key clears input
-- [ ] Accessible labels present
+- [ ] All true secrets from audit report extracted
+- [ ] `.env.example` updated with new variables
+- [ ] No `VITE_` variables expose sensitive backend secrets
+- [ ] `npm run test:frontend` passes
+- [ ] `npm run build` succeeds (variables resolved)
 
 **Testing Instructions:**
-
-Component tests with React Testing Library:
-```typescript
-describe('ConnectionSearchBar', () => {
-  it('should show clear button when value present', () => {
-    render(
-      <ConnectionSearchBar
-        value="test"
-        onChange={vi.fn()}
-        onClear={vi.fn()}
-        isLoading={false}
-      />
-    );
-
-    expect(screen.getByRole('button', { name: /clear/i })).toBeInTheDocument();
-  });
-
-  it('should show loading spinner when isLoading', () => {
-    render(
-      <ConnectionSearchBar
-        value="test"
-        onChange={vi.fn()}
-        onClear={vi.fn()}
-        isLoading={true}
-      />
-    );
-
-    expect(screen.getByRole('status')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /clear/i })).not.toBeInTheDocument();
-  });
-
-  it('should call onChange on input', async () => {
-    const onChange = vi.fn();
-    render(
-      <ConnectionSearchBar
-        value=""
-        onChange={onChange}
-        onClear={vi.fn()}
-        isLoading={false}
-      />
-    );
-
-    await userEvent.type(screen.getByRole('textbox'), 'engineer');
-
-    expect(onChange).toHaveBeenCalled();
-  });
-});
-```
+- Create local `.env` with test values
+- Run build and verify no undefined variables
+- Run tests to verify functionality
 
 **Commit Message Template:**
 ```
-feat(frontend): add ConnectionSearchBar component
+fix(frontend): extract hardcoded secrets to environment variables
 
-- Search icon and input field
-- Clear button with loading state
-- Accessible with keyboard support
+- Add VITE_[variables] for [services]
+- Update .env.example with placeholders
 ```
 
 ---
 
-### Task 4: Integrate Search into Connections Tab
+### Task 4: Frontend Utility Consolidation
 
-**Goal:** Wire up search functionality into the existing ConnectionsTab component, showing search results when active.
+**Goal:** Merge redundant utility functions within the frontend component.
 
-**Files to Modify:**
-- `frontend/src/features/connections/components/ConnectionsTab.tsx` - Add search integration
+**Files to Modify/Create:**
+- `frontend/src/shared/lib/utils.ts` - Primary utility file
+- Various files with duplicate utilities
 
 **Prerequisites:**
 - Tasks 1-3 complete
-- Understanding of existing ConnectionsTab structure
 
 **Implementation Steps:**
-
-1. Import new components and hooks:
-   ```typescript
-   import { useProfileSearch } from '../hooks/useProfileSearch';
-   import { ConnectionSearchBar } from './ConnectionSearchBar';
-   ```
-
-2. Add search hook to component:
-   ```typescript
-   const {
-     searchQuery,
-     setSearchQuery,
-     searchResults,
-     isSearching,
-     searchError,
-     clearSearch,
-     isSearchActive
-   } = useProfileSearch(connections);
-   ```
-
-3. Render search bar above existing content:
-   - Place below tab header, above filter controls
-   - Full width with appropriate spacing
-
-4. Conditional rendering logic:
-   ```typescript
-   const displayedConnections = isSearchActive ? searchResults : connections;
-   ```
-
-5. Preserve existing filtering:
-   - Apply filters to `displayedConnections`
-   - Filters work on both search results and full list
-   - Sorting applies after filtering
-
-6. Empty state handling:
-   - "No results found for '{query}'" when search returns empty
-   - Offer clear search button in empty state
-   - Differentiate from "No connections" state
-
-7. Error state:
-   - Show error message if `searchError` present
-   - Offer retry option
+1. Identify duplicate utilities:
+   - Search for similar function names across frontend
+   - Look for copy-pasted implementations
+   - Check audit report for any utility duplication findings
+2. For each duplicate set:
+   - Compare implementations for differences
+   - Choose the most robust/performant version
+   - Move to `frontend/src/shared/lib/utils.ts`
+   - Update all import statements
+   - Delete the duplicate implementations
+3. Ensure no circular dependencies introduced
+4. Run lint to verify all imports resolve
 
 **Verification Checklist:**
-- [ ] Search bar visible in Connections tab
-- [ ] Typing triggers debounced search
-- [ ] Search results replace connection list
-- [ ] Existing filters apply to search results
-- [ ] Empty search state shows appropriate message
-- [ ] Clear search returns to full list
-- [ ] Error state displays with retry option
-- [ ] Loading state visible during search
+- [ ] No duplicate utility functions remain in frontend
+- [ ] `utils.ts` contains consolidated utilities
+- [ ] All imports updated correctly
+- [ ] No circular dependencies
+- [ ] `npm run lint:frontend` passes
+- [ ] `npm run test:frontend` passes
 
 **Testing Instructions:**
-
-Integration tests with mocked hooks:
-```typescript
-describe('ConnectionsTab with search', () => {
-  it('should display search results when query active', async () => {
-    vi.mocked(useProfileSearch).mockReturnValue({
-      searchQuery: 'engineer',
-      setSearchQuery: vi.fn(),
-      searchResults: [mockConnection],
-      isSearching: false,
-      searchError: null,
-      clearSearch: vi.fn(),
-      isSearchActive: true
-    });
-
-    render(<ConnectionsTab connections={[]} />);
-
-    expect(screen.getByText(mockConnection.first_name)).toBeInTheDocument();
-  });
-
-  it('should show empty state for no results', () => {
-    vi.mocked(useProfileSearch).mockReturnValue({
-      searchQuery: 'nonexistent',
-      searchResults: [],
-      isSearchActive: true,
-      // ...other values
-    });
-
-    render(<ConnectionsTab connections={[]} />);
-
-    expect(screen.getByText(/no results found/i)).toBeInTheDocument();
-  });
-});
-```
+- Run lint: `npm run lint:frontend`
+- Run tests: `npm run test:frontend`
+- Search for common utility patterns to verify no duplicates
 
 **Commit Message Template:**
 ```
-feat(frontend): integrate search into Connections tab
+refactor(frontend): consolidate duplicate utilities
 
-- Search bar above filter controls
-- Search results replace connection list when active
-- Preserves existing filtering on results
-- Empty and error states handled
+- Merge [utilities] into shared/lib/utils.ts
+- Update imports across feature modules
+- Delete redundant implementations
 ```
 
 ---
 
-### Task 5: Integrate Search into NewConnections Tab
+### Task 5: Frontend Comment Cleanup
 
-**Goal:** Add same search functionality to NewConnectionsTab for searching "possible" contacts.
+**Goal:** Remove stale TODO/FIXME comments and obvious commented-out code from frontend.
 
-**Files to Modify:**
-- `frontend/src/features/connections/components/NewConnectionsTab.tsx` - Add search integration
+**Files to Modify/Create:**
+- Files listed in `reports/audit-report.json` under `components.frontend.sanitization.todoComments`
+- Files with commented-out code identified
 
 **Prerequisites:**
-- Task 4 complete (ConnectionsTab integration)
-- Understanding that NewConnectionsTab shows `status='possible'` contacts
+- Tasks 1-4 complete
 
 **Implementation Steps:**
-
-1. Follow same pattern as ConnectionsTab:
-   - Import search hook and component
-   - Add search bar to UI
-   - Conditional rendering of results
-
-2. Consider search scope:
-   - NewConnections shows "possible" contacts
-   - These are NOT ingested into RAGStack (per ADR-003)
-   - Search should fall back to client-side filtering
-
-3. Hybrid search approach:
-   ```typescript
-   // For NewConnectionsTab, use client-side search since possible contacts aren't ingested
-   const filteredConnections = useMemo(() => {
-     if (!searchQuery) return connections;
-     const query = searchQuery.toLowerCase();
-     return connections.filter(c =>
-       c.first_name?.toLowerCase().includes(query) ||
-       c.last_name?.toLowerCase().includes(query) ||
-       c.company?.toLowerCase().includes(query) ||
-       c.position?.toLowerCase().includes(query) ||
-       c.headline?.toLowerCase().includes(query)
-     );
-   }, [connections, searchQuery]);
-   ```
-
-4. UI consistency:
-   - Same search bar component
-   - Same placement
-   - Same clear behavior
-   - No loading state (client-side is instant)
-
-5. Future consideration:
-   - When contact processing rework happens, this may change
-   - Keep architecture flexible for RAGStack integration later
+1. Review `components.frontend.sanitization.todoComments` in `reports/audit-report.json`
+2. For each TODO/FIXME:
+   - Read the comment and context
+   - If the TODO is completed or obsolete → delete
+   - If the TODO is still relevant → keep (but this should be rare)
+3. Review `components.frontend.sanitization.commentedCode`:
+   - If it's clearly dead code → delete
+   - If purpose is unclear → investigate before deleting
+4. Search for obvious redundant comments:
+   - Comments that just restate the code (`// increment i`)
+   - Delete these
+5. Do NOT delete:
+   - `@ts-ignore` or `@ts-expect-error` suppressions
+   - License headers
+   - Complex algorithm explanations
 
 **Verification Checklist:**
-- [ ] Search bar visible in NewConnections tab
-- [ ] Client-side filtering works
-- [ ] Filters across name, company, position, headline
-- [ ] No loading spinner (instant results)
-- [ ] Clear search works
-- [ ] Empty state appropriate
+- [ ] Stale TODOs removed
+- [ ] Commented-out code removed
+- [ ] Suppression comments preserved
+- [ ] `npm run test:frontend` passes
 
 **Testing Instructions:**
-
-```typescript
-describe('NewConnectionsTab with search', () => {
-  it('should filter connections client-side', async () => {
-    render(<NewConnectionsTab connections={[
-      { ...mockConnection, first_name: 'John', company: 'Google' },
-      { ...mockConnection, first_name: 'Jane', company: 'Meta' }
-    ]} />);
-
-    await userEvent.type(screen.getByRole('textbox'), 'Google');
-
-    expect(screen.getByText('John')).toBeInTheDocument();
-    expect(screen.queryByText('Jane')).not.toBeInTheDocument();
-  });
-});
-```
+- Run tests: `npm run test:frontend`
+- Visual review of changes
 
 **Commit Message Template:**
 ```
-feat(frontend): add search to NewConnections tab
+chore(frontend): remove stale comments and dead code blocks
 
-- Client-side filtering for possible contacts
-- Searches name, company, position, headline
-- Consistent UI with Connections tab
+- Remove [N] obsolete TODO/FIXME comments
+- Remove commented-out code blocks
 ```
 
 ---
 
-### Task 6: Update Lambda API Service
+### Task 6: Frontend Test Updates
 
-**Goal:** Add RAGStack search method to existing Lambda API service for consistency.
+**Goal:** Update frontend tests to reflect changes made in Tasks 1-5, delete orphaned tests.
 
-**Files to Modify:**
-- `frontend/src/shared/services/lambdaApiService.ts` - Add search method
+**Files to Modify/Create:**
+- `frontend/src/**/*.test.ts` and `frontend/src/**/*.test.tsx`
+- Test files for deleted code → delete
 
 **Prerequisites:**
-- Understanding of existing lambdaApiService structure
-- Task 1 search service as reference
+- Tasks 1-5 complete
 
 **Implementation Steps:**
-
-1. Add search method to service:
-   ```typescript
-   async searchProfiles(query: string, maxResults = 100): Promise<SearchResponse> {
-     const response = await this.post('/ragstack', {
-       operation: 'search',
-       query,
-       maxResults
-     });
-     return this.transformSearchResponse(response);
-   }
-   ```
-
-2. Add response transformation:
-   - Extract profile IDs from source field
-   - Map scores if needed
-   - Handle error responses
-
-3. Consider consolidation:
-   - Could replace standalone `ragstackSearchService`
-   - Or keep separate for separation of concerns
-   - Decision: Keep lambdaApiService as single entry point
-
-4. Update types file if needed:
-   - Add `SearchResponse` interface
-   - Add `SearchResult` interface
+1. Run test suite to identify failures: `npm run test:frontend`
+2. For each failing test:
+   - If testing deleted code → delete the test file/case
+   - If testing changed behavior → update assertions
+   - If testing optimized code → verify behavior unchanged, update if needed
+3. Search for orphaned test files:
+   - Tests for files that no longer exist
+   - Delete these entirely
+4. Verify no tests depend on console.log output
+5. Ensure test coverage remains acceptable
 
 **Verification Checklist:**
-- [ ] `searchProfiles` method added
-- [ ] Uses existing HTTP client
-- [ ] Response properly transformed
-- [ ] Types exported for consumers
+- [ ] `npm run test:frontend` passes (0 failures)
+- [ ] No orphaned test files
+- [ ] Tests for deleted code removed
+- [ ] Test coverage stable
 
 **Testing Instructions:**
-
-```typescript
-describe('lambdaApiService.searchProfiles', () => {
-  it('should call ragstack endpoint', async () => {
-    vi.mocked(axios.post).mockResolvedValue({
-      data: { results: [], totalResults: 0 }
-    });
-
-    await lambdaApiService.searchProfiles('test');
-
-    expect(axios.post).toHaveBeenCalledWith(
-      expect.stringContaining('/ragstack'),
-      expect.objectContaining({ operation: 'search', query: 'test' })
-    );
-  });
-});
-```
+- Run full test suite: `npm run test:frontend`
+- Run with coverage: `npm run test:frontend -- --coverage`
 
 **Commit Message Template:**
 ```
-feat(frontend): add searchProfiles to lambdaApiService
+test(frontend): update tests for cleanup changes
 
-- Calls RAGStack proxy endpoint
-- Consistent with existing service patterns
-- Typed response interface
-```
-
----
-
-### Task 7: Search Analytics and Logging
-
-**Goal:** Add logging and analytics for search usage to understand user behavior.
-
-**Files to Modify:**
-- `frontend/src/features/connections/hooks/useProfileSearch.ts` - Add logging
-- `frontend/src/shared/utils/logger.ts` - Use existing logger
-
-**Prerequisites:**
-- Task 2 complete (search hook)
-- Understanding of existing logging patterns
-
-**Implementation Steps:**
-
-1. Log search events:
-   ```typescript
-   // On search execution
-   logger.info('Profile search executed', {
-     queryLength: query.length,
-     resultCount: results.length,
-     durationMs: Date.now() - startTime
-   });
-   ```
-
-2. Log error events:
-   ```typescript
-   // On search error
-   logger.error('Profile search failed', {
-     query: query.substring(0, 50), // Truncate for privacy
-     error: error.message
-   });
-   ```
-
-3. Metrics to capture:
-   - Search query length (not content for privacy)
-   - Result count
-   - Search duration
-   - Error rate
-
-4. Privacy considerations:
-   - Do NOT log full search queries
-   - Log query length and result counts only
-   - Error messages can include query for debugging
-
-**Verification Checklist:**
-- [ ] Search success logged with metrics
-- [ ] Search failure logged with error
-- [ ] Query content not logged (privacy)
-- [ ] Duration captured
-
-**Testing Instructions:**
-
-```typescript
-describe('search logging', () => {
-  it('should log search metrics on success', async () => {
-    const logSpy = vi.spyOn(logger, 'info');
-
-    // Execute search
-    await executeSearch('test query');
-
-    expect(logSpy).toHaveBeenCalledWith(
-      'Profile search executed',
-      expect.objectContaining({
-        queryLength: 10,
-        resultCount: expect.any(Number)
-      })
-    );
-  });
-});
-```
-
-**Commit Message Template:**
-```
-feat(frontend): add search analytics logging
-
-- Log search metrics (count, duration)
-- Privacy-preserving (no query content)
-- Error tracking for failures
-```
-
----
-
-### Task 8: End-to-End Integration Testing
-
-**Goal:** Create integration tests that verify the full search flow with mocked backend.
-
-**Files to Create:**
-- `frontend/src/features/connections/__tests__/search-integration.test.tsx` - Integration tests
-
-**Prerequisites:**
-- All previous tasks complete
-- Understanding of MSW or similar mocking for integration tests
-
-**Implementation Steps:**
-
-1. Set up mock server:
-   ```typescript
-   const server = setupServer(
-     rest.post('/api/ragstack', (req, res, ctx) => {
-       return res(ctx.json({
-         results: [
-           { source: 'profile_abc', score: 0.9, content: 'John Doe...' }
-         ],
-         totalResults: 1
-       }));
-     })
-   );
-   ```
-
-2. Test full flow:
-   - Render Dashboard with Connections tab
-   - Type in search bar
-   - Wait for debounce
-   - Verify API called
-   - Verify results displayed
-
-3. Test scenarios:
-   - Successful search with results
-   - Search with no results
-   - Search error handling
-   - Clear search
-   - Filter on search results
-
-4. Test accessibility:
-   - Keyboard navigation through results
-   - Screen reader announcements
-   - Focus management
-
-**Verification Checklist:**
-- [ ] Full flow tested end-to-end
-- [ ] Mock server intercepts requests
-- [ ] Results render correctly
-- [ ] Empty state renders
-- [ ] Error state renders
-- [ ] Clear search works
-- [ ] Filters apply to results
-
-**Testing Instructions:**
-
-```typescript
-describe('Search Integration', () => {
-  beforeAll(() => server.listen());
-  afterEach(() => server.resetHandlers());
-  afterAll(() => server.close());
-
-  it('should search and display results', async () => {
-    render(<Dashboard />);
-
-    // Navigate to Connections tab
-    await userEvent.click(screen.getByRole('tab', { name: /connections/i }));
-
-    // Type search query
-    await userEvent.type(
-      screen.getByRole('textbox', { name: /search/i }),
-      'engineer'
-    );
-
-    // Wait for results
-    await waitFor(() => {
-      expect(screen.getByText('John Doe')).toBeInTheDocument();
-    });
-  });
-
-  it('should show empty state for no results', async () => {
-    server.use(
-      rest.post('/api/ragstack', (req, res, ctx) => {
-        return res(ctx.json({ results: [], totalResults: 0 }));
-      })
-    );
-
-    render(<Dashboard />);
-    await userEvent.click(screen.getByRole('tab', { name: /connections/i }));
-    await userEvent.type(screen.getByRole('textbox'), 'nonexistent');
-
-    await waitFor(() => {
-      expect(screen.getByText(/no results found/i)).toBeInTheDocument();
-    });
-  });
-});
-```
-
-**Commit Message Template:**
-```
-test(frontend): add search integration tests
-
-- End-to-end search flow verification
-- Mock server for API responses
-- Tests success, empty, and error states
+- Remove tests for deleted code
+- Update assertions for optimized implementations
 ```
 
 ---
 
 ## Phase Verification
 
-This phase is complete when:
+### Phase Complete When:
 
-- [ ] Search bar visible in Connections tab
-- [ ] Search bar visible in NewConnections tab
-- [ ] RAGStack search returns relevant results
-- [ ] Results display as connection cards
-- [ ] Existing filters work on search results
-- [ ] Empty state shows for no results
-- [ ] Error state handles failures gracefully
-- [ ] Loading indicator during search
-- [ ] Clear search restores full list
-- [ ] All unit tests pass
-- [ ] Integration tests pass
-- [ ] Accessibility requirements met
+1. **Frontend tests pass:**
+   ```bash
+   npm run test:frontend  # Exit code 0
+   ```
 
-**Manual Verification:**
+2. **Frontend lint passes:**
+   ```bash
+   npm run lint:frontend  # Exit code 0
+   ```
 
-1. Navigate to Connections tab
-2. Type a search query (e.g., "software engineer")
-3. Verify loading indicator appears
-4. Verify results appear after debounce
-5. Verify results are relevant to query
-6. Apply a filter (e.g., location)
-7. Verify filter applies to search results
-8. Clear search
-9. Verify full connection list restored
-10. Repeat for NewConnections tab (client-side)
+3. **Frontend builds:**
+   ```bash
+   cd frontend && npm run build  # Exit code 0
+   ```
 
----
+4. **TypeScript compiles:**
+   ```bash
+   cd frontend && npx tsc --noEmit  # Exit code 0
+   ```
 
-## Known Limitations
+5. **All commits made with proper format**
 
-1. **NewConnections uses client-side search** - "Possible" contacts not in RAGStack
-2. **No relevance score display** - Scores available but not shown in UI
-3. **No search highlighting** - Matching terms not highlighted in cards
-4. **100 result limit** - May miss relevant profiles beyond limit
-5. **No saved searches** - Users can't save frequent queries
-6. **No search history** - Recent searches not tracked
+### Integration Points Verified:
+- [ ] Frontend TypeScript compiles without errors
+- [ ] No circular dependencies introduced
+- [ ] All imports resolve correctly
+- [ ] Build bundle size stable or reduced
+
+### Known Limitations:
+- Some knip findings may be false positives (dynamically imported modules)
+- Performance gains are not benchmarked (would require separate effort)
+
+### Technical Debt Introduced:
+- None—this phase reduces technical debt
 
 ---
 
-## Future Enhancements (Out of Scope)
+## Frontend Cleanup Checklist
 
-- Search suggestions/autocomplete
-- Relevance score visualization
-- Search term highlighting in results
-- Saved searches
-- Search history
-- Chat interface for complex queries
-- Export search results
+- [ ] Dead code removed
+- [ ] Performance optimizations applied
+- [ ] Secrets extracted
+- [ ] Utilities consolidated
+- [ ] Comments cleaned
+- [ ] Tests updated
+
+---
+
+## Handoff to Phase 3
+
+Phase 3 continues with **puppeteer and backend cleanup** using the same audit report. The frontend is now clean and should not be modified in Phase 3 unless integration issues are discovered.

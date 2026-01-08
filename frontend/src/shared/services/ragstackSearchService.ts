@@ -17,7 +17,7 @@ export class SearchError extends Error {
   status?: number;
   code?: string;
   retryable: boolean;
-  override cause?: Error;
+  declare cause?: Error;
 
   constructor(message: string, options?: { status?: number; code?: string; cause?: Error }) {
     super(message);

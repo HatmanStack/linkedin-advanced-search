@@ -5,11 +5,11 @@ import App from '@/App.tsx'
 
 // Polyfills for AWS Cognito Identity JS
 if (typeof global === 'undefined') {
-  (window as unknown).global = globalThis;
+  (window as Window & { global: typeof globalThis }).global = globalThis;
 }
 
 if (typeof process === 'undefined') {
-  (window as unknown).process = { env: {} };
+  (window as Window & { process: { env: Record<string, unknown> } }).process = { env: {} };
 }
 
 createRoot(document.getElementById('root')!).render(

@@ -29,10 +29,9 @@ export const useProfileInit = (): UseProfileInitReturn => {
       // Prepare the request payload following the same structure as search
       // Note: JWT token is automatically handled by apiService via Authorization header
       // Payload can be empty; puppeteerApiService will attach ciphertext credentials
-      const requestPayload = {} as unknown;
 
       // Make API call using the apiService
-      const response = await puppeteerApiService.initializeProfileDatabase(requestPayload);
+      const response = await puppeteerApiService.initializeProfileDatabase();
 
       if (!response.success) {
         throw new Error(response.error || 'Failed to initialize profile database');
