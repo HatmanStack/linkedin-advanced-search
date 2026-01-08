@@ -185,3 +185,245 @@ def lambda_context():
             return 3000
 
     return MockContext()
+
+
+# =============================================================================
+# MOTO FIXTURES FOR INTEGRATION TESTS
+# =============================================================================
+
+@pytest.fixture
+def mock_lambda_client(aws_credentials):
+    """
+    Create a mock Lambda client for testing inter-Lambda invocations.
+
+    Usage:
+        def test_lambda_invocation(mock_lambda_client):
+            # mock_lambda_client is a boto3 Lambda client within moto context
+            pass
+    """
+    with mock_aws():
+        import boto3
+
+        lambda_client = boto3.client('lambda', region_name='us-east-1')
+        yield lambda_client
+
+
+@pytest.fixture
+def mock_dynamodb_resource(aws_credentials):
+    """
+    Create a mock DynamoDB resource with table for testing.
+
+    Usage:
+        def test_dynamodb(mock_dynamodb_resource):
+            table = mock_dynamodb_resource['table']
+            dynamodb = mock_dynamodb_resource['resource']
+    """
+    with mock_aws():
+        import boto3
+
+        dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
+
+        table = dynamodb.create_table(
+            TableName='test-table',
+            KeySchema=[
+                {'AttributeName': 'PK', 'KeyType': 'HASH'},
+                {'AttributeName': 'SK', 'KeyType': 'RANGE'}
+            ],
+            AttributeDefinitions=[
+                {'AttributeName': 'PK', 'AttributeType': 'S'},
+                {'AttributeName': 'SK', 'AttributeType': 'S'},
+                {'AttributeName': 'GSI1PK', 'AttributeType': 'S'},
+                {'AttributeName': 'GSI1SK', 'AttributeType': 'S'},
+            ],
+            GlobalSecondaryIndexes=[
+                {
+                    'IndexName': 'GSI1',
+                    'KeySchema': [
+                        {'AttributeName': 'GSI1PK', 'KeyType': 'HASH'},
+                        {'AttributeName': 'GSI1SK', 'KeyType': 'RANGE'},
+                    ],
+                    'Projection': {'ProjectionType': 'ALL'},
+                    'ProvisionedThroughput': {
+                        'ReadCapacityUnits': 5,
+                        'WriteCapacityUnits': 5
+                    }
+                }
+            ],
+            ProvisionedThroughput={
+                'ReadCapacityUnits': 5,
+                'WriteCapacityUnits': 5
+            }
+        )
+
+        yield {'table': table, 'resource': dynamodb}
+
+
+@pytest.fixture
+def mock_s3_client(aws_credentials):
+    """
+    Create a mock S3 client with bucket for testing.
+
+    Usage:
+        def test_s3(mock_s3_client):
+            mock_s3_client.put_object(Bucket='test-bucket', Key='test.txt', Body=b'data')
+    """
+    with mock_aws():
+        import boto3
+
+        s3 = boto3.client('s3', region_name='us-east-1')
+        s3.create_bucket(Bucket='test-bucket')
+
+        yield s3
+
+
+# =============================================================================
+# FACTORY FUNCTIONS FOR TEST DATA
+# =============================================================================
+
+@pytest.fixture
+def create_test_edge():
+    """
+    Factory fixture for creating test edge items.
+
+    Usage:
+        def test_something(create_test_edge):
+            edge = create_test_edge(user_id='user1', profile_id='profile1')
+    """
+    def _create_edge(
+        user_id: str = 'test-user-123',
+        profile_id: str = 'test-profile-456',
+        status: str = 'possible',
+        connection_attempts: int = 0,
+        date_added: str | None = None,
+        **kwargs
+    ) -> dict:
+        from datetime import UTC, datetime
+
+        edge = {
+            'PK': f'USER#{user_id}',
+            'SK': f'EDGE#{profile_id}',
+            'user_id': user_id,
+            'profile_id': profile_id,
+            'status': status,
+            'connection_attempts': connection_attempts,
+            'date_added': date_added or datetime.now(UTC).isoformat(),
+            'GSI1PK': f'STATUS#{status}',
+            'GSI1SK': f'USER#{user_id}#EDGE#{profile_id}',
+        }
+        edge.update(kwargs)
+        return edge
+
+    return _create_edge
+
+
+@pytest.fixture
+def create_test_profile():
+    """
+    Factory fixture for creating test profile items.
+
+    Usage:
+        def test_something(create_test_profile):
+            profile = create_test_profile(first_name='John', last_name='Doe')
+    """
+    def _create_profile(
+        profile_id: str = 'test-profile-456',
+        first_name: str = 'Test',
+        last_name: str = 'User',
+        headline: str = 'Software Engineer',
+        summary: str = 'Experienced developer',
+        company: str = 'Test Corp',
+        **kwargs
+    ) -> dict:
+        profile = {
+            'PK': f'PROFILE#{profile_id}',
+            'SK': 'METADATA',
+            'profile_id': profile_id,
+            'first_name': first_name,
+            'last_name': last_name,
+            'headline': headline,
+            'summary': summary,
+            'company': company,
+        }
+        profile.update(kwargs)
+        return profile
+
+    return _create_profile
+
+
+@pytest.fixture
+def create_authenticated_event():
+    """
+    Factory fixture for creating authenticated API Gateway events.
+
+    Usage:
+        def test_something(create_authenticated_event):
+            event = create_authenticated_event(
+                user_id='user123',
+                body={'operation': 'get_connections'}
+            )
+    """
+    import json
+
+    def _create_event(
+        user_id: str = 'test-user-123',
+        body: dict | None = None,
+        http_method: str = 'POST',
+        path: str = '/edges',
+        **kwargs
+    ) -> dict:
+        event = {
+            'httpMethod': http_method,
+            'path': path,
+            'headers': {
+                'Content-Type': 'application/json',
+            },
+            'queryStringParameters': None,
+            'pathParameters': None,
+            'body': json.dumps(body) if body else None,
+            'isBase64Encoded': False,
+            'requestContext': {
+                'requestId': 'test-request-id',
+                'authorizer': {
+                    'claims': {
+                        'sub': user_id,
+                    }
+                },
+                'identity': {
+                    'sourceIp': '127.0.0.1',
+                },
+            },
+        }
+        event.update(kwargs)
+        return event
+
+    return _create_event
+
+
+# =============================================================================
+# ASSERTION HELPERS
+# =============================================================================
+
+def assert_no_real_aws_calls(caplog):
+    """
+    Assert that no real AWS API calls were made during test.
+
+    This is a helper to verify tests are properly mocked.
+
+    Usage:
+        def test_something(caplog):
+            # ... test code ...
+            assert_no_real_aws_calls(caplog)
+    """
+    real_aws_indicators = [
+        'botocore.httpsession',
+        'amazonaws.com',
+        'AccessDenied',
+        'InvalidAccessKeyId',
+    ]
+    for record in caplog.records:
+        message = record.getMessage()
+        for indicator in real_aws_indicators:
+            if indicator in message:
+                raise AssertionError(
+                    f'Real AWS call detected: {message}'
+                )
