@@ -59,16 +59,33 @@ def load_lambda_module(lambda_name: str):
     spec = importlib.util.spec_from_file_location(module_name, lambda_path)
     module = importlib.util.module_from_spec(spec)
 
-    # Add the Lambda's directory to sys.path temporarily for relative imports
+    # Paths for imports - both shared and Lambda-specific
     lambda_dir = str(BACKEND_LAMBDAS / lambda_name)
-    sys.path.insert(0, lambda_dir)
+    shared_dir = str(SHARED_PYTHON)
+
+    # Save original path state
+    original_path = sys.path.copy()
+
+    # Clear any cached module imports that might conflict
+    for mod_name in list(sys.modules.keys()):
+        if mod_name.startswith('services') or mod_name.startswith('errors') or mod_name.startswith('models'):
+            del sys.modules[mod_name]
+
+    # Build clean path with shared FIRST, then lambda-specific
+    # This ensures shared modules (services.base_service, errors, models) are found first
+    # But lambda-specific services (edge_service) are also available
+    clean_path = [shared_dir, lambda_dir]
+    for p in original_path:
+        if p not in clean_path:
+            clean_path.append(p)
+
+    sys.path[:] = clean_path
 
     try:
         spec.loader.exec_module(module)
     finally:
-        # Remove the Lambda's directory from sys.path
-        if lambda_dir in sys.path:
-            sys.path.remove(lambda_dir)
+        # Restore original path
+        sys.path[:] = original_path
 
     return module
 
