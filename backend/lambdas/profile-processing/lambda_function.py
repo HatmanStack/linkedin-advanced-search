@@ -312,20 +312,6 @@ def extract_text_with_ai_vision(bucket, key):
         logger.error(f"Text extraction with AI vision failed after {processing_time:.2f}s: {str(e)}")
         raise
 
-def extract_text_with_retry(bucket, key, max_retries=3):
-    """Extract text with retry logic and exponential backoff"""
-    for attempt in range(max_retries):
-        try:
-            return extract_text_with_ai_vision(bucket, key)
-        except Exception as e:
-            if attempt == max_retries - 1:
-                logger.error(f"OCR failed after {max_retries} attempts: {str(e)}")
-                raise
-
-            wait_time = 2 ** attempt
-            logger.warning(f"OCR attempt {attempt + 1} failed, retrying in {wait_time}s: {str(e)}")
-            time.sleep(wait_time)
-
 def get_s3_metadata(bucket, key):
     """Get metadata from S3 object including upload date and path structure"""
     try:
