@@ -107,7 +107,7 @@ const NewConnectionsTab = ({
             const validStatuses = ['possible', 'incoming', 'outgoing', 'ally', 'processed'];
             if (validStatuses.includes(newStatus)) {
                 // API call is performed in the card component; here we just update UI/cache to trigger re-render
-                connectionCache.update(connectionId, { status: newStatus as unknown });
+                connectionCache.update(connectionId, { status: newStatus as 'possible' | 'incoming' | 'outgoing' | 'ally' | 'processed' });
             }
 
             // Inform parent (Dashboard) so its source-of-truth updates and persists across tab switches

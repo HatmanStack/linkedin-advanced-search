@@ -67,40 +67,53 @@ export class TextExtractionService {
         await this._scrollPage();
       }
 
-      // Extract each section
-      try {
-        const basicInfo = await this._extractBasicInfo();
+      // Extract all sections in parallel for better performance
+      const [basicInfoResult, aboutResult, experienceResult, educationResult, skillsResult] = await Promise.allSettled([
+        this._extractBasicInfo(),
+        this._extractAbout(),
+        this._extractExperience(),
+        this._extractEducation(),
+        this._extractSkills()
+      ]);
+
+      // Process basic info
+      if (basicInfoResult.status === 'fulfilled') {
+        const basicInfo = basicInfoResult.value;
         profileData.name = basicInfo.name || '';
         profileData.headline = basicInfo.headline;
         profileData.location = basicInfo.location;
-      } catch (error) {
-        logger.warn(`Failed to extract basic info: ${error.message}`);
+      } else {
+        logger.warn(`Failed to extract basic info: ${basicInfoResult.reason?.message}`);
       }
 
-      try {
-        profileData.about = await this._extractAbout();
-      } catch (error) {
-        logger.warn(`Failed to extract about section: ${error.message}`);
+      // Process about
+      if (aboutResult.status === 'fulfilled') {
+        profileData.about = aboutResult.value;
+      } else {
+        logger.warn(`Failed to extract about section: ${aboutResult.reason?.message}`);
       }
 
-      try {
-        const experiences = await this._extractExperience();
+      // Process experience
+      if (experienceResult.status === 'fulfilled') {
+        const experiences = experienceResult.value;
         profileData.experience = experiences.slice(0, this.config.maxExperiences);
         profileData.current_position = experiences.length > 0 ? experiences[0] : null;
-      } catch (error) {
-        logger.warn(`Failed to extract experience: ${error.message}`);
+      } else {
+        logger.warn(`Failed to extract experience: ${experienceResult.reason?.message}`);
       }
 
-      try {
-        profileData.education = await this._extractEducation();
-      } catch (error) {
-        logger.warn(`Failed to extract education: ${error.message}`);
+      // Process education
+      if (educationResult.status === 'fulfilled') {
+        profileData.education = educationResult.value;
+      } else {
+        logger.warn(`Failed to extract education: ${educationResult.reason?.message}`);
       }
 
-      try {
-        profileData.skills = await this._extractSkills();
-      } catch (error) {
-        logger.warn(`Failed to extract skills: ${error.message}`);
+      // Process skills
+      if (skillsResult.status === 'fulfilled') {
+        profileData.skills = skillsResult.value;
+      } else {
+        logger.warn(`Failed to extract skills: ${skillsResult.reason?.message}`);
       }
 
       // Generate fulltext

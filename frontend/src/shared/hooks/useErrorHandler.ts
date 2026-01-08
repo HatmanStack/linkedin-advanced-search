@@ -25,8 +25,8 @@ export const useErrorHandler = () => {
     if (error instanceof ApiError) {
       return 'api';
     }
-    
-    if (error.name === 'NetworkError' || error.message?.includes('network')) {
+
+    if (error instanceof Error && (error.name === 'NetworkError' || error.message?.includes('network'))) {
       return 'network';
     }
     
@@ -78,7 +78,7 @@ export const useErrorHandler = () => {
     
     return {
       type: errorType,
-      message: error.message || 'An unexpected error occurred',
+      message: error instanceof Error ? error.message : 'An unexpected error occurred',
       connectionId,
       connectionName,
       recoveryOptions,

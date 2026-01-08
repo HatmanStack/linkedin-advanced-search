@@ -2,13 +2,17 @@ import { useState, useEffect, useCallback } from 'react';
 import { puppeteerApiService } from '@/shared/services';
 import { useAuth } from '@/features/auth';
 
+// Using 'any' for connections due to runtime shape mismatch between API response and Connection type
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type ConnectionItem = any;
+
 export const useConnections = (filters?: {
   status?: string;
   tags?: string[];
   limit?: number;
 }) => {
   const { user } = useAuth();
-  const [connections, setConnections] = useState<unknown[]>([]);
+  const [connections, setConnections] = useState<ConnectionItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -70,10 +74,11 @@ export const useConnections = (filters?: {
       const response = await puppeteerApiService.updateConnection(connectionId, updates);
 
       if (response.success && response.data) {
+        const updatedData = response.data as Record<string, unknown>;
         setConnections(prev =>
-          prev.map(conn =>
+          prev.map((conn: ConnectionItem) =>
             conn.connection_id === connectionId
-              ? { ...conn, ...response.data }
+              ? { ...conn, ...updatedData }
               : conn
           )
         );

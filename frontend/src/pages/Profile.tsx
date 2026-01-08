@@ -55,20 +55,20 @@ const Profile = () => {
     // When user profile context updates, hydrate this page's local editable fields
     (async () => {
       try {
-        const data: unknown = userProfile;
+        const data = userProfile as Record<string, unknown> | null;
         if (!data) return;
-        const firstName = (data.first_name || '').trim();
-        const lastName = (data.last_name || '').trim();
+        const firstName = ((data.first_name as string) || '').trim();
+        const lastName = ((data.last_name as string) || '').trim();
         const derivedName = [firstName, lastName].filter(Boolean).join(' ').trim();
         setProfile(prev => ({
           ...prev,
           name: derivedName || prev.name,
-          title: (data.headline || data.current_position || prev.title || '').toString(),
-          company: (data.company || prev.company || '').toString(),
-          location: (data.location || prev.location || '').toString(),
-          bio: (data.summary || prev.bio || '').toString(),
-          interests: Array.isArray(data.interests) ? data.interests : prev.interests,
-          linkedinUrl: (data.profile_url || prev.linkedinUrl || '').toString(),
+          title: (data.headline as string) || (data.current_position as string) || prev.title || '',
+          company: (data.company as string) || prev.company || '',
+          location: (data.location as string) || prev.location || '',
+          bio: (data.summary as string) || prev.bio || '',
+          interests: Array.isArray(data.interests) ? data.interests as string[] : prev.interests,
+          linkedinUrl: (data.profile_url as string) || prev.linkedinUrl || '',
         }));
 
         if (data.linkedin_credentials) {
@@ -112,7 +112,7 @@ const Profile = () => {
         const payload: { linkedin_credentials: string } = { linkedin_credentials: '' };
 
         // Optional client-side encryption if sealbox public key is provided.
-        const sealboxPubB64 = (import.meta.env as unknown).VITE_CRED_SEALBOX_PUBLIC_KEY_B64 as string | undefined;
+        const sealboxPubB64 = import.meta.env.VITE_CRED_SEALBOX_PUBLIC_KEY_B64 as string | undefined;
         logger.debug('Save credentials - public key check', {
           hasPublicKey: !!sealboxPubB64,
           keyType: typeof sealboxPubB64,
@@ -157,7 +157,7 @@ const Profile = () => {
       // Save non-sensitive profile info
       const [firstName, ...rest] = profile.name.trim().split(/\s+/);
       const lastName = rest.join(' ').trim();
-      const profilePayload: unknown = {
+      const profilePayload = {
         first_name: firstName || undefined,
         last_name: lastName || undefined,
         headline: profile.title || undefined,

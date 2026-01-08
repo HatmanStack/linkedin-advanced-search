@@ -11,7 +11,7 @@ export const cognitoConfig = {
   identityPoolId: import.meta.env.VITE_COGNITO_IDENTITY_POOL_ID || '',
 };
 
-export const validateCognitoConfig = () => {
+const validateCognitoConfig = () => {
   const requiredFields = ['userPoolId', 'userPoolWebClientId'];
   const missing = requiredFields.filter((field) => !cognitoConfig[field as keyof typeof cognitoConfig]);
   if (missing.length > 0) {
@@ -38,11 +38,3 @@ export const STORAGE_KEYS = {
   VISITED_LINKS: 'visitedLinks',
   SEARCH_RESULTS: 'searchResults',
 } as const;
-
-export const UI_CONFIG = {
-  DEBOUNCE_DELAY: 300,
-  MAX_RETRIES: 3,
-} as const;
-
-
-

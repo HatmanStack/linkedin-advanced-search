@@ -1,12 +1,9 @@
 import { PuppeteerService } from '../../automation/services/puppeteerService.js';
 import { logger } from '../../shared/utils/logger.js';
-// Removed human-like delay/behavior helpers for simplicity
 import LinkedInErrorHandler from '../utils/linkedinErrorHandler.js';
 import ConfigManager from '../../shared/config/configManager.js';
 import DynamoDBService from '../../storage/services/dynamoDBService.js';
-// edgeManager removed; using DynamoDBService.ensureEdge directly
 
-// Lightweight fallback utilities to replace removed human-behavior helpers
 const RandomHelpers = {
   /**
    * Wait for a random duration between minMs and maxMs

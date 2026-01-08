@@ -79,14 +79,15 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
       
       
       // Use the profile data from context instead of fetching again
-      const unsent = (userProfile as unknown).unpublished_post_content || (userProfile as unknown).unsent_post_content;
+      const profile = userProfile as Record<string, unknown>;
+      const unsent = (profile.unpublished_post_content as string) || (profile.unsent_post_content as string);
       if (!cancelled && !hasHydratedContentRef.current) {
         setContent(unsent || "");
         hasHydratedContentRef.current = true;
       }
       // Mirror profile values into session storage for downstream component hydration
       try {
-        const pResearch = (userProfile as unknown)?.ai_generated_research;
+        const pResearch = profile.ai_generated_research as string | undefined;
         if (typeof pResearch === 'string' && pResearch.trim()) {
           try { sessionStorage.setItem(RESEARCH_STORAGE_KEY, pResearch); } catch {
             // Ignore storage errors (private browsing, quota exceeded)
@@ -97,9 +98,9 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
       }
 
       try {
-        const pResearch = (userProfile as unknown)?.unpublished_post_content;
-        if (typeof pResearch === 'string' && pResearch.trim()) {
-          try { sessionStorage.setItem(CONTENT_STORAGE_KEY, pResearch); } catch {
+        const pContent = profile.unpublished_post_content as string | undefined;
+        if (typeof pContent === 'string' && pContent.trim()) {
+          try { sessionStorage.setItem(CONTENT_STORAGE_KEY, pContent); } catch {
             // Ignore storage errors (private browsing, quota exceeded)
           }
         }
@@ -108,7 +109,7 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
       }
 
       try {
-        const pReasoning = (userProfile as unknown)?.ai_generated_post_reasoning;
+        const pReasoning = profile.ai_generated_post_reasoning as string | undefined;
         if (typeof pReasoning === 'string' && pReasoning.trim()) {
           try { sessionStorage.setItem(REASONING_STORAGE_KEY, pReasoning); } catch {
             // Ignore storage errors (private browsing, quota exceeded)
@@ -119,7 +120,7 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
       }
 
       try {
-        const pHook = (userProfile as unknown)?.ai_generated_post_hook;
+        const pHook = profile.ai_generated_post_hook as string | undefined;
         if (typeof pHook === 'string' && pHook.trim()) {
           try { sessionStorage.setItem(HOOK_STORAGE_KEY, pHook); } catch {
             // Ignore storage errors (private browsing, quota exceeded)
@@ -140,7 +141,7 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
 
         } else {
           logger.debug('hydrate ideas: profile fallback');
-          const fromProfileIdeas = (userProfile as unknown)?.ai_generated_ideas;
+          const fromProfileIdeas = profile.ai_generated_ideas as string[] | undefined;
           if (!cancelled && Array.isArray(fromProfileIdeas)) {
             logger.debug('hydrate ideas: using profile', { count: fromProfileIdeas.length });
             setIdeas(fromProfileIdeas);

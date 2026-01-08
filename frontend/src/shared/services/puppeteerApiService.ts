@@ -13,8 +13,8 @@ const logger = createLogger('PuppeteerApiService');
 // This service calls the local puppeteer backend for LinkedIn automation
 // Note: Backend routes are rooted at '/', e.g., '/search', so do NOT append '/api' here.
 const PUPPETEER_BACKEND_URL =
-  (import.meta.env as unknown).VITE_PUPPETEER_BACKEND_URL ||
-  (import.meta.env as unknown).VITE_API_GATEWAY_URL || // fallback for legacy env var usage
+  import.meta.env.VITE_PUPPETEER_BACKEND_URL ||
+  import.meta.env.VITE_API_GATEWAY_URL || // fallback for legacy env var usage
   'http://localhost:3001';
 
 // This service handles raw API calls to the puppeteer backend
@@ -123,7 +123,7 @@ class PuppeteerApiService {
 
       // Non-OK still try to surface server message if any
       if (!response.ok) {
-        let parsedError: unknown = null;
+        let parsedError: Record<string, unknown> | null = null;
         try {
           parsedError = textBody && contentType.includes('application/json') ? JSON.parse(textBody) : null;
         } catch {
@@ -131,7 +131,7 @@ class PuppeteerApiService {
         }
         return {
           success: false,
-          error: (parsedError && (parsedError.error || parsedError.message)) || (textBody || `HTTP ${response.status}`),
+          error: (parsedError && ((parsedError.error as string) || (parsedError.message as string))) || (textBody || `HTTP ${response.status}`),
         };
       }
 
@@ -140,7 +140,7 @@ class PuppeteerApiService {
         return { success: true } as PuppeteerApiResponse<T>;
       }
 
-      let parsed: unknown = textBody;
+      let parsed: Record<string, unknown> | string = textBody;
       if (contentType.includes('application/json')) {
         try {
           parsed = JSON.parse(textBody);
@@ -152,8 +152,8 @@ class PuppeteerApiService {
 
       return {
         success: true,
-        data: (parsed && parsed.data) ? parsed.data : parsed,
-        message: parsed?.message,
+        data: (typeof parsed === 'object' && parsed.data) ? parsed.data : parsed,
+        message: typeof parsed === 'object' ? (parsed.message as string) : undefined,
       } as PuppeteerApiResponse<T>;
     } catch (error) {
       return {
@@ -343,13 +343,13 @@ class PuppeteerApiService {
   }
 
   // Profile Initialization Operations
-  async initializeProfileDatabase(credentials: {
-    searchName: string;
-    searchPassword: string;
+  async initializeProfileDatabase(credentials?: {
+    searchName?: string;
+    searchPassword?: string;
   }): Promise<PuppeteerApiResponse<{ success?: boolean; healing?: boolean; message?: string }>> {
     return this.makeRequest<{ success?: boolean; healing?: boolean; message?: string }>('/profile-init', {
       method: 'POST',
-      body: JSON.stringify(credentials),
+      body: JSON.stringify(credentials || {}),
     });
   }
 

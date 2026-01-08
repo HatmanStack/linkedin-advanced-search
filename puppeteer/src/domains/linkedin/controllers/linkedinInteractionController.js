@@ -4,7 +4,7 @@ import LinkedInService from '../services/linkedinService.js';
 import LinkedInErrorHandler from '../utils/linkedinErrorHandler.js';
 import LinkedInAuditLogger from '../utils/linkedinAuditLogger.js';
 import { v4 as uuidv4 } from 'uuid';
-import { linkedInInteractionQueue } from '../utils/interactionQueue.js';
+import { linkedInInteractionQueue } from '../../automation/utils/interactionQueue.js';
 
 export class LinkedInInteractionController {
 
