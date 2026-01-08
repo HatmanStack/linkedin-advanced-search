@@ -69,8 +69,8 @@ export interface Connection {
   /** Current relationship status with the connection */
   status: ConnectionStatus;
 
-  /** Conversion likelihood percentage for 'possible' connections (0-100, optional) */
-  conversion_likelihood?: number;
+  /** Conversion likelihood classification for 'possible' connections (enum string, optional) */
+  conversion_likelihood?: ConversionLikelihood;
 
   /** Array of message history (optional) */
   message_history?: Message[];

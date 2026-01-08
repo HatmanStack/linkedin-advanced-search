@@ -35,6 +35,7 @@ import {
   isValidISODate,
   isValidUrl,
   isPositiveInteger,
+  isConversionLikelihood,
 } from './guards';
 
 // =============================================================================
@@ -67,11 +68,29 @@ export const MAX_ARRAY_LENGTH = {
   MESSAGES: 1000,
 } as const;
 
-/** Valid conversion likelihood range */
-export const CONVERSION_LIKELIHOOD_RANGE = {
-  MIN: 0,
-  MAX: 100,
-} as const;
+/** Valid conversion likelihood values */
+export const VALID_CONVERSION_LIKELIHOODS = ['high', 'medium', 'low'] as const;
+
+// =============================================================================
+// BATCH VALIDATION RESULT
+// =============================================================================
+
+/**
+ * Result of batch validation for connections
+ *
+ * @interface BatchValidationResult
+ * @description Contains separated valid connections, errors, and warnings for batch processing
+ */
+export interface BatchValidationResult {
+  /** Successfully validated connections */
+  validConnections: Connection[];
+
+  /** Validation errors by connection index */
+  errors: Array<{ index: number; errors: string[] }>;
+
+  /** Validation warnings (e.g., sanitized data) */
+  warnings: string[];
+}
 
 // =============================================================================
 // CORE VALIDATION FUNCTIONS
@@ -166,10 +185,8 @@ export function validateConnection(
   }
 
   if (conn.conversion_likelihood !== undefined) {
-    if (!isValidNumber(conn.conversion_likelihood) || 
-        conn.conversion_likelihood < CONVERSION_LIKELIHOOD_RANGE.MIN || 
-        conn.conversion_likelihood > CONVERSION_LIKELIHOOD_RANGE.MAX) {
-      errors.push(`Conversion likelihood must be between ${CONVERSION_LIKELIHOOD_RANGE.MIN} and ${CONVERSION_LIKELIHOOD_RANGE.MAX}`);
+    if (!isConversionLikelihood(conn.conversion_likelihood)) {
+      errors.push('Conversion likelihood must be one of: high, medium, low');
     }
   }
 
@@ -413,9 +430,7 @@ export function sanitizeConnectionData(data: unknown): Connection | null {
       connection.messages = Math.floor(obj.messages);
     }
 
-    if (isValidNumber(obj.conversion_likelihood) && 
-        obj.conversion_likelihood >= CONVERSION_LIKELIHOOD_RANGE.MIN && 
-        obj.conversion_likelihood <= CONVERSION_LIKELIHOOD_RANGE.MAX) {
+    if (isConversionLikelihood(obj.conversion_likelihood)) {
       connection.conversion_likelihood = obj.conversion_likelihood;
     }
 
@@ -620,26 +635,42 @@ function sanitizeTimestamp(value: unknown): string | null {
 // =============================================================================
 
 /**
- * Validates an array of connections
- * 
+ * Validates an array of connections and returns a structured batch result
+ *
  * @param connections - Array of connection objects to validate
  * @param options - Validation options
- * @returns Validation results for each connection
+ * @returns BatchValidationResult with valid connections, errors, and warnings
  */
 export function validateConnections(
   connections: unknown[],
   options: TransformOptions = {}
-): ValidationResult[] {
-  return connections.map((connection, index) => {
-    const result = validateConnection(connection, options);
-    
-    // Add index information to errors
-    if (!result.isValid) {
-      result.errors = result.errors.map(error => `Connection ${index}: ${error}`);
+): BatchValidationResult {
+  const validConnections: Connection[] = [];
+  const errors: Array<{ index: number; errors: string[] }> = [];
+  const warnings: string[] = [];
+
+  connections.forEach((conn, index) => {
+    const result = validateConnection(conn, options);
+
+    if (result.isValid && conn) {
+      // Connection passed validation
+      validConnections.push(conn as Connection);
+    } else if (result.sanitizedData) {
+      // Connection was sanitized and is now valid
+      validConnections.push(result.sanitizedData as Connection);
+      warnings.push(`Connection at index ${index} was sanitized`);
+    } else {
+      // Connection failed validation
+      errors.push({ index, errors: result.errors });
     }
-    
-    return result;
+
+    // Collect any warnings from validation
+    if (result.warnings && result.warnings.length > 0) {
+      result.warnings.forEach(w => warnings.push(`Connection ${index}: ${w}`));
+    }
   });
+
+  return { validConnections, errors, warnings };
 }
 
 /**
@@ -771,10 +802,8 @@ export function validateUpdateConnectionParams(params: unknown): ValidationResul
     }
 
     if (updates.conversion_likelihood !== undefined) {
-      if (!isValidNumber(updates.conversion_likelihood) ||
-          updates.conversion_likelihood < CONVERSION_LIKELIHOOD_RANGE.MIN ||
-          updates.conversion_likelihood > CONVERSION_LIKELIHOOD_RANGE.MAX) {
-        errors.push(`Conversion likelihood must be between ${CONVERSION_LIKELIHOOD_RANGE.MIN} and ${CONVERSION_LIKELIHOOD_RANGE.MAX}`);
+      if (!isConversionLikelihood(updates.conversion_likelihood)) {
+        errors.push('Conversion likelihood must be one of: high, medium, low');
       }
     }
   }

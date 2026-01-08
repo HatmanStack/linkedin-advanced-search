@@ -103,12 +103,22 @@ export function isConnectionStatus(value: unknown): value is ConnectionStatus {
 
 /**
  * Checks if a value is a valid MessageSender
- * 
+ *
  * @param value - The value to check
  * @returns True if value is a valid MessageSender
  */
 export function isMessageSender(value: unknown): value is MessageSender {
   return typeof value === 'string' && ['user', 'connection'].includes(value);
+}
+
+/**
+ * Checks if a value is a valid ConversionLikelihood
+ *
+ * @param value - The value to check
+ * @returns True if value is a valid ConversionLikelihood enum string
+ */
+export function isConversionLikelihood(value: unknown): value is import('./index').ConversionLikelihood {
+  return typeof value === 'string' && ['high', 'medium', 'low'].includes(value);
 }
 
 
@@ -167,7 +177,7 @@ export function isConnection(value: unknown): value is Connection {
   if (obj.linkedin_url !== undefined && typeof obj.linkedin_url !== 'string') return false;
   if (obj.last_action_summary !== undefined && typeof obj.last_action_summary !== 'string') return false;
   if (obj.last_activity_summary !== undefined && typeof obj.last_activity_summary !== 'string') return false;
-  if (obj.conversion_likelihood !== undefined && !isValidNumber(obj.conversion_likelihood)) return false;
+  if (obj.conversion_likelihood !== undefined && !isConversionLikelihood(obj.conversion_likelihood)) return false;
   if (obj.isFakeData !== undefined && typeof obj.isFakeData !== 'boolean') return false;
 
   // Check array fields

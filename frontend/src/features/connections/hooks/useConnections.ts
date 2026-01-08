@@ -1,10 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { puppeteerApiService } from '@/shared/services';
 import { useAuth } from '@/features/auth';
-
-// Using 'any' for connections due to runtime shape mismatch between API response and Connection type
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type ConnectionItem = any;
+import type { Connection } from '@/shared/types';
 
 export const useConnections = (filters?: {
   status?: string;
@@ -12,7 +9,7 @@ export const useConnections = (filters?: {
   limit?: number;
 }) => {
   const { user } = useAuth();
-  const [connections, setConnections] = useState<ConnectionItem[]>([]);
+  const [connections, setConnections] = useState<Connection[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -30,7 +27,8 @@ export const useConnections = (filters?: {
       const response = await puppeteerApiService.getConnections(filters);
 
       if (response.success && response.data) {
-        setConnections(response.data.connections || []);
+        // API service returns validated Connection[] data
+        setConnections((response.data.connections || []) as Connection[]);
       } else {
         setError(response.error || 'Failed to fetch connections');
         setConnections([]);
@@ -48,13 +46,13 @@ export const useConnections = (filters?: {
   }, [fetchConnections]);
 
   const createConnection = useCallback(async (
-    connectionData: unknown
+    connectionData: Partial<Connection>
   ): Promise<boolean> => {
     try {
       const response = await puppeteerApiService.createConnection(connectionData);
 
       if (response.success && response.data) {
-        setConnections(prev => [...prev, response.data!]);
+        setConnections(prev => [...prev, response.data as Connection]);
         return true;
       } else {
         setError(response.error || 'Failed to create connection');
@@ -68,16 +66,16 @@ export const useConnections = (filters?: {
 
   const updateConnection = useCallback(async (
     connectionId: string,
-    updates: unknown
+    updates: Partial<Connection>
   ): Promise<boolean> => {
     try {
       const response = await puppeteerApiService.updateConnection(connectionId, updates);
 
       if (response.success && response.data) {
-        const updatedData = response.data as Record<string, unknown>;
+        const updatedData = response.data as Partial<Connection>;
         setConnections(prev =>
-          prev.map((conn: ConnectionItem) =>
-            conn.connection_id === connectionId
+          prev.map((conn: Connection) =>
+            conn.id === connectionId
               ? { ...conn, ...updatedData }
               : conn
           )
