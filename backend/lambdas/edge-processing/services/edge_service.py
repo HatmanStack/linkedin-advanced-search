@@ -15,8 +15,8 @@ _shared_path = Path(__file__).parent.parent.parent / 'shared' / 'python'
 if str(_shared_path) not in sys.path:
     sys.path.insert(0, str(_shared_path))
 
-from errors.exceptions import ExternalServiceError, ValidationError
-from models.enums import classify_conversion_likelihood
+from errors.exceptions import ExternalServiceError, ValidationError  # noqa: E402
+from models.enums import classify_conversion_likelihood  # noqa: E402
 
 
 # Import BaseService directly from file to avoid package collision

@@ -16,7 +16,7 @@ _shared_path = Path(__file__).parent.parent.parent / 'shared' / 'python'
 if str(_shared_path) not in sys.path:
     sys.path.insert(0, str(_shared_path))
 
-from errors.exceptions import (
+from errors.exceptions import (  # noqa: E402
     ExternalServiceError,
     NotFoundError,
     ValidationError,
