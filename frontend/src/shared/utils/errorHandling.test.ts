@@ -1,11 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import {
-  transformErrorForUser,
-  getToastVariant,
-  ERROR_MESSAGES,
-  logError,
-} from './errorHandling';
-import { ApiError } from '@/shared/services';
+
+// Mock auth module before any imports that might use it
+vi.mock('@/features/auth', () => ({
+  CognitoAuthService: {
+    getAccessToken: vi.fn().mockResolvedValue('mock-token'),
+    isAuthenticated: vi.fn().mockReturnValue(true),
+  },
+  useAuth: vi.fn(() => ({ user: null })),
+  AuthProvider: ({ children }: { children: React.ReactNode }) => children,
+}));
 
 // Mock the logger
 vi.mock('@/shared/utils/logger', () => ({
@@ -16,6 +19,14 @@ vi.mock('@/shared/utils/logger', () => ({
     error: vi.fn(),
   }),
 }));
+
+import {
+  transformErrorForUser,
+  getToastVariant,
+  ERROR_MESSAGES,
+  logError,
+} from './errorHandling';
+import { ApiError } from '@/shared/services';
 
 describe('errorHandling', () => {
   beforeEach(() => {
