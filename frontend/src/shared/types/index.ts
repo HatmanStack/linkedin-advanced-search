@@ -122,11 +122,8 @@ export interface ConnectionFilters {
   /** Search term for name/position/company (optional) */
   searchTerm?: string;
 
-  /** Filter by conversion likelihood range (optional) */
-  conversionLikelihoodRange?: {
-    min: number;
-    max: number;
-  };
+  /** Filter by conversion likelihood values (optional) */
+  conversionLikelihood?: ConversionLikelihood | ConversionLikelihood[] | 'all';
 }
 
 /**

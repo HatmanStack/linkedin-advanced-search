@@ -1,4 +1,14 @@
-import type { Connection, ConnectionFilters } from '@/types';
+import type { Connection, ConnectionFilters, ConversionLikelihood } from '@/types';
+
+/**
+ * Ordinal values for conversion likelihood enum sorting
+ * Higher value = higher priority in descending sort
+ */
+const LIKELIHOOD_ORDINAL: Record<ConversionLikelihood, number> = {
+  high: 3,
+  medium: 2,
+  low: 1,
+};
 
 /**
  * Filters connections based on the provided filter criteria
@@ -54,17 +64,21 @@ export function filterConnections(
       }
     }
 
-    // Conversion likelihood range filter
-    if (filters.conversionLikelihoodRange) {
-      const { min, max } = filters.conversionLikelihoodRange;
+    // Conversion likelihood filter
+    if (filters.conversionLikelihood && filters.conversionLikelihood !== 'all') {
       const likelihood = connection.conversion_likelihood;
-      
+
       // If connection doesn't have conversion likelihood, exclude it
-      if (likelihood === undefined || likelihood === null) {
+      if (!likelihood) {
         return false;
       }
-      
-      if (likelihood < min || likelihood > max) {
+
+      // Handle single value or array of values
+      const allowedValues = Array.isArray(filters.conversionLikelihood)
+        ? filters.conversionLikelihood
+        : [filters.conversionLikelihood];
+
+      if (!allowedValues.includes(likelihood)) {
         return false;
       }
     }
@@ -119,8 +133,9 @@ export function sortConnections(
         break;
       
       case 'conversion_likelihood':
-        aValue = a.conversion_likelihood || 0;
-        bValue = b.conversion_likelihood || 0;
+        // Use ordinal values for enum-based sorting
+        aValue = a.conversion_likelihood ? LIKELIHOOD_ORDINAL[a.conversion_likelihood] : 0;
+        bValue = b.conversion_likelihood ? LIKELIHOOD_ORDINAL[b.conversion_likelihood] : 0;
         break;
       
       default:
