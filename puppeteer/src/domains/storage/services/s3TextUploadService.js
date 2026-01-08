@@ -340,7 +340,7 @@ export class S3TextUploadService {
       failures,
       successRate: uploads > 0 ? (successes / uploads * 100).toFixed(1) + '%' : 'N/A',
       totalBytes,
-      avgRetries: uploads > 0 ? (totalRetries / uploads).toFixed(2) : 0
+      avgRetries: uploads > 0 ? parseFloat((totalRetries / uploads).toFixed(2)) : 0
     };
   }
 }

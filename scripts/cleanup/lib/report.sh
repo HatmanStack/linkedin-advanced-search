@@ -129,7 +129,7 @@ generate_markdown_report() {
     fi
 
     # Count sanitization findings from files
-    local console_count=0 print_count=0 debugger_count=0 todo_count=0
+    local console_count=0 todo_count=0
 
     if [[ -f "$REPORT_DIR/sanitize-console-$TIMESTAMP.txt" ]]; then
         console_count=$(wc -l < "$REPORT_DIR/sanitize-console-$TIMESTAMP.txt" 2>/dev/null || echo "0")

@@ -64,8 +64,6 @@ remove_print_statements() {
 remove_debugger_statements() {
     echo "  → Finding debugger statements..."
 
-    local js_count=0
-    local py_count=0
     local output_file="$REPORT_DIR/sanitize-debugger-$TIMESTAMP.txt"
 
     # Find JS debugger statements
@@ -73,8 +71,6 @@ remove_debugger_statements() {
         -type f \( -name "*.js" -o -name "*.ts" -o -name "*.tsx" \) \
         ! -name "*.test.*" ! -name "*.spec.*" \
         -exec grep -l 'debugger' {} \; 2>/dev/null > "$output_file" || true
-
-    js_count=$(wc -l < "$output_file" 2>/dev/null || echo "0")
 
     # Find Python breakpoint/pdb statements
     find "$REPO_ROOT/backend/lambdas" \

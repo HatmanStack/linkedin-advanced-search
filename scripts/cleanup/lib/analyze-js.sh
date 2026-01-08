@@ -107,18 +107,6 @@ scan_js_secrets() {
 
     # Scan frontend and puppeteer with detect-secrets
     # Disable Base64HighEntropyString to reduce false positives
-    local exclude_patterns=(
-        '.*\.test\.(ts|tsx|js)$'
-        'node_modules/.*'
-        'dist/.*'
-        'coverage/.*'
-        '.*\.d\.ts$'
-    )
-
-    local exclude_args=""
-    for pattern in "${exclude_patterns[@]}"; do
-        exclude_args+=" --exclude-files '$pattern'"
-    done
 
     # Scan frontend
     local frontend_results

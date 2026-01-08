@@ -85,8 +85,11 @@ parse_vulture_to_json() {
                 files+=("$file_path")
             fi
 
+            # Escape message for JSON (handle quotes and backslashes)
+            local escaped_message="${message//\\/\\\\}"
+            escaped_message="${escaped_message//\"/\\\"}"
             # Add issue as JSON object
-            issues+=("{\"file\": \"$file_path\", \"line\": $line_num, \"message\": \"$message\", \"confidence\": $confidence}")
+            issues+=("{\"file\": \"$file_path\", \"line\": $line_num, \"message\": \"$escaped_message\", \"confidence\": $confidence}")
         fi
     done < "$input_file"
 

@@ -63,12 +63,12 @@ const Profile = () => {
         setProfile(prev => ({
           ...prev,
           name: derivedName || prev.name,
-          title: ((data.headline as string) || (data.current_position as string) || prev.title || '').toString(),
-          company: ((data.company as string) || prev.company || '').toString(),
-          location: ((data.location as string) || prev.location || '').toString(),
-          bio: ((data.summary as string) || prev.bio || '').toString(),
+          title: (data.headline as string) || (data.current_position as string) || prev.title || '',
+          company: (data.company as string) || prev.company || '',
+          location: (data.location as string) || prev.location || '',
+          bio: (data.summary as string) || prev.bio || '',
           interests: Array.isArray(data.interests) ? data.interests as string[] : prev.interests,
-          linkedinUrl: ((data.profile_url as string) || prev.linkedinUrl || '').toString(),
+          linkedinUrl: (data.profile_url as string) || prev.linkedinUrl || '',
         }));
 
         if (data.linkedin_credentials) {

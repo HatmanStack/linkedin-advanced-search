@@ -6,6 +6,42 @@ import { createLogger } from '@/shared/utils/logger';
 
 const logger = createLogger('PostsService');
 
+/**
+ * Remove sensitive/temporary fields before sending profile to backend.
+ * Consolidates filtering logic to ensure consistent handling across all methods.
+ */
+function sanitizeProfileForBackend(userProfile?: UserProfile): Record<string, unknown> | null {
+  if (!userProfile) return null;
+
+  const profile = userProfile as Record<string, unknown>;
+  const {
+    // Temporary post content fields
+    unsent_post_content,
+    unpublished_post_content,
+    ai_generated_post_content,
+    // AI-generated content (regenerated on demand)
+    ai_generated_ideas,
+    ai_generated_research,
+    ai_generated_post_hook,
+    ai_generated_post_reasoning,
+    // Sensitive credentials
+    linkedin_credentials,
+    ...rest
+  } = profile;
+
+  // Suppress unused variable warnings
+  void unsent_post_content;
+  void unpublished_post_content;
+  void ai_generated_post_content;
+  void ai_generated_ideas;
+  void ai_generated_research;
+  void ai_generated_post_hook;
+  void ai_generated_post_reasoning;
+  void linkedin_credentials;
+
+  return rest;
+}
+
 // Prevent concurrent or duplicate idea polling loops (e.g., accidental double clicks or re-renders)
 let ideasPollingInFlight = false;
 // Prevent concurrent or duplicate synthesis polling loops
@@ -38,15 +74,7 @@ export const postsService = {
       }
       ideasPollingInFlight = true;
 
-      // Filter out sensitive/temporary fields from userProfile
-      let profileToSend = null;
-      if (userProfile) {
-        const profile = userProfile as Record<string, unknown>;
-        const { unsent_post_content, unpublished_post_content, ai_generated_post_content, linkedin_credentials, ...rest } = profile;
-        profileToSend = rest;
-        // Silence unused vars
-        void unsent_post_content; void unpublished_post_content; void ai_generated_post_content; void linkedin_credentials;
-      }
+      const profileToSend = sanitizeProfileForBackend(userProfile);
 
       // Generate a client-side job id and request async idea generation
       const jobId = uuidv4();
@@ -98,15 +126,7 @@ export const postsService = {
 
   async researchTopics(topics: string[], userProfile?: UserProfile): Promise<string> {
     try {
-      // Filter out sensitive fields from userProfile
-      let filteredProfile = null;
-      if (userProfile) {
-        const profile = userProfile as Record<string, unknown>;
-        const { unsent_post_content, unpublished_post_content, ai_generated_post_content, linkedin_credentials, ...rest } = profile;
-        filteredProfile = rest;
-        // Silence unused vars
-        void unsent_post_content; void unpublished_post_content; void ai_generated_post_content; void linkedin_credentials;
-      }
+      const filteredProfile = sanitizeProfileForBackend(userProfile);
       const response = await lambdaApiService.sendLLMRequest('research_selected_ideas', {
         selected_ideas: topics,
         user_profile: filteredProfile,
@@ -165,15 +185,7 @@ export const postsService = {
       }
       synthPollingInFlight = true;
 
-      // Filter out sensitive/temporary fields from userProfile
-      let profileToSend = null;
-      if (userProfile) {
-        const profile = userProfile as Record<string, unknown>;
-        const { unpublished_post_content, linkedin_credentials, ai_generated_ideas, ai_generated_research, ai_generated_post_hook, ai_generated_post_reasoning, ...rest } = profile;
-        profileToSend = rest;
-        // Silence unused vars
-        void unpublished_post_content; void linkedin_credentials; void ai_generated_ideas; void ai_generated_research; void ai_generated_post_hook; void ai_generated_post_reasoning;
-      }
+      const profileToSend = sanitizeProfileForBackend(userProfile);
 
       // Generate a client-side job id and request async synthesis
       const jobId = uuidv4();
