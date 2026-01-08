@@ -239,8 +239,20 @@ export type MessageSender = 'user' | 'connection';
 export type StatusValue = 'all' | 'incoming' | 'outgoing' | 'ally';
 
 /**
+ * Conversion likelihood classification
+ *
+ * @type ConversionLikelihood
+ * @description Simple three-tier classification for conversion potential.
+ * Replaces percentage-based scoring (0-100) with clear categories.
+ * - high: Complete profile + recent + no prior attempts
+ * - medium: Partial data or older profile
+ * - low: Incomplete profile or many attempts
+ */
+export type ConversionLikelihood = 'high' | 'medium' | 'low';
+
+/**
  * Error severity levels
- * 
+ *
  * @type ErrorSeverity
  * @description Categorizes errors by their impact and urgency for user feedback.
  */

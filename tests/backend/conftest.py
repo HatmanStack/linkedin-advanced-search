@@ -12,6 +12,12 @@ from moto import mock_aws
 # Path to lambdas directory
 BACKEND_LAMBDAS = Path(__file__).parent.parent.parent / 'backend' / 'lambdas'
 
+# Path to shared python modules
+SHARED_PYTHON = BACKEND_LAMBDAS / 'shared' / 'python'
+
+# Add shared python path to sys.path for imports
+sys.path.insert(0, str(SHARED_PYTHON))
+
 # Set test environment variables before any Lambda imports
 os.environ['DYNAMODB_TABLE_NAME'] = 'test-table'
 os.environ['TABLE_NAME'] = 'test-table'
