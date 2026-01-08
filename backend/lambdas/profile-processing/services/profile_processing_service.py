@@ -5,7 +5,7 @@ import json
 import logging
 import re
 import sys
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -73,8 +73,8 @@ class ProfileProcessingService(BaseService):
         try:
             self.s3_client.head_bucket(Bucket='health-check-bucket')
             return {'healthy': True, 'details': {}}
-        except Exception:
-            return {'healthy': True, 'details': {'note': 'S3 client initialized'}}
+        except Exception as e:
+            return {'healthy': False, 'details': {'error': str(e)}}
 
     def process(self, bucket: str, key: str) -> dict[str, Any]:
         """
@@ -184,7 +184,7 @@ class ProfileProcessingService(BaseService):
             }
         except Exception as e:
             logger.warning(f"Failed to get S3 metadata: {e}")
-            return {'linkedin_url': 'unknown', 'date_added': datetime.utcnow().strftime('%Y-%m-%d')}
+            return {'linkedin_url': 'unknown', 'date_added': datetime.now(UTC).strftime('%Y-%m-%d')}
 
     def extract_text(self, image_data: bytes, media_type: str = 'image/png') -> dict:
         """
@@ -297,7 +297,7 @@ class ProfileProcessingService(BaseService):
         profile_id_b64 = base64.b64encode(linkedin_url.encode()).decode()
         profile_id = f"PROFILE#{profile_id_b64}"
 
-        current_time = datetime.utcnow().isoformat() + 'Z'
+        current_time = datetime.now(UTC).isoformat() + 'Z'
 
         # Build fulltext for search
         fulltext_parts = [

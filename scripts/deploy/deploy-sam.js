@@ -327,10 +327,10 @@ async function collectConfiguration(config) {
     const ragstackEnv = readFileSync(ragstackEnvPath, 'utf-8');
     for (const line of ragstackEnv.split('\n')) {
       if (line.startsWith('RAGSTACK_GRAPHQL_ENDPOINT=')) {
-        config.ragstackEndpoint = line.split('=')[1];
+        config.ragstackEndpoint = line.substring(line.indexOf('=') + 1);
       }
       if (line.startsWith('RAGSTACK_API_KEY=')) {
-        config.ragstackApiKey = line.split('=')[1];
+        config.ragstackApiKey = line.substring(line.indexOf('=') + 1);
       }
     }
   } else {

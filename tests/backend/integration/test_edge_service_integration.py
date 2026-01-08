@@ -132,25 +132,26 @@ class TestEdgeServiceIntegration:
 
         service = edge_service_module.EdgeService(table=table)
 
-        # First create the edge
-        service.upsert_status(
+        # First create the edge and capture the encoded profile_id
+        upsert_result = service.upsert_status(
             user_id='test-user',
             profile_id='test-profile',
             status='ally'
         )
+        profile_id_b64 = upsert_result['profileId']
 
-        # Add a message
+        # Add a message using the encoded profile_id
         result = service.add_message(
             user_id='test-user',
-            profile_id_b64='test-profile',
+            profile_id_b64=profile_id_b64,
             message='Hello, this is a test message',
             message_type='outbound'
         )
 
         assert result['success'] is True
 
-        # Retrieve messages
-        messages_result = service.get_messages('test-user', 'test-profile')
+        # Retrieve messages using the encoded profile_id
+        messages_result = service.get_messages('test-user', profile_id_b64)
         assert len(messages_result['messages']) == 1
         assert messages_result['messages'][0]['content'] == 'Hello, this is a test message'
 
