@@ -5,7 +5,6 @@ import {
   CognitoUserAttribute,
   CognitoUserSession,
 } from 'amazon-cognito-identity-js';
-import type { ISignUpResult } from 'amazon-cognito-identity-js';
 import { cognitoConfig } from '@/config/appConfig';
 import { createLogger } from '@/shared/utils/logger';
 import type { AuthError, CognitoAttributeList } from '../types';
@@ -51,7 +50,7 @@ export class CognitoAuthService {
     password: string,
     firstName?: string,
     lastName?: string
-  ): Promise<{ error: AuthError | null; user?: ISignUpResult }> {
+  ): Promise<{ error: AuthError | null; user?: { id: string; email: string; firstName?: string; lastName?: string; needsVerification: boolean } }> {
     return new Promise((resolve) => {
       const attributeList = [
         new CognitoUserAttribute({
