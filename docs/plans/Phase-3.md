@@ -21,11 +21,11 @@ Complete the codebase cleanup by processing puppeteer and backend components. Re
 
 ## Prerequisites
 
-- [ ] Phase 2 complete (frontend cleanup done)
-- [ ] `reports/audit-report.json` exists
-- [ ] `reports/audit-report.md` reviewed (puppeteer and backend sections)
-- [ ] `npm run test:frontend` still passes
-- [ ] Clean git working tree
+- [x] Phase 2 complete (frontend cleanup done)
+- [x] `reports/audit-report.json` exists
+- [x] `reports/audit-report.md` reviewed (puppeteer and backend sections)
+- [x] `npm run test:frontend` still passes
+- [x] Clean git working tree
 
 ---
 
@@ -55,10 +55,10 @@ Complete the codebase cleanup by processing puppeteer and backend components. Re
 4. Run lint and tests after each deletion
 
 **Verification Checklist:**
-- [ ] All items from audit report addressed
-- [ ] `cd puppeteer && npm run lint` passes
-- [ ] `cd puppeteer && npm run test` passes
-- [ ] Express server starts without errors
+- [x] All items from audit report addressed
+- [x] `cd puppeteer && npm run lint` passes
+- [x] `cd puppeteer && npm run test` passes
+- [x] Express server starts without errors
 
 **Testing Instructions:**
 - Run lint: `cd puppeteer && npm run lint`
@@ -102,10 +102,10 @@ refactor(puppeteer): remove dead code identified by knip
    - Same approach as frontend
 
 **Verification Checklist:**
-- [ ] Sequential awaits parallelized where possible
-- [ ] Array operations optimized
-- [ ] Puppeteer calls batched where beneficial
-- [ ] `cd puppeteer && npm run test` passes
+- [x] Sequential awaits parallelized where possible
+- [x] Array operations optimized
+- [x] Puppeteer calls batched where beneficial
+- [x] `cd puppeteer && npm run test` passes
 
 **Testing Instructions:**
 - Run tests after each optimization: `cd puppeteer && npm run test`
@@ -149,10 +149,10 @@ perf(puppeteer): optimize async and array patterns
    - Keep suppression comments
 
 **Verification Checklist:**
-- [ ] Secrets extracted to environment variables
-- [ ] Utilities consolidated
-- [ ] Comments cleaned
-- [ ] `cd puppeteer && npm run test` passes
+- [x] Secrets extracted to environment variables
+- [x] Utilities consolidated
+- [x] Comments cleaned
+- [x] `cd puppeteer && npm run test` passes
 
 **Testing Instructions:**
 - Run tests: `cd puppeteer && npm run test`
@@ -186,8 +186,8 @@ refactor(puppeteer): secrets extraction and utility consolidation
 4. Verify coverage
 
 **Verification Checklist:**
-- [ ] `cd puppeteer && npm run test` passes
-- [ ] No orphaned tests
+- [x] `cd puppeteer && npm run test` passes
+- [x] No orphaned tests
 
 **Testing Instructions:**
 - Run tests: `cd puppeteer && npm run test`
@@ -225,10 +225,10 @@ test(puppeteer): update tests for cleanup changes
 4. Run tests after each deletion
 
 **Verification Checklist:**
-- [ ] All audit items addressed
-- [ ] Lambda handlers preserved
-- [ ] `npm run lint:backend` passes (ruff)
-- [ ] `npm run test:backend` passes (pytest)
+- [x] All audit items addressed
+- [x] Lambda handlers preserved
+- [x] `npm run lint:backend` passes (ruff)
+- [x] `npm run test:backend` passes (pytest)
 
 **Testing Instructions:**
 - Run lint: `npm run lint:backend`
@@ -273,11 +273,11 @@ refactor(backend): remove dead code identified by vulture
    - Inline trivial helpers
 
 **Verification Checklist:**
-- [ ] Iteration patterns optimized
-- [ ] Conditionals optimized
-- [ ] String operations optimized
-- [ ] `npm run lint:backend` passes
-- [ ] `npm run test:backend` passes
+- [x] Iteration patterns optimized
+- [x] Conditionals optimized
+- [x] String operations optimized
+- [x] `npm run lint:backend` passes
+- [x] `npm run test:backend` passes
 
 **Testing Instructions:**
 - Run lint: `npm run lint:backend`
@@ -322,10 +322,10 @@ perf(backend): optimize Python patterns for Lambda performance
    - Keep `# noqa` and type hint comments
 
 **Verification Checklist:**
-- [ ] Secrets extracted to environment variables
-- [ ] Utilities consolidated in shared/
-- [ ] Comments cleaned
-- [ ] `npm run test:backend` passes
+- [x] Secrets extracted to environment variables
+- [x] Utilities consolidated in shared/
+- [x] Comments cleaned
+- [x] `npm run test:backend` passes
 
 **Testing Instructions:**
 - Run tests: `npm run test:backend`
@@ -358,8 +358,8 @@ refactor(backend): secrets extraction and utility consolidation
 4. Verify coverage
 
 **Verification Checklist:**
-- [ ] `npm run test:backend` passes
-- [ ] No orphaned tests
+- [x] `npm run test:backend` passes
+- [x] No orphaned tests
 
 **Testing Instructions:**
 - Run tests: `npm run test:backend`
@@ -401,10 +401,10 @@ test(backend): update tests for cleanup changes
 5. Keep changes minimal—this CI is already well-configured
 
 **Verification Checklist:**
-- [ ] CI workflow syntax valid (`act` or push to verify)
-- [ ] No functional changes to pipeline behavior
-- [ ] Pip caching added if missing
-- [ ] Timeouts reasonable
+- [x] CI workflow syntax valid (`act` or push to verify)
+- [x] No functional changes to pipeline behavior
+- [x] Pip caching added if missing
+- [x] Timeouts reasonable
 
 **Testing Instructions:**
 - Push to a branch and verify CI runs
@@ -446,11 +446,11 @@ ci: add pip caching and minor optimizations
 6. Rename/copy audit output to final versions
 
 **Verification Checklist:**
-- [ ] `npm run test` passes (all components)
-- [ ] `npm run lint` passes (all components)
-- [ ] `npm run build` passes (frontend)
-- [ ] New audit shows reduced issues
-- [ ] Any remaining issues documented
+- [x] `npm run test` passes (all components)
+- [x] `npm run lint` passes (all components)
+- [x] `npm run build` passes (frontend)
+- [x] New audit shows reduced issues
+- [x] Any remaining issues documented
 
 **Testing Instructions:**
 - Run all lints: `npm run lint`
@@ -506,11 +506,11 @@ chore: complete code hygiene cleanup
 7. **All commits made with proper format**
 
 ### Integration Points Verified:
-- [ ] Frontend TypeScript compiles without errors
-- [ ] Puppeteer server starts without errors
-- [ ] Backend SAM template valid
-- [ ] No circular dependencies introduced
-- [ ] All imports resolve correctly
+- [x] Frontend TypeScript compiles without errors
+- [x] Puppeteer server starts without errors
+- [x] Backend SAM template valid
+- [x] No circular dependencies introduced
+- [x] All imports resolve correctly
 
 ### Known Limitations:
 - Some knip/vulture findings may be false positives (documented in final audit)
@@ -525,34 +525,34 @@ chore: complete code hygiene cleanup
 ## Complete Cleanup Summary Checklist
 
 ### Frontend (Phase 2)
-- [ ] Dead code removed
-- [ ] Performance optimizations applied
-- [ ] Secrets extracted
-- [ ] Utilities consolidated
-- [ ] Comments cleaned
-- [ ] Tests updated
+- [x] Dead code removed
+- [x] Performance optimizations applied
+- [x] Secrets extracted
+- [x] Utilities consolidated
+- [x] Comments cleaned
+- [x] Tests updated
 
 ### Puppeteer (Phase 3)
-- [ ] Dead code removed
-- [ ] Performance optimizations applied
-- [ ] Secrets extracted
-- [ ] Utilities consolidated
-- [ ] Comments cleaned
-- [ ] Tests updated
+- [x] Dead code removed
+- [x] Performance optimizations applied
+- [x] Secrets extracted
+- [x] Utilities consolidated
+- [x] Comments cleaned
+- [x] Tests updated
 
 ### Backend (Phase 3)
-- [ ] Dead code removed
-- [ ] Performance optimizations applied
-- [ ] Secrets extracted
-- [ ] Utilities consolidated
-- [ ] Comments cleaned
-- [ ] Tests updated
+- [x] Dead code removed
+- [x] Performance optimizations applied
+- [x] Secrets extracted
+- [x] Utilities consolidated
+- [x] Comments cleaned
+- [x] Tests updated
 
 ### Infrastructure (Phase 3)
-- [ ] CI tweaks applied
-- [ ] Final audit generated
-- [ ] All tests pass
-- [ ] All lints pass
+- [x] CI tweaks applied
+- [x] Final audit generated
+- [x] All tests pass
+- [x] All lints pass
 
 ---
 
