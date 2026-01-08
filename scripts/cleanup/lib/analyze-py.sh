@@ -139,8 +139,55 @@ count_py_issues() {
 }
 
 # Scan Python for high-entropy strings (secrets)
-# Implementation in Task 4
 scan_py_secrets() {
     echo "  → Scanning Python for secrets..."
-    PY_SECRETS="{}"
+
+    local output_file="$REPORT_DIR/secrets-py-$TIMESTAMP.json"
+
+    if ! check_tool "uvx" "pip install uv"; then
+        echo "    ⚠ uvx not found, skipping secrets scan"
+        PY_SECRETS="{}"
+        return 1
+    fi
+
+    # Scan backend lambdas with detect-secrets
+    # Disable Base64HighEntropyString to reduce false positives
+    local results
+    results=$(uvx detect-secrets scan "$REPO_ROOT/backend/lambdas" \
+        --disable-plugin Base64HighEntropyString \
+        --exclude-files '\.aws-sam/.*' \
+        --exclude-files '__pycache__/.*' \
+        --exclude-files '.*_test\.py$' \
+        --exclude-files 'test_.*\.py$' \
+        2>/dev/null) || true
+
+    # Extract results
+    local secrets_results
+    secrets_results=$(echo "$results" | jq -r '.results // {}' 2>/dev/null || echo "{}")
+
+    # Create output
+    cat > "$output_file" <<EOF
+{
+    "backend": $secrets_results
+}
+EOF
+
+    if [[ -f "$output_file" ]]; then
+        PY_SECRETS=$(cat "$output_file")
+        echo "    Report saved: $output_file"
+    else
+        PY_SECRETS="{}"
+    fi
+
+    # Count findings
+    local total_secrets=0
+    if command -v jq &> /dev/null; then
+        total_secrets=$(echo "$secrets_results" | jq 'keys | length' 2>/dev/null || echo "0")
+    fi
+
+    if [[ $total_secrets -gt 0 ]]; then
+        echo "    ⚠ Found $total_secrets files with potential secrets"
+    else
+        echo "    ✓ No secrets detected"
+    fi
 }

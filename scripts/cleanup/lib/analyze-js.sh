@@ -94,8 +94,81 @@ count_js_issues() {
 }
 
 # Scan JS/TS for high-entropy strings (secrets)
-# Implementation in Task 4
 scan_js_secrets() {
     echo "  → Scanning JS/TS for secrets..."
-    JS_SECRETS="{}"
+
+    local output_file="$REPORT_DIR/secrets-js-$TIMESTAMP.json"
+
+    if ! check_tool "uvx" "pip install uv"; then
+        echo "    ⚠ uvx not found, skipping secrets scan"
+        JS_SECRETS="{}"
+        return 1
+    fi
+
+    # Scan frontend and puppeteer with detect-secrets
+    # Disable Base64HighEntropyString to reduce false positives
+    local exclude_patterns=(
+        '.*\.test\.(ts|tsx|js)$'
+        'node_modules/.*'
+        'dist/.*'
+        'coverage/.*'
+        '.*\.d\.ts$'
+    )
+
+    local exclude_args=""
+    for pattern in "${exclude_patterns[@]}"; do
+        exclude_args+=" --exclude-files '$pattern'"
+    done
+
+    # Scan frontend
+    local frontend_results
+    frontend_results=$(uvx detect-secrets scan "$REPO_ROOT/frontend/src" \
+        --disable-plugin Base64HighEntropyString \
+        --exclude-files '.*\.test\.(ts|tsx)$' \
+        --exclude-files 'node_modules/.*' \
+        --exclude-files '.*\.d\.ts$' \
+        2>/dev/null) || true
+
+    # Scan puppeteer
+    local puppeteer_results
+    puppeteer_results=$(uvx detect-secrets scan "$REPO_ROOT/puppeteer/src" \
+        --disable-plugin Base64HighEntropyString \
+        --exclude-files '.*\.test\.js$' \
+        --exclude-files 'node_modules/.*' \
+        2>/dev/null) || true
+
+    # Combine results
+    local frontend_secrets puppeteer_secrets
+    frontend_secrets=$(echo "$frontend_results" | jq -r '.results // {}' 2>/dev/null || echo "{}")
+    puppeteer_secrets=$(echo "$puppeteer_results" | jq -r '.results // {}' 2>/dev/null || echo "{}")
+
+    # Create combined output
+    cat > "$output_file" <<EOF
+{
+    "frontend": $frontend_secrets,
+    "puppeteer": $puppeteer_secrets
+}
+EOF
+
+    if [[ -f "$output_file" ]]; then
+        JS_SECRETS=$(cat "$output_file")
+        echo "    Report saved: $output_file"
+    else
+        JS_SECRETS="{}"
+    fi
+
+    # Count findings
+    local total_secrets=0
+    if command -v jq &> /dev/null; then
+        local frontend_count puppeteer_count
+        frontend_count=$(echo "$frontend_secrets" | jq 'keys | length' 2>/dev/null || echo "0")
+        puppeteer_count=$(echo "$puppeteer_secrets" | jq 'keys | length' 2>/dev/null || echo "0")
+        total_secrets=$((frontend_count + puppeteer_count))
+    fi
+
+    if [[ $total_secrets -gt 0 ]]; then
+        echo "    ⚠ Found $total_secrets files with potential secrets"
+    else
+        echo "    ✓ No secrets detected"
+    fi
 }
