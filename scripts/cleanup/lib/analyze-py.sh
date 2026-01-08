@@ -16,8 +16,8 @@ get_py_dead_code() {
 }
 
 # Scan Python for high-entropy strings (secrets)
+# Implementation in Task 4
 scan_py_secrets() {
     echo "  → Scanning Python for secrets..."
-    # Implementation in Task 4
-    echo "{}"
+    PY_SECRETS="{}"
 }
