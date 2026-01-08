@@ -18,6 +18,7 @@
     "benchmark": "node scripts/benchmarks/benchmark-performance.js",
     "cleanup": "bash scripts/cleanup/code-cleanup.sh",
     "cleanup:audit": "bash scripts/cleanup/code-cleanup.sh audit",
+    "deploy": "node scripts/deploy/deploy-sam.js",
     "deploy:ragstack": "node scripts/deploy/deploy-ragstack.js"
   },
   "author": "HatmanStack",
