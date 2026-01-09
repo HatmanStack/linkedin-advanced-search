@@ -41,7 +41,8 @@ def test_lambda_handler_with_auth(lambda_context, edge_processing_module):
 
     response = edge_processing_module.lambda_handler(event, lambda_context)
 
-    assert response['statusCode'] in [200, 400, 500]
+    # 502 is valid when DynamoDB is unreachable (ExternalServiceError)
+    assert response['statusCode'] in [200, 400, 500, 502]
     assert 'body' in response
 
 

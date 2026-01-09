@@ -1,4 +1,6 @@
 """Integration tests for EdgeService with mocked AWS services."""
+import base64
+
 import pytest
 from moto import mock_aws
 
@@ -176,8 +178,9 @@ class TestEdgeServiceIntegration:
 
         service = edge_service_module.EdgeService(table=table)
 
-        # Check non-existent
-        result = service.check_exists('test-user', 'nonexistent')
+        # Check non-existent (encode to base64 as check_exists expects)
+        nonexistent_b64 = base64.urlsafe_b64encode(b'nonexistent').decode()
+        result = service.check_exists('test-user', nonexistent_b64)
         assert result['exists'] is False
 
         # Create edge and capture the returned profile_id

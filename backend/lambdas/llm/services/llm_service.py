@@ -122,7 +122,9 @@ class LLMService(BaseService):
             )
 
             # Use IDEM_KEY from env, or fall back to job_id for idempotency
-            idempotency_key = os.environ.get('IDEM_KEY') or job_id or str(uuid.uuid4())
+            # Explicitly check for empty string to ensure proper fallback
+            env_idem_key = os.environ.get('IDEM_KEY')
+            idempotency_key = (env_idem_key if env_idem_key else None) or job_id or str(uuid.uuid4())
 
             self.openai_client.responses.create(
                 model="gpt-5",
@@ -162,7 +164,7 @@ class LLMService(BaseService):
             job_id = str(uuid.uuid4())
 
             formatted_user_data = ''
-            if user_data and user_data.get('name') != "Tom, Dick, And Harry":
+            if user_data and user_data.get('name') != PROFILE_PLACEHOLDER_NAME:
                 for key, value in user_data.items():
                     if key != "linkedin_credentials":
                         formatted_user_data += f"{key}: {value}\n"
@@ -293,7 +295,7 @@ class LLMService(BaseService):
                 return {'success': False, 'error': 'Missing required field: job_id'}
 
             user_data = ''
-            if isinstance(user_profile, dict) and user_profile.get('name') != "Tom, Dick, And Harry":
+            if isinstance(user_profile, dict) and user_profile.get('name') != PROFILE_PLACEHOLDER_NAME:
                 for key, value in user_profile.items():
                     user_data += f"{key}: {value}\n"
 
@@ -307,12 +309,17 @@ class LLMService(BaseService):
                 ideas_content=ideas_content,
             )
 
+            # Use IDEM_KEY from env, or fall back to job_id for idempotency
+            # Explicitly check for empty string to ensure proper fallback
+            env_idem_key = os.environ.get('IDEM_KEY')
+            idempotency_key = (env_idem_key if env_idem_key else None) or job_id or str(uuid.uuid4())
+
             self.openai_client.responses.create(
                 model="gpt-5",
                 input=llm_prompt,
                 background=True,
                 metadata={"job_id": job_id, "user_id": user_id, "kind": "SYNTHESIZE"},
-                extra_headers={"Idempotency-Key": os.environ.get('IDEM_KEY')},
+                extra_headers={"Idempotency-Key": idempotency_key},
             )
 
             return {'success': True, 'status': 'queued'}

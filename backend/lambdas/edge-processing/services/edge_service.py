@@ -68,7 +68,9 @@ class EdgeService(BaseService):
     def health_check(self) -> dict[str, Any]:
         """Check service health by verifying table access."""
         try:
-            status = getattr(self.table, 'table_status', 'UNKNOWN')
+            # reload() fetches current table metadata from DynamoDB
+            self.table.reload()
+            status = self.table.table_status
             return {
                 'healthy': status == 'ACTIVE',
                 'details': {'table_status': status}
@@ -121,23 +123,29 @@ class EdgeService(BaseService):
             if status == 'processed':
                 user_profile_edge['processedAt'] = current_time
 
-            # Create profile-to-user edge
-            profile_user_edge = {
-                'PK': f'PROFILE#{profile_id_b64}',
-                'SK': f'USER#{user_id}',
-                'addedAt': added_at or current_time,
-                'status': status,
-                'attempts': 1,
-                'lastAttempt': current_time,
-                'updatedAt': current_time
-            }
-
             # Use transactional write for atomicity - both edges succeed or both fail
+            # profile_user_edge uses Update to preserve/increment attempts counter
             table_name = self.table.table_name
+            serializer = TypeSerializer()
             self.table.meta.client.transact_write_items(
                 TransactItems=[
                     {'Put': {'TableName': table_name, 'Item': self._serialize_item(user_profile_edge)}},
-                    {'Put': {'TableName': table_name, 'Item': self._serialize_item(profile_user_edge)}}
+                    {'Update': {
+                        'TableName': table_name,
+                        'Key': {
+                            'PK': serializer.serialize(f'PROFILE#{profile_id_b64}'),
+                            'SK': serializer.serialize(f'USER#{user_id}')
+                        },
+                        'UpdateExpression': 'SET addedAt = if_not_exists(addedAt, :added), #status = :status, lastAttempt = :lastAttempt, updatedAt = :updated ADD attempts :inc',
+                        'ExpressionAttributeNames': {'#status': 'status'},
+                        'ExpressionAttributeValues': {
+                            ':added': serializer.serialize(added_at or current_time),
+                            ':status': serializer.serialize(status),
+                            ':lastAttempt': serializer.serialize(current_time),
+                            ':updated': serializer.serialize(current_time),
+                            ':inc': serializer.serialize(1)
+                        }
+                    }}
                 ]
             )
 
@@ -286,10 +294,11 @@ class EdgeService(BaseService):
 
         except ClientError as e:
             logger.error(f"DynamoDB error in get_connections_by_status: {e}")
-            return {
-                'success': False,
-                'error': str(e)
-            }
+            raise ExternalServiceError(
+                message='Failed to get connections',
+                service='DynamoDB',
+                original_error=str(e)
+            ) from e
 
     def get_messages(
         self,
@@ -335,10 +344,11 @@ class EdgeService(BaseService):
 
         except ClientError as e:
             logger.error(f"DynamoDB error in get_messages: {e}")
-            return {
-                'success': False,
-                'error': str(e)
-            }
+            raise ExternalServiceError(
+                message='Failed to get messages',
+                service='DynamoDB',
+                original_error=str(e)
+            ) from e
 
     def check_exists(
         self,
@@ -380,10 +390,11 @@ class EdgeService(BaseService):
 
         except ClientError as e:
             logger.error(f"DynamoDB error in check_exists: {e}")
-            return {
-                'success': False,
-                'error': str(e)
-            }
+            raise ExternalServiceError(
+                message='Failed to check edge existence',
+                service='DynamoDB',
+                original_error=str(e)
+            ) from e
 
     # =========================================================================
     # Private helper methods
@@ -544,10 +555,13 @@ class EdgeService(BaseService):
 
             profile_data['profile_id'] = profile_id_b64
 
-            # Generate markdown
+            # Generate markdown (late import to avoid circular dependencies)
             try:
                 from utils.profile_markdown import generate_profile_markdown
                 markdown_content = generate_profile_markdown(profile_data)
+            except ImportError as e:
+                logger.error(f"Failed to import profile_markdown: {e}")
+                return {'success': False, 'error': 'Markdown generator module not available'}
             except Exception as e:
                 logger.error(f"Error generating markdown: {e}")
                 return {'success': False, 'error': f'Markdown generation failed: {e}'}
