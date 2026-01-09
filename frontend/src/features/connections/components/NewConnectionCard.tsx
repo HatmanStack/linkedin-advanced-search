@@ -22,6 +22,7 @@ import { createLogger } from '@/shared/utils/logger';
 
 const logger = createLogger('NewConnectionCard');
 import type { NewConnectionCardProps } from '@/types';
+import { ConversionLikelihoodBadge } from './ConversionLikelihoodBadge';
 
 /**
  * NewConnectionCard Component
@@ -425,11 +426,9 @@ const NewConnectionCard: React.FC<NewConnectionCardProps> = ({
                 </AlertDialog>
               </div>
 
-              {/* Conversion Likelihood Percentage */}
-              {connection.conversion_likelihood !== undefined && (
-                <div className="text-slate-300 text-xs font-medium">
-                  {connection.conversion_likelihood}%
-                </div>
+              {/* Conversion Likelihood Badge */}
+              {connection.conversion_likelihood && (
+                <ConversionLikelihoodBadge likelihood={connection.conversion_likelihood} />
               )}
             </div>
           </div>

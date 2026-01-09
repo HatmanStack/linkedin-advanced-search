@@ -69,8 +69,8 @@ export interface Connection {
   /** Current relationship status with the connection */
   status: ConnectionStatus;
 
-  /** Conversion likelihood percentage for 'possible' connections (0-100, optional) */
-  conversion_likelihood?: number;
+  /** Conversion likelihood classification for 'possible' connections (enum string, optional) */
+  conversion_likelihood?: ConversionLikelihood;
 
   /** Array of message history (optional) */
   message_history?: Message[];
@@ -122,11 +122,8 @@ export interface ConnectionFilters {
   /** Search term for name/position/company (optional) */
   searchTerm?: string;
 
-  /** Filter by conversion likelihood range (optional) */
-  conversionLikelihoodRange?: {
-    min: number;
-    max: number;
-  };
+  /** Filter by conversion likelihood values (optional) */
+  conversionLikelihood?: ConversionLikelihood | ConversionLikelihood[] | 'all';
 }
 
 /**
@@ -239,8 +236,20 @@ export type MessageSender = 'user' | 'connection';
 export type StatusValue = 'all' | 'incoming' | 'outgoing' | 'ally';
 
 /**
+ * Conversion likelihood classification
+ *
+ * @type ConversionLikelihood
+ * @description Simple three-tier classification for conversion potential.
+ * Replaces percentage-based scoring (0-100) with clear categories.
+ * - high: Complete profile + recent + no prior attempts
+ * - medium: Partial data or older profile
+ * - low: Incomplete profile or many attempts
+ */
+export type ConversionLikelihood = 'high' | 'medium' | 'low';
+
+/**
  * Error severity levels
- * 
+ *
  * @type ErrorSeverity
  * @description Categorizes errors by their impact and urgency for user feedback.
  */

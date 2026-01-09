@@ -2,7 +2,6 @@ import React, { useState, useCallback, useMemo } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import { 
   Select, 
@@ -16,15 +15,15 @@ import {
   PopoverContent, 
   PopoverTrigger 
 } from "@/components/ui/popover";
-import { 
-  Filter, 
-  X, 
-  MapPin, 
-  Building, 
+import {
+  Filter,
+  X,
+  MapPin,
+  Building,
   TrendingUp,
   RotateCcw
 } from 'lucide-react';
-import type { Connection, ConnectionFilters } from '@/types';
+import type { Connection, ConnectionFilters, ConversionLikelihood } from '@/types';
 
 interface ConnectionFiltersProps {
   connections: Connection[];
@@ -37,7 +36,7 @@ interface ConnectionFiltersProps {
 interface FilterStats {
   locations: Array<{ value: string; count: number }>;
   companies: Array<{ value: string; count: number }>;
-  conversionRange: { min: number; max: number };
+  hasConversionData: boolean;
 }
 
 const ConnectionFiltersComponent: React.FC<ConnectionFiltersProps> = ({
@@ -53,8 +52,7 @@ const ConnectionFiltersComponent: React.FC<ConnectionFiltersProps> = ({
   const filterStats = useMemo((): FilterStats => {
     const locationCounts = new Map<string, number>();
     const companyCounts = new Map<string, number>();
-    let minConversion = 100;
-    let maxConversion = 0;
+    let hasConversionData = false;
 
     connections.forEach(connection => {
       // Count locations
@@ -69,10 +67,9 @@ const ConnectionFiltersComponent: React.FC<ConnectionFiltersProps> = ({
         companyCounts.set(company, (companyCounts.get(company) || 0) + 1);
       }
 
-      // Track conversion likelihood range
-      if (connection.conversion_likelihood !== undefined) {
-        minConversion = Math.min(minConversion, connection.conversion_likelihood);
-        maxConversion = Math.max(maxConversion, connection.conversion_likelihood);
+      // Check if any connection has conversion data
+      if (connection.conversion_likelihood) {
+        hasConversionData = true;
       }
     });
 
@@ -85,10 +82,7 @@ const ConnectionFiltersComponent: React.FC<ConnectionFiltersProps> = ({
         .map(([value, count]) => ({ value, count }))
         .sort((a, b) => b.count - a.count)
         .slice(0, 20), // Limit to top 20 companies
-      conversionRange: {
-        min: minConversion === 100 ? 0 : minConversion,
-        max: maxConversion === 0 ? 100 : maxConversion
-      }
+      hasConversionData
     };
   }, [connections]);
 
@@ -100,12 +94,13 @@ const ConnectionFiltersComponent: React.FC<ConnectionFiltersProps> = ({
     });
   }, [filters, onFiltersChange]);
 
-  // Handle conversion likelihood range change
-  const handleConversionRangeChange = useCallback((values: number[]) => {
-    updateFilter('conversionLikelihoodRange', {
-      min: values[0],
-      max: values[1]
-    });
+  // Handle conversion likelihood filter change
+  const handleConversionChange = useCallback((value: string) => {
+    if (value === 'all') {
+      updateFilter('conversionLikelihood', undefined);
+    } else {
+      updateFilter('conversionLikelihood', value as ConversionLikelihood);
+    }
   }, [updateFilter]);
 
   // Clear all filters
@@ -126,7 +121,7 @@ const ConnectionFiltersComponent: React.FC<ConnectionFiltersProps> = ({
     if (filters.location) count++;
     if (filters.company) count++;
     if (filters.searchTerm) count++;
-    if (filters.conversionLikelihoodRange) count++;
+    if (filters.conversionLikelihood && filters.conversionLikelihood !== 'all') count++;
     return count;
   }, [filters]);
 
@@ -169,18 +164,20 @@ const ConnectionFiltersComponent: React.FC<ConnectionFiltersProps> = ({
         </Badge>
       )}
 
-      {filters.conversionLikelihoodRange && isNewConnection && (
-        <Badge 
-          variant="secondary" 
+      {filters.conversionLikelihood && filters.conversionLikelihood !== 'all' && isNewConnection && (
+        <Badge
+          variant="secondary"
           className="bg-purple-500/20 text-purple-300 border-purple-500/30"
         >
           <TrendingUp className="h-3 w-3 mr-1" />
-          {filters.conversionLikelihoodRange.min}%-{filters.conversionLikelihoodRange.max}%
+          {Array.isArray(filters.conversionLikelihood)
+            ? filters.conversionLikelihood.join(', ')
+            : filters.conversionLikelihood}
           <Button
             variant="ghost"
             size="sm"
             className="h-4 w-4 p-0 ml-1 hover:bg-purple-500/30"
-            onClick={() => clearFilter('conversionLikelihoodRange')}
+            onClick={() => clearFilter('conversionLikelihood')}
           >
             <X className="h-3 w-3" />
           </Button>
@@ -290,29 +287,32 @@ const ConnectionFiltersComponent: React.FC<ConnectionFiltersProps> = ({
             </div>
 
             {/* Conversion likelihood filter (only for new connections) */}
-            {isNewConnection && filterStats.conversionRange.max > 0 && (
+            {isNewConnection && filterStats.hasConversionData && (
               <div className="space-y-2">
                 <Label className="text-sm font-medium">
                   <TrendingUp className="h-4 w-4 inline mr-1" />
                   Conversion Likelihood
                 </Label>
-                <div className="px-2">
-                  <Slider
-                    value={[
-                      filters.conversionLikelihoodRange?.min ?? filterStats.conversionRange.min,
-                      filters.conversionLikelihoodRange?.max ?? filterStats.conversionRange.max
-                    ]}
-                    onValueChange={handleConversionRangeChange}
-                    min={filterStats.conversionRange.min}
-                    max={filterStats.conversionRange.max}
-                    step={1}
-                    className="w-full"
-                  />
-                  <div className="flex justify-between text-xs text-slate-400 mt-1">
-                    <span>{filters.conversionLikelihoodRange?.min ?? filterStats.conversionRange.min}%</span>
-                    <span>{filters.conversionLikelihoodRange?.max ?? filterStats.conversionRange.max}%</span>
-                  </div>
-                </div>
+                <Select
+                  value={
+                    filters.conversionLikelihood
+                      ? (Array.isArray(filters.conversionLikelihood)
+                          ? filters.conversionLikelihood[0]
+                          : filters.conversionLikelihood)
+                      : 'all'
+                  }
+                  onValueChange={handleConversionChange}
+                >
+                  <SelectTrigger className="bg-slate-700 border-slate-600 text-white">
+                    <SelectValue placeholder="Select likelihood..." />
+                  </SelectTrigger>
+                  <SelectContent className="bg-slate-800 border-slate-700">
+                    <SelectItem value="all" className="text-white">All Likelihoods</SelectItem>
+                    <SelectItem value="high" className="text-white">High</SelectItem>
+                    <SelectItem value="medium" className="text-white">Medium</SelectItem>
+                    <SelectItem value="low" className="text-white">Low</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             )}
 
