@@ -180,15 +180,20 @@ class LLMService(BaseService):
                 user_data=formatted_user_data
             )
 
+            # Use IDEM_KEY from env, or fall back to job_id for idempotency
+            env_idem_key = os.environ.get('IDEM_KEY')
+            idempotency_key = (env_idem_key if env_idem_key else None) or job_id or str(uuid.uuid4())
+
             self.openai_client.responses.create(
                 model="o4-mini-deep-research",
                 input=research_prompt,
                 background=True,
-                metadata={"job_id": job_id, "user_id": user_id},
+                metadata={"job_id": job_id, "user_id": user_id, "kind": "RESEARCH"},
                 tools=[
                     {"type": "web_search_preview"},
                     {"type": "code_interpreter", "container": {"type": "auto"}},
-                ]
+                ],
+                extra_headers={"Idempotency-Key": idempotency_key},
             )
 
             return {
