@@ -376,7 +376,16 @@ class LLMService(BaseService):
             )
 
             response_body = json.loads(response['body'].read())
-            content = response_body["content"][0]["text"]
+
+            # Validate response structure
+            if not isinstance(response_body.get("content"), list) or len(response_body["content"]) == 0:
+                logger.error("Unexpected Bedrock response structure: missing or empty content array")
+                return {'success': False, 'error': 'Invalid response from Bedrock'}
+
+            content = response_body["content"][0].get("text")
+            if content is None:
+                logger.error("Missing text field in Bedrock response content")
+                return {'success': False, 'error': 'Missing content in Bedrock response'}
 
             return {'success': True, 'content': content}
 
