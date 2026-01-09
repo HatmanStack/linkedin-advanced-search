@@ -81,9 +81,13 @@ class LLMService(BaseService):
         self.bedrock_model_id = bedrock_model_id or os.environ.get('BEDROCK_MODEL_ID', 'anthropic.claude-3-sonnet-20240229-v1:0')
 
     def health_check(self) -> dict[str, Any]:
-        """Check service health."""
+        """Check service health by verifying clients are configured."""
+        clients_configured = (
+            (self.openai_client is not None or self.bedrock_client is not None) and
+            self.table is not None
+        )
         return {
-            'healthy': True,
+            'healthy': clients_configured,
             'details': {
                 'openai_configured': self.openai_client is not None,
                 'bedrock_configured': self.bedrock_client is not None,
@@ -127,7 +131,7 @@ class LLMService(BaseService):
             idempotency_key = (env_idem_key if env_idem_key else None) or job_id or str(uuid.uuid4())
 
             self.openai_client.responses.create(
-                model="gpt-5",
+                model="gpt-5.2",
                 input=llm_prompt,
                 background=True,
                 metadata={"job_id": job_id, "user_id": user_id, "kind": "IDEAS"},
@@ -261,7 +265,7 @@ class LLMService(BaseService):
                 sections = self._parse_synthesize_sections(content)
                 if sections:
                     return {'success': True, 'sections': sections}
-            return {'success': True, 'content': item.get('content')}
+            return {'success': True, 'content': item.get('content', '')}
 
         except Exception as e:
             logger.error(f"Error in get_research_result: {e}")
@@ -315,7 +319,7 @@ class LLMService(BaseService):
             idempotency_key = (env_idem_key if env_idem_key else None) or job_id or str(uuid.uuid4())
 
             self.openai_client.responses.create(
-                model="gpt-5",
+                model="gpt-5.2",
                 input=llm_prompt,
                 background=True,
                 metadata={"job_id": job_id, "user_id": user_id, "kind": "SYNTHESIZE"},
