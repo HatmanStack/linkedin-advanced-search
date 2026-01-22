@@ -1,0 +1,114 @@
+{
+  "connections": [
+    {
+      "profileId": "john-smith-12345",
+      "name": "John Smith",
+      "headline": "Senior Software Engineer at TechCorp",
+      "about": "Passionate about building scalable systems. 10+ years in backend development.",
+      "isConnected": true,
+      "connectionDegree": "1st"
+    },
+    {
+      "profileId": "jane-doe-67890",
+      "name": "Jane Doe",
+      "headline": "Product Manager at StartupXYZ",
+      "about": "Building products that users love. Former engineer turned PM.",
+      "isConnected": true,
+      "connectionDegree": "1st"
+    },
+    {
+      "profileId": "bob-wilson-11111",
+      "name": "Bob Wilson",
+      "headline": "CTO at InnovateTech",
+      "about": "Technology leader focused on AI and machine learning.",
+      "isConnected": true,
+      "connectionDegree": "1st"
+    },
+    {
+      "profileId": "alice-johnson-22222",
+      "name": "Alice Johnson",
+      "headline": "Data Scientist at BigData Inc",
+      "about": "Turning data into insights. PhD in Statistics.",
+      "isConnected": false,
+      "connectionDegree": "2nd"
+    },
+    {
+      "profileId": "charlie-brown-33333",
+      "name": "Charlie Brown",
+      "headline": "DevOps Engineer at CloudFirst",
+      "about": "Infrastructure as code enthusiast. Kubernetes certified.",
+      "isConnected": false,
+      "connectionDegree": "2nd"
+    },
+    {
+      "profileId": "diana-prince-44444",
+      "name": "Diana Prince",
+      "headline": "Engineering Manager at ScaleUp",
+      "about": "Leading high-performing engineering teams.",
+      "isConnected": false,
+      "connectionDegree": "3rd"
+    },
+    {
+      "profileId": "evan-rogers-55555",
+      "name": "Evan Rogers",
+      "headline": "Full Stack Developer at WebAgency",
+      "about": "React, Node.js, and everything in between.",
+      "isConnected": true,
+      "connectionDegree": "1st"
+    },
+    {
+      "profileId": "fiona-chen-66666",
+      "name": "Fiona Chen",
+      "headline": "VP of Engineering at GrowthCo",
+      "about": "Scaling engineering organizations from 10 to 100+.",
+      "isConnected": false,
+      "connectionDegree": "2nd"
+    }
+  ],
+  "pendingInvitations": [
+    {
+      "profileId": "mike-taylor-77777",
+      "name": "Mike Taylor",
+      "headline": "Recruiter at TalentFinders",
+      "message": "Hi! I'd like to connect regarding opportunities.",
+      "receivedAt": "2024-01-15T10:00:00Z"
+    },
+    {
+      "profileId": "sarah-lee-88888",
+      "name": "Sarah Lee",
+      "headline": "Startup Founder",
+      "message": null,
+      "receivedAt": "2024-01-14T15:30:00Z"
+    }
+  ],
+  "sentInvitations": [
+    {
+      "profileId": "david-kim-99999",
+      "name": "David Kim",
+      "headline": "Staff Engineer at FAANG",
+      "message": "Hi David, I enjoyed your recent talk on system design.",
+      "sentAt": "2024-01-13T09:00:00Z"
+    }
+  ],
+  "posts": [
+    {
+      "id": "post-1",
+      "authorId": "john-smith-12345",
+      "authorName": "John Smith",
+      "content": "Excited to announce we just shipped our new microservices architecture! Performance improved by 40%.",
+      "createdAt": "2024-01-15T08:00:00Z",
+      "likes": 127,
+      "comments": 23
+    },
+    {
+      "id": "post-2",
+      "authorId": "jane-doe-67890",
+      "authorName": "Jane Doe",
+      "content": "What's the one product management skill you wish you learned earlier? For me, it's definitely stakeholder communication.",
+      "createdAt": "2024-01-14T14:00:00Z",
+      "likes": 89,
+      "comments": 45
+    }
+  ],
+  "messages": []
+}
