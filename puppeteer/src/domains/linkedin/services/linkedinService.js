@@ -78,7 +78,7 @@ export class LinkedInService {
       try {
         await Promise.race([
           page.waitForFunction(() => document.readyState === 'complete', { timeout: shortCapMs }),
-          page.waitForSelector('#global-nav', { timeout: shortCapMs / 2 })
+          page.waitForSelector('header, [data-view-name="navigation-homepage"]', { timeout: shortCapMs / 2 })
         ]);
       } catch {
         // Intentionally swallowed: LinkedIn is an SPA that may not trigger traditional
@@ -90,11 +90,12 @@ export class LinkedInService {
 
       // After login, wait for a common homepage selector to allow time for security challenges (2FA, checkpoint, captcha)
       // We intentionally use a long/infinite timeout controlled by config.timeouts.login (0 means no timeout)
+      // Prioritize data-view-name (stable) over class names (obfuscated)
       const homepageSelector = [
-        '#global-nav',
-        'aside.scaffold-layout__sidebar .profile-card',
-        '.feed-identity-module',
-        'div.scaffold-layout__sidebar .profile-card'
+        '[data-view-name="navigation-homepage"]',
+        '[data-view-name="identity-module"]',
+        '[data-view-name="identity-self-profile"]',
+        'header'
       ].join(', ');
       // Timeout of 0 means "wait indefinitely" - this is intentional to allow users
       // to manually complete 2FA/CAPTCHA challenges. The operator monitors the browser
@@ -122,11 +123,12 @@ export class LinkedInService {
       logger.info(`Searching for company: ${companyName}`);
 
       // Use the search box
+      // Prioritize semantic selectors over class names
       const searchSelectors = [
         'input[placeholder="Search"]',
         'input[role="combobox"]',
-        'input.search-global-typeahead__input',
-        '#global-nav input'
+        '[data-view-name="search-typeahead-container"] input',
+        'header input'
       ];
 
       let searchBoxFound = false;
@@ -508,12 +510,12 @@ export class LinkedInService {
         // Check current connection count
         const currentConnectionCount = await page.evaluate(() => {
           // Different selectors for different connection types
+          // Prioritize data-view-name and href patterns over class names
           const selectors = [
             'a[href*="/in/"]', // General LinkedIn profile links
-            '.mn-connection-card', // Connection cards
-            '.invitation-card', // Invitation cards
-            '.artdeco-entity-lockup', // Entity lockup cards
-            '[data-test-id="connection-card"]' // Test ID based cards
+            '[data-view-name="connections-profile"]', // Connection cards (new)
+            '[data-view-name="people-search-result"]', // Search result cards (new)
+            '[data-test-id="connection-card"]' // Test ID based cards (legacy)
           ];
 
           let totalCount = 0;
