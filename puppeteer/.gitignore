@@ -20,6 +20,7 @@ data/
 screenshots/
 *.json
 !package*.json
+!nodemon.json
 
 # OS generated files
 .DS_Store
@@ -41,4 +42,4 @@ tmp/
 temp/
 user*.json
 repair*.json
-all*.json
+all*.json.sealbox_private_key
