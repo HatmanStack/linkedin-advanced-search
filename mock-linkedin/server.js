@@ -10,6 +10,18 @@ const __dirname = dirname(__filename);
 const app = express();
 const PORT = process.env.MOCK_LINKEDIN_PORT || 3333;
 
+// HTML escape helper to prevent XSS
+function escapeHtml(str) {
+  if (typeof str !== 'string') return '';
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;')
+    .replace(/\//g, '&#x2F;');
+}
+
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -452,7 +464,8 @@ app.post('/api/message', (req, res) => {
     content,
     sentAt: new Date().toISOString()
   });
-  console.log(`[MOCK] Message sent to ${recipientId}: ${content.substring(0, 50)}...`);
+  const preview = (content || '').substring(0, 50);
+  console.log(`[MOCK] Message sent to ${recipientId}: ${preview}...`);
   res.json({ success: true });
 });
 
@@ -466,7 +479,8 @@ app.post('/api/post', (req, res) => {
     createdAt: new Date().toISOString()
   };
   state.posts.unshift(post);
-  console.log(`[MOCK] Post created: ${content.substring(0, 50)}...`);
+  const preview = (content || '').substring(0, 50);
+  console.log(`[MOCK] Post created: ${preview}...`);
   res.json({ success: true, post });
 });
 
@@ -488,11 +502,12 @@ app.post('/api/reset', (req, res) => {
 // Catch-all for unhandled routes
 app.use('*', (req, res) => {
   console.log(`[MOCK] Unhandled route: ${req.method} ${req.originalUrl}`);
+  const safePath = escapeHtml(req.originalUrl);
   res.status(404).send(`
     <html>
       <body>
         <h1>Mock LinkedIn - Route not found</h1>
-        <p>Path: ${req.originalUrl}</p>
+        <p>Path: ${safePath}</p>
         <p>Add this route to server.js or save an HTML file for this page.</p>
       </body>
     </html>
