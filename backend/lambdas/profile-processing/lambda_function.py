@@ -2,15 +2,12 @@
 import json
 import logging
 import os
-import sys
-from pathlib import Path
 
 import boto3
 
-sys.path.insert(0, str(Path(__file__).parent.parent / 'shared' / 'python'))
-sys.path.insert(0, str(Path(__file__).parent))
-
+# Shared layer imports (from /opt/python via Lambda Layer)
 from errors.exceptions import ExternalServiceError, NotFoundError, ServiceError, ValidationError
+# Local service import
 from services.profile_processing_service import ProfileProcessingService
 
 logger = logging.getLogger()

@@ -1,36 +1,17 @@
 """EdgeService - Business logic for edge management operations."""
 import base64
-import importlib.util
 import json
 import logging
-import sys
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import Any
 
 from boto3.dynamodb.types import TypeSerializer
 from botocore.exceptions import ClientError
 
-# Set up shared path for imports
-_shared_path = Path(__file__).parent.parent.parent / 'shared' / 'python'
-if str(_shared_path) not in sys.path:
-    sys.path.insert(0, str(_shared_path))
-
-from errors.exceptions import ExternalServiceError, ValidationError  # noqa: E402
-from models.enums import classify_conversion_likelihood  # noqa: E402
-
-
-# Import BaseService directly from file to avoid package collision
-def _load_base_service():
-    """Load BaseService from shared path directly."""
-    base_service_path = _shared_path / 'services' / 'base_service.py'
-    spec = importlib.util.spec_from_file_location('shared_base_service', base_service_path)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module.BaseService
-
-
-BaseService = _load_base_service()
+# Shared layer imports (from /opt/python via Lambda Layer)
+from errors.exceptions import ExternalServiceError, ValidationError
+from models.enums import classify_conversion_likelihood
+from shared_services.base_service import BaseService
 
 logger = logging.getLogger(__name__)
 

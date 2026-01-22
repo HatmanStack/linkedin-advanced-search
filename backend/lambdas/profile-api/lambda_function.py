@@ -40,7 +40,11 @@ def _extract_user_id(event):
     """Extract user ID from Cognito JWT claims - requires authentication"""
     import os
 
-    # Try Cognito authorizer claims first
+    # HTTP API v2 JWT authorizer path
+    sub = event.get('requestContext', {}).get('authorizer', {}).get('jwt', {}).get('claims', {}).get('sub')
+    if sub:
+        return sub
+    # Fallback for REST API path
     sub = event.get('requestContext', {}).get('authorizer', {}).get('claims', {}).get('sub')
     if sub:
         return sub

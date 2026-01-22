@@ -2,16 +2,12 @@
 import json
 import logging
 import os
-import sys
-from pathlib import Path
 
 import boto3
 
-# Add paths for imports
-sys.path.insert(0, str(Path(__file__).parent.parent / 'shared' / 'python'))
-sys.path.insert(0, str(Path(__file__).parent))
-
+# Shared layer imports (from /opt/python via Lambda Layer)
 from errors.exceptions import AuthorizationError, ExternalServiceError, NotFoundError, ServiceError, ValidationError
+# Local service import
 from services.edge_service import EdgeService
 
 logger = logging.getLogger()
@@ -31,6 +27,11 @@ def _resp(code, body):
 
 
 def _get_user_id(event):
+    # HTTP API v2 JWT authorizer path
+    sub = event.get('requestContext', {}).get('authorizer', {}).get('jwt', {}).get('claims', {}).get('sub')
+    if sub:
+        return sub
+    # Fallback for REST API path
     sub = event.get('requestContext', {}).get('authorizer', {}).get('claims', {}).get('sub')
     if sub:
         return sub
@@ -41,9 +42,18 @@ def _get_user_id(event):
 
 def lambda_handler(event, context):
     """Route edge operations to EdgeService."""
+    # Debug logging
+    logger.info(f"Event keys: {list(event.keys())}")
+    logger.info(f"Request context: {json.dumps(event.get('requestContext', {}), default=str)}")
+
+    # Handle CORS preflight
+    if event.get('requestContext', {}).get('http', {}).get('method') == 'OPTIONS':
+        return _resp(200, {'message': 'OK'})
+
     try:
         body = json.loads(event.get('body', '{}')) if isinstance(event.get('body'), str) else event.get('body') or event or {}
         user_id = _get_user_id(event)
+        logger.info(f"Extracted user_id: {user_id}")
         if not user_id:
             return _resp(401, {'error': 'Unauthorized'})
 
