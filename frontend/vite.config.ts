@@ -4,6 +4,8 @@ import path from "path"
 
 export default defineConfig({
   plugins: [react()],
+  // Use root .env file for all environment variables
+  envDir: '..',
   resolve: {
     alias: {
       "@/components": path.resolve(__dirname, "./src/shared/components"),

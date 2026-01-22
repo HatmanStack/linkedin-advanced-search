@@ -258,7 +258,7 @@ class LambdaApiService {
    * Handles Lambda response format, implements exponential backoff, and provides comprehensive error handling
    * 
    * @template T - The expected response body type
-   * @param endpoint - The endpoint to call (e.g., '/edge', '/llm')
+   * @param endpoint - The endpoint to call (e.g., '/edges', '/llm')
    * @param operation - The Lambda operation to execute
    * @param params - Parameters to send with the operation
    * @returns Promise resolving to the operation response body
@@ -355,7 +355,7 @@ class LambdaApiService {
       const response = await this.makeRequest<{
         connections: Connection[];
         count: number;
-      }>('edge', 'get_connections_by_status', { updates: status ? { status } : {} });
+      }>('edges', 'get_connections_by_status', { updates: status ? { status } : {} });
 
       // Transform and validate the response
       const connections = this.formatConnectionsResponse(response.connections || []);
@@ -416,7 +416,7 @@ class LambdaApiService {
         });
       }
 
-      await this.makeRequest<{ success: boolean; updated: Record<string, unknown> }>('edge', 'update_metadata', {
+      await this.makeRequest<{ success: boolean; updated: Record<string, unknown> }>('edges', 'update_metadata', {
         // Edge Lambda expects 'profileId' in the request body; we always send profileId
         profileId: options?.profileId ?? connectionId,
         updates: {
@@ -465,7 +465,7 @@ class LambdaApiService {
       const response = await this.makeRequest<{
         messages: Message[];
         count: number;
-      }>('edge', 'get_messages', {
+      }>('edges', 'get_messages', {
         profileId: connectionId,
       });
 
