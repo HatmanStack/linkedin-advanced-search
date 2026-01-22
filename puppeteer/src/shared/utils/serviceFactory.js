@@ -9,7 +9,7 @@
 import { PuppeteerService } from '../../domains/automation/services/puppeteerService.js';
 import { LinkedInService } from '../../domains/linkedin/services/linkedinService.js';
 import { LinkedInContactService } from '../../domains/linkedin/services/linkedinContactService.js';
-import { DynamoDBService } from '../../domains/storage/services/dynamoDBService.js';
+import DynamoDBService from '../../domains/storage/services/dynamoDBService.js';
 
 /**
  * Initialize the standard set of services used by search and profile controllers

@@ -2,11 +2,12 @@ import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { v4 as uuidv4 } from 'uuid';
 import fs from 'fs/promises';
 import path from 'path';
-import { logger } from '../../shared/utils/logger.js';
-import RandomHelpers from '../../shared/utils/randomHelpers.js';
+import { logger } from '#utils/logger.js';
+import RandomHelpers from '#utils/randomHelpers.js';
 import sharp from 'sharp';
 import TextExtractionService from '../../profile/services/textExtractionService.js';
 import S3TextUploadService from '../../storage/services/s3TextUploadService.js';
+import config from '#shared-config/index.js';
 
 
 export class LinkedInContactService {
@@ -85,7 +86,7 @@ export class LinkedInContactService {
 
       // Extract profile text (after screenshots, while still on profile page)
       try {
-        const profileUrl = `https://www.linkedin.com/in/${profileId}/`;
+        const profileUrl = `${config.linkedin.baseUrl}/in/${profileId}/`;
         logger.info(`Extracting text from profile: ${profileId}`);
         profileText = await this.textExtractionService.extractProfileText(profileUrl);
         logger.info(`Text extraction completed for ${profileId}: ${profileText.experience.length} experiences, ${profileText.education.length} education, ${profileText.skills.length} skills`);
@@ -95,7 +96,7 @@ export class LinkedInContactService {
         // Create minimal profile data on extraction failure
         profileText = {
           profile_id: profileId,
-          url: `https://www.linkedin.com/in/${profileId}/`,
+          url: `${config.linkedin.baseUrl}/in/${profileId}/`,
           name: null,
           headline: null,
           location: null,
@@ -221,7 +222,7 @@ export class LinkedInContactService {
 
    
       try {
-          const reactionsUrl = `https://www.linkedin.com/in/${profileId}/recent-activity/reactions/`;
+          const reactionsUrl = `${config.linkedin.baseUrl}/in/${profileId}/recent-activity/reactions/`;
           await this.puppeteer.goto(reactionsUrl);
           await RandomHelpers.randomDelay(1200, 2000);
           await this._autoScroll();
@@ -234,7 +235,7 @@ export class LinkedInContactService {
    
     try {
       
-      const profileUrl = `https://www.linkedin.com/in/${profileId}/`;
+      const profileUrl = `${config.linkedin.baseUrl}/in/${profileId}/`;
       await this.puppeteer.goto(profileUrl);
       await RandomHelpers.randomDelay(1500, 2500);
       await this._expandAllContent();
@@ -246,7 +247,7 @@ export class LinkedInContactService {
   
     try {
       
-      const activityUrl = `https://www.linkedin.com/in/${profileId}/recent-activity/all/`;
+      const activityUrl = `${config.linkedin.baseUrl}/in/${profileId}/recent-activity/all/`;
       await this.puppeteer.goto(activityUrl);
       await RandomHelpers.randomDelay(1500, 2500);
       await this._autoScroll();
@@ -258,7 +259,7 @@ export class LinkedInContactService {
     
     if (defaultScreens.includes('Activity')) { 
       try {
-        const activityPostsUrl = `https://www.linkedin.com/in/${profileId}/recent-activity/posts/`;
+        const activityPostsUrl = `${config.linkedin.baseUrl}/in/${profileId}/recent-activity/posts/`;
         await this.puppeteer.goto(activityPostsUrl);
         await RandomHelpers.randomDelay(1500, 2500);
         await this._autoScroll();
@@ -276,7 +277,7 @@ export class LinkedInContactService {
       
      
       logger.debug(`Capturing About-This-Profile for ${profileId}`);
-      const aboutUrl = `https://www.linkedin.com/in/${profileId}/overlay/about-this-profile/`;
+      const aboutUrl = `${config.linkedin.baseUrl}/in/${profileId}/overlay/about-this-profile/`;
       await this.puppeteer.goto(aboutUrl);
       await RandomHelpers.randomDelay(1500, 2500);
       // Wait briefly to allow overlay to render

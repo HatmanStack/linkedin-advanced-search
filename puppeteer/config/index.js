@@ -34,6 +34,12 @@ export const config = {
   
   // LinkedIn Search
   linkedin: {
+    // Testing mode: set to 'true' to use mock LinkedIn server at localhost:3333
+    testingMode: parseBoolean(process.env.LINKEDIN_TESTING_MODE, false),
+    // Base URL for LinkedIn (auto-set to localhost:3333 when testingMode is true)
+    baseUrl: parseBoolean(process.env.LINKEDIN_TESTING_MODE, false)
+      ? (process.env.LINKEDIN_BASE_URL || 'http://localhost:3333')
+      : (process.env.LINKEDIN_BASE_URL || 'https://www.linkedin.com'),
     recencyHours: parseInt(process.env.RECENCY_HOURS) || 6,
     recencyDays: parseInt(process.env.RECENCY_DAYS) || 5,
     recencyWeeks: parseInt(process.env.RECENCY_WEEKS) || 3,

@@ -1,10 +1,10 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import config from '../../shared/config/index.js';
-import { logger } from '../../shared/utils/logger.js';
-import RandomHelpers from '../../shared/utils/randomHelpers.js';
+import config from '#shared-config/index.js';
+import { logger } from '#utils/logger.js';
+import RandomHelpers from '#utils/randomHelpers.js';
 import DynamoDBService from '../../storage/services/dynamoDBService.js';
 import LinkedInContactService from './linkedinContactService.js';
-import { decryptSealboxB64Tag } from '../../../shared/utils/crypto.js';
+import { decryptSealboxB64Tag } from '#utils/crypto.js';
 
 
 export class LinkedInService {
@@ -48,7 +48,7 @@ export class LinkedInService {
         throw new Error('LinkedIn password is missing or invalid');
       }
 
-      await this.puppeteer.goto('https://www.linkedin.com/login');
+      await this.puppeteer.goto(`${config.linkedin.baseUrl}/login`);
 
       // Fill username
       const usernameSuccess = await this.puppeteer.safeType('#username', username);
@@ -340,7 +340,7 @@ export class LinkedInService {
   async getLinksFromPeoplePage(pageNumber, extractedCompanyNumber = null, encodedRole = null, extractedGeoNumber = null) {
     try {
       // Build URL conditionally based on available parameters
-      let urlParts = ['https://www.linkedin.com/search/results/people/?'];
+      let urlParts = [`${config.linkedin.baseUrl}/search/results/people/?`];
       let queryParams = [];
 
       if (extractedCompanyNumber) {
@@ -402,7 +402,7 @@ export class LinkedInService {
 
       logger.info(`Proceeding with analysis for ${profileId}`);
 
-      const activityUrl = `https://www.linkedin.com/in/${profileId}/recent-activity/reactions/`;
+      const activityUrl = `${config.linkedin.baseUrl}/in/${profileId}/recent-activity/reactions/`;
       logger.debug(`Analyzing contact activity: ${activityUrl}`);
 
       await this.puppeteer.goto(activityUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
@@ -581,13 +581,13 @@ export class LinkedInService {
       let targetUrl;
       switch (connectionType) {
         case 'ally':
-          targetUrl = 'https://www.linkedin.com/mynetwork/invite-connect/connections/';
+          targetUrl = `${config.linkedin.baseUrl}/mynetwork/invite-connect/connections/`;
           break;
         case 'incoming':
-          targetUrl = 'https://www.linkedin.com/mynetwork/invitation-manager/';
+          targetUrl = `${config.linkedin.baseUrl}/mynetwork/invitation-manager/`;
           break;
         case 'outgoing':
-          targetUrl = 'https://www.linkedin.com/mynetwork/invitation-manager/sent/';
+          targetUrl = `${config.linkedin.baseUrl}/mynetwork/invitation-manager/sent/`;
           break;
         default:
           throw new Error(`Unknown connection type: ${connectionType}`);

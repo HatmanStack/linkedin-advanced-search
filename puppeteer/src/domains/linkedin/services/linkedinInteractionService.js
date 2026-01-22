@@ -1,7 +1,8 @@
 import { PuppeteerService } from '../../automation/services/puppeteerService.js';
-import { logger } from '../../shared/utils/logger.js';
+import { logger } from '#utils/logger.js';
 import LinkedInErrorHandler from '../utils/linkedinErrorHandler.js';
-import ConfigManager from '../../shared/config/configManager.js';
+import ConfigManager from '#shared-config/configManager.js';
+import config from '#shared-config/index.js';
 import DynamoDBService from '../../storage/services/dynamoDBService.js';
 
 const RandomHelpers = {
@@ -508,9 +509,9 @@ export class LinkedInInteractionService {
       if (profileId.startsWith('http')) {
         profileUrl = profileId;
       } else if (profileId.includes('/in/')) {
-        profileUrl = `https://www.linkedin.com${profileId}`;
+        profileUrl = `${config.linkedin.baseUrl}${profileId}`;
       } else {
-        profileUrl = `https://www.linkedin.com/in/${profileId}/`;
+        profileUrl = `${config.linkedin.baseUrl}/in/${profileId}/`;
       }
 
       logger.info(`Navigating to LinkedIn profile: ${profileUrl}`);
@@ -787,7 +788,7 @@ export class LinkedInInteractionService {
 
       } else {
         // Fallback: Try navigating directly to messaging URL
-        const messagingUrl = `https://www.linkedin.com/messaging/compose/?recipient=${profileId}`;
+        const messagingUrl = `${config.linkedin.baseUrl}/messaging/compose/?recipient=${profileId}`;
         logger.info(`Message button not found, navigating directly to: ${messagingUrl}`);
 
         const navigationTimeout = this.configManager.get('navigationTimeout', 30000);
@@ -1094,7 +1095,7 @@ export class LinkedInInteractionService {
 
       // Navigate to LinkedIn home/feed page first
       const navigationTimeout = this.configManager.get('navigationTimeout', 30000);
-      await session.goto('https://www.linkedin.com/feed/', {
+      await session.goto(`${config.linkedin.baseUrl}/feed/`, {
         waitUntil: 'networkidle',
         timeout: navigationTimeout
       });

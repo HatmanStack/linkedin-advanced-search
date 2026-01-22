@@ -1,7 +1,7 @@
-import config from '../../../shared/config/index.js';
-import { logger } from '../../../shared/utils/logger.js';
+import config from '#shared-config/index.js';
+import { logger } from '#utils/logger.js';
 import { initializeLinkedInServices, cleanupLinkedInServices } from '../../../shared/utils/serviceFactory.js';
-import FileHelpers from '../../../shared/utils/fileHelpers.js';
+import FileHelpers from '#utils/fileHelpers.js';
 import { SearchRequestValidator } from '../utils/searchRequestValidator.js';
 import { SearchStateManager } from '../utils/searchStateManager.js';
 import { LinkCollector } from '../../linkedin/utils/linkCollector.js';

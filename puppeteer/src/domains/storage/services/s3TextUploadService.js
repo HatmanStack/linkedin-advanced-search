@@ -6,8 +6,8 @@
 
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { createHash } from 'crypto';
-import { logger } from '../../shared/utils/logger.js';
-import config from '../../shared/config/index.js';
+import { logger } from '#utils/logger.js';
+import config from '#shared-config/index.js';
 import { checkFileExists } from '../utils/s3Helpers.js';
 
 export class S3TextUploadService {

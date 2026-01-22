@@ -1,6 +1,6 @@
 import express from 'express';
 import { authorizeHealAndRestore, getPendingAuthorizations, cancelHealAndRestore } from '../src/domains/workflow/services/healAndRestoreService.js';
-import { logger } from '../src/shared/utils/logger.js';
+import { logger } from '#utils/logger.js';
 
 const router = express.Router();
 

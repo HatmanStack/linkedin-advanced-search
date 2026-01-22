@@ -1,4 +1,4 @@
-import { logger } from './logger.js';
+import { logger } from '#utils/logger.js';
 
 /**
  * LinkedIn Error Handler - Comprehensive error categorization and handling
