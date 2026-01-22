@@ -562,12 +562,13 @@ export class LinkedInInteractionService {
   async verifyProfilePage(page) {
     try {
       // Look for profile-specific elements
+      // Prioritize data-view-name (stable) over class names (obfuscated)
       const profileIndicators = [
-        '.pv-top-card',
-        '.profile-photo-edit',
-        '[data-test-id="profile-top-card"]',
-        '.pv-profile-section',
-        '.profile-rail-card'
+        '[data-view-name="profile-top-card-member-photo"]',
+        '[data-view-name="profile-top-card-verified-badge"]',
+        '[data-view-name="profile-main-level"]',
+        '[data-view-name="profile-self-view"]',
+        '[data-test-id="profile-top-card"]'
       ];
 
       for (const selector of profileIndicators) {
@@ -613,9 +614,9 @@ export class LinkedInInteractionService {
       while (Date.now() - startTs < maxWaitMs) {
         const metrics = await page.evaluate(() => {
           const ready = document.readyState; // 'loading' | 'interactive' | 'complete'
-          const main = !!document.querySelector('main');
-          const scaffold = !!document.querySelector('.scaffold-layout');
-          const nav = !!document.querySelector('header.global-nav, .global-nav');
+          const main = !!document.querySelector('main, [role="main"]');
+          const scaffold = !!document.querySelector('[data-view-name*="navigation-"]') || !!document.querySelector('header');
+          const nav = !!document.querySelector('header') || !!document.querySelector('[data-view-name="navigation-homepage"]');
           const anchors = document.querySelectorAll('a[href]')?.length || 0;
           const images = document.images?.length || 0;
           const height = document.body?.scrollHeight || 0;
@@ -766,15 +767,14 @@ export class LinkedInInteractionService {
 
 
       // Look for message button on profile page
+      // Prioritize data-view-name (stable) over data-test-id (removed by LinkedIn)
       const messageButtonSelectors = [
-        '[data-test-id="message-button"]',
+        '[data-view-name="message-button"]',
+        '[aria-label="Message"]',
         'button[aria-label*="Message"]',
         'button[aria-label*="message"]',
-        '.message-button',
-        'button:has-text("Message")',
         'a[href*="/messaging/"]',
-        '.pv-s-profile-actions button[aria-label*="Message"]',
-        '.pvs-profile-actions__action button[aria-label*="Message"]'
+        '[data-test-id="message-button"]'
       ];
       const { element: messageButton, selector: foundSelector } = await this.findElementBySelectors(messageButtonSelectors, 3000);
 
@@ -827,13 +827,12 @@ export class LinkedInInteractionService {
       await this.getBrowserSession();
 
       // Wait for messaging interface elements
+      // Prioritize role/contenteditable (semantic) over class names (obfuscated)
       const messagingSelectors = [
-        '.msg-form__contenteditable',
-        '[data-test-id="message-input"]',
-        '.compose-form__message-input',
         '[contenteditable="true"][role="textbox"]',
-        '.msg-conversation-card',
-        '.messaging-composer'
+        '[role="textbox"]',
+        '[data-view-name*="messaging"]',
+        '[data-test-id="message-input"]'
       ];
       const { element: messagingElement } = await this.waitForAnySelector(messagingSelectors, 5000);
 
@@ -874,15 +873,13 @@ export class LinkedInInteractionService {
       await this.waitForMessagingInterface();
 
       // Look for message input field
+      // Prioritize semantic selectors over class names
       const messageInputSelectors = [
-        '[data-test-id="message-input"]',
-        '.msg-form__contenteditable',
         '[contenteditable="true"][role="textbox"]',
-        'textarea[placeholder*="message"]',
-        '.compose-form__message-input',
-        '[aria-label*="message"]',
-        '.msg-form__msg-content-container [contenteditable="true"]',
-        '.messaging-composer [contenteditable="true"]'
+        '[role="textbox"]',
+        '[aria-label*="message" i][contenteditable="true"]',
+        '[aria-label*="Write" i][contenteditable="true"]',
+        '[data-test-id="message-input"]'
       ];
       const { element: messageInput, selector: foundSelector } = await this.waitForAnySelector(messageInputSelectors, 5000);
 
@@ -898,14 +895,12 @@ export class LinkedInInteractionService {
       await RandomHelpers.randomDelay(1000, 2000);
 
       // Look for send button
+      // Prioritize aria-label (accessibility) over class names
       const sendButtonSelectors = [
-        '[data-test-id="send-button"]',
-        'button[aria-label*="Send"]',
-        'button[aria-label*="send"]',
-        '.msg-form__send-button',
+        'button[aria-label*="Send" i]',
+        '[aria-label*="Send" i]',
         'button[type="submit"]',
-        '.messaging-composer button[aria-label*="Send"]',
-        '.msg-form__footer button[aria-label*="Send"]'
+        '[data-test-id="send-button"]'
       ];
       const { element: sendButton, selector: sendSelector } = await this.findElementBySelectors(sendButtonSelectors, 3000);
 
@@ -1110,16 +1105,12 @@ export class LinkedInInteractionService {
 
 
       // Look for "Start a post" button or similar
+      // Prioritize aria-label (accessibility) over class names
       const startPostSelectors = [
-        'button[aria-label*="Start a post"]',
-        'button[aria-label*="start a post"]',
-        '[data-test-id="start-post-button"]',
-        '.share-box-feed-entry__trigger',
-        'button[data-control-name*="share_via_feed"]',
-        '.feed-identity-module__member-photo',
-        '.share-creation-state__text-editor',
-        'div[data-placeholder*="Start a post"]',
-        '.share-box-feed-entry'
+        'button[aria-label*="Start a post" i]',
+        '[aria-label*="Start a post" i]',
+        'div[data-placeholder*="Start a post" i]',
+        '[data-test-id="start-post-button"]'
       ];
 
       let startPostButton = null;
@@ -1178,14 +1169,13 @@ export class LinkedInInteractionService {
       const session = await this.getBrowserSession();
 
       // Wait for post creation interface elements
+      // Prioritize semantic/accessibility selectors
       const postCreationSelectors = [
-        '.ql-editor[contenteditable="true"]',
-        '[data-test-id="post-content-input"]',
         '[contenteditable="true"][role="textbox"]',
-        'div[data-placeholder*="What do you want to talk about"]',
-        '.share-creation-state__text-editor',
-        '[aria-label*="Text editor"]',
-        '.share-box-feed-entry__editor'
+        '[aria-label*="Text editor" i]',
+        '[aria-label*="talk about" i]',
+        'div[data-placeholder*="talk about" i]',
+        '[data-test-id="post-content-input"]'
       ];
 
       let postCreationElement = null;
@@ -1488,17 +1478,17 @@ export class LinkedInInteractionService {
       const session = await this.getBrowserSession();
 
       // Look for indicators of existing connection
+      // Prioritize data-view-name and aria-label over class names
       const connectedSelectors = [
-        'button[aria-label*="Message"]',
-        'button[aria-label*="message"]',
-        '.message-button',
+        '[data-view-name="message-button"]',
+        '[aria-label="Message"]',
+        'button[aria-label*="Message" i]',
         '[data-test-id="message-button"]'
       ];
 
       const pendingSelectors = [
-        'button[aria-label*="Pending"]',
-        'button[aria-label*="pending"]',
-        '.pending-button',
+        '[aria-label*="Pending" i]',
+        'button[aria-label*="Pending" i]',
         '[data-test-id="pending-button"]'
       ];
 
@@ -2278,10 +2268,10 @@ export class LinkedInInteractionService {
       const page = session.getPage();
 
       // Look for indicators that we're already following
+      // Prioritize aria-label over class names
       const followingIndicators = [
-        'button[aria-label*="Following"]',
-        'button[aria-label*="following"]',
-        'button:has-text("Following")',
+        '[aria-label*="Following" i]',
+        'button[aria-label*="Following" i]',
         '[data-test-id="following-button"]'
       ];
 
@@ -2315,13 +2305,12 @@ export class LinkedInInteractionService {
       const page = session.getPage();
 
       // Follow button selectors (in priority order)
+      // Prioritize data-view-name and aria-label over class names
       const followButtonSelectors = [
-        'button[aria-label*="Follow"]',
-        'button[aria-label*="follow"]',
-        'button:has-text("Follow")',
-        '[data-test-id="follow-button"]',
-        '.pvs-profile-actions__action button[aria-label*="Follow"]',
-        '.pv-s-profile-actions button[aria-label*="Follow"]'
+        '[data-view-name="relationship-building-button"]',
+        '[aria-label*="Follow" i]:not([aria-label*="Following" i])',
+        'button[aria-label*="Follow" i]:not([aria-label*="Following" i])',
+        '[data-test-id="follow-button"]'
       ];
 
       // First try direct follow button

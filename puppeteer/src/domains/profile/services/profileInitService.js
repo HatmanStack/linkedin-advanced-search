@@ -1077,14 +1077,13 @@ export class ProfileInitService {
         const links = new Set();
 
         // Multiple selectors to find connection profile links
+        // Prioritize data-view-name and href patterns over class names
         const selectors = [
           'a[href*="/in/"]',
-          '[data-test-id="connection-card"] a[href*="/in/"]',
-          '.mn-connection-card a[href*="/in/"]',
-          '.connection-card a[href*="/in/"]',
-          'a[data-test-id="connection-profile-link"]',
-          '.entity-result__title-text a[href*="/in/"]',
-          '.search-result__title a[href*="/in/"]'
+          '[data-view-name="connections-profile"] a[href*="/in/"]',
+          '[data-view-name="people-search-result"] a[href*="/in/"]',
+          '[data-view-name="search-result-lockup-title"] a[href*="/in/"]',
+          '[data-test-id="connection-card"] a[href*="/in/"]'
         ];
 
         for (const selector of selectors) {

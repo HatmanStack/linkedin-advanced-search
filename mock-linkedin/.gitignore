@@ -1,0 +1,11 @@
+# Saved LinkedIn HTML pages (contain personal data)
+pages/*.html
+
+# Keep directory structure
+!pages/.gitkeep
+
+# Dependencies
+node_modules/
+
+# Logs
+*.log
