@@ -1,4 +1,3 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import config from '#shared-config/index.js';
 import { logger } from '#utils/logger.js';
 import RandomHelpers from '#utils/randomHelpers.js';
@@ -11,10 +10,6 @@ export class LinkedInService {
   constructor(puppeteerService) {
     this.puppeteer = puppeteerService;
     this.sessionTag = 'default';
-    this.genAI = config.googleAI.apiKey ?
-      new GoogleGenerativeAI(config.googleAI.apiKey) : null;
-    this.model = this.genAI ?
-      this.genAI.getGenerativeModel({ model: "gemini-2.0-flash" }) : null;
     this.dynamoDBService = new DynamoDBService();
     this.linkedInContactService = new LinkedInContactService(puppeteerService);
   }

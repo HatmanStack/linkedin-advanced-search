@@ -8,11 +8,11 @@ import pytest
 import requests
 import requests_mock
 
-# Add ragstack-proxy to path
-RAGSTACK_PROXY_PATH = Path(__file__).parent.parent.parent.parent / 'backend' / 'lambdas' / 'ragstack-proxy'
-sys.path.insert(0, str(RAGSTACK_PROXY_PATH))
+# Add shared python layer to path
+SHARED_PYTHON_PATH = Path(__file__).parent.parent.parent.parent / 'backend' / 'lambdas' / 'shared' / 'python'
+sys.path.insert(0, str(SHARED_PYTHON_PATH))
 
-from ragstack_client import (
+from shared_services.ragstack_client import (
     RAGStackAuthError,
     RAGStackClient,
     RAGStackError,

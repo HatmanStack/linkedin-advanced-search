@@ -2,6 +2,7 @@
 import base64
 import json
 import logging
+import os
 import re
 from datetime import UTC, datetime
 from pathlib import Path
@@ -105,10 +106,14 @@ class ProfileProcessingService(BaseService):
             markdown = self.generate_markdown(parsed_data, ocr_response)
             self.save_markdown(bucket, markdown, key, profile_id)
 
+            # Step 7: Ingest into RAGStack for semantic search (best-effort)
+            ragstack_result = self._ingest_to_ragstack(profile_id, markdown)
+
             return {
                 'success': True,
                 'profile_id': profile_id,
-                'status': 'processed'
+                'status': 'processed',
+                'ragstack_ingested': ragstack_result.get('success', False)
             }
 
         except (NotFoundError, ValidationError):
@@ -376,6 +381,38 @@ class ProfileProcessingService(BaseService):
         except Exception as e:
             logger.warning(f"Failed to save markdown: {e}")
             return ''
+
+    def _ingest_to_ragstack(self, profile_id: str, markdown: str) -> dict:
+        """Ingest markdown into RAGStack for semantic search. Best-effort, non-fatal."""
+        try:
+            ragstack_endpoint = os.environ.get('RAGSTACK_GRAPHQL_ENDPOINT', '')
+            ragstack_api_key = os.environ.get('RAGSTACK_API_KEY', '')
+
+            if not ragstack_endpoint or not ragstack_api_key:
+                logger.debug("RAGStack not configured, skipping ingestion")
+                return {'success': False, 'reason': 'not_configured'}
+
+            from shared_services.ingestion_service import IngestionService
+            from shared_services.ragstack_client import RAGStackClient
+
+            client = RAGStackClient(ragstack_endpoint, ragstack_api_key)
+            svc = IngestionService(client)
+            result = svc.ingest_profile(
+                profile_id=profile_id,
+                markdown_content=markdown,
+                metadata={'source': 'profile_processing'}
+            )
+
+            if result.get('status') in ('uploaded', 'indexed'):
+                logger.info(f"RAGStack ingestion successful for {profile_id}")
+                return {'success': True, 'documentId': result.get('documentId')}
+            else:
+                logger.warning(f"RAGStack ingestion failed for {profile_id}: {result.get('error')}")
+                return {'success': False, 'error': result.get('error')}
+
+        except Exception as e:
+            logger.warning(f"RAGStack ingestion error (non-fatal): {e}")
+            return {'success': False, 'error': str(e)}
 
     # Private helpers
 

@@ -61,7 +61,6 @@ Globals:
 
 Conditions:
   IncludeDevOriginsCondition: !Equals [!Ref IncludeDevOrigins, 'true']
-  HasRagstackConfig: !Not [!Equals [!Ref RagstackGraphqlEndpoint, '']]
 
 Resources:
   # Shared Python Layer for common code (errors, utils, services)
@@ -193,20 +192,14 @@ Resources:
       FunctionName: !Sub 'linkedin-edge-processing-${Environment}'
       CodeUri: lambdas/edge-processing/
       Handler: lambda_function.lambda_handler
+      Timeout: 60
       Environment:
         Variables:
-          RAGSTACK_PROXY_FUNCTION: !If
-            - HasRagstackConfig
-            - !Ref RAGStackProxyFunction
-            - ''
+          RAGSTACK_GRAPHQL_ENDPOINT: !Ref RagstackGraphqlEndpoint
+          RAGSTACK_API_KEY: !Ref RagstackApiKey
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref ProfilesTable
-        - !If
-          - HasRagstackConfig
-          - LambdaInvokePolicy:
-              FunctionName: !Ref RAGStackProxyFunction
-          - !Ref AWS::NoValue
       Events:
         EdgeApi:
           Type: HttpApi
@@ -219,6 +212,20 @@ Resources:
           Properties:
             ApiId: !Ref HttpApi
             Path: /edges
+            Method: OPTIONS
+            Auth:
+              Authorizer: NONE
+        RagstackApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /ragstack
+            Method: POST
+        RagstackOptionsApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /ragstack
             Method: OPTIONS
             Auth:
               Authorizer: NONE
@@ -257,40 +264,6 @@ Resources:
             Method: OPTIONS
             Auth:
               Authorizer: NONE
-
-  PlaceholderSearchFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      FunctionName: !Sub 'linkedin-placeholder-search-${Environment}'
-      CodeUri: lambdas/placeholder-search/
-      Handler: index.handler
-      Runtime: nodejs20.x
-      Events:
-        SearchApi:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref HttpApi
-            Path: /search
-            Method: POST
-        SearchOptionsApi:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref HttpApi
-            Path: /search
-            Method: OPTIONS
-            Auth:
-              Authorizer: NONE
-
-  ProfileApiFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      FunctionName: !Sub 'linkedin-profile-api-${Environment}'
-      CodeUri: lambdas/profile-api/
-      Handler: lambda_function.lambda_handler
-      Policies:
-        - DynamoDBCrudPolicy:
-            TableName: !Ref ProfilesTable
-      Events:
         ProfileGet:
           Type: HttpApi
           Properties:
@@ -329,6 +302,8 @@ Resources:
       Environment:
         Variables:
           AI_MODEL_ID: !Ref BedrockModelId
+          RAGSTACK_GRAPHQL_ENDPOINT: !Ref RagstackGraphqlEndpoint
+          RAGSTACK_API_KEY: !Ref RagstackApiKey
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref ProfilesTable
@@ -431,37 +406,6 @@ Resources:
             Auth:
               Authorizer: NONE
 
-  RAGStackProxyFunction:
-    Type: AWS::Serverless::Function
-    Condition: HasRagstackConfig
-    Properties:
-      FunctionName: !Sub 'linkedin-ragstack-proxy-${Environment}'
-      CodeUri: lambdas/ragstack-proxy/
-      Handler: index.lambda_handler
-      Timeout: 60
-      Environment:
-        Variables:
-          RAGSTACK_GRAPHQL_ENDPOINT: !Ref RagstackGraphqlEndpoint
-          RAGSTACK_API_KEY: !Ref RagstackApiKey
-          STAGE: !Ref Environment
-      Policies:
-        - DynamoDBCrudPolicy:
-            TableName: !Ref ProfilesTable
-      Events:
-        RagstackApi:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref HttpApi
-            Path: /ragstack
-            Method: POST
-        RagstackOptionsApi:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref HttpApi
-            Path: /ragstack
-            Method: OPTIONS
-            Auth:
-              Authorizer: NONE
 
 Outputs:
   ApiUrl:

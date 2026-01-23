@@ -628,21 +628,6 @@ class LambdaApiService {
 import type { UserProfile } from '@/shared/types';
 
 /**
- * Search API response format
- */
-interface SearchResponse {
-  success: boolean;
-  message?: string;
-  results: unknown[];
-  total: number;
-  metadata?: {
-    search_id: string;
-    status: string;
-    userId: string;
-  };
-}
-
-/**
  * RAGStack semantic search result
  */
 export interface RAGStackSearchResult {
@@ -783,47 +768,6 @@ class ExtendedLambdaApiService extends LambdaApiService {
         message: error instanceof Error ? error.message : 'Semantic search failed',
         code: 'SEARCH_ERROR',
       });
-    }
-  }
-
-  /**
-   * Search profiles using the placeholder search API
-   *
-   * @param query - Search query string
-   * @param filters - Optional filters object
-   * @param limit - Maximum number of results (1-100, default: 10)
-   * @param offset - Pagination offset (default: 0)
-   * @returns Promise resolving to SearchResponse with results
-   */
-  async searchProfiles(query: string, filters?: unknown, limit = 10, offset = 0): Promise<SearchResponse> {
-    try {
-      const response = await this.apiClient.post('search', {
-        query,
-        filters,
-        limit,
-        offset,
-      });
-
-      // Handle Lambda proxy response format
-      const data = typeof response.data === 'object' && 'statusCode' in response.data
-        ? JSON.parse(response.data.body)
-        : response.data;
-
-      return {
-        success: data.success,
-        message: data.message,
-        results: data.results || [],
-        total: data.total || 0,
-        metadata: data.metadata,
-      };
-    } catch (error) {
-      logger.error('Search API error', { error });
-      return {
-        success: false,
-        message: error instanceof Error ? error.message : 'Search failed',
-        results: [],
-        total: 0,
-      };
     }
   }
 

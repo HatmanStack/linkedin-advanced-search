@@ -25,18 +25,23 @@ class TestEdgeServiceInit:
         service = EdgeService(table=mock_table)
         assert service.table == mock_table
 
-    def test_service_initializes_with_optional_lambda_client(self):
-        """Service should accept optional lambda_client."""
+    def test_service_initializes_with_ragstack_config(self):
+        """Service should accept optional RAGStack config."""
         mock_table = MagicMock()
-        mock_lambda = MagicMock()
-        service = EdgeService(table=mock_table, lambda_client=mock_lambda)
-        assert service.lambda_client == mock_lambda
+        service = EdgeService(
+            table=mock_table,
+            ragstack_endpoint='https://api.example.com/graphql',
+            ragstack_api_key='test-key'
+        )
+        assert service.ragstack_endpoint == 'https://api.example.com/graphql'
+        assert service.ragstack_api_key == 'test-key'
 
-    def test_service_initializes_without_lambda_client(self):
-        """Service should work without lambda_client."""
+    def test_service_initializes_without_ragstack_config(self):
+        """Service should work without RAGStack config."""
         mock_table = MagicMock()
         service = EdgeService(table=mock_table)
-        assert service.lambda_client is None
+        assert service.ragstack_endpoint == ''
+        assert service.ragstack_api_key == ''
 
 
 class TestEdgeServiceUpsertStatus:
@@ -81,18 +86,15 @@ class TestEdgeServiceUpsertStatus:
         mock_table = MagicMock()
         mock_table.table_name = 'test-table'
         mock_table.get_item.return_value = {'Item': {'name': 'John Doe'}}
-        mock_lambda = MagicMock()
-        mock_lambda.invoke.return_value = {'StatusCode': 202}
 
         service = EdgeService(
             table=mock_table,
-            lambda_client=mock_lambda,
-            ragstack_function_name='test-ragstack-fn'
+            ragstack_endpoint='https://api.example.com/graphql',
+            ragstack_api_key='test-key'
         )
 
-        # Mock the markdown generation
         with patch.object(service, '_trigger_ragstack_ingestion') as mock_ingest:
-            mock_ingest.return_value = {'success': True, 'status': 'triggered'}
+            mock_ingest.return_value = {'success': True, 'status': 'uploaded'}
 
             result = service.upsert_status(
                 user_id='test-user-123',
@@ -107,12 +109,11 @@ class TestEdgeServiceUpsertStatus:
         """Should NOT trigger RAGStack for 'possible' status."""
         mock_table = MagicMock()
         mock_table.table_name = 'test-table'
-        mock_lambda = MagicMock()
 
         service = EdgeService(
             table=mock_table,
-            lambda_client=mock_lambda,
-            ragstack_function_name='test-ragstack-fn'
+            ragstack_endpoint='https://api.example.com/graphql',
+            ragstack_api_key='test-key'
         )
 
         result = service.upsert_status(
@@ -122,7 +123,7 @@ class TestEdgeServiceUpsertStatus:
         )
 
         assert result['success'] is True
-        mock_lambda.invoke.assert_not_called()
+        assert result.get('ragstack_ingested') is False
 
 
 class TestEdgeServiceAddMessage:

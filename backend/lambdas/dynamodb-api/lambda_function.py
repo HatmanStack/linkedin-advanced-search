@@ -49,10 +49,27 @@ def preflight_response(event: dict[str, Any]) -> dict[str, Any]:
         'body': ''
     }
 
+def _extract_user_id(event: dict[str, Any]) -> str | None:
+    """Extract user ID from Cognito JWT claims. Handles both HTTP API v2 and REST API formats."""
+    rc = event.get('requestContext') or {}
+    auth = rc.get('authorizer') or {}
+    # HTTP API v2 JWT authorizer: authorizer.jwt.claims.sub
+    jwt_claims = (auth.get('jwt') or {}).get('claims') or {}
+    if jwt_claims.get('sub'):
+        return jwt_claims['sub']
+    # REST API authorizer: authorizer.claims.sub
+    rest_claims = auth.get('claims') or {}
+    if rest_claims.get('sub'):
+        return rest_claims['sub']
+    return None
+
+
 def lambda_handler(event: dict[str, Any], context) -> dict[str, Any]:
     """Main Lambda handler for DynamoDB API operations.
+    Handles both /dynamodb and /profiles routes.
     Supports:
       - User settings (e.g., linkedin_credentials) via HTTP GET/PUT or operation-based calls
+      - User profile CRUD via /profiles endpoint
       - Existing profile operations (get_details, create) using operation-based calls
     """
     try:
@@ -68,12 +85,18 @@ def lambda_handler(event: dict[str, Any], context) -> dict[str, Any]:
         if http_method == 'OPTIONS':
             return preflight_response(event)
 
-        # Safely unwrap requestContext.authorizer.claims in case any layer is present but null
-        rc = event.get('requestContext') or {}
-        auth = rc.get('authorizer') or {}
-        claims = auth.get('claims') or {}
-        user_id = claims.get('sub')
-        # Allow GET to function normally for frontend profile page data
+        # Determine route path
+        raw_path = event.get('rawPath', '') or event.get('path', '')
+        is_profiles_route = '/profiles' in raw_path
+
+        # Extract user ID from JWT
+        user_id = _extract_user_id(event)
+
+        # Route to profiles handler if /profiles path
+        if is_profiles_route:
+            return handle_profiles_route(event, http_method, user_id)
+
+        # --- /dynamodb route handling ---
         if http_method == 'GET':
             # Extract optional profileId from query string, handling null queryStringParameters safely
             profile_id = (event.get('queryStringParameters') or {}).get('profileId')
@@ -96,7 +119,6 @@ def lambda_handler(event: dict[str, Any], context) -> dict[str, Any]:
         body = json.loads(event.get('body', '{}')) if event.get('body') else {}
         operation = body.get('operation')
 
-
         # Dispatch by operation
         if operation == 'create':
             return create_bad_contact_profile(user_id, body)
@@ -116,6 +138,109 @@ def lambda_handler(event: dict[str, Any], context) -> dict[str, Any]:
         # This ensures malformed requests don't crash the Lambda and always return valid HTTP.
         logger.error(f"Error processing request: {str(e)}")
         return create_response(500, {'error': 'Internal server error'})
+
+
+def handle_profiles_route(event: dict[str, Any], http_method: str, user_id: str | None) -> dict[str, Any]:
+    """Handle /profiles route - user profile CRUD.
+    Reads from #SETTINGS with fallback to legacy PROFILE SK for backwards compatibility.
+    Writes always go to #SETTINGS (natural migration).
+    """
+    if not user_id:
+        return create_response(401, {'error': 'Authentication required'})
+
+    if http_method == 'GET':
+        return get_user_profile(user_id)
+    elif http_method == 'POST':
+        return update_user_profile(event, user_id)
+    else:
+        return create_response(405, {'error': f'Method {http_method} not allowed'})
+
+
+def get_user_profile(user_id: str) -> dict[str, Any]:
+    """GET /profiles - Fetch user profile.
+    Reads from #SETTINGS first, falls back to legacy PROFILE SK.
+    Returns profile-api compatible response format.
+    """
+    try:
+        # Read from the canonical SETTINGS sort key first
+        response = table.get_item(
+            Key={'PK': f'USER#{user_id}', 'SK': '#SETTINGS'}
+        )
+        item = response.get('Item')
+
+        # Fallback to legacy PROFILE SK if #SETTINGS doesn't exist
+        if not item:
+            response = table.get_item(
+                Key={'PK': f'USER#{user_id}', 'SK': 'PROFILE'}
+            )
+            item = response.get('Item')
+
+        if not item:
+            # Return default profile structure
+            now = datetime.now(UTC).isoformat()
+            return create_response(200, {'success': True, 'data': {
+                'userId': user_id,
+                'email': '',
+                'firstName': '',
+                'lastName': '',
+                'linkedin_credentials': None,
+                'createdAt': now,
+                'updatedAt': now
+            }})
+
+        # Build profile response (support both camelCase and snake_case field names)
+        profile = {
+            'userId': user_id,
+            'email': item.get('email', ''),
+            'firstName': item.get('firstName', item.get('first_name', '')),
+            'lastName': item.get('lastName', item.get('last_name', '')),
+            'headline': item.get('headline', ''),
+            'location': item.get('location', ''),
+            'company': item.get('company', ''),
+            'current_position': item.get('current_position', ''),
+            'summary': item.get('summary', ''),
+            'interests': item.get('interests', ''),
+            'linkedin_credentials': item.get('linkedin_credentials'),
+            'unpublished_post_content': item.get('unpublished_post_content', ''),
+            'ai_generated_ideas': item.get('ai_generated_ideas'),
+            'ai_generated_research': item.get('ai_generated_research'),
+            'ai_generated_post_hook': item.get('ai_generated_post_hook', ''),
+            'ai_generated_post_reasoning': item.get('ai_generated_post_reasoning', ''),
+            'createdAt': item.get('createdAt', item.get('created_at', '')),
+            'updatedAt': item.get('updatedAt', item.get('updated_at', ''))
+        }
+
+        return create_response(200, {'success': True, 'data': profile})
+
+    except ClientError:
+        logger.exception("DynamoDB error in get_user_profile")
+        return create_response(500, {'error': 'Database error'})
+
+
+def update_user_profile(event: dict[str, Any], user_id: str) -> dict[str, Any]:
+    """POST /profiles - Update user profile.
+    Supports operation: update_user_settings (default).
+    Writes to #SETTINGS SK (consolidated location).
+    """
+    try:
+        raw_body = event.get('body', '{}')
+        if isinstance(raw_body, str):
+            body = json.loads(raw_body or '{}')
+        elif raw_body is None:
+            body = {}
+        else:
+            body = raw_body
+
+        operation = body.get('operation', 'update_user_settings')
+        if operation != 'update_user_settings':
+            return create_response(400, {'error': f'Unsupported operation: {operation}'})
+
+        # Delegate to existing update_user_settings which writes to #SETTINGS
+        return update_user_settings(user_id, body)
+
+    except json.JSONDecodeError:
+        return create_response(400, {'error': 'Invalid JSON in request body'})
+
 
 def create_bad_contact_profile(user_id: str, body: dict[str, Any]) -> dict[str, Any]:
     """Create a bad contact profile with processed status AND create edges"""
