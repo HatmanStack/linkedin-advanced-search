@@ -4,10 +4,7 @@ import logging
 import os
 
 import boto3
-
-# Shared layer imports (from /opt/python via Lambda Layer)
 from errors.exceptions import ExternalServiceError, NotFoundError, ServiceError, ValidationError
-# Local service import
 from services.profile_processing_service import ProfileProcessingService
 
 logger = logging.getLogger()

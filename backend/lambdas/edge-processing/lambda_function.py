@@ -4,10 +4,7 @@ import logging
 import os
 
 import boto3
-
-# Shared layer imports (from /opt/python via Lambda Layer)
 from errors.exceptions import AuthorizationError, ExternalServiceError, NotFoundError, ServiceError, ValidationError
-# Local service import
 from services.edge_service import EdgeService
 
 logger = logging.getLogger()
