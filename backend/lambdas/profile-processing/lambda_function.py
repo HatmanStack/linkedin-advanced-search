@@ -2,14 +2,8 @@
 import json
 import logging
 import os
-import sys
-from pathlib import Path
 
 import boto3
-
-sys.path.insert(0, str(Path(__file__).parent.parent / 'shared' / 'python'))
-sys.path.insert(0, str(Path(__file__).parent))
-
 from errors.exceptions import ExternalServiceError, NotFoundError, ServiceError, ValidationError
 from services.profile_processing_service import ProfileProcessingService
 

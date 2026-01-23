@@ -1,4 +1,4 @@
-import { logger } from './logger.js';
+import { logger } from '#utils/logger.js';
 
 /**
  * LinkedIn Audit Logger - Comprehensive audit trail for LinkedIn interactions

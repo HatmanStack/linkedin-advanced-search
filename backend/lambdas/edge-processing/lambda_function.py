@@ -2,15 +2,8 @@
 import json
 import logging
 import os
-import sys
-from pathlib import Path
 
 import boto3
-
-# Add paths for imports
-sys.path.insert(0, str(Path(__file__).parent.parent / 'shared' / 'python'))
-sys.path.insert(0, str(Path(__file__).parent))
-
 from errors.exceptions import AuthorizationError, ExternalServiceError, NotFoundError, ServiceError, ValidationError
 from services.edge_service import EdgeService
 
@@ -26,11 +19,35 @@ HEADERS = {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*
            'Access-Control-Allow-Headers': 'Content-Type,Authorization', 'Access-Control-Allow-Methods': 'POST,OPTIONS'}
 
 
+def _sanitize_request_context(request_context):
+    """Remove sensitive fields from requestContext before logging."""
+    if not request_context:
+        return {}
+    sanitized = {}
+    sensitive_keys = {'authorizer', 'authorization'}
+    for key, value in request_context.items():
+        if key.lower() in sensitive_keys:
+            sanitized[key] = '[REDACTED]'
+        elif isinstance(value, dict):
+            sanitized[key] = {
+                k: '[REDACTED]' if any(s in k.lower() for s in ('token', 'authorization', 'claim', 'secret', 'credential')) else v
+                for k, v in value.items()
+            }
+        else:
+            sanitized[key] = value
+    return sanitized
+
+
 def _resp(code, body):
     return {'statusCode': code, 'headers': HEADERS, 'body': json.dumps(body)}
 
 
 def _get_user_id(event):
+    # HTTP API v2 JWT authorizer path
+    sub = event.get('requestContext', {}).get('authorizer', {}).get('jwt', {}).get('claims', {}).get('sub')
+    if sub:
+        return sub
+    # Fallback for REST API path
     sub = event.get('requestContext', {}).get('authorizer', {}).get('claims', {}).get('sub')
     if sub:
         return sub
@@ -41,9 +58,18 @@ def _get_user_id(event):
 
 def lambda_handler(event, context):
     """Route edge operations to EdgeService."""
+    # Debug logging
+    logger.info(f"Event keys: {list(event.keys())}")
+    logger.info(f"Request context: {json.dumps(_sanitize_request_context(event.get('requestContext', {})), default=str)}")
+
+    # Handle CORS preflight
+    if event.get('requestContext', {}).get('http', {}).get('method') == 'OPTIONS':
+        return _resp(200, {'message': 'OK'})
+
     try:
         body = json.loads(event.get('body', '{}')) if isinstance(event.get('body'), str) else event.get('body') or event or {}
         user_id = _get_user_id(event)
+        logger.info(f"Extracted user_id: {user_id}")
         if not user_id:
             return _resp(401, {'error': 'Unauthorized'})
 

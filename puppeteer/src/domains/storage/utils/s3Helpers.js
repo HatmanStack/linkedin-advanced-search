@@ -5,7 +5,7 @@
  */
 
 import { S3Client, HeadObjectCommand, GetObjectCommand, DeleteObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
-import { logger } from './logger.js';
+import { logger } from '#utils/logger.js';
 
 /**
  * Cache of S3 clients by region

@@ -1,4 +1,4 @@
-import { logger } from '../../../shared/utils/logger.js';
+import { logger } from '#utils/logger.js';
 import { validateLinkedInCredentials } from '../../../shared/utils/credentialValidator.js';
 
 export class SearchRequestValidator {

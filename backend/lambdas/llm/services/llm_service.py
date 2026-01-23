@@ -4,29 +4,13 @@ import json
 import logging
 import os
 import re
-import sys
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-# Set up shared path for imports
-_shared_path = Path(__file__).parent.parent.parent / 'shared' / 'python'
-if str(_shared_path) not in sys.path:
-    sys.path.insert(0, str(_shared_path))
-
-
-# Import BaseService directly from file to avoid package collision
-def _load_base_service():
-    """Load BaseService from shared path directly."""
-    base_service_path = _shared_path / 'services' / 'base_service.py'
-    spec = importlib.util.spec_from_file_location('shared_base_service', base_service_path)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module.BaseService
-
-
-BaseService = _load_base_service()
+# Shared layer imports (from /opt/python via Lambda Layer)
+from shared_services.base_service import BaseService
 
 # Import prompts - will be loaded from parent directory
 PROMPTS_PATH = Path(__file__).parent.parent / 'prompts.py'

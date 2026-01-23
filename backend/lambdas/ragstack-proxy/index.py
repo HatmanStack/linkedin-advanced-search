@@ -65,6 +65,11 @@ def _parse_body(event: dict) -> dict:
 
 def _extract_user_id(event: dict) -> str | None:
     """Extract user ID from Cognito JWT claims"""
+    # HTTP API v2 JWT authorizer path
+    sub = event.get("requestContext", {}).get("authorizer", {}).get("jwt", {}).get("claims", {}).get("sub")
+    if sub:
+        return sub
+    # Fallback for REST API path
     sub = event.get("requestContext", {}).get("authorizer", {}).get("claims", {}).get("sub")
     if sub:
         return sub

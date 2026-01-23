@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { logger } from '../../shared/utils/logger.js';
+import { logger } from '#utils/logger.js';
 
 const API_BASE_URL = process.env.API_GATEWAY_BASE_URL;
 

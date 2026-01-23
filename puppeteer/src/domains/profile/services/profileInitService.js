@@ -1,8 +1,8 @@
-import { logger } from '../../shared/utils/logger.js';
+import { logger } from '#utils/logger.js';
 import { ProfileInitStateManager } from '../utils/profileInitStateManager.js';
 import { profileInitMonitor } from '../utils/profileInitMonitor.js';
-import RandomHelpers from '../../shared/utils/randomHelpers.js';
-import LinkedInErrorHandler from '../utils/linkedinErrorHandler.js';
+import RandomHelpers from '#utils/randomHelpers.js';
+import LinkedInErrorHandler from '../../linkedin/utils/linkedinErrorHandler.js';
 import { generateProfileMarkdown } from '../utils/profileMarkdownGenerator.js';
 import axios from 'axios';
 import fs from 'fs/promises';

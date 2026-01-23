@@ -48,6 +48,8 @@ Globals:
     Runtime: python3.13
     Timeout: 30
     MemorySize: 512
+    Layers:
+      - !Ref SharedPythonLayer
     Environment:
       Variables:
         DYNAMODB_TABLE_NAME: !Ref ProfilesTable
@@ -62,6 +64,17 @@ Conditions:
   HasRagstackConfig: !Not [!Equals [!Ref RagstackGraphqlEndpoint, '']]
 
 Resources:
+  # Shared Python Layer for common code (errors, utils, services)
+  SharedPythonLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: !Sub 'linkedin-shared-python-${Environment}'
+      Description: Shared Python utilities for LinkedIn Advanced Search Lambdas
+      ContentUri: lambdas/shared/
+      CompatibleRuntimes:
+        - python3.13
+      RetentionPolicy: Delete
+
   ProfilesTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -168,8 +181,6 @@ Resources:
         DefaultAuthorizer: CognitoAuthorizer
         Authorizers:
           CognitoAuthorizer:
-            AuthorizationScopes:
-              - email
             IdentitySource: $request.header.Authorization
             JwtConfiguration:
               issuer: !Sub 'https://cognito-idp.${AWS::Region}.amazonaws.com/${UserPool}'

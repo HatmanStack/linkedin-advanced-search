@@ -1,6 +1,6 @@
 import fs from 'fs/promises';
 import path from 'path';
-import { logger } from './logger.js';
+import { logger } from '#utils/logger.js';
 
 export class FileHelpers {
   static async ensureDirectoryExists(dirPath) {

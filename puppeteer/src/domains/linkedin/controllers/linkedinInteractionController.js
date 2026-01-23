@@ -1,4 +1,4 @@
-import { logger } from '../../shared/utils/logger.js';
+import { logger } from '#utils/logger.js';
 import { LinkedInInteractionService } from '../services/linkedinInteractionService.js';
 import LinkedInService from '../services/linkedinService.js';
 import LinkedInErrorHandler from '../utils/linkedinErrorHandler.js';

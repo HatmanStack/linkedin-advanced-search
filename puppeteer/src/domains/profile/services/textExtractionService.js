@@ -4,9 +4,9 @@
  * Extracts structured text from LinkedIn profile pages using Puppeteer
  */
 
-import { logger } from '../../shared/utils/logger.js';
-import { createEmptyProfile, validateProfileData } from '../schemas/profileTextSchema.js';
-import RandomHelpers from '../../shared/utils/randomHelpers.js';
+import { logger } from '#utils/logger.js';
+import { createEmptyProfile, validateProfileData } from '#schemas/profileTextSchema.js';
+import RandomHelpers from '#utils/randomHelpers.js';
 
 export class TextExtractionService {
   constructor(puppeteerService) {

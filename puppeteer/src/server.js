@@ -1,13 +1,13 @@
 import express from 'express';
 import cors from 'cors';
 import config from '../config/index.js';
-import { logger } from '../utils/logger.js';
-import FileHelpers from '../utils/fileHelpers.js';
+import { logger } from '#utils/logger.js';
+import FileHelpers from '#utils/fileHelpers.js';
 import searchRoutes from '../routes/searchRoutes.js';
 import healAndRestoreRoutes from '../routes/healAndRestore.js';
 import profileInitRoutes from '../routes/profileInitRoutes.js';
 import linkedinInteractionRoutes from '../routes/linkedinInteractionRoutes.js';
-import ConfigInitializer from '../utils/configInitializer.js';
+import ConfigInitializer from './shared/config/configInitializer.js';
 
 const app = express();
 
@@ -187,8 +187,14 @@ async function startServer() {
         nodeEnv: config.nodeEnv,
         frontendUrls: config.frontendUrls,
         hasGoogleAI: !!config.googleAI.apiKey,
-        linkedinInteractionsConfigured: configInitialized
+        linkedinInteractionsConfigured: configInitialized,
+        linkedinTestingMode: config.linkedin.testingMode,
+        linkedinBaseUrl: config.linkedin.baseUrl
       });
+
+      if (config.linkedin.testingMode) {
+        logger.warn(`🧪 TESTING MODE ENABLED - Using mock LinkedIn at ${config.linkedin.baseUrl}`);
+      }
 
       logger.info('📋 Available endpoints:');
       logger.info(`  POST http://localhost:${config.port}/search           - Perform LinkedIn search`);

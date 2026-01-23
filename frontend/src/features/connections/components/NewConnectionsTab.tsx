@@ -85,7 +85,6 @@ const NewConnectionsTab = ({
     }, [filteredBySearch, activeTags]);
 
     const handleSearch = () => {
-        logger.info("LinkedIn credentials are not persistent for security. Please add them each time the application is initiated");
         onSearch({
             ...searchFilters,
             userId

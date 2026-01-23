@@ -86,3 +86,4 @@ coverage/
 
 # Cleanup reports
 reports/
+puppeteer/.sealbox_private_key

@@ -4,6 +4,13 @@
   "description": "Refactored backend for LinkedIn Advanced Search with modern architecture",
   "main": "src/server.js",
   "type": "module",
+  "imports": {
+    "#utils/*": "./src/shared/utils/*",
+    "#shared-config/*": "./src/shared/config/*",
+    "#config": "./config/index.js",
+    "#routes/*": "./routes/*",
+    "#schemas/*": "./schemas/*"
+  },
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",

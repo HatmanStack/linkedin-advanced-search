@@ -2,15 +2,11 @@
 import json
 import logging
 import os
-import sys
-from pathlib import Path
 
 import boto3
 from openai import OpenAI
 
-sys.path.insert(0, str(Path(__file__).parent.parent / 'shared' / 'python'))
-sys.path.insert(0, str(Path(__file__).parent))
-
+# Local service import
 from services.llm_service import LLMService
 
 logger = logging.getLogger()
@@ -32,6 +28,11 @@ def _resp(code, body):
 
 
 def _get_user_id(event):
+    # HTTP API v2 JWT authorizer path
+    sub = event.get('requestContext', {}).get('authorizer', {}).get('jwt', {}).get('claims', {}).get('sub')
+    if sub:
+        return sub
+    # Fallback for REST API path
     sub = event.get('requestContext', {}).get('authorizer', {}).get('claims', {}).get('sub')
     if sub:
         return sub

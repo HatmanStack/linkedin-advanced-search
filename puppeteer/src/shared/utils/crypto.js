@@ -1,6 +1,8 @@
-import { logger } from './logger.js';
+import { logger } from '#utils/logger.js';
 import fs from 'fs/promises';
-import sodium from 'libsodium-wrappers-sumo';
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+const sodium = require('libsodium-wrappers-sumo');
 
 async function readPrivateKeyB64() {
   const path = process.env.CRED_SEALBOX_PRIVATE_KEY_PATH;
