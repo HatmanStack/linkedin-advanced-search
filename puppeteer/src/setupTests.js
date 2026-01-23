@@ -5,14 +5,15 @@
 import { vi } from 'vitest';
 
 // Mock logger to suppress output during tests
-vi.mock('./shared/utils/logger.js', () => ({
-  default: {
+vi.mock('./shared/utils/logger.js', () => {
+  const logger = {
     info: vi.fn(),
     warn: vi.fn(),
     error: vi.fn(),
     debug: vi.fn(),
-  },
-}));
+  };
+  return { default: logger, logger };
+});
 
 // Mock axios for HTTP calls
 vi.mock('axios', () => ({
