@@ -69,8 +69,18 @@ function servePage(pageName, res, replacements = {}) {
     html = html.replace(new RegExp(`{{${key}}}`, 'g'), value);
   }
 
+  // Strip Content-Security-Policy meta tags (they block our injected scripts)
+  html = html.replace(/<meta[^>]*Content-Security-Policy[^>]*>/gi, '');
+  html = html.replace(/<meta[^>]*trusted-types[^>]*>/gi, '');
+
+  // Strip LinkedIn's JavaScript (it needs their backend and breaks the static DOM)
+  html = html.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
+
   // Rewrite LinkedIn URLs to local
   html = html.replace(/https?:\/\/(www\.)?linkedin\.com/g, `http://localhost:${PORT}`);
+
+  // Inject a visible header for post-login detection (LinkedIn's real headers need JS to render visibly)
+  html = html.replace('</body>', '<header data-view-name="navigation-homepage" style="display:block;width:100%;height:2px;"></header><script src="/public/mock-interactions.js"></script></body>');
 
   res.send(html);
 }
@@ -331,7 +341,10 @@ app.get('/login', (req, res) => {
   servePage('login', res);
 });
 
-app.post('/uas/login-submit', (req, res) => {
+app.post('/uas/login-submit', handleLogin);
+app.post('/checkpoint/lg/login-submit', handleLogin);
+
+function handleLogin(req, res) {
   const { session_key, session_password } = req.body;
 
   // Accept any credentials for testing
@@ -340,7 +353,7 @@ app.post('/uas/login-submit', (req, res) => {
 
   res.cookie('mock_session', 'authenticated', { httpOnly: true });
   res.redirect('/feed/');
-});
+}
 
 // Feed / Home
 app.get('/feed/', (req, res) => {
@@ -405,25 +418,14 @@ app.get('/search/results/people/', (req, res) => {
   servePage('search-results', res, { results, keywords, company, title });
 });
 
-// Messaging - main view (message pane with conversation)
+// Messaging - main view
 app.get('/messaging/', (req, res) => {
   servePage('messaging', res);
 });
 
-// Messaging compose - pick a contact to message
-app.get('/messaging/compose/', (req, res) => {
-  const { recipient } = req.query;
-  if (recipient) {
-    // If recipient specified, show message pane
-    const person = state.connections.find(c => c.profileId === recipient);
-    servePage('messaging', res, {
-      recipientId: recipient,
-      recipientName: person?.name || recipient
-    });
-  } else {
-    // No recipient - show contact picker
-    servePage('messaging-compose', res);
-  }
+// Messaging - new thread (compose)
+app.get('/messaging/thread/new', (req, res) => {
+  servePage('messaging', res, { connections: state.connections });
 });
 
 // My Network - Connections
@@ -432,7 +434,7 @@ app.get('/mynetwork/invite-connect/connections/', (req, res) => {
 });
 
 // My Network - Received invitations
-app.get('/mynetwork/invitation-manager/', (req, res) => {
+app.get('/mynetwork/invitation-manager/received/', (req, res) => {
   servePage('invitations', res, { invitations: state.pendingInvitations });
 });
 
@@ -529,9 +531,9 @@ Available routes:
   GET  /in/:profileId/                     - Profile page
   GET  /in/:profileId/recent-activity/:type/  - Activity pages
   GET  /search/results/people/             - Search results
-  GET  /messaging/compose/?recipient=...   - Messaging
+  GET  /messaging/thread/new              - New message compose
   GET  /mynetwork/invite-connect/connections/  - Your connections
-  GET  /mynetwork/invitation-manager/      - Received invitations
+  GET  /mynetwork/invitation-manager/received/ - Received invitations
   GET  /mynetwork/invitation-manager/sent/ - Sent invitations
 
 API endpoints (for testing):
@@ -545,8 +547,7 @@ Saved pages loaded:
      - login.html
      - feed.html
      - profile.html
-     - messaging.html (message pane)
-     - messaging-compose.html (contact picker)
+     - messaging.html (new thread / message compose)
      - search-results.html
      - connections.html
      - invitations.html

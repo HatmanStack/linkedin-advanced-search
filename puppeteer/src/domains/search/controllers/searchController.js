@@ -161,7 +161,7 @@ export class SearchController {
     }
 
     if (!extractedGeoNumber && state.companyLocation) {
-      extractedGeoNumber = await linkedInService.applyLocationFilter(state.companyLocation, state.companyName);
+      extractedGeoNumber = await linkedInService.applyLocationFilter(state.companyLocation);
     }
 
     return { extractedCompanyNumber, extractedGeoNumber };

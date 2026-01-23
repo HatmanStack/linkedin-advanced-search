@@ -113,222 +113,286 @@ export class LinkedInService {
     }
   }
 
-  async navigateToIds(companyName) {
-    try {
-      logger.info(`Searching for company: ${companyName}`);
-
-      // Use the search box
-      // Prioritize semantic selectors over class names
-      const searchSelectors = [
-        'input[placeholder="Search"]',
-        'input[role="combobox"]',
-        '[data-view-name="search-typeahead-container"] input',
-        'header input'
-      ];
-
-      let searchBoxFound = false;
-      for (const selector of searchSelectors) {
-        try {
-          await this.puppeteer.getPage().waitForSelector(selector, { timeout: 10000 });
-          const searchSuccess = await this.puppeteer.safeType(selector, companyName);
-          if (searchSuccess) {
-            searchBoxFound = true;
-            break;
-          }
-        } catch {
-          logger.debug(`Search box not found with selector: ${selector}`);
-        }
-      }
-      if (!searchBoxFound) {
-        throw new Error('Failed to find or enter search term in the search box');
-      }
-
-      // Press Enter
-      await this.puppeteer.getPage().keyboard.press('ArrowDown');
-      await this.puppeteer.getPage().keyboard.press('Enter');
-
-
-      // Click on company result
-      const companyLinkSelector = `a[aria-label*="${companyName}"], div.search-nec__hero-kcard-v2-content a`;
-      const clickSuccess = await this.puppeteer.safeClick(companyLinkSelector);
-
-      if (!clickSuccess) {
-        logger.warn(`Could not find company link for: ${companyName}`);
-        return null;
-      }
-
-      logger.info(`Successfully navigated to company: ${companyName}`);
-
-      // Click on Jobs tab
-      // Multiple selectors used because LinkedIn's DOM structure varies by:
-      // 1. A/B testing, 2. User locale, 3. Account type (free vs premium)
-      // The ember IDs are fallbacks - they're dynamically generated but sometimes stable.
-      logger.info('Attempting to click Jobs tab...');
-      const jobsTabSelectors = [
-        `::-p-aria(Organization's page navigation) >>>> ::-p-aria(Jobs)`,
-        '::-p-xpath(//*[@id=\\"ember5530\\"])',
-        ':scope >>> #ember5530',
-        '#ember5530'
-      ];
-
-      let jobsTabClicked = false;
-      for (const selector of jobsTabSelectors) {
-        logger.info(`Trying selector for Jobs tab: ${selector}`);
-        try {
-          await this.puppeteer.getPage().waitForSelector(selector, { timeout: 10000 });
-          const success = await this.puppeteer.safeClick(selector);
-          if (success) {
-            logger.info(`Clicked Jobs tab with selector: ${selector}`);
-            jobsTabClicked = true;
-            break;
-          }
-        } catch {
-          logger.info(`Selector failed: ${selector}`);
-        }
-      }
-      if (!jobsTabClicked) {
-        throw new Error('Failed to click Jobs tab');
-      }
-      logger.info('Clicked Jobs tab successfully.');
-
-
-      logger.info('Waited after clicking Jobs tab.');
-
-      // Click "Show all jobs"
-      logger.info('Attempting to click "Show all jobs"...');
-      const showAllSelectors = [
-        'div.org-jobs-recently-posted-jobs-module > div span:nth-of-type(1)',
-        '::-p-xpath(//*[@id=\\"ember5849\\"]/span[1])',
-        ':scope >>> div.org-jobs-recently-posted-jobs-module > div span:nth-of-type(1)',
-        '::-p-text(Show all jobs)'
-      ];
-
-      let showAllClicked = false;
-      let page = this.puppeteer.getPage();
-      let currentUrl = page.url();
-      await page.evaluate(() => {
-        window.scrollBy(0, window.innerHeight);
-      });
-      logger.debug(`Current URL before clicking "Show all jobs": ${currentUrl}`);
-      for (const selector of showAllSelectors) {
-        logger.info(`Trying selector for "Show all jobs": ${selector}`);
-        try {
-          await this.puppeteer.getPage().waitForSelector(selector, { timeout: 5000 });
-          const success = await this.puppeteer.safeClick(selector);
-          if (success) {
-            logger.info(`Clicked "Show all jobs" with selector: ${selector}`);
-            showAllClicked = true;
-            break;
-          }
-        } catch {
-          logger.info(`Selector failed: ${selector}`);
-        }
-      }
-
-      // Try using XPath as fallback for text content
-      if (!showAllClicked) {
-        try {
-          const page = this.puppeteer.getPage();
-          const elements = await page.$x("//a[contains(text(), 'Show all') or contains(text(), 'View all')]");
-          if (elements.length > 0) {
-            await elements[0].click();
-            showAllClicked = true;
-            logger.info('Clicked "Show all jobs" using XPath');
-          }
-        } catch {
-          logger.info('XPath fallback failed');
-        }
-      }
-      if (!showAllClicked) {
-        logger.info('"Show all jobs" button not found or could not be clicked.');
-      } else {
-        logger.info('"Show all jobs" clicked (if present).');
-      }
-    } catch (error) {
-      logger.error(`Failed to search company ${companyName}:`, error);
-      throw error;
-    }
-  }
-
   async searchCompany(companyName) {
     try {
-      await this.navigateToIds(companyName);
-      await RandomHelpers.randomDelay(2000, 4000);
+      logger.info(`Extracting company ID via people search filter: ${companyName}`);
 
-      // Extract company number from URL
+      // Navigate to people search page
       const page = this.puppeteer.getPage();
-      const currentUrl = page.url();
-      const companyMatch = currentUrl.match(/[?&]f_C=(\d+)/);
+      await this.puppeteer.goto(`${config.linkedin.baseUrl}/search/results/people/`);
+      await RandomHelpers.randomDelay(1500, 2500);
+
+      // Click "Current companies" filter label
+      const companyFilterClicked = await this._clickFilterButton('Current companies');
+      if (!companyFilterClicked) {
+        throw new Error('Failed to open "Current companies" filter');
+      }
+      await RandomHelpers.randomDelay(500, 1000);
+
+      // Type company name in the filter search input
+      const filterInputTyped = await this._typeInFilterInput(companyName);
+      if (!filterInputTyped) {
+        throw new Error('Failed to type company name in filter input');
+      }
+      await RandomHelpers.randomDelay(1500, 2500);
+
+      // Select the first matching suggestion
+      const suggestionClicked = await this._selectFilterSuggestion(companyName);
+      if (!suggestionClicked) {
+        logger.warn(`No matching company suggestion found for: ${companyName}`);
+        return null;
+      }
+      await RandomHelpers.randomDelay(500, 1000);
+
+      // Click "Show results" to apply the filter
+      await this._clickShowResults();
+      await RandomHelpers.randomDelay(2000, 3000);
+
+      // Extract company number from updated URL (quotes may be literal or encoded as %22)
+      const currentUrl = decodeURIComponent(page.url());
+      const companyMatch = currentUrl.match(/currentCompany=\["?(\d+)"?\]/);
       const extractedCompanyNumber = companyMatch ? companyMatch[1] : null;
 
-      logger.debug(`Extracted company number: ${extractedCompanyNumber}`);
+      if (extractedCompanyNumber) {
+        logger.info(`Extracted company number: ${extractedCompanyNumber}`);
+      } else {
+        logger.warn(`Could not extract company ID from URL: ${currentUrl}`);
+      }
+
       return extractedCompanyNumber;
 
     } catch (error) {
-      logger.error(`Failed to extract Company ID ${companyName}:`, error);
+      logger.error(`Failed to extract Company ID for ${companyName}:`, error);
       throw error;
     }
   }
 
-  async applyLocationFilter(companyLocation, companyName) {
+  async applyLocationFilter(companyLocation) {
     try {
-      if (!companyName) {
-        await this.navigateToIds("Google");
-      }
-      logger.info(`Attempting to set location filter: ${companyLocation}`);
-      const locationSelectors = [
-        'input[aria-label*="location"]',
-        'input[placeholder*="location"]',
-        'input[id*="location"]',
-        '#jobs-search-box-location-id'
-      ];
+      logger.info(`Applying location filter via people search: ${companyLocation}`);
 
-      let locationSuccess = false;
-      for (const selector of locationSelectors) {
-        try {
-          const page = this.puppeteer.getPage();
-          const element = await page.$(selector);
-          if (element) {
-            // Clear the field first
-            await element.click({ clickCount: 3 }); // Select all text
-            await element.press('Backspace');
-            await RandomHelpers.randomDelay(500, 1000);
+      const page = this.puppeteer.getPage();
 
-            // Now type the location
-            locationSuccess = await this.puppeteer.safeType(selector, companyLocation);
-            if (locationSuccess) {
-              logger.info(`Location entered with selector: ${selector}`);
-              break;
-            }
-          }
-        } catch (e) {
-          logger.debug(`Failed to clear/type location with selector ${selector}: ${e.message}`);
-        }
+      // Ensure we're on the people search page (may not be if searchCompany was skipped during healing)
+      if (!page.url().includes('/search/results/people')) {
+        await this.puppeteer.goto(`${config.linkedin.baseUrl}/search/results/people/`);
+        await RandomHelpers.randomDelay(1500, 2500);
       }
 
-      if (locationSuccess) {
-        logger.info('Location entered successfully, pressing Enter...');
-        await this.puppeteer.getPage().keyboard.press('Enter');
-        await RandomHelpers.randomDelay(3000, 5000);
-        logger.info('Waited after setting location filter.');
+      // Click "Locations" filter button
+      const locationFilterClicked = await this._clickFilterButton('Locations');
+      if (!locationFilterClicked) {
+        throw new Error('Failed to open "Locations" filter');
+      }
+      await RandomHelpers.randomDelay(500, 1000);
 
-        // Extract geo number from URL
-        const page = this.puppeteer.getPage();
-        const currentUrl = page.url();
-        const geoMatch = currentUrl.match(/[?&]geoId=(\d+)/);
-        const extractedGeoNumber = geoMatch ? geoMatch[1] : null;
+      // Type location in the filter search input
+      const filterInputTyped = await this._typeInFilterInput(companyLocation);
+      if (!filterInputTyped) {
+        throw new Error('Failed to type location in filter input');
+      }
+      await RandomHelpers.randomDelay(1500, 2500);
 
-        logger.debug(`Extracted geo number: ${extractedGeoNumber}`);
-
-        return extractedGeoNumber;
-      } else {
-        logger.info('Failed to enter location filter.');
+      // Select the first matching suggestion
+      const suggestionClicked = await this._selectFilterSuggestion(companyLocation);
+      if (!suggestionClicked) {
+        logger.warn(`No matching location suggestion found for: ${companyLocation}`);
         return null;
       }
+      await RandomHelpers.randomDelay(500, 1000);
+
+      // Click "Show results" to apply the filter
+      await this._clickShowResults();
+      await RandomHelpers.randomDelay(2000, 3000);
+
+      // Extract geo number from updated URL (quotes may be literal or encoded as %22)
+      const currentUrl = decodeURIComponent(page.url());
+      const geoMatch = currentUrl.match(/geoUrn=\["?(\d+)"?\]/);
+      const extractedGeoNumber = geoMatch ? geoMatch[1] : null;
+
+      if (extractedGeoNumber) {
+        logger.info(`Extracted geo number: ${extractedGeoNumber}`);
+      } else {
+        logger.warn(`Could not extract geo ID from URL: ${currentUrl}`);
+      }
+
+      return extractedGeoNumber;
+
     } catch (error) {
       logger.error('Failed to apply location filter:', error);
       throw error;
     }
+  }
+
+  async _clickFilterButton(filterName) {
+    const page = this.puppeteer.getPage();
+
+    // LinkedIn renders filters as <label> elements tied to checkboxes.
+    // Try aria selectors first, then fall back to text content matching.
+    const selectors = [
+      `::-p-aria(${filterName})`,
+      `button[aria-label="${filterName} filter"]`,
+      `button[aria-label*="${filterName}"]`,
+    ];
+
+    for (const selector of selectors) {
+      try {
+        await page.waitForSelector(selector, { timeout: 5000 });
+        const success = await this.puppeteer.safeClick(selector);
+        if (success) {
+          logger.debug(`Clicked filter "${filterName}" with: ${selector}`);
+          return true;
+        }
+      } catch {
+        logger.debug(`Filter selector failed: ${selector}`);
+      }
+    }
+
+    // Fallback: find by text content in both buttons and labels
+    try {
+      const clicked = await page.evaluate((name) => {
+        const elements = Array.from(document.querySelectorAll('button, label'));
+        const match = elements.find(el => {
+          const text = el.textContent.trim().toLowerCase();
+          return text.includes(name.toLowerCase());
+        });
+        if (match) { match.click(); return true; }
+        return false;
+      }, filterName);
+      if (clicked) {
+        logger.debug(`Clicked filter "${filterName}" via text content fallback`);
+        return true;
+      }
+    } catch {
+      // ignore
+    }
+
+    logger.warn(`Could not find filter: ${filterName}`);
+    return false;
+  }
+
+  async _typeInFilterInput(text) {
+    const page = this.puppeteer.getPage();
+    const inputSelectors = [
+      'input[aria-label*="Add a company"]',
+      'input[aria-label*="Add a location"]',
+      'input[placeholder*="Add a"]',
+      'input[role="combobox"]',
+      '[role="listbox"] input',
+      'fieldset input[type="text"]',
+    ];
+
+    for (const selector of inputSelectors) {
+      try {
+        const element = await page.$(selector);
+        if (element) {
+          await element.click();
+          await element.type(text, { delay: 50 });
+          logger.debug(`Typed "${text}" in filter input: ${selector}`);
+          return true;
+        }
+      } catch {
+        logger.debug(`Filter input selector failed: ${selector}`);
+      }
+    }
+
+    logger.warn('Could not find filter input field');
+    return false;
+  }
+
+  async _selectFilterSuggestion(searchText) {
+    const page = this.puppeteer.getPage();
+
+    // Wait for suggestions to appear
+    const suggestionSelectors = [
+      '[role="listbox"] [role="option"]',
+      '[role="listbox"] li',
+      '.basic-typeahead__triggered-content li',
+      'div[data-basic-filter-parameter-values] label',
+      'fieldset label',
+    ];
+
+    for (const selector of suggestionSelectors) {
+      try {
+        await page.waitForSelector(selector, { timeout: 5000 });
+        const clicked = await page.evaluate((sel, text) => {
+          const items = Array.from(document.querySelectorAll(sel));
+          // Prefer exact match, then partial match
+          const exactMatch = items.find(item =>
+            item.textContent.trim().toLowerCase() === text.toLowerCase()
+          );
+          const partialMatch = items.find(item =>
+            item.textContent.trim().toLowerCase().includes(text.toLowerCase())
+          );
+          const target = exactMatch || partialMatch || items[0];
+          if (target) {
+            // Click the input/checkbox if it's a label, otherwise click the element
+            const input = target.querySelector('input');
+            if (input) { input.click(); }
+            else { target.click(); }
+            return true;
+          }
+          return false;
+        }, selector, searchText);
+
+        if (clicked) {
+          logger.debug(`Selected suggestion for "${searchText}" with: ${selector}`);
+          return true;
+        }
+      } catch {
+        logger.debug(`Suggestion selector failed: ${selector}`);
+      }
+    }
+
+    logger.warn(`No suggestions found for: ${searchText}`);
+    return false;
+  }
+
+  async _clickShowResults() {
+    const page = this.puppeteer.getPage();
+    const selectors = [
+      '::-p-aria(Show results)',
+      '::-p-aria(Apply current filter)',
+      'button[aria-label*="Apply"]',
+      'button[aria-label*="Show results"]',
+      'button[data-control-name="filter_show_results"]',
+    ];
+
+    for (const selector of selectors) {
+      try {
+        await page.waitForSelector(selector, { timeout: 3000 });
+        const success = await this.puppeteer.safeClick(selector);
+        if (success) {
+          logger.debug(`Clicked "Show results" with: ${selector}`);
+          return true;
+        }
+      } catch {
+        // try next
+      }
+    }
+
+    // Fallback: find by button text
+    try {
+      const clicked = await page.evaluate(() => {
+        const buttons = Array.from(document.querySelectorAll('button'));
+        const btn = buttons.find(b => {
+          const text = b.textContent.trim().toLowerCase();
+          return text.includes('show results') || text.includes('apply');
+        });
+        if (btn) { btn.click(); return true; }
+        return false;
+      });
+      if (clicked) {
+        logger.debug('Clicked "Show results" via text content fallback');
+        return true;
+      }
+    } catch {
+      // ignore
+    }
+
+    // If no explicit apply button, the filter may auto-apply on selection
+    logger.debug('No "Show results" button found - filter may have auto-applied');
+    return false;
   }
 
 
@@ -418,16 +482,18 @@ export class LinkedInService {
       let countedSet = new Set();
 
       for (let i = 0; i < historyToCheck; i++) {
-        await this.puppeteer.waitForSelector('span[aria-hidden="true"]', { timeout: 5000 });
+        // LinkedIn renders timestamps in both <span aria-hidden> and <p> elements
+        const timeSelector = 'span[aria-hidden="true"], p[componentkey]';
+        await this.puppeteer.waitForSelector(timeSelector, { timeout: 5000 });
 
         const result = await this.puppeteer.getPage().evaluate(
           (existingCounts, countedArr) => {
             const timeframes = {
-              hour: /([1-23]h)\b/i,
-              day: /\b([1-6]d)\b/i,
-              week: /\b([1-4]w)\b/i
+              hour: /\b([1-9]|1[0-9]|2[0-3])h\b/i,
+              day: /\b([1-6])d\b/i,
+              week: /\b([1-4])w\b/i
             };
-            const elements = Array.from(document.querySelectorAll('span[aria-hidden="true"]'));
+            const elements = Array.from(document.querySelectorAll('span[aria-hidden="true"], p[componentkey]'));
             const updatedCounts = { ...existingCounts };
             const newCounted = [];
 
@@ -579,7 +645,7 @@ export class LinkedInService {
           targetUrl = `${config.linkedin.baseUrl}/mynetwork/invite-connect/connections/`;
           break;
         case 'incoming':
-          targetUrl = `${config.linkedin.baseUrl}/mynetwork/invitation-manager/`;
+          targetUrl = `${config.linkedin.baseUrl}/mynetwork/invitation-manager/received/`;
           break;
         case 'outgoing':
           targetUrl = `${config.linkedin.baseUrl}/mynetwork/invitation-manager/sent/`;
