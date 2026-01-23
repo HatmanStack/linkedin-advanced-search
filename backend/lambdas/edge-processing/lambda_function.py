@@ -19,6 +19,25 @@ HEADERS = {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*
            'Access-Control-Allow-Headers': 'Content-Type,Authorization', 'Access-Control-Allow-Methods': 'POST,OPTIONS'}
 
 
+def _sanitize_request_context(request_context):
+    """Remove sensitive fields from requestContext before logging."""
+    if not request_context:
+        return {}
+    sanitized = {}
+    sensitive_keys = {'authorizer', 'authorization'}
+    for key, value in request_context.items():
+        if key.lower() in sensitive_keys:
+            sanitized[key] = '[REDACTED]'
+        elif isinstance(value, dict):
+            sanitized[key] = {
+                k: '[REDACTED]' if any(s in k.lower() for s in ('token', 'authorization', 'claim', 'secret', 'credential')) else v
+                for k, v in value.items()
+            }
+        else:
+            sanitized[key] = value
+    return sanitized
+
+
 def _resp(code, body):
     return {'statusCode': code, 'headers': HEADERS, 'body': json.dumps(body)}
 
@@ -41,7 +60,7 @@ def lambda_handler(event, context):
     """Route edge operations to EdgeService."""
     # Debug logging
     logger.info(f"Event keys: {list(event.keys())}")
-    logger.info(f"Request context: {json.dumps(event.get('requestContext', {}), default=str)}")
+    logger.info(f"Request context: {json.dumps(_sanitize_request_context(event.get('requestContext', {})), default=str)}")
 
     # Handle CORS preflight
     if event.get('requestContext', {}).get('http', {}).get('method') == 'OPTIONS':
