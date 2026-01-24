@@ -20,7 +20,7 @@ table = boto3.resource('dynamodb').Table(table_name) if table_name else None
 
 HEADERS = {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*',
            'Access-Control-Allow-Headers': 'Content-Type,Authorization', 'Access-Control-Allow-Methods': 'POST,OPTIONS'}
-OPS = {'generate_ideas', 'research_selected_ideas', 'get_research_result', 'synthesize_research', 'post_style_change'}
+OPS = {'generate_ideas', 'research_selected_ideas', 'get_research_result', 'synthesize_research'}
 
 
 def _resp(code, body):
@@ -44,7 +44,8 @@ def _get_user_id(event):
 def lambda_handler(event, _context):
     """Route LLM operations to LLMService."""
     try:
-        if event.get('httpMethod') == 'OPTIONS':
+        method = event.get('requestContext', {}).get('http', {}).get('method', '')
+        if method == 'OPTIONS' or event.get('httpMethod') == 'OPTIONS':
             return _resp(200, {'ok': True})
 
         body = json.loads(event.get('body', '{}')) if isinstance(event.get('body'), str) else event.get('body') or {}
@@ -76,9 +77,6 @@ def lambda_handler(event, _context):
                 return _resp(400, {'error': 'job_id required'})
             return _resp(200, svc.synthesize_research(body.get('research_content'), body.get('existing_content'),
                                                        body.get('selected_ideas', []), body.get('user_profile', {}), body['job_id'], user_id))
-
-        if op == 'post_style_change':
-            return _resp(200, svc.apply_style(body.get('existing_content', ''), body.get('style', '')))
 
         return _resp(400, {'error': f'Unsupported: {op}'})
 

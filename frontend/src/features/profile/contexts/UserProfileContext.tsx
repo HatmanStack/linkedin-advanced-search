@@ -43,9 +43,16 @@ export const UserProfileProvider = ({ children }: { children: ReactNode }) => {
     setIsLoading(true);
     try {
       const response = await lambdaApiService.getUserProfile();
+      logger.info('Profile fetch result', {
+        success: response.success,
+        hasData: !!response.data,
+        hasCredentials: !!response.data?.linkedin_credentials,
+        credentialsPrefix: response.data?.linkedin_credentials?.substring(0, 20),
+        error: response.error
+      });
       if (response.success && response.data) {
         setUserProfile(response.data);
-        
+
         // Also set LinkedIn credentials if available
         if (response.data.linkedin_credentials) {
           setCiphertextState(response.data.linkedin_credentials);

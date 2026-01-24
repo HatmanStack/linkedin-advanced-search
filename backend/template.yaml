@@ -24,11 +24,6 @@ Parameters:
     Default: ''
     NoEcho: true
     Description: OpenAI API key for LLM Lambda
-  OpenAIWebhookSecret:
-    Type: String
-    Default: ''
-    NoEcho: true
-    Description: OpenAI webhook secret for webhook handler
   BedrockModelId:
     Type: String
     Default: us.meta.llama3-2-90b-instruct-v1:0
@@ -383,28 +378,6 @@ Resources:
             Auth:
               Authorizer: NONE
 
-  WebhookHandlerFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      FunctionName: !Sub 'linkedin-webhook-handler-${Environment}'
-      CodeUri: lambdas/webhook-handler/
-      Handler: lambda_function.lambda_handler
-      Environment:
-        Variables:
-          OPENAI_API_KEY: !Ref OpenAIApiKey
-          OPENAI_WEBHOOK_SECRET: !Ref OpenAIWebhookSecret
-      Policies:
-        - DynamoDBCrudPolicy:
-            TableName: !Ref ProfilesTable
-      Events:
-        WebhookApi:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref HttpApi
-            Path: /webhooks/openai
-            Method: POST
-            Auth:
-              Authorizer: NONE
 
 
 Outputs:

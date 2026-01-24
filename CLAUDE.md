@@ -91,7 +91,6 @@ SAM template (`template.yaml`) defines:
   - `dynamodb-api/` - User settings/profile CRUD (handles `/dynamodb` and `/profiles` routes)
   - `llm/` - OpenAI/Bedrock LLM operations
   - `profile-processing/` - SQS-triggered profile processing from S3 uploads with auto-RAGStack ingestion
-  - `webhook-handler/` - OpenAI webhooks
 - **Cognito**: User pool with email-based auth
 - **S3**: Screenshot storage with SQS notification to profile-processing
 - **HttpApi**: API Gateway with Cognito JWT authorizer

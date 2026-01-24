@@ -104,7 +104,8 @@ const Profile = () => {
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      // We avoid storing plaintext in context; we only set ciphertext below
+      // Combined payload for a single API call
+      let combinedPayload: Record<string, unknown> = {};
 
       // Transmit over HTTPS/TLS and let backend encrypt with KMS before storing in DynamoDB
       // Never log or store plaintext locally beyond this session memory.
@@ -147,17 +148,19 @@ const Profile = () => {
           // Do NOT store plaintext in context
         }
 
-        await updateUserProfile(payload);
         setHasStoredCredentials(true);
 
         // Clear password from local component state after saving to reduce exposure in memory
         setLinkedinCredentials(prev => ({ ...prev, password: '' }));
+
+        combinedPayload.linkedin_credentials = payload.linkedin_credentials;
       }
 
-      // Save non-sensitive profile info
+      // Save everything in a single API call
       const [firstName, ...rest] = profile.name.trim().split(/\s+/);
       const lastName = rest.join(' ').trim();
-      const profilePayload = {
+      combinedPayload = {
+        ...combinedPayload,
         first_name: firstName || undefined,
         last_name: lastName || undefined,
         headline: profile.title || undefined,
@@ -169,7 +172,7 @@ const Profile = () => {
         profile_url: profile.linkedinUrl || undefined,
       };
 
-      await updateUserProfile(profilePayload);
+      await updateUserProfile(combinedPayload);
 
       toast({
         title: "Profile updated!",

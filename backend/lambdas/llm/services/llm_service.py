@@ -3,7 +3,6 @@ import importlib.util
 import json
 import logging
 import os
-import re
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
@@ -21,12 +20,10 @@ if PROMPTS_PATH.exists():
     LINKEDIN_IDEAS_PROMPT = getattr(prompts_module, 'LINKEDIN_IDEAS_PROMPT', '{user_data}\n{raw_ideas}')
     LINKEDIN_RESEARCH_PROMPT = getattr(prompts_module, 'LINKEDIN_RESEARCH_PROMPT', '{topics}\n{user_data}')
     SYNTHESIZE_RESEARCH_PROMPT = getattr(prompts_module, 'SYNTHESIZE_RESEARCH_PROMPT', '{user_data}\n{research_content}\n{post_content}\n{ideas_content}')
-    APPLY_POST_STYLE_PROMPT = getattr(prompts_module, 'APPLY_POST_STYLE_PROMPT', '{existing_content}\n{style}')
 else:
     LINKEDIN_IDEAS_PROMPT = '{user_data}\n{raw_ideas}'
     LINKEDIN_RESEARCH_PROMPT = '{topics}\n{user_data}'
     SYNTHESIZE_RESEARCH_PROMPT = '{user_data}\n{research_content}\n{post_content}\n{ideas_content}'
-    APPLY_POST_STYLE_PROMPT = '{existing_content}\n{style}'
 
 logger = logging.getLogger(__name__)
 
@@ -102,31 +99,51 @@ class LLMService(BaseService):
             user_data = ''
             if user_profile and user_profile.get('name') != PROFILE_PLACEHOLDER_NAME:
                 for key, value in user_profile.items():
-                    user_data += f"{key}: {value}\n"
+                    if key != "linkedin_credentials":
+                        user_data += f"{key}: {value}\n"
 
             llm_prompt = LINKEDIN_IDEAS_PROMPT.format(
                 user_data=user_data,
                 raw_ideas=prompt or ''
             )
 
-            # Use IDEM_KEY from env, or fall back to job_id for idempotency
-            # Explicitly check for empty string to ensure proper fallback
-            env_idem_key = os.environ.get('IDEM_KEY')
-            idempotency_key = (env_idem_key if env_idem_key else None) or job_id or str(uuid.uuid4())
-
-            self.openai_client.responses.create(
-                model="gpt-5.2",
+            response = self.openai_client.responses.create(
+                model="gpt-4.1",
                 input=llm_prompt,
-                background=True,
-                metadata={"job_id": job_id, "user_id": user_id, "kind": "IDEAS"},
-                extra_headers={"Idempotency-Key": idempotency_key},
             )
 
-            return {'success': True, 'status': 'queued'}
+            # Parse ideas from response
+            has_output_text = hasattr(response, 'output_text')
+            content = response.output_text if has_output_text else str(response)
+            logger.info(f"generate_ideas response: has_output_text={has_output_text}, content_length={len(content)}, content_preview={content[:200]}")
+            ideas = self._parse_ideas(content)
+            logger.info(f"generate_ideas parsed {len(ideas)} ideas")
+
+            # Store in DynamoDB for future reference
+            if self.table and ideas:
+                self.table.put_item(Item={
+                    'PK': f'USER#{user_id}',
+                    'SK': f'IDEAS#{job_id}',
+                    'ideas': ideas,
+                    'created_at': datetime.now(UTC).isoformat(),
+                })
+
+            return {'success': True, 'ideas': ideas}
 
         except Exception as e:
             logger.error(f"Error in generate_ideas: {e}")
             return {'success': False, 'error': 'Failed to generate ideas'}
+
+    def _parse_ideas(self, content: str) -> list[str]:
+        """Parse ideas from LLM response text."""
+        if not content:
+            return []
+        if "Idea:" in content:
+            parts = content.split("Idea:")
+            return [part.strip() for part in parts[1:] if part.strip()]
+        # Fallback: split by numbered list or newlines
+        lines = [line.strip().lstrip('0123456789.-) ') for line in content.strip().split('\n') if line.strip()]
+        return [line for line in lines if line]
 
     def research_selected_ideas(
         self,
@@ -164,11 +181,7 @@ class LLMService(BaseService):
                 user_data=formatted_user_data
             )
 
-            # Use IDEM_KEY from env, or fall back to job_id for idempotency
-            env_idem_key = os.environ.get('IDEM_KEY')
-            idempotency_key = (env_idem_key if env_idem_key else None) or job_id or str(uuid.uuid4())
-
-            self.openai_client.responses.create(
+            response = self.openai_client.responses.create(
                 model="o4-mini-deep-research",
                 input=research_prompt,
                 background=True,
@@ -177,14 +190,22 @@ class LLMService(BaseService):
                     {"type": "web_search_preview"},
                     {"type": "code_interpreter", "container": {"type": "auto"}},
                 ],
-                extra_headers={"Idempotency-Key": idempotency_key},
             )
+
+            # Store the OpenAI response_id so we can poll it later
+            response_id = response.id
+            if self.table:
+                self.table.put_item(Item={
+                    'PK': f'USER#{user_id}',
+                    'SK': f'RESEARCH#{job_id}',
+                    'openai_response_id': response_id,
+                    'status': 'in_progress',
+                    'created_at': datetime.now(UTC).isoformat(),
+                })
 
             return {
                 'success': True,
                 'job_id': job_id,
-                'ideas_researched': selected_ideas,
-                'research_summary': f"Researched {len(selected_ideas)} selected topics"
             }
 
         except Exception as e:
@@ -241,23 +262,47 @@ class LLMService(BaseService):
             if not item:
                 return {'success': False}
 
-            # Update user profile with results
-            profile_updates = self._build_profile_updates(item, found_kind)
-            if profile_updates:
-                self._update_user_profile(user_id, profile_updates)
+            # If item has an openai_response_id but no content, poll OpenAI directly
+            openai_response_id = item.get('openai_response_id')
+            if openai_response_id and item.get('status') == 'in_progress':
+                return self._check_openai_response(user_id, job_id, openai_response_id, found_kind)
 
             # Return appropriate response
             if item.get('ideas'):
                 return {'success': True, 'ideas': item.get('ideas')}
-            elif found_kind == 'SYNTHESIZE':
-                content = item.get('content', '')
-                sections = self._parse_synthesize_sections(content)
-                if sections:
-                    return {'success': True, 'sections': sections}
-            return {'success': True, 'content': item.get('content', '')}
+            if item.get('content'):
+                return {'success': True, 'content': item.get('content')}
+            return {'success': False}
 
         except Exception as e:
             logger.error(f"Error in get_research_result: {e}")
+            return {'success': False}
+
+    def _check_openai_response(self, user_id: str, job_id: str, response_id: str, kind: str) -> dict[str, Any]:
+        """Check OpenAI response status and store result if complete."""
+        try:
+            resp = self.openai_client.responses.retrieve(response_id)
+            status = getattr(resp, 'status', None)
+            logger.info(f"OpenAI response status for {response_id}: {status}")
+
+            if status != 'completed':
+                return {'success': False, 'status': status or 'pending'}
+
+            content = getattr(resp, 'output_text', None) or ''
+
+            # Update DynamoDB with the completed result
+            if self.table and content:
+                self.table.update_item(
+                    Key={'PK': f'USER#{user_id}', 'SK': f'{kind}#{job_id}'},
+                    UpdateExpression='SET content = :c, #s = :s',
+                    ExpressionAttributeNames={'#s': 'status'},
+                    ExpressionAttributeValues={':c': content, ':s': 'completed'},
+                )
+
+            return {'success': True, 'content': content}
+
+        except Exception as e:
+            logger.error(f"Error checking OpenAI response: {e}")
             return {'success': False}
 
     def synthesize_research(
@@ -302,80 +347,18 @@ class LLMService(BaseService):
                 ideas_content=ideas_content,
             )
 
-            # Use IDEM_KEY from env, or fall back to job_id for idempotency
-            # Explicitly check for empty string to ensure proper fallback
-            env_idem_key = os.environ.get('IDEM_KEY')
-            idempotency_key = (env_idem_key if env_idem_key else None) or job_id or str(uuid.uuid4())
-
-            self.openai_client.responses.create(
+            response = self.openai_client.responses.create(
                 model="gpt-5.2",
                 input=llm_prompt,
-                background=True,
-                metadata={"job_id": job_id, "user_id": user_id, "kind": "SYNTHESIZE"},
-                extra_headers={"Idempotency-Key": idempotency_key},
             )
 
-            return {'success': True, 'status': 'queued'}
+            content = response.output_text if hasattr(response, 'output_text') else str(response)
+
+            return {'success': True, 'content': content.strip()}
 
         except Exception as e:
             logger.error(f"Error in synthesize_research: {e}")
             return {'success': False, 'error': 'Failed to synthesize research into post'}
-
-    def apply_style(
-        self,
-        existing_content: str,
-        style: str
-    ) -> dict[str, Any]:
-        """
-        Apply style transformation to content using Bedrock.
-
-        Args:
-            existing_content: Content to transform
-            style: Style to apply
-
-        Returns:
-            dict with success status and transformed content
-        """
-        try:
-            if self.bedrock_client is None:
-                logger.error(f"Bedrock client not configured; cannot apply style with model {self.bedrock_model_id}")
-                return {'success': False, 'error': 'Bedrock client not configured'}
-
-            llm_prompt = APPLY_POST_STYLE_PROMPT.format(
-                existing_content=existing_content,
-                style=style
-            )
-
-            body = json.dumps({
-                "anthropic_version": "bedrock-2023-05-31",
-                "temperature": 0.7,
-                "max_tokens": 5000,
-                "messages": [{"role": "user", "content": llm_prompt}]
-            })
-
-            response = self.bedrock_client.invoke_model(
-                modelId=self.bedrock_model_id,
-                body=body,
-                contentType='application/json'
-            )
-
-            response_body = json.loads(response['body'].read())
-
-            # Validate response structure
-            if not isinstance(response_body.get("content"), list) or len(response_body["content"]) == 0:
-                logger.error("Unexpected Bedrock response structure: missing or empty content array")
-                return {'success': False, 'error': 'Invalid response from Bedrock'}
-
-            content = response_body["content"][0].get("text")
-            if content is None:
-                logger.error("Missing text field in Bedrock response content")
-                return {'success': False, 'error': 'Missing content in Bedrock response'}
-
-            return {'success': True, 'content': content}
-
-        except Exception as e:
-            logger.error(f"Error in apply_style: {e}")
-            return {'success': False, 'error': 'Failed to apply post style'}
 
     # Private helpers
 
@@ -389,34 +372,6 @@ class LLMService(BaseService):
             except Exception:
                 return str(value)
         return str(value)
-
-    def _parse_synthesize_sections(self, text: str) -> dict:
-        """Parse synthesize content into sections."""
-        sections = {}
-        if not isinstance(text, str) or not text.strip():
-            return sections
-
-        pattern = re.compile(r"(?m)^(?:\s*)([123])\s*[:\.\)\-]", re.UNICODE)
-        matches = list(pattern.finditer(text))
-
-        if not matches:
-            return sections
-
-        for idx, m in enumerate(matches):
-            key = m.group(1)
-            start = m.end()
-            end = matches[idx + 1].start() if idx + 1 < len(matches) else len(text)
-            value = text[start:end].strip()
-
-            lines = value.split('\n')
-            if len(lines) > 1:
-                content = '\n'.join(lines[1:]).strip()
-                if content:
-                    sections[key] = content.strip()
-            elif value and not value.startswith('The LinkedIn Post'):
-                sections[key] = value.strip()
-
-        return sections
 
     def _build_profile_updates(self, item: dict, found_kind: str) -> dict:
         """Build profile updates from research result."""
@@ -433,15 +388,7 @@ class LLMService(BaseService):
         elif found_kind == 'SYNTHESIZE':
             content = item.get('content')
             if content is not None:
-                sections = self._parse_synthesize_sections(content)
-                if '1' in sections:
-                    profile_updates['unpublished_post_content'] = sections['1']
-                if '2' in sections:
-                    profile_updates['ai_generated_post_reasoning'] = sections['2']
-                if '3' in sections:
-                    profile_updates['ai_generated_post_hook'] = sections['3']
-                if not sections:
-                    profile_updates['unpublished_post_content'] = content
+                profile_updates['unpublished_post_content'] = content
 
         return profile_updates
 

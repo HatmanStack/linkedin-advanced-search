@@ -81,20 +81,32 @@ class PuppeteerApiService {
 
       if (shouldAttach) {
         let ciphertextTag = null as string | null;
-        try {
-          const fromSession = sessionStorage.getItem('li_credentials_ciphertext');
-          ciphertextTag = (fromSession && fromSession.startsWith('sealbox_x25519:b64:')) ? fromSession : null;
-          logger.debug('Credentials check', {
-            hasSessionStorage: !!fromSession,
-            hasValidPrefix: ciphertextTag ? true : false,
-            length: fromSession ? fromSession.length : 0
-          });
-        } catch (e) {
-          logger.error('Error reading sessionStorage', { error: e });
+
+        // Profile fetch from DynamoDB is async on session start; wait briefly for it
+        const maxWaitMs = 5000;
+        const pollIntervalMs = 200;
+        const deadline = Date.now() + maxWaitMs;
+
+        while (!ciphertextTag && Date.now() < deadline) {
+          try {
+            const fromSession = sessionStorage.getItem('li_credentials_ciphertext');
+            ciphertextTag = (fromSession && fromSession.startsWith('sealbox_x25519:b64:')) ? fromSession : null;
+          } catch (e) {
+            logger.error('Error reading sessionStorage', { error: e });
+            break;
+          }
+          if (!ciphertextTag) {
+            await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
+          }
         }
 
+        logger.debug('Credentials check', {
+          hasCredentials: !!ciphertextTag,
+          length: ciphertextTag ? ciphertextTag.length : 0
+        });
+
         if (!ciphertextTag) {
-          logger.error('No valid credentials found, aborting request');
+          logger.error('No valid credentials found after waiting, aborting request');
           return {
             success: false,
             error: 'LinkedIn credentials are missing. Please add your encrypted LinkedIn credentials on the Profile page first.',
