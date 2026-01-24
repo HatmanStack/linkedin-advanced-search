@@ -51,6 +51,11 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
       setIdeas([]);
       setResearchContent(null);
       setSynthesizedPost(null);
+      try {
+        sessionStorage.removeItem(IDEAS_STORAGE_KEY);
+        sessionStorage.removeItem(RESEARCH_STORAGE_KEY);
+        sessionStorage.removeItem(SYNTHESIZED_STORAGE_KEY);
+      } catch { /* ignore */ }
       return;
     }
 
@@ -94,6 +99,9 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
       if (result) {
         setResearchContent(result);
         try { sessionStorage.setItem(RESEARCH_STORAGE_KEY, result); } catch { /* ignore */ }
+      } else {
+        setResearchContent(null);
+        try { sessionStorage.removeItem(RESEARCH_STORAGE_KEY); } catch { /* ignore */ }
       }
     } finally {
       setIsResearching(false);

@@ -83,7 +83,7 @@ def _handle_ragstack(body, user_id):
         svc = IngestionService(client)
         profile_id = body.get('profileId')
         markdown_content = body.get('markdownContent')
-        metadata = body.get('metadata', {})
+        metadata = body.get('metadata') or {}
         if not isinstance(metadata, dict):
             return _resp(400, {'error': 'metadata must be an object'})
         if not profile_id:

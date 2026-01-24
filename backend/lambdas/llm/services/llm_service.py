@@ -115,7 +115,7 @@ class LLMService(BaseService):
             # Parse ideas from response
             has_output_text = hasattr(response, 'output_text')
             content = response.output_text if has_output_text else str(response)
-            logger.info(f"generate_ideas response: has_output_text={has_output_text}, content_length={len(content)}, content_preview={content[:200]}")
+            logger.info(f"generate_ideas response: has_output_text={has_output_text}, content_length={len(content)}")
             ideas = self._parse_ideas(content)
             logger.info(f"generate_ideas parsed {len(ideas)} ideas")
 
@@ -292,7 +292,7 @@ class LLMService(BaseService):
             content = getattr(resp, 'output_text', None) or ''
 
             # Update DynamoDB with the completed result
-            if self.table and content:
+            if self.table:
                 self.table.update_item(
                     Key={'PK': f'USER#{user_id}', 'SK': f'{kind}#{job_id}'},
                     UpdateExpression='SET content = :c, #s = :s',

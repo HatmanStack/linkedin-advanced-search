@@ -144,19 +144,27 @@ export class LinkedInService {
       }
       await RandomHelpers.randomDelay(500, 1000);
 
-      // Click "Show results" to apply the filter
+      // Click "Show results" to apply the filter (may auto-apply on selection)
       await this._clickShowResults();
-      await RandomHelpers.randomDelay(2000, 3000);
 
-      // Extract company number from updated URL (quotes may be literal or encoded as %22)
-      const currentUrl = decodeURIComponent(page.url());
-      const companyMatch = currentUrl.match(/currentCompany=\["?(\d+)"?\]/);
-      const extractedCompanyNumber = companyMatch ? companyMatch[1] : null;
+      // Wait for URL to update with company parameter
+      let extractedCompanyNumber = null;
+      try {
+        await page.waitForFunction(
+          () => /currentCompany=/.test(decodeURIComponent(window.location.href)),
+          { timeout: 10000 }
+        );
+        const currentUrl = decodeURIComponent(page.url());
+        const companyMatch = currentUrl.match(/currentCompany=\["?(\d+)"?\]/);
+        extractedCompanyNumber = companyMatch ? companyMatch[1] : null;
+      } catch {
+        logger.warn('Timed out waiting for company parameter in URL');
+      }
 
       if (extractedCompanyNumber) {
         logger.info(`Extracted company number: ${extractedCompanyNumber}`);
       } else {
-        logger.warn(`Could not extract company ID from URL: ${currentUrl}`);
+        logger.warn(`Could not extract company ID from URL`);
       }
 
       return extractedCompanyNumber;
@@ -201,19 +209,27 @@ export class LinkedInService {
       }
       await RandomHelpers.randomDelay(500, 1000);
 
-      // Click "Show results" to apply the filter
+      // Click "Show results" to apply the filter (may auto-apply on selection)
       await this._clickShowResults();
-      await RandomHelpers.randomDelay(2000, 3000);
 
-      // Extract geo number from updated URL (quotes may be literal or encoded as %22)
-      const currentUrl = decodeURIComponent(page.url());
-      const geoMatch = currentUrl.match(/geoUrn=\["?(\d+)"?\]/);
-      const extractedGeoNumber = geoMatch ? geoMatch[1] : null;
+      // Wait for URL to update with geo parameter
+      let extractedGeoNumber = null;
+      try {
+        await page.waitForFunction(
+          () => /geoUrn=/.test(decodeURIComponent(window.location.href)),
+          { timeout: 10000 }
+        );
+        const currentUrl = decodeURIComponent(page.url());
+        const geoMatch = currentUrl.match(/geoUrn=\["?(\d+)"?\]/);
+        extractedGeoNumber = geoMatch ? geoMatch[1] : null;
+      } catch {
+        logger.warn('Timed out waiting for geoUrn parameter in URL');
+      }
 
       if (extractedGeoNumber) {
         logger.info(`Extracted geo number: ${extractedGeoNumber}`);
       } else {
-        logger.warn(`Could not extract geo ID from URL: ${currentUrl}`);
+        logger.warn(`Could not extract geo ID from URL`);
       }
 
       return extractedGeoNumber;
