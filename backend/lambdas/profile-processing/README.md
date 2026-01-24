@@ -1,95 +1,63 @@
-# LinkedIn Profile Processing Lambda
+# Profile Processing Lambda
 
-This Lambda function processes LinkedIn profile screenshots uploaded to S3 and creates Profile Metadata Items in DynamoDB following the new schema.
+Converts LinkedIn profile screenshots uploaded to S3 into structured DynamoDB items with AI-powered text extraction.
 
-## Architecture
+## Runtime
 
-```
-S3 Upload → Lambda Trigger → Textract → Claude → DynamoDB Profile Metadata Item
-```
+- Python 3.13
+- Handler: `lambda_function.lambda_handler`
+- Trigger: SQS queue (from S3 upload notifications)
+- Timeout: 2 minutes
+- Memory: 1024 MB
 
-## Features
-
-- **S3 Event Trigger**: Automatically processes new uploads
-- **Text Extraction**: Uses Amazon Textract for OCR
-- **AI Parsing**: Claude via Bedrock extracts structured data
-- **New Schema**: Creates Profile Metadata Items with all required attributes
-- **Markdown Generation**: Creates readable profile summaries
-
-## Profile Metadata Item Schema
+## Processing Flow
 
 ```
-PK: PROFILE#<base64_encoded_url>
+S3 Upload → SQS → Lambda → Textract OCR → Bedrock AI Parse → DynamoDB + RAGStack
+```
+
+1. **S3 Event**: New screenshot upload triggers SQS message
+2. **Download**: Fetch image from S3
+3. **OCR**: Amazon Textract extracts text lines from image
+4. **S3 Metadata**: Extract LinkedIn URL from S3 object metadata
+5. **AI Parse**: Bedrock (Llama 3.2 90B) extracts structured profile fields
+6. **DynamoDB**: Store profile metadata item
+7. **Markdown**: Generate and save markdown summary to S3
+8. **RAGStack**: Auto-ingest markdown for semantic search (best-effort, non-fatal)
+
+## DynamoDB Schema
+
+```
+PK: PROFILE#<base64_encoded_linkedin_url>
 SK: #METADATA
 
 Attributes:
-- name, headline, summary, profilePictureUrl, originalUrl
-- currentCompany, currentTitle, currentLocation, employmentType
+- name, headline, summary, originalUrl
+- currentCompany, currentTitle, currentLocation
 - workExperience[], education[], skills[]
 - createdAt, updatedAt, fulltext
 ```
 
-## Deployment
+## Environment Variables
 
-Deploy via SAM from the backend directory:
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DYNAMODB_TABLE_NAME` | Yes | DynamoDB table for profile storage |
+| `BEDROCK_MODEL_ID` | No | Override AI model (default: `us.meta.llama3-2-90b-instruct-v1:0`) |
+| `RAGSTACK_GRAPHQL_ENDPOINT` | No | RAGStack endpoint for auto-ingestion |
+| `RAGSTACK_API_KEY` | No | RAGStack API key |
 
-```bash
-cd backend
-npm run deploy
+## IAM Permissions Required
+
+- `textract:DetectDocumentText`
+- `bedrock:InvokeModel`
+- `s3:GetObject`, `s3:PutObject`, `s3:HeadObject`
+- `dynamodb:PutItem`
+- `sqs:ReceiveMessage`, `sqs:DeleteMessage`
+
+## Architecture
+
 ```
-
-This Lambda is automatically deployed with:
-- Runtime: Python 3.13
-- Handler: `lambda_function.lambda_handler`
-- Timeout: 2 minutes
-- Memory: 1024 MB
-- SQS trigger from profile processing queue
-
-## IAM Permissions
-
-The Lambda execution role needs:
-
-```json
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Effect": "Allow",
-            "Action": [
-                "textract:DetectDocumentText",
-                "bedrock:InvokeModel",
-                "s3:GetObject",
-                "s3:PutObject",
-                "s3:HeadObject",
-                "dynamodb:PutItem",
-                "logs:CreateLogGroup",
-                "logs:CreateLogStream",
-                "logs:PutLogEvents"
-            ],
-            "Resource": "*"
-        }
-    ]
-}
+lambda_function.py                          → SQS event handler
+services/profile_processing_service.py      → ProfileProcessingService class
 ```
-
-## Configuration
-
-Update these constants in `lambda_function.py`:
-- `CLAUDE_MODEL_ID`: Claude model to use
-- `AWS_REGION`: AWS region
-- `DYNAMODB_TABLE_NAME`: DynamoDB table name
-
-## Processing Flow
-
-1. **S3 Event**: Lambda triggered by new file upload
-2. **Text Extraction**: Textract extracts text from image
-3. **Metadata Extraction**: Gets LinkedIn URL from S3 path
-4. **AI Parsing**: Claude extracts structured profile data
-5. **Profile Creation**: Creates Profile Metadata Item in DynamoDB
-6. **Markdown Generation**: Creates readable summary in S3
-
-## Output
-
-- **DynamoDB**: Profile Metadata Item with all required attributes
-- **S3**: Markdown file with formatted profile summary
-- **Logs**: CloudWatch logs for monitoring and debugging

@@ -19,13 +19,13 @@ Node.js automation backend for LinkedIn interactions with queue-based processing
 ## Quick Start
 
 ### Prerequisites
-- Node.js 22+
+- Node.js 24+
 - AWS credentials configured
 - Chrome/Chromium browser
 
 ### Installation
 ```bash
-cd puppeteer-backend
+cd puppeteer
 npm install
 cp .env.example .env
 ```

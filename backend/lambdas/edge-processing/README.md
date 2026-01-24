@@ -1,13 +1,38 @@
-# Edge Processing Lambda Function
+# Edge Processing Lambda
 
-This Lambda function handles the creation of bidirectional edges between users and LinkedIn profiles in DynamoDB.
+Manages connection edges between users and LinkedIn profiles, plus RAGStack vector search operations.
 
-## Functionality
+## Runtime
 
-1. **API Gateway Integration**: Receives POST requests with `linkedinurl` parameter
-2. **Profile Validation**: Waits 30 seconds then checks if profile exists and was recently updated
-3. **Edge Creation**: Creates bidirectional edges between user and profile if they don't exist
-4. **Error Handling**: Returns appropriate HTTP status codes and error messages
+- Python 3.13
+- Handler: `lambda_function.lambda_handler`
+- Routes: `/edges`, `/ragstack`
+
+## Edge Operations (`/edges`)
+
+| Operation | Description |
+|-----------|-------------|
+| `get_connections_by_status` | Query edges by status (possible, sent, connected) |
+| `upsert_status` | Create/update edge status for a profile |
+| `add_message` | Append a message to an edge's message history |
+
+## RAGStack Operations (`/ragstack`)
+
+| Operation | Required Fields | Description |
+|-----------|----------------|-------------|
+| `search` | `query` | Semantic search across ingested profiles |
+| `ingest` | `profileId`, `markdownContent` | Ingest profile markdown for vector search |
+| `status` | `documentId` | Check ingestion status of a document |
+
+## Request Format
+
+```json
+{
+  "operation": "upsert_status",
+  "profileId": "base64-encoded-url",
+  "updates": { "status": "sent", "addedAt": "2025-01-01T00:00:00Z" }
+}
+```
 
 ## DynamoDB Schema
 
@@ -15,51 +40,21 @@ This Lambda function handles the creation of bidirectional edges between users a
 - **PK**: `USER#<user_id>`
 - **SK**: `PROFILE#<profile_id_b64>`
 - **GSI1PK**: `USER#<user_id>`
-- **GSI1SK**: `STATUS#possible#PROFILE#<profile_id_b64>`
-- **status**: `possible`
-- **addedAt**: ISO timestamp
-- **messages**: Empty array (initialized)
+- **GSI1SK**: `STATUS#<status>#PROFILE#<profile_id_b64>`
 
 ### Profile-to-User Edge
 - **PK**: `PROFILE#<profile_id_b64>`
 - **SK**: `USER#<user_id>`
-- **status**: `possible`
-- **addedAt**: ISO timestamp
-- **attempts**: 0 (initialized)
-- **lastFailedAttempt**: null (initialized)
-
-## API Gateway Event Format
-
-```json
-{
-  "body": "{\"linkedinurl\": \"https://linkedin.com/in/example\"}"
-}
-```
-
-## Response Format
-
-### Success (200)
-```json
-{
-  "message": "Edges processed successfully",
-  "linkedinUrl": "https://linkedin.com/in/example",
-  "userId": "user-id"
-}
-```
-
-### Error (400/401/500)
-```json
-{
-  "error": "Error description"
-}
-```
 
 ## Environment Variables
 
-- `AWS_REGION`: us-west-2
-- `DYNAMODB_TABLE_NAME`: linkedin-advanced-search
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DYNAMODB_TABLE_NAME` | Yes | DynamoDB table name |
+| `RAGSTACK_GRAPHQL_ENDPOINT` | No | RAGStack GraphQL endpoint for vector search |
+| `RAGSTACK_API_KEY` | No | RAGStack API key |
+| `DEV_MODE` | No | Set `true` to allow unauthenticated requests |
 
-## Dependencies
+## Authentication
 
-- boto3>=1.35.36
-- botocore>=1.35.36
+Same JWT extraction as LLM Lambda. Returns 401 if no valid user_id found.

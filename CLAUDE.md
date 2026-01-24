@@ -102,8 +102,11 @@ Deployed separately from [RAGStack-Lambda](https://github.com/HatmanStack/RAGSta
 - Used by edge-processing (search/ingest) and profile-processing (auto-ingest)
 
 Lambdas share code via `lambdas/shared/python/`:
-- `utils/response_builder.py` - Standardized response building
-- `config/aws_config.py` - AWS resource names
+- `shared_services/base_service.py` - Base class for all service layers
+- `shared_services/ragstack_client.py` - RAGStack GraphQL client
+- `shared_services/ingestion_service.py` - Document ingestion for RAGStack
+- `errors/` - Shared exception classes and error handlers
+- `utils/profile_markdown.py` - Profile markdown generation
 
 ### Test Structure
 - `frontend/src/**/*.test.{ts,tsx}` - Frontend unit tests (Vitest + Testing Library)
