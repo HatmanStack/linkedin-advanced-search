@@ -136,13 +136,14 @@ class LLMService(BaseService):
 
     def _parse_ideas(self, content: str) -> list[str]:
         """Parse ideas from LLM response text."""
+        import re
         if not content:
             return []
         if "Idea:" in content:
             parts = content.split("Idea:")
             return [part.strip() for part in parts[1:] if part.strip()]
-        # Fallback: split by numbered list or newlines
-        lines = [line.strip().lstrip('0123456789.-) ') for line in content.strip().split('\n') if line.strip()]
+        # Fallback: strip numbered-list prefixes (e.g., "1. ", "2) ", "3- ")
+        lines = [re.sub(r'^\s*\d+[\.\)\-]?\s*', '', line) for line in content.strip().split('\n') if line.strip()]
         return [line for line in lines if line]
 
     def research_selected_ideas(

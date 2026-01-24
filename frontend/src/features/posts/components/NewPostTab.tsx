@@ -14,7 +14,6 @@ const NewPostTabInner = () => {
     isResearching,
     isSynthesizing,
     ideas,
-    setIdeas,
     synthesizedPost,
     generateIdeas,
     researchTopics,
@@ -29,8 +28,7 @@ const NewPostTabInner = () => {
 
   const handleGenerateIdeas = async (prompt?: string) => {
     try {
-      const generatedIdeas = await generateIdeas(prompt);
-      setIdeas(generatedIdeas);
+      await generateIdeas(prompt);
     } catch (error) {
       logger.error('Failed to generate ideas', { error });
     }

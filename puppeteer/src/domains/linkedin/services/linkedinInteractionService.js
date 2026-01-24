@@ -787,8 +787,8 @@ export class LinkedInInteractionService {
         await this.waitForMessagingInterface();
 
       } else {
-        // Fallback: Try navigating directly to messaging URL
-        const messagingUrl = `${config.linkedin.baseUrl}/messaging/thread/new`;
+        // Fallback: Try navigating directly to messaging URL with recipient
+        const messagingUrl = `${config.linkedin.baseUrl}/messaging/thread/new?recipient=${encodeURIComponent(profileId)}`;
         logger.info(`Message button not found, navigating to new thread: ${messagingUrl}`);
 
         const navigationTimeout = this.configManager.get('navigationTimeout', 30000);

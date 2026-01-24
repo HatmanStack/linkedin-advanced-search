@@ -20,7 +20,7 @@
   const MOCK_LOCATIONS = [
     { name: 'San Francisco Bay Area', id: '90000084' },
     { name: 'Greater New York City Area', id: '90000070' },
-    { name: 'Greater Seattle Area', id: '90000084' },
+    { name: 'Greater Seattle Area', id: '90000049' },
     { name: 'Greater Los Angeles Area', id: '90000069' },
     { name: 'Greater Chicago Area', id: '90000063' },
     { name: 'United States', id: '103644278' },
@@ -66,7 +66,7 @@
       // Company panel already exists in the captured DOM, just ensure it's visible
       const listbox = document.querySelector('[role="listbox"][data-testid="typeahead-results-container"]');
       if (listbox) {
-        listbox.style.display = listbox.style.display === 'none' ? '' : '';
+        listbox.style.display = listbox.style.display === 'none' ? '' : 'none';
       }
       activeFilter = 'company';
     } else if (type === 'location') {
@@ -76,7 +76,7 @@
         locationPanelInjected = true;
       } else {
         const panel = document.getElementById('mock-location-panel');
-        if (panel) panel.style.display = panel.style.display === 'none' ? '' : '';
+        if (panel) panel.style.display = panel.style.display === 'none' ? '' : 'none';
       }
     }
   }

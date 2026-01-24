@@ -286,7 +286,8 @@ export class LinkedInService {
       try {
         const element = await page.$(selector);
         if (element) {
-          await element.click();
+          await element.click({ clickCount: 3 });
+          await page.keyboard.press('Backspace');
           await element.type(text, { delay: 50 });
           logger.debug(`Typed "${text}" in filter input: ${selector}`);
           return true;
@@ -324,7 +325,7 @@ export class LinkedInService {
           const partialMatch = items.find(item =>
             item.textContent.trim().toLowerCase().includes(text.toLowerCase())
           );
-          const target = exactMatch || partialMatch || items[0];
+          const target = exactMatch || partialMatch;
           if (target) {
             // Click the input/checkbox if it's a label, otherwise click the element
             const input = target.querySelector('input');

@@ -67,9 +67,12 @@ def _handle_ragstack(body, user_id):
         from shared_services.ragstack_client import RAGStackClient
         client = RAGStackClient(RAGSTACK_GRAPHQL_ENDPOINT, RAGSTACK_API_KEY)
         query = body.get('query', '')
-        max_results = body.get('maxResults', 100)
         if not query:
             return _resp(400, {'error': 'query is required'})
+        try:
+            max_results = int(body.get('maxResults', 100))
+        except (TypeError, ValueError):
+            return _resp(400, {'error': 'maxResults must be a number'})
         results = client.search(query, max_results)
         return _resp(200, {'results': results, 'totalResults': len(results)})
 
@@ -81,6 +84,8 @@ def _handle_ragstack(body, user_id):
         profile_id = body.get('profileId')
         markdown_content = body.get('markdownContent')
         metadata = body.get('metadata', {})
+        if not isinstance(metadata, dict):
+            return _resp(400, {'error': 'metadata must be an object'})
         if not profile_id:
             return _resp(400, {'error': 'profileId is required'})
         if not markdown_content:

@@ -16,7 +16,7 @@ interface PostComposerContextValue {
   isResearching: boolean;
   isSynthesizing: boolean;
   ideas: string[];
-  setIdeas: (ideas: string[]) => void;
+  updateIdeas: (ideas: string[]) => void;
   researchContent: string | null;
   synthesizedPost: string | null;
   generateIdeas: (prompt?: string) => Promise<string[]>;
@@ -153,12 +153,17 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
     try { sessionStorage.removeItem(SYNTHESIZED_STORAGE_KEY); } catch { /* ignore */ }
   }, []);
 
+  const updateIdeas = useCallback((newIdeas: string[]) => {
+    setIdeas(newIdeas);
+    try { sessionStorage.setItem(IDEAS_STORAGE_KEY, JSON.stringify(newIdeas)); } catch { /* ignore */ }
+  }, []);
+
   const value = useMemo(() => ({
     isGeneratingIdeas,
     isResearching,
     isSynthesizing,
     ideas,
-    setIdeas,
+    updateIdeas,
     researchContent,
     synthesizedPost,
     generateIdeas,
@@ -167,7 +172,7 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
     clearResearch,
     clearIdea,
     clearSynthesizedPost,
-  }), [isGeneratingIdeas, isResearching, isSynthesizing, ideas, researchContent, synthesizedPost, generateIdeas, researchTopics, synthesizeResearch, clearResearch, clearIdea, clearSynthesizedPost]);
+  }), [isGeneratingIdeas, isResearching, isSynthesizing, ideas, updateIdeas, researchContent, synthesizedPost, generateIdeas, researchTopics, synthesizeResearch, clearResearch, clearIdea, clearSynthesizedPost]);
 
   return (
     <PostComposerContext.Provider value={value}>

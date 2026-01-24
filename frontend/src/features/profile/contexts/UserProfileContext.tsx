@@ -47,7 +47,6 @@ export const UserProfileProvider = ({ children }: { children: ReactNode }) => {
         success: response.success,
         hasData: !!response.data,
         hasCredentials: !!response.data?.linkedin_credentials,
-        credentialsPrefix: response.data?.linkedin_credentials?.substring(0, 20),
         error: response.error
       });
       if (response.success && response.data) {
