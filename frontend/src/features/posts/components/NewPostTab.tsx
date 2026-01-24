@@ -1,40 +1,36 @@
-import { PostEditor, PostAIAssistant, usePostComposer } from '@/features/posts';
+import { PostAIAssistant, usePostComposer } from '@/features/posts';
 import { ResearchResultsCard } from '@/features/search';
 import { useToast } from '@/shared/hooks';
+import { Button } from '@/shared/components/ui/button';
+import { Copy, Check, Sparkles, X } from 'lucide-react';
+import { useState } from 'react';
 import { createLogger } from '@/shared/utils/logger';
 
 const logger = createLogger('NewPostTab');
 
 const NewPostTabInner = () => {
   const {
-    content,
-    setContent,
-    isSaving,
-    isPublishing,
     isGeneratingIdeas,
     isResearching,
     isSynthesizing,
-    saveDraft,
-    publish,
+    ideas,
+    synthesizedPost,
     generateIdeas,
     researchTopics,
     synthesizeResearch,
     clearResearch,
     clearIdea,
-    ideas,
-    setIdeas,
+    clearSynthesizedPost,
   } = usePostComposer();
 
   const { toast } = useToast();
-
+  const [copied, setCopied] = useState(false);
 
   const handleGenerateIdeas = async (prompt?: string) => {
     try {
-      const generatedIdeas = await generateIdeas(prompt);
-      setIdeas(generatedIdeas);
+      await generateIdeas(prompt);
     } catch (error) {
       logger.error('Failed to generate ideas', { error });
-      // Ideas will remain empty, so textarea will be shown
     }
   };
 
@@ -43,11 +39,7 @@ const NewPostTabInner = () => {
       await clearResearch();
     } catch (error) {
       logger.error('Failed to clear research', { error });
-      toast({
-        title: 'Error',
-        description: 'Failed to clear research. Please try again.',
-        variant: 'destructive',
-      });
+      toast({ title: 'Error', description: 'Failed to clear research.', variant: 'destructive' });
     }
   };
 
@@ -56,38 +48,74 @@ const NewPostTabInner = () => {
       await clearIdea(newIdeas);
     } catch (error) {
       logger.error('Failed to update ideas', { error });
-      toast({
-        title: 'Error',
-        description: 'Failed to update ideas. Please try again.',
-        variant: 'destructive',
-      });
     }
   };
 
   const handleValidationError = (message: string) => {
-    toast({
-      title: 'No Ideas Selected',
-      description: message,
-      variant: 'destructive',
-    });
+    toast({ title: 'No Ideas Selected', description: message, variant: 'destructive' });
   };
 
-  // Research of selected ideas is handled via onResearchTopics with a string[] from the assistant
+  const handleSynthesize = async () => {
+    try {
+      await synthesizeResearch();
+    } catch (error) {
+      logger.error('Failed to synthesize', { error });
+      toast({ title: 'Error', description: 'Failed to synthesize post.', variant: 'destructive' });
+    }
+  };
+
+  const handleCopy = async () => {
+    if (!synthesizedPost) return;
+    try {
+      await navigator.clipboard.writeText(synthesizedPost);
+      setCopied(true);
+      toast({ title: 'Copied!', description: 'Post copied to clipboard.' });
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast({ title: 'Error', description: 'Failed to copy to clipboard.', variant: 'destructive' });
+    }
+  };
 
   return (
     <div className="grid lg:grid-cols-[13fr_7fr] gap-8">
       <div className="space-y-6">
-        <PostEditor
-          content={content}
-          onContentChange={setContent}
-          onSaveDraft={saveDraft}
-          onPublishPost={publish}
-          isSavingDraft={isSaving}
-          isPublishing={isPublishing}
-          isSynthesizing={isSynthesizing}
-          onSynthesizeResearch={() => synthesizeResearch()}
-        />
+        {/* Synthesize Button */}
+        <div className="flex items-center gap-3">
+          <Button
+            onClick={handleSynthesize}
+            disabled={isSynthesizing}
+            className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white"
+          >
+            <Sparkles className="h-4 w-4 mr-2" />
+            {isSynthesizing ? 'Synthesizing...' : 'Synthesize Post'}
+          </Button>
+          <span className="text-sm text-muted-foreground">
+            Creates a LinkedIn post from your selected ideas and research
+          </span>
+        </div>
 
+        {/* Synthesized Output */}
+        {synthesizedPost && (
+          <div className="relative rounded-lg border bg-card p-6">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-medium text-muted-foreground">Generated Post</h3>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={handleCopy}>
+                  {copied ? <Check className="h-4 w-4 mr-1" /> : <Copy className="h-4 w-4 mr-1" />}
+                  {copied ? 'Copied' : 'Copy'}
+                </Button>
+                <Button variant="ghost" size="sm" onClick={clearSynthesizedPost}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+            <div className="whitespace-pre-wrap text-sm leading-relaxed">
+              {synthesizedPost}
+            </div>
+          </div>
+        )}
+
+        {/* Research Results */}
         <ResearchResultsCard
           isResearching={isResearching}
           onClear={handleClearResearch}

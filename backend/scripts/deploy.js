@@ -136,15 +136,6 @@ async function promptConfig(config) {
     if (openaiApiKey) config.openaiApiKey = openaiApiKey;
   }
 
-  // OpenAI Webhook Secret - show masked value if exists
-  if (config.openaiWebhookSecret) {
-    const masked = config.openaiWebhookSecret.slice(0, 8) + '...' + config.openaiWebhookSecret.slice(-4);
-    const openaiWebhookSecret = await question(`  OpenAI Webhook Secret [${masked}] (Enter to keep, or paste new): `);
-    if (openaiWebhookSecret) config.openaiWebhookSecret = openaiWebhookSecret;
-  } else {
-    const openaiWebhookSecret = await question('  OpenAI Webhook Secret (press Enter to skip): ');
-    if (openaiWebhookSecret) config.openaiWebhookSecret = openaiWebhookSecret;
-  }
 
   console.log('');
   return config;
@@ -165,9 +156,6 @@ function generateSamconfig(config) {
     params.OpenAIApiKey = config.openaiApiKey;
   }
 
-  if (config.openaiWebhookSecret) {
-    params.OpenAIWebhookSecret = config.openaiWebhookSecret;
-  }
 
   // Format as TOML array of "Key=Value" strings (handles special chars properly)
   const paramLines = Object.entries(params)

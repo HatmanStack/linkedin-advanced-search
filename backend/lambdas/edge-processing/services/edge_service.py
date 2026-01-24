@@ -1,6 +1,5 @@
 """EdgeService - Business logic for edge management operations."""
 import base64
-import json
 import logging
 from datetime import UTC, datetime
 from typing import Any
@@ -30,21 +29,21 @@ class EdgeService(BaseService):
     def __init__(
         self,
         table,
-        lambda_client=None,
-        ragstack_function_name: str | None = None
+        ragstack_endpoint: str = '',
+        ragstack_api_key: str = '',
     ):
         """
         Initialize EdgeService with injected dependencies.
 
         Args:
             table: DynamoDB Table resource
-            lambda_client: Optional Lambda client for RAGStack invocation
-            ragstack_function_name: Optional RAGStack proxy function name
+            ragstack_endpoint: RAGStack GraphQL API endpoint URL
+            ragstack_api_key: RAGStack API key for authentication
         """
         super().__init__()
         self.table = table
-        self.lambda_client = lambda_client
-        self.ragstack_function_name = ragstack_function_name
+        self.ragstack_endpoint = ragstack_endpoint
+        self.ragstack_api_key = ragstack_api_key
 
     def health_check(self) -> dict[str, Any]:
         """Check service health by verifying table access."""
@@ -524,8 +523,8 @@ class EdgeService(BaseService):
         profile_id_b64: str,
         user_id: str
     ) -> dict:
-        """Trigger RAGStack ingestion for a profile."""
-        if not self.ragstack_function_name or not self.lambda_client:
+        """Trigger RAGStack ingestion for a profile via direct HTTP call."""
+        if not self.ragstack_endpoint or not self.ragstack_api_key:
             logger.warning("RAGStack not configured, skipping ingestion")
             return {'success': False, 'error': 'RAGStack not configured'}
 
@@ -536,7 +535,7 @@ class EdgeService(BaseService):
 
             profile_data['profile_id'] = profile_id_b64
 
-            # Generate markdown (late import to avoid circular dependencies)
+            # Generate markdown
             try:
                 from utils.profile_markdown import generate_profile_markdown
                 markdown_content = generate_profile_markdown(profile_data)
@@ -547,34 +546,22 @@ class EdgeService(BaseService):
                 logger.error(f"Error generating markdown: {e}")
                 return {'success': False, 'error': f'Markdown generation failed: {e}'}
 
-            payload = {
-                'body': json.dumps({
-                    'operation': 'ingest',
-                    'profileId': profile_id_b64,
-                    'markdownContent': markdown_content,
-                    'metadata': {
-                        'user_id': user_id,
-                        'source': 'edge_processing'
-                    }
-                }),
-                'requestContext': {
-                    'authorizer': {
-                        'claims': {'sub': user_id}
-                    }
-                }
-            }
+            # Call RAGStack directly via shared client
+            from shared_services.ingestion_service import IngestionService
+            from shared_services.ragstack_client import RAGStackClient
 
-            response = self.lambda_client.invoke(
-                FunctionName=self.ragstack_function_name,
-                InvocationType='Event',
-                Payload=json.dumps(payload)
+            client = RAGStackClient(self.ragstack_endpoint, self.ragstack_api_key)
+            ingestion_svc = IngestionService(client)
+            result = ingestion_svc.ingest_profile(
+                profile_id=profile_id_b64,
+                markdown_content=markdown_content,
+                metadata={'user_id': user_id, 'source': 'edge_processing'}
             )
 
-            status_code = response.get('StatusCode', 0)
-            if status_code in (200, 202):
-                return {'success': True, 'status': 'triggered'}
+            if result.get('status') in ('uploaded', 'indexed'):
+                return {'success': True, 'status': result['status'], 'documentId': result.get('documentId')}
             else:
-                return {'success': False, 'error': f'Lambda invoke failed: {status_code}'}
+                return {'success': False, 'error': result.get('error', 'Ingestion failed')}
 
         except Exception as e:
             logger.error(f"Error triggering RAGStack ingestion: {e}")

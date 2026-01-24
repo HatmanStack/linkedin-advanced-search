@@ -98,7 +98,6 @@ function parseSamConfig() {
       s3Bucket: '',
       environment: '',
       openaiApiKey: '',
-      openaiWebhookSecret: '',
       ragstackEndpoint: '',
       ragstackApiKey: '',
     };
@@ -138,8 +137,6 @@ function parseSamConfig() {
       const openaiMatch = params.match(/OpenAIApiKey=(\S+)/);
       if (openaiMatch) config.openaiApiKey = openaiMatch[1];
 
-      const webhookMatch = params.match(/OpenAIWebhookSecret=(\S+)/);
-      if (webhookMatch) config.openaiWebhookSecret = webhookMatch[1];
 
       const ragEndpointMatch = params.match(/RagstackGraphqlEndpoint=(\S+)/);
       if (ragEndpointMatch) config.ragstackEndpoint = ragEndpointMatch[1];
@@ -275,9 +272,6 @@ function generateSamConfig(config, accountId) {
 
   if (config.openaiApiKey) {
     paramOverrides.push(`OpenAIApiKey=${escapeTomlValue(config.openaiApiKey)}`);
-  }
-  if (config.openaiWebhookSecret) {
-    paramOverrides.push(`OpenAIWebhookSecret=${escapeTomlValue(config.openaiWebhookSecret)}`);
   }
   if (config.ragstackEndpoint) {
     paramOverrides.push(`RagstackGraphqlEndpoint=${escapeTomlValue(config.ragstackEndpoint)}`);
@@ -539,7 +533,6 @@ async function collectConfiguration(config) {
   console.log('\n📦 Optional: API Keys (press Enter to keep existing)\n');
 
   config.openaiApiKey = await promptSecret('OpenAI API key', config.openaiApiKey);
-  config.openaiWebhookSecret = await promptSecret('OpenAI webhook secret', config.openaiWebhookSecret);
 
   // Check for RAGStack configuration
   const ragstackEnvPath = join(PROJECT_ROOT, '.env.ragstack');

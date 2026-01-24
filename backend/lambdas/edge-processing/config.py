@@ -13,8 +13,8 @@ class Config:
     DYNAMODB_TABLE_NAME = os.environ.get('DYNAMODB_TABLE_NAME', 'linkedin-advanced-search')
 
     # RAGStack Integration
-    RAGSTACK_PROXY_FUNCTION = os.environ.get('RAGSTACK_PROXY_FUNCTION', '')
-    RAGSTACK_ENABLED = os.environ.get('RAGSTACK_ENABLED', 'true').lower() == 'true'
+    RAGSTACK_GRAPHQL_ENDPOINT = os.environ.get('RAGSTACK_GRAPHQL_ENDPOINT', '')
+    RAGSTACK_API_KEY = os.environ.get('RAGSTACK_API_KEY', '')
 
     # Development Mode
     DEV_MODE = os.environ.get('DEV_MODE', 'false').lower() == 'true'
@@ -24,16 +24,15 @@ class Config:
 
     @classmethod
     def is_ragstack_configured(cls) -> bool:
-        """Check if RAGStack is properly configured and enabled."""
-        return bool(cls.RAGSTACK_PROXY_FUNCTION) and cls.RAGSTACK_ENABLED
+        """Check if RAGStack is properly configured."""
+        return bool(cls.RAGSTACK_GRAPHQL_ENDPOINT) and bool(cls.RAGSTACK_API_KEY)
 
     @classmethod
     def to_dict(cls) -> dict:
         """Return config as dictionary (for debugging/logging)."""
         return {
             'dynamodb_table': cls.DYNAMODB_TABLE_NAME,
-            'ragstack_function': cls.RAGSTACK_PROXY_FUNCTION or '(not set)',
-            'ragstack_enabled': cls.RAGSTACK_ENABLED,
+            'ragstack_configured': cls.is_ragstack_configured(),
             'dev_mode': cls.DEV_MODE,
             'log_level': cls.LOG_LEVEL
         }

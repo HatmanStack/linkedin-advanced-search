@@ -1,4 +1,4 @@
-"""LinkedIn Edge Management Lambda - Routes operations to EdgeService."""
+"""LinkedIn Edge Management Lambda - Routes edge and RAGStack operations."""
 import json
 import logging
 import os
@@ -12,8 +12,8 @@ logger.setLevel(logging.INFO)
 
 # Configuration and clients
 table = boto3.resource('dynamodb').Table(os.environ.get('DYNAMODB_TABLE_NAME', 'linkedin-advanced-search'))
-lambda_client = boto3.client('lambda')
-RAGSTACK_FUNCTION = os.environ.get('RAGSTACK_PROXY_FUNCTION', '') or None
+RAGSTACK_GRAPHQL_ENDPOINT = os.environ.get('RAGSTACK_GRAPHQL_ENDPOINT', '')
+RAGSTACK_API_KEY = os.environ.get('RAGSTACK_API_KEY', '')
 
 HEADERS = {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*',
            'Access-Control-Allow-Headers': 'Content-Type,Authorization', 'Access-Control-Allow-Methods': 'POST,OPTIONS'}
@@ -56,6 +56,57 @@ def _get_user_id(event):
     return None
 
 
+def _handle_ragstack(body, user_id):
+    """Handle /ragstack route - search and ingest operations."""
+    if not RAGSTACK_GRAPHQL_ENDPOINT or not RAGSTACK_API_KEY:
+        return _resp(503, {'error': 'RAGStack not configured'})
+
+    operation = body.get('operation')
+
+    if operation == 'search':
+        from shared_services.ragstack_client import RAGStackClient
+        client = RAGStackClient(RAGSTACK_GRAPHQL_ENDPOINT, RAGSTACK_API_KEY)
+        query = body.get('query', '')
+        if not query:
+            return _resp(400, {'error': 'query is required'})
+        try:
+            max_results = int(body.get('maxResults', 100))
+        except (TypeError, ValueError):
+            return _resp(400, {'error': 'maxResults must be a number'})
+        results = client.search(query, max_results)
+        return _resp(200, {'results': results, 'totalResults': len(results)})
+
+    elif operation == 'ingest':
+        from shared_services.ingestion_service import IngestionService
+        from shared_services.ragstack_client import RAGStackClient
+        client = RAGStackClient(RAGSTACK_GRAPHQL_ENDPOINT, RAGSTACK_API_KEY)
+        svc = IngestionService(client)
+        profile_id = body.get('profileId')
+        markdown_content = body.get('markdownContent')
+        metadata = body.get('metadata') or {}
+        if not isinstance(metadata, dict):
+            return _resp(400, {'error': 'metadata must be an object'})
+        if not profile_id:
+            return _resp(400, {'error': 'profileId is required'})
+        if not markdown_content:
+            return _resp(400, {'error': 'markdownContent is required'})
+        metadata['user_id'] = user_id
+        result = svc.ingest_profile(profile_id, markdown_content, metadata)
+        return _resp(200, result)
+
+    elif operation == 'status':
+        from shared_services.ragstack_client import RAGStackClient
+        client = RAGStackClient(RAGSTACK_GRAPHQL_ENDPOINT, RAGSTACK_API_KEY)
+        document_id = body.get('documentId')
+        if not document_id:
+            return _resp(400, {'error': 'documentId is required'})
+        status = client.get_document_status(document_id)
+        return _resp(200, status)
+
+    else:
+        return _resp(400, {'error': f'Unsupported ragstack operation: {operation}'})
+
+
 def lambda_handler(event, context):
     """Route edge operations to EdgeService."""
     # Debug logging
@@ -73,8 +124,13 @@ def lambda_handler(event, context):
         if not user_id:
             return _resp(401, {'error': 'Unauthorized'})
 
+        # Determine route
+        raw_path = event.get('rawPath', '') or event.get('path', '')
+        if '/ragstack' in raw_path:
+            return _handle_ragstack(body, user_id)
+
         op, pid, updates = body.get('operation'), body.get('profileId'), body.get('updates', {})
-        svc = EdgeService(table=table, lambda_client=lambda_client, ragstack_function_name=RAGSTACK_FUNCTION)
+        svc = EdgeService(table=table, ragstack_endpoint=RAGSTACK_GRAPHQL_ENDPOINT, ragstack_api_key=RAGSTACK_API_KEY)
 
         if op == 'get_connections_by_status':
             r = svc.get_connections_by_status(user_id, updates.get('status'))

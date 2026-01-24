@@ -87,17 +87,19 @@ Queue-based LinkedIn interaction processing with session preservation and heal/r
 SAM template (`template.yaml`) defines:
 - **ProfilesTable**: DynamoDB single-table design with GSI1
 - **Lambda Functions**: Python 3.13 runtime
-  - `edge-processing/` - Edge data processing with optional RAGStack integration
-  - `dynamodb-api/` - Generic DynamoDB CRUD
+  - `edge-processing/` - Edge data processing + RAGStack search/ingest (handles `/edges` and `/ragstack` routes)
+  - `dynamodb-api/` - User settings/profile CRUD (handles `/dynamodb` and `/profiles` routes)
   - `llm/` - OpenAI/Bedrock LLM operations
-  - `profile-api/` - Profile management
-  - `profile-processing/` - SQS-triggered profile processing from S3 uploads
-  - `webhook-handler/` - OpenAI webhooks
-  - `ragstack-proxy/` - RAGStack GraphQL proxy (conditional)
-  - `placeholder-search/` - Node.js search placeholder
+  - `profile-processing/` - SQS-triggered profile processing from S3 uploads with auto-RAGStack ingestion
 - **Cognito**: User pool with email-based auth
 - **S3**: Screenshot storage with SQS notification to profile-processing
 - **HttpApi**: API Gateway with Cognito JWT authorizer
+
+### RAGStack-Lambda (separate stack)
+Deployed separately from [RAGStack-Lambda](https://github.com/HatmanStack/RAGStack-Lambda):
+- Vector embeddings + semantic search via Bedrock Knowledge Base
+- Connected via `RAGSTACK_GRAPHQL_ENDPOINT` and `RAGSTACK_API_KEY` env vars
+- Used by edge-processing (search/ingest) and profile-processing (auto-ingest)
 
 Lambdas share code via `lambdas/shared/python/`:
 - `utils/response_builder.py` - Standardized response building
@@ -116,7 +118,7 @@ Lambdas share code via `lambdas/shared/python/`:
 - **State Management**: React Query (`@tanstack/react-query`)
 - **UI Components**: Radix UI primitives with Tailwind CSS
 - **Logging**: Winston (puppeteer), Python logging (lambdas)
-- **AI Integration**: OpenAI API + AWS Bedrock (configurable model ID)
+- **AI Integration**: OpenAI API + AWS Bedrock (configurable model ID). No Google Gemini.
 
 ## Environment Setup
 

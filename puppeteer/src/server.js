@@ -186,7 +186,6 @@ async function startServer() {
         port: config.port,
         nodeEnv: config.nodeEnv,
         frontendUrls: config.frontendUrls,
-        hasGoogleAI: !!config.googleAI.apiKey,
         linkedinInteractionsConfigured: configInitialized,
         linkedinTestingMode: config.linkedin.testingMode,
         linkedinBaseUrl: config.linkedin.baseUrl

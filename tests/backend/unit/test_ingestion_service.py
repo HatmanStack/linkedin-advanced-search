@@ -6,12 +6,12 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 import requests
 
-# Add ragstack-proxy to path
-RAGSTACK_PROXY_PATH = Path(__file__).parent.parent.parent.parent / 'backend' / 'lambdas' / 'ragstack-proxy'
-sys.path.insert(0, str(RAGSTACK_PROXY_PATH))
+# Add shared python layer to path
+SHARED_PYTHON_PATH = Path(__file__).parent.parent.parent.parent / 'backend' / 'lambdas' / 'shared' / 'python'
+sys.path.insert(0, str(SHARED_PYTHON_PATH))
 
-from ingestion_service import IngestionError, IngestionService, UploadError
-from ragstack_client import RAGStackClient, RAGStackError
+from shared_services.ingestion_service import IngestionError, IngestionService, UploadError
+from shared_services.ragstack_client import RAGStackClient, RAGStackError
 
 
 @pytest.fixture
@@ -53,7 +53,7 @@ class TestIngestionServiceInit:
 class TestIngestProfile:
     """Tests for profile ingestion"""
 
-    @patch('ingestion_service.requests.put')
+    @patch('shared_services.ingestion_service.requests.put')
     def test_ingest_profile_uploads_markdown(self, mock_put, ingestion_service, mock_ragstack_client):
         """Test successful profile ingestion"""
         mock_put.return_value = Mock(status_code=200)
@@ -74,7 +74,7 @@ class TestIngestProfile:
         # Verify content was uploaded
         mock_put.assert_called_once()
 
-    @patch('ingestion_service.requests.put')
+    @patch('shared_services.ingestion_service.requests.put')
     def test_ingest_profile_with_metadata(self, mock_put, ingestion_service):
         """Test ingestion with metadata"""
         mock_put.return_value = Mock(status_code=200)
@@ -94,7 +94,7 @@ class TestIngestProfile:
         assert "profile_id: profile_abc" in uploaded_data
         assert "source: linkedin_profile" in uploaded_data
 
-    @patch('ingestion_service.requests.put')
+    @patch('shared_services.ingestion_service.requests.put')
     def test_ingest_profile_wait_for_indexing(self, mock_put, ingestion_service, mock_ragstack_client):
         """Test ingestion with wait_for_indexing"""
         mock_put.return_value = Mock(status_code=200)
@@ -124,7 +124,7 @@ class TestIngestProfile:
                 markdown_content="",
             )
 
-    @patch('ingestion_service.requests.put')
+    @patch('shared_services.ingestion_service.requests.put')
     def test_ingest_profile_s3_upload_failure(self, mock_put, ingestion_service):
         """Test handling of S3 upload failure"""
         mock_put.return_value = Mock(status_code=500, text="Internal Server Error")
@@ -151,7 +151,7 @@ class TestIngestProfile:
         assert result["status"] == "failed"
         assert "API error" in result["error"]
 
-    @patch('ingestion_service.requests.put')
+    @patch('shared_services.ingestion_service.requests.put')
     def test_ingest_profile_idempotent(self, mock_put, ingestion_service, mock_ragstack_client):
         """Test that repeated ingestion uses same filename"""
         mock_put.return_value = Mock(status_code=200)
@@ -175,7 +175,7 @@ class TestIngestProfile:
 class TestS3Upload:
     """Tests for S3 upload functionality"""
 
-    @patch('ingestion_service.requests.put')
+    @patch('shared_services.ingestion_service.requests.put')
     def test_upload_success_200(self, mock_put, ingestion_service):
         """Test successful PUT upload with 200 response"""
         mock_put.return_value = Mock(status_code=200)
@@ -187,7 +187,7 @@ class TestS3Upload:
 
         assert result["status"] == "uploaded"
 
-    @patch('ingestion_service.requests.put')
+    @patch('shared_services.ingestion_service.requests.put')
     def test_upload_success_204(self, mock_put, ingestion_service):
         """Test successful PUT upload with 204 response"""
         mock_put.return_value = Mock(status_code=204)
@@ -199,7 +199,7 @@ class TestS3Upload:
 
         assert result["status"] == "uploaded"
 
-    @patch('ingestion_service.requests.post')
+    @patch('shared_services.ingestion_service.requests.post')
     def test_upload_multipart_with_fields(self, mock_post, ingestion_service, mock_ragstack_client):
         """Test multipart upload when fields are provided"""
         mock_ragstack_client.create_upload_url.return_value = {
@@ -217,7 +217,7 @@ class TestS3Upload:
         assert result["status"] == "uploaded"
         mock_post.assert_called_once()
 
-    @patch('ingestion_service.requests.put')
+    @patch('shared_services.ingestion_service.requests.put')
     def test_upload_retry_on_timeout(self, mock_put, ingestion_service):
         """Test upload retries on timeout"""
         mock_put.side_effect = [
@@ -233,7 +233,7 @@ class TestS3Upload:
         assert result["status"] == "uploaded"
         assert mock_put.call_count == 2
 
-    @patch('ingestion_service.requests.put')
+    @patch('shared_services.ingestion_service.requests.put')
     def test_upload_retry_on_connection_error(self, mock_put, ingestion_service):
         """Test upload retries on connection error"""
         mock_put.side_effect = [
@@ -252,7 +252,7 @@ class TestS3Upload:
 class TestWaitForIndexing:
     """Tests for indexing status polling"""
 
-    @patch('ingestion_service.requests.put')
+    @patch('shared_services.ingestion_service.requests.put')
     def test_wait_returns_indexed_status(self, mock_put, ingestion_service, mock_ragstack_client):
         """Test waiting returns when indexed"""
         mock_put.return_value = Mock(status_code=200)
@@ -270,8 +270,8 @@ class TestWaitForIndexing:
 
         assert result["status"] == "indexed"
 
-    @patch('ingestion_service.requests.put')
-    @patch('ingestion_service.time.sleep')
+    @patch('shared_services.ingestion_service.requests.put')
+    @patch('shared_services.ingestion_service.time.sleep')
     def test_wait_polls_until_indexed(self, mock_sleep, mock_put, ingestion_service, mock_ragstack_client):
         """Test polling until indexed"""
         mock_put.return_value = Mock(status_code=200)
@@ -290,7 +290,7 @@ class TestWaitForIndexing:
         assert result["status"] == "indexed"
         assert mock_ragstack_client.get_document_status.call_count == 3
 
-    @patch('ingestion_service.requests.put')
+    @patch('shared_services.ingestion_service.requests.put')
     def test_wait_returns_failed_status(self, mock_put, ingestion_service, mock_ragstack_client):
         """Test waiting returns when failed"""
         mock_put.return_value = Mock(status_code=200)
@@ -309,9 +309,9 @@ class TestWaitForIndexing:
         assert result["status"] == "failed"
         assert "Invalid document format" in result["error"]
 
-    @patch('ingestion_service.requests.put')
-    @patch('ingestion_service.time.time')
-    @patch('ingestion_service.time.sleep')
+    @patch('shared_services.ingestion_service.requests.put')
+    @patch('shared_services.ingestion_service.time.time')
+    @patch('shared_services.ingestion_service.time.sleep')
     def test_wait_timeout_returns_pending(self, mock_sleep, mock_time, mock_put, ingestion_service, mock_ragstack_client):
         """Test timeout returns pending status"""
         mock_put.return_value = Mock(status_code=200)
@@ -336,7 +336,7 @@ class TestWaitForIndexing:
 class TestMetadataPreparation:
     """Tests for content metadata preparation"""
 
-    @patch('ingestion_service.requests.put')
+    @patch('shared_services.ingestion_service.requests.put')
     def test_frontmatter_format(self, mock_put, ingestion_service):
         """Test YAML frontmatter format"""
         mock_put.return_value = Mock(status_code=200)
@@ -352,7 +352,7 @@ class TestMetadataPreparation:
         assert "---\n\n#" in uploaded_data  # Frontmatter ends with --- followed by blank line and content
         assert "# Test Profile" in uploaded_data
 
-    @patch('ingestion_service.requests.put')
+    @patch('shared_services.ingestion_service.requests.put')
     def test_metadata_with_list_values(self, mock_put, ingestion_service):
         """Test metadata with list values (YAML format)"""
         mock_put.return_value = Mock(status_code=200)
@@ -368,7 +368,7 @@ class TestMetadataPreparation:
         assert "- tag1" in uploaded_data
         assert "- tag2" in uploaded_data
 
-    @patch('ingestion_service.requests.put')
+    @patch('shared_services.ingestion_service.requests.put')
     def test_no_frontmatter_without_metadata(self, mock_put, ingestion_service):
         """Test no frontmatter when metadata is None"""
         mock_put.return_value = Mock(status_code=200)

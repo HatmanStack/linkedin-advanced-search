@@ -49,11 +49,6 @@ export const config = {
     pageNumberEnd: parseInt(process.env.PAGE_NUMBER_END) || 100,
   },
   
-  // Google AI
-  googleAI: {
-    apiKey: process.env.GOOGLE_AI_API_KEY || '',
-  },
-
   // Puppeteer
   puppeteer: {
     // Accept a variety of truthy/falsey strings; default to true if not specified

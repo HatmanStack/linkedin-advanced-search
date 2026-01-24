@@ -12,7 +12,7 @@ from typing import Any
 
 import requests
 import yaml
-from ragstack_client import RAGStackClient, RAGStackError
+from shared_services.ragstack_client import RAGStackClient, RAGStackError
 
 logger = logging.getLogger(__name__)
 

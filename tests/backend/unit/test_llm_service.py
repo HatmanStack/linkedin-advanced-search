@@ -8,9 +8,10 @@ import pytest
 def mock_openai_client():
     """Create mock OpenAI client."""
     client = MagicMock()
-    # Default: mock responses.create
+    # Default: mock responses.create with output_text
     mock_response = MagicMock()
     mock_response.id = 'resp_123'
+    mock_response.output_text = 'Idea: Test idea 1\n\nIdea: Test idea 2'
     client.responses.create.return_value = mock_response
     return client
 
@@ -65,8 +66,8 @@ class TestLLMServiceInit:
 class TestGenerateIdeas:
     """Tests for generate_ideas operation."""
 
-    def test_generate_ideas_queues_background_job(self, service, mock_openai_client):
-        """Should queue background job for idea generation."""
+    def test_generate_ideas_returns_ideas(self, service, mock_openai_client):
+        """Should return parsed ideas synchronously."""
         result = service.generate_ideas(
             user_profile={'name': 'John Doe'},
             prompt='AI trends',
@@ -75,7 +76,8 @@ class TestGenerateIdeas:
         )
 
         assert result['success'] is True
-        assert result['status'] == 'queued'
+        assert 'ideas' in result
+        assert len(result['ideas']) == 2
         mock_openai_client.responses.create.assert_called_once()
 
     def test_generate_ideas_includes_user_profile(self, service, mock_openai_client):
@@ -181,8 +183,9 @@ class TestGetResearchResult:
 class TestSynthesizeResearch:
     """Tests for synthesize_research operation."""
 
-    def test_synthesize_queues_background_job(self, service, mock_openai_client):
-        """Should queue background synthesis job."""
+    def test_synthesize_returns_content(self, service, mock_openai_client):
+        """Should return synthesized content synchronously."""
+        mock_openai_client.responses.create.return_value.output_text = 'Synthesized post content'
         result = service.synthesize_research(
             research_content='Research findings...',
             post_content='Draft post...',
@@ -193,7 +196,7 @@ class TestSynthesizeResearch:
         )
 
         assert result['success'] is True
-        assert result['status'] == 'queued'
+        assert result['content'] == 'Synthesized post content'
 
     def test_synthesize_requires_job_id(self, service):
         """Should require job_id."""
@@ -208,32 +211,6 @@ class TestSynthesizeResearch:
 
         assert result['success'] is False
         assert 'job_id' in result.get('error', '').lower()
-
-
-class TestApplyStyle:
-    """Tests for apply_style operation."""
-
-    def test_apply_style_transforms_content(self, service, mock_bedrock_client):
-        """Should transform content using Bedrock."""
-        result = service.apply_style(
-            existing_content='Original content here',
-            style='professional'
-        )
-
-        assert result['success'] is True
-        assert 'content' in result
-        mock_bedrock_client.invoke_model.assert_called_once()
-
-    def test_apply_style_handles_error(self, service, mock_bedrock_client):
-        """Should handle Bedrock errors gracefully."""
-        mock_bedrock_client.invoke_model.side_effect = Exception('Bedrock error')
-
-        result = service.apply_style(
-            existing_content='test',
-            style='casual'
-        )
-
-        assert result['success'] is False
 
 
 class TestHealthCheck:
