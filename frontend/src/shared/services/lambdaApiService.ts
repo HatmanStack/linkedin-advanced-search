@@ -515,11 +515,8 @@ class LambdaApiService {
           }
 
           // If validation failed, try to sanitize the data
-          //console.warn(`Invalid connection data at index ${index}:`, validationResult.errors);
           const sanitized = sanitizeConnectionData(conn);
-          
           if (sanitized && isConnection(sanitized)) {
-            //console.log(`Successfully sanitized connection data at index ${index}`);
             return sanitized;
           }
 

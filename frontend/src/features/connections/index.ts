@@ -5,9 +5,6 @@ export { default as VirtualConnectionList } from './components/VirtualConnection
 export { default as NewConnectionsTab } from './components/NewConnectionsTab';
 export { ConnectionListSkeleton } from './components/ConnectionCardSkeleton';
 
-// Hooks
-export { useConnections } from './hooks/useConnections';
-
 // Services
 export { connectionDataContextService } from './services/connectionDataContextService';
 
