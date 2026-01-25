@@ -19,6 +19,9 @@ table = boto3.resource('dynamodb', region_name=region).Table(os.environ.get('DYN
 
 def lambda_handler(event, context):
     """Process profile screenshots from S3 via SQS trigger."""
+    from shared_services.observability import setup_correlation_context
+    setup_correlation_context(event, context)
+
     try:
         svc = ProfileProcessingService(s3_client=s3, bedrock_client=bedrock, table=table)
         processed = 0
