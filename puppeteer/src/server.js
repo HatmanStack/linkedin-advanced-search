@@ -8,6 +8,7 @@ import healAndRestoreRoutes from '../routes/healAndRestore.js';
 import profileInitRoutes from '../routes/profileInitRoutes.js';
 import linkedinInteractionRoutes from '../routes/linkedinInteractionRoutes.js';
 import ConfigInitializer from './shared/config/configInitializer.js';
+import { createRateLimiter } from './shared/middleware/rateLimiter.js';
 
 const app = express();
 
@@ -73,10 +74,10 @@ app.use((req, res, next) => {
 
 // Routes
 // Mount search routes under /search to match frontend expectations
-app.use('/search', searchRoutes);
+app.use('/search', createRateLimiter({ windowMs: 60000, max: 10, name: 'search' }), searchRoutes);
 app.use('/heal-restore', healAndRestoreRoutes);
-app.use('/profile-init', profileInitRoutes);
-app.use('/linkedin-interactions', linkedinInteractionRoutes);
+app.use('/profile-init', createRateLimiter({ windowMs: 60000, max: 5, name: 'profile-init' }), profileInitRoutes);
+app.use('/linkedin-interactions', createRateLimiter({ windowMs: 60000, max: 30, name: 'interactions' }), linkedinInteractionRoutes);
 
 // Health check endpoint with configuration status
 app.get('/health', (req, res) => {
