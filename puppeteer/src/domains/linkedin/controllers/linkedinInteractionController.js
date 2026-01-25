@@ -1,4 +1,5 @@
 import { logger } from '#utils/logger.js';
+import { validateJwt } from '#utils/jwtValidator.js';
 import { LinkedInInteractionService } from '../services/linkedinInteractionService.js';
 import LinkedInService from '../services/linkedinService.js';
 import LinkedInErrorHandler from '../utils/linkedinErrorHandler.js';
@@ -692,53 +693,19 @@ export class LinkedInInteractionController {
   }
 
   /**
-   * Extract user ID from JWT token
-   * Decodes JWT payload to extract user information
+   * Extract user ID from JWT token with validation
+   * Validates JWT structure, expiration, and required claims before extracting user ID.
    * @private
    */
   _extractUserIdFromToken(token) {
-    try {
-      if (!token) {
-        logger.warn('No JWT token provided for user ID extraction');
-        return null;
-      }
+    const result = validateJwt(token);
 
-      // JWT tokens have 3 parts separated by dots: header.payload.signature
-      const parts = token.split('.');
-      if (parts.length !== 3) {
-        logger.warn('Invalid JWT token format - expected 3 parts');
-        return null;
-      }
-
-      // Decode the payload (second part)
-      const payload = parts[1];
-
-      // Add padding if needed for base64 decoding
-      const paddedPayload = payload + '='.repeat((4 - payload.length % 4) % 4);
-
-      // Decode base64 payload
-      const decodedPayload = Buffer.from(paddedPayload, 'base64').toString('utf8');
-      const payloadObj = JSON.parse(decodedPayload);
-
-      // Extract user ID - try common JWT claim names
-      const userId = payloadObj.sub || payloadObj.user_id || payloadObj.userId || payloadObj.id;
-
-      if (!userId) {
-        logger.warn('No user ID found in JWT token payload', {
-          availableClaims: Object.keys(payloadObj)
-        });
-        return null;
-      }
-
-      logger.debug('Successfully extracted user ID from JWT token', {
-        userId: userId.substring(0, 8) + '...' // Log partial ID for security
-      });
-
-      return userId;
-    } catch (error) {
-      logger.error('Failed to extract user ID from JWT token:', error);
+    if (!result.valid) {
+      logger.warn('JWT validation failed', { reason: result.reason });
       return null;
     }
+
+    return result.userId;
   }
 }
 
