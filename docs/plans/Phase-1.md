@@ -77,11 +77,11 @@ Implement security fixes for the puppeteer backend: JWT validation with expirati
    - If `valid`, return `userId`
 
 **Verification Checklist:**
-- [ ] `npm test` passes in puppeteer directory
-- [ ] New tests cover all validation scenarios
-- [ ] Expired tokens return 401 from API endpoints
-- [ ] Valid tokens continue to work
-- [ ] No changes to existing API contracts
+- [x] `npm test` passes in puppeteer directory
+- [x] New tests cover all validation scenarios
+- [x] Expired tokens return 401 from API endpoints
+- [x] Valid tokens continue to work
+- [x] No changes to existing API contracts
 
 **Testing Instructions:**
 
@@ -185,10 +185,10 @@ feat(security): add JWT expiration and structure validation
    ```
 
 **Verification Checklist:**
-- [ ] `sam validate` passes without errors
-- [ ] TokenValidityUnits specifies `hours` for access/id tokens
-- [ ] AccessTokenValidity is set to 4
-- [ ] No other Cognito settings are modified
+- [x] `sam validate` passes without errors
+- [x] TokenValidityUnits specifies `hours` for access/id tokens
+- [x] AccessTokenValidity is set to 4
+- [x] No other Cognito settings are modified
 
 **Testing Instructions:**
 
@@ -368,12 +368,12 @@ feat(backend): configure Cognito 4-hour token TTL
    ```
 
 **Verification Checklist:**
-- [ ] `npm test` passes in puppeteer directory
-- [ ] encrypt → decrypt roundtrip works correctly
-- [ ] State files written by HealingManager contain encrypted credentials
-- [ ] State files no longer contain plaintext passwords
-- [ ] Healing workers successfully decrypt and use credentials
-- [ ] Existing healing functionality still works end-to-end
+- [x] `npm test` passes in puppeteer directory
+- [x] encrypt → decrypt roundtrip works correctly
+- [x] State files written by HealingManager contain encrypted credentials
+- [x] State files no longer contain plaintext passwords
+- [x] Healing workers successfully decrypt and use credentials
+- [x] Existing healing functionality still works end-to-end
 
 **Testing Instructions:**
 
@@ -502,9 +502,9 @@ feat(security): encrypt credentials in healing state files
    ```
 
 **Verification Checklist:**
-- [ ] All integration tests pass
-- [ ] Tests verify actual module interactions (not just unit behavior)
-- [ ] Error paths are covered
+- [x] All integration tests pass
+- [x] Tests verify actual module interactions (not just unit behavior)
+- [x] Error paths are covered
 
 **Testing Instructions:**
 
