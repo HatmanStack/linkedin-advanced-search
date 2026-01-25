@@ -50,11 +50,15 @@ export const useConnections = (filters?: {
       puppeteerApiService.updateConnection(id, updates),
     onSuccess: (response, { id, updates }) => {
       if (response.success) {
+        // Safely merge response.data if it's a valid object with connection fields
+        const responseData = response.data && typeof response.data === 'object'
+          ? response.data as Partial<Connection>
+          : {};
         queryClient.setQueryData(
           queryKeys.connections.byUser(user?.id ?? ''),
           (old: Connection[] = []) =>
             old.map((conn) =>
-              conn.id === id ? { ...conn, ...updates, ...response.data } : conn
+              conn.id === id ? { ...conn, ...updates, ...responseData } : conn
             )
         );
       }

@@ -7,7 +7,7 @@ import { connectionDataContextService } from '@/features/connections';
 import { useWorkflowStateMachine } from './useWorkflowStateMachine';
 import { useMessageModal } from './useMessageModal';
 import { useMessageHistory } from './useMessageHistory';
-import type { Connection, Message } from '@/types';
+import type { Connection, Message, UserProfile } from '@/types';
 import { createLogger } from '@/shared/utils/logger';
 
 const logger = createLogger('useMessageGeneration');
@@ -16,7 +16,7 @@ interface UseMessageGenerationOptions {
   connections: Connection[];
   selectedConnections: string[];
   conversationTopic: string;
-  userProfile: Record<string, unknown> | null;
+  userProfile: UserProfile | null;
 }
 
 export function useMessageGeneration({

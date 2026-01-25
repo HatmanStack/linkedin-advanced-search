@@ -11,7 +11,7 @@ vi.mock('@/shared/services', () => ({
 }));
 
 vi.mock('@/hooks/useLocalStorage', () => ({
-  default: vi.fn((key: string, initialValue: unknown) => {
+  default: vi.fn((_key: string, initialValue: unknown) => {
     const state = { current: initialValue };
     return [
       state.current,
@@ -66,6 +66,8 @@ describe('useSearchResults', () => {
           companyName: 'Test',
           companyRole: 'Engineer',
           companyLocation: 'NYC',
+          searchName: '',
+          searchPassword: '',
           userId: 'user-1',
         });
       });
@@ -95,6 +97,8 @@ describe('useSearchResults', () => {
           companyName: 'Test',
           companyRole: 'Engineer',
           companyLocation: 'NYC',
+          searchName: '',
+          searchPassword: '',
           userId: 'user-1',
         });
       });
@@ -115,6 +119,8 @@ describe('useSearchResults', () => {
             companyName: 'Test',
             companyRole: 'Engineer',
             companyLocation: 'NYC',
+            searchName: '',
+            searchPassword: '',
             userId: 'user-1',
           });
         } catch {
@@ -140,6 +146,8 @@ describe('useSearchResults', () => {
             companyName: 'Test',
             companyRole: 'Engineer',
             companyLocation: 'NYC',
+            searchName: '',
+            searchPassword: '',
             userId: 'user-1',
           });
         } catch {

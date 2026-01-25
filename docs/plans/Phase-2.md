@@ -1,5 +1,29 @@
 # Phase 2: Frontend Modernization
 
+## Review Feedback (Iteration 1)
+
+### Task 2: useConnections.ts - TypeScript Build Error
+
+> **Consider:** At line 57 in `useConnections.ts`, you're spreading `response.data` which has an unknown type. What is the actual type of `response.data` from `puppeteerApiService.updateConnection`?
+>
+> **Think about:** When using `{ ...conn, ...updates, ...response.data }`, TypeScript needs to know that `response.data` is an object type. How might you narrow or cast this type safely?
+
+### Task 4: useSearchResults.test.ts - TypeScript Build Errors
+
+> **Consider:** In `useSearchResults.test.ts` line 14, you declare `key: string` in the mock function but never use it. Is this parameter necessary?
+>
+> **Think about:** Look at `SearchFormData` type - what fields does it require? Your test data at lines 65-70, 94-99, 114-119, and 139-144 only provides `companyName`, `companyRole`, `companyLocation`, and `userId`. What required fields are missing?
+>
+> **Reflect:** The `SearchFormData` type requires `searchName` and `searchPassword`. Should your test data include these, or should you update the mock to accept partial data?
+
+### Dashboard.tsx Integration - Type Error
+
+> **Consider:** At line 63 in `Dashboard.tsx`, you're passing `userProfile` which is typed as `UserProfile | null`, but `useMessageGeneration` expects `Record<string, unknown> | null`. Are these types compatible?
+>
+> **Think about:** The `UserProfile` type has a fixed shape, while `Record<string, unknown>` expects an index signature. How can you make these compatible - should you update the interface in `useMessageGeneration`, or cast/transform the data?
+
+---
+
 ## Phase Goal
 
 Modernize the frontend data layer by migrating to React Query and decomposing the oversized `useMessageGeneration` hook. This eliminates manual caching code, removes polling-based patterns, and establishes clean separation of concerns.
