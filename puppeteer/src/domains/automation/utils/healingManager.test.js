@@ -6,6 +6,21 @@ vi.mock('#utils/logger.js', () => ({
   logger: { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn() }
 }));
 
+// Mock crypto to return predictable encrypted values
+vi.mock('#utils/crypto.js', () => ({
+  encryptCredentials: vi.fn(async (creds) => {
+    // Return encrypted-looking values (base64 of random bytes)
+    const result = {};
+    if (creds.searchPassword) {
+      result.searchPassword = 'sealbox_x25519:b64:YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXo=';
+    }
+    if (creds.jwtToken) {
+      result.jwtToken = 'sealbox_x25519:b64:MTIzNDU2Nzg5MGFiY2RlZmdoaWprbG1u';
+    }
+    return result;
+  })
+}));
+
 vi.mock('fs', () => ({
   default: { writeFileSync: vi.fn() },
   writeFileSync: vi.fn()
@@ -55,8 +70,8 @@ describe('HealingManager', () => {
   });
 
   describe('_createProfileInitStateFile', () => {
-    it('creates file in data directory', () => {
-      const result = manager._createProfileInitStateFile({
+    it('creates file in data directory', async () => {
+      const result = await manager._createProfileInitStateFile({
         searchName: 'user',
         searchPassword: 'pass',
         requestId: 'req-1'
@@ -64,10 +79,11 @@ describe('HealingManager', () => {
       expect(result).toMatch(/^data\/profile-init-heal-\d+\.json$/);
     });
 
-    it('writes valid JSON to file', () => {
-      manager._createProfileInitStateFile({
+    it('writes valid JSON to file with encrypted credentials', async () => {
+      await manager._createProfileInitStateFile({
         searchName: 'user',
         searchPassword: 'pass',
+        jwtToken: 'my.jwt.token',
         recursionCount: 2,
         healPhase: 'profile-init',
         healReason: 'timeout'
@@ -79,10 +95,13 @@ describe('HealingManager', () => {
       expect(written.recursionCount).toBe(2);
       expect(written.healPhase).toBe('profile-init');
       expect(written.healReason).toBe('timeout');
+      // Verify credentials are encrypted
+      expect(written.searchPassword).toMatch(/^sealbox_x25519:b64:/);
+      expect(written.jwtToken).toMatch(/^sealbox_x25519:b64:/);
     });
 
-    it('applies defaults for missing fields', () => {
-      manager._createProfileInitStateFile({});
+    it('applies defaults for missing fields', async () => {
+      await manager._createProfileInitStateFile({});
 
       const writeCall = fsSync.writeFileSync.mock.calls[0];
       const written = JSON.parse(writeCall[1]);
@@ -94,8 +113,8 @@ describe('HealingManager', () => {
       expect(written.batchSize).toBe(100);
     });
 
-    it('includes timestamp in state data', () => {
-      manager._createProfileInitStateFile({});
+    it('includes timestamp in state data', async () => {
+      await manager._createProfileInitStateFile({});
 
       const writeCall = fsSync.writeFileSync.mock.calls[0];
       const written = JSON.parse(writeCall[1]);
@@ -105,23 +124,42 @@ describe('HealingManager', () => {
   });
 
   describe('_createStateFile', () => {
-    it('creates file in data directory with search prefix', () => {
-      const result = manager._createStateFile({ companyName: 'Acme' });
+    it('creates file in data directory with search prefix', async () => {
+      const result = await manager._createStateFile({ companyName: 'Acme' });
       expect(result).toMatch(/^data\/search-heal-\d+\.json$/);
     });
 
-    it('writes state data as JSON', () => {
+    it('writes state data as JSON with encrypted credentials', async () => {
       const stateData = {
         companyName: 'Acme',
         companyRole: 'Engineer',
+        searchPassword: 'secret123',
+        jwtToken: 'token.here',
         recursionCount: 1
       };
-      manager._createStateFile(stateData);
+      await manager._createStateFile(stateData);
 
       const writeCall = fsSync.writeFileSync.mock.calls[0];
       const written = JSON.parse(writeCall[1]);
       expect(written.companyName).toBe('Acme');
       expect(written.companyRole).toBe('Engineer');
+      // Verify credentials are encrypted
+      expect(written.searchPassword).toMatch(/^sealbox_x25519:b64:/);
+      expect(written.jwtToken).toMatch(/^sealbox_x25519:b64:/);
+    });
+
+    it('does not contain plaintext credentials', async () => {
+      const plainPassword = 'super_secret_password';
+      const plainToken = 'jwt.with.secrets';
+      await manager._createStateFile({
+        searchPassword: plainPassword,
+        jwtToken: plainToken
+      });
+
+      const writeCall = fsSync.writeFileSync.mock.calls[0];
+      const written = JSON.parse(writeCall[1]);
+      expect(written.searchPassword).not.toContain(plainPassword);
+      expect(written.jwtToken).not.toContain(plainToken);
     });
   });
 
@@ -141,12 +179,8 @@ describe('HealingManager', () => {
 
   describe('_launchProfileInitWorker', () => {
     it('spawns detached node process with state file', async () => {
-      const mockSpawn = vi.fn(() => ({ unref: vi.fn() }));
-      vi.doMock('child_process', () => ({ spawn: mockSpawn }));
-
-      // Use dynamic import to get the mocked version
       await manager._launchProfileInitWorker('data/test-state.json');
-      // The spawn is called via dynamic import inside the method
+      // Verify no throw - the spawn mock handles it
     });
   });
 
