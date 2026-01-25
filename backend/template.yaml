@@ -153,6 +153,13 @@ Resources:
         - ALLOW_USER_SRP_AUTH
         - ALLOW_REFRESH_TOKEN_AUTH
       GenerateSecret: false
+      TokenValidityUnits:
+        AccessToken: hours
+        IdToken: hours
+        RefreshToken: days
+      AccessTokenValidity: 4
+      IdTokenValidity: 4
+      RefreshTokenValidity: 30
 
   HttpApi:
     Type: AWS::Serverless::HttpApi
