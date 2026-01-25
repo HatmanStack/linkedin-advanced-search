@@ -1,9 +1,10 @@
 import { useCallback, useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import useLocalStorage from '@/hooks/useLocalStorage';
 import { puppeteerApiService } from '@/shared/services';
 import type { SearchFormData } from '@/shared/utils/validation';
 import { STORAGE_KEYS } from '@/config/appConfig';
-import { connectionChangeTracker } from '@/features/connections';
+import { queryKeys } from '@/shared/lib/queryKeys';
 
 interface UseSearchResultsReturn {
   results: string[];
@@ -18,7 +19,9 @@ interface UseSearchResultsReturn {
 }
 
 function useSearchResults(): UseSearchResultsReturn {
-  // Local storage for persistence
+  const queryClient = useQueryClient();
+
+  // Local storage for persistence (stays in localStorage - not server state)
   const [results, setResults] = useLocalStorage<string[]>(
     STORAGE_KEYS.SEARCH_RESULTS,
     []
@@ -29,43 +32,38 @@ function useSearchResults(): UseSearchResultsReturn {
     {}
   );
 
-  // State for loading and errors
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
   // State for informational message from search API
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
+
+  // Search mutation via React Query
+  const searchMutation = useMutation({
+    mutationFn: (searchData: SearchFormData) =>
+      puppeteerApiService.performLinkedInSearch(searchData),
+    onSuccess: (response) => {
+      if (response?.message) {
+        setInfoMessage(response.message);
+      }
+      // Invalidate connections cache to refetch after search
+      queryClient.invalidateQueries({ queryKey: queryKeys.connections.all });
+    },
+    onError: () => {
+      setInfoMessage(null);
+    },
+  });
 
   // LinkedIn search via puppeteer backend
   const searchLinkedIn = useCallback(
     async (searchFormData: SearchFormData) => {
-      setLoading(true);
-      setError(null);
       setInfoMessage(null);
-
       try {
-        // Call puppeteer backend for real LinkedIn automation
-        const response = await puppeteerApiService.performLinkedInSearch(searchFormData);
-
-        // Extract and store info message from response
-        if (response?.message) {
-          setInfoMessage(response.message);
-        }
-
-        // Mark that connections may have changed due to a search
-        connectionChangeTracker.markChanged('search');
+        await searchMutation.mutateAsync(searchFormData);
       } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Search failed';
-        setError(errorMessage);
-        throw err; // Re-throw so Dashboard can handle it
-      } finally {
-        setLoading(false);
+        // Re-throw so Dashboard can handle it
+        throw err;
       }
     },
-    []
+    [searchMutation]
   );
-
-  // We no longer store backend search results locally; DynamoDB is the source of truth
 
   // Mark a profile as visited
   const markAsVisited = useCallback(
@@ -91,8 +89,8 @@ function useSearchResults(): UseSearchResultsReturn {
   return {
     results,
     visitedLinks,
-    loading,
-    error,
+    loading: searchMutation.isPending,
+    error: searchMutation.error?.message ?? null,
     infoMessage,
     searchLinkedIn,
     markAsVisited,
