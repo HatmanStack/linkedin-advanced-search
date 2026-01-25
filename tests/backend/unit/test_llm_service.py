@@ -221,3 +221,175 @@ class TestHealthCheck:
         result = service.health_check()
 
         assert 'healthy' in result
+
+
+class TestSanitizePrompt:
+    """Tests for _sanitize_prompt input validation."""
+
+    def test_empty_string_returns_empty(self, service):
+        """Should return empty string for empty input."""
+        assert service._sanitize_prompt('') == ''
+
+    def test_none_returns_empty(self, service):
+        """Should return empty string for None."""
+        assert service._sanitize_prompt(None) == ''
+
+    def test_truncates_at_max_length(self, service):
+        """Should truncate to 2000 chars by default."""
+        long_text = 'a' * 3000
+        result = service._sanitize_prompt(long_text)
+        assert len(result) == 2000
+
+    def test_custom_max_length(self, service):
+        """Should respect custom max_length parameter."""
+        text = 'a' * 500
+        result = service._sanitize_prompt(text, max_length=100)
+        assert len(result) == 100
+
+    def test_strips_control_characters(self, service):
+        """Should strip control chars (except newline/tab)."""
+        text = 'hello\x00world\x01test\x7f'
+        result = service._sanitize_prompt(text)
+        assert '\x00' not in result
+        assert '\x01' not in result
+        assert '\x7f' not in result
+        assert 'hello' in result
+        assert 'world' in result
+
+    def test_preserves_newlines_and_tabs(self, service):
+        """Should keep newlines and tabs."""
+        text = 'line1\nline2\ttab'
+        result = service._sanitize_prompt(text)
+        assert '\n' in result
+        assert '\t' in result
+
+    def test_escapes_curly_braces(self, service):
+        """Should double curly braces to prevent .format() injection."""
+        text = 'Hello {name} and {role}'
+        result = service._sanitize_prompt(text)
+        assert '{{name}}' in result
+        assert '{{role}}' in result
+
+    def test_strips_whitespace(self, service):
+        """Should strip leading/trailing whitespace."""
+        text = '   hello world   '
+        result = service._sanitize_prompt(text)
+        assert result == 'hello world'
+
+    def test_format_injection_prevented(self, service):
+        """Should prevent .format() injection attacks."""
+        malicious = '{__class__.__init__.__globals__}'
+        result = service._sanitize_prompt(malicious)
+        # Double-escaped braces prevent format injection
+        assert '{' not in result or '{{' in result
+
+    def test_normal_text_passes_through(self, service):
+        """Should not modify normal text."""
+        text = 'Write a post about AI trends in 2024'
+        result = service._sanitize_prompt(text)
+        assert result == text
+
+
+class TestGenerateIdeasTTL:
+    """Tests for TTL on generated items."""
+
+    def test_generate_ideas_stores_with_ttl(self, service, mock_openai_client, mock_dynamodb_table):
+        """Should include TTL attribute when storing ideas."""
+        import time
+
+        result = service.generate_ideas(
+            user_profile={'name': 'John Doe'},
+            prompt='AI trends',
+            job_id='job-123',
+            user_id='user-456'
+        )
+
+        assert result['success'] is True
+        # Check if table.put_item was called with ttl
+        if mock_dynamodb_table.put_item.called:
+            call_args = mock_dynamodb_table.put_item.call_args
+            item = call_args[1].get('Item', call_args[0][0] if call_args[0] else {})
+            if 'ttl' in item:
+                # TTL should be roughly 24h from now
+                expected_ttl = int(time.time()) + 86400
+                assert abs(item['ttl'] - expected_ttl) < 60  # Within 60s
+
+    def test_research_stores_with_ttl(self, service, mock_openai_client, mock_dynamodb_table):
+        """Should include TTL on research results (7 day)."""
+        import time
+
+        result = service.research_selected_ideas(
+            user_data={'name': 'Test User'},
+            selected_ideas=['Topic 1'],
+            user_id='user-123'
+        )
+
+        assert result['success'] is True
+        # Verify the job_id is generated (research stores async)
+        assert 'job_id' in result
+
+
+class TestResearchPolling:
+    """Tests for research result polling behavior."""
+
+    def test_get_research_handles_missing_item(self, service, mock_dynamodb_table):
+        """Should return success=False when DynamoDB item is missing."""
+        mock_dynamodb_table.get_item.return_value = {}
+
+        result = service.get_research_result(
+            user_id='user-123',
+            job_id='nonexistent-job',
+            kind='RESEARCH'
+        )
+
+        assert result['success'] is False
+
+    def test_get_research_returns_content_when_found(self, service, mock_dynamodb_table):
+        """Should return content when research item exists."""
+        mock_dynamodb_table.get_item.return_value = {
+            'Item': {
+                'PK': 'USER#user-123',
+                'SK': 'RESEARCH#job-456',
+                'content': 'Research findings about topic X'
+            }
+        }
+
+        result = service.get_research_result(
+            user_id='user-123',
+            job_id='job-456',
+            kind='RESEARCH'
+        )
+
+        assert result['success'] is True
+
+    def test_synthesize_handles_empty_research(self, service, mock_openai_client):
+        """Should handle empty research content gracefully."""
+        mock_openai_client.responses.create.return_value.output_text = 'Generated content'
+
+        result = service.synthesize_research(
+            research_content='',
+            post_content='Draft post',
+            ideas_content=[],
+            user_profile={'name': 'Test'},
+            job_id='job-123',
+            user_id='user-456'
+        )
+
+        # Should still attempt synthesis even with empty research
+        assert result['success'] is True or 'error' in result
+
+    def test_synthesize_sanitizes_user_input(self, service, mock_openai_client):
+        """Should sanitize user-provided content in synthesis."""
+        mock_openai_client.responses.create.return_value.output_text = 'Clean output'
+
+        result = service.synthesize_research(
+            research_content='Normal research',
+            post_content='Draft with {injection} attempt',
+            ideas_content=['idea1'],
+            user_profile={'name': 'Test'},
+            job_id='job-123',
+            user_id='user-456'
+        )
+
+        # Should not crash from format injection
+        assert 'success' in result

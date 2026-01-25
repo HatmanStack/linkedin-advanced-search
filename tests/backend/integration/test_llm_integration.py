@@ -16,10 +16,12 @@ class TestLLMServiceIntegration:
     """Integration tests for LLMService with mocked OpenAI/Bedrock/DynamoDB."""
 
     @mock_aws
-    def test_generate_ideas_queues_job(self, llm_service_module):
-        """Test idea generation queues background job."""
+    def test_generate_ideas_returns_ideas(self, llm_service_module):
+        """Test idea generation returns ideas synchronously."""
         mock_openai = MagicMock()
-        mock_openai.responses.create.return_value = MagicMock(id='resp_123')
+        mock_response = MagicMock()
+        mock_response.output_text = 'Idea: Test idea 1\n\nIdea: Test idea 2'
+        mock_openai.responses.create.return_value = mock_response
 
         service = llm_service_module.LLMService(
             openai_client=mock_openai,
@@ -35,7 +37,7 @@ class TestLLMServiceIntegration:
         )
 
         assert result['success'] is True
-        assert result['status'] == 'queued'
+        assert 'ideas' in result
         mock_openai.responses.create.assert_called_once()
 
     @mock_aws
@@ -102,37 +104,26 @@ class TestLLMServiceIntegration:
         assert result['ideas'] == ['Idea 1', 'Idea 2', 'Idea 3']
 
     @mock_aws
-    def test_apply_style_transforms_content(self, llm_service_module):
-        """Test style application transforms content."""
-        import json
-
-        mock_bedrock = MagicMock()
-        mock_bedrock.invoke_model.return_value = {
-            'body': MagicMock(read=MagicMock(return_value=json.dumps({
-                'content': [{'text': 'Transformed professional content'}]
-            }).encode()))
-        }
-
+    def test_health_check_returns_status(self, llm_service_module):
+        """Test health check returns service status."""
         service = llm_service_module.LLMService(
             openai_client=MagicMock(),
-            bedrock_client=mock_bedrock,
-            table=None
+            bedrock_client=MagicMock(),
+            table=MagicMock()
         )
 
-        result = service.apply_style(
-            existing_content='Original casual content',
-            style='professional'
-        )
+        result = service.health_check()
 
-        assert result['success'] is True
-        assert 'content' in result
-        mock_bedrock.invoke_model.assert_called_once()
+        assert 'healthy' in result
+        assert result['healthy'] is True
 
     @mock_aws
-    def test_synthesize_research_queues_job(self, llm_service_module):
-        """Test research synthesis queues background job."""
+    def test_synthesize_research_returns_content(self, llm_service_module):
+        """Test research synthesis returns content synchronously."""
         mock_openai = MagicMock()
-        mock_openai.responses.create.return_value = MagicMock(id='resp_789')
+        mock_response = MagicMock()
+        mock_response.output_text = 'Synthesized content about the research'
+        mock_openai.responses.create.return_value = mock_response
 
         service = llm_service_module.LLMService(
             openai_client=mock_openai,
@@ -150,4 +141,5 @@ class TestLLMServiceIntegration:
         )
 
         assert result['success'] is True
-        assert result['status'] == 'queued'
+        assert 'content' in result
+        mock_openai.responses.create.assert_called()

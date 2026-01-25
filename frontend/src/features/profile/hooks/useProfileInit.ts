@@ -1,7 +1,8 @@
 import { useState, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { puppeteerApiService } from '@/shared/services';
 import { useToast } from '@/shared/hooks';
-import { connectionChangeTracker } from '@/features/connections';
+import { queryKeys } from '@/shared/lib/queryKeys';
 
 interface UseProfileInitReturn {
   isInitializing: boolean;
@@ -15,8 +16,9 @@ export const useProfileInit = (): UseProfileInitReturn => {
   const [isInitializing, setIsInitializing] = useState(false);
   const [initializationMessage, setInitializationMessage] = useState<string>('');
   const [initializationError, setInitializationError] = useState<string>('');
-  
+
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const initializeProfile = useCallback(async (onSuccess?: () => void) => {
     // We no longer require plaintext here; ciphertext is attached by the API service
@@ -45,8 +47,8 @@ export const useProfileInit = (): UseProfileInitReturn => {
           title: "Success",
           description: "Profile database has been initialized successfully.",
         });
-        // Flag connections as changed so dashboard can refresh once
-        connectionChangeTracker.markChanged('init');
+        // Invalidate connections cache to trigger refetch
+        queryClient.invalidateQueries({ queryKey: queryKeys.connections.all });
         // Call success callback if provided
         onSuccess?.();
       } else if (response.data?.healing) {
@@ -79,7 +81,7 @@ export const useProfileInit = (): UseProfileInitReturn => {
     } finally {
       setIsInitializing(false);
     }
-  }, [toast]);
+  }, [toast, queryClient]);
 
   const clearMessages = useCallback(() => {
     setInitializationMessage('');

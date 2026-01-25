@@ -17,6 +17,9 @@ logger = logging.getLogger(__name__)
 # Statuses that trigger RAGStack ingestion
 INGESTION_TRIGGER_STATUSES = {'outgoing', 'ally', 'followed'}
 
+# Maximum messages stored per edge
+MAX_MESSAGES_PER_EDGE = 100
+
 
 class EdgeService(BaseService):
     """
@@ -188,23 +191,38 @@ class EdgeService(BaseService):
 
         try:
             current_time = datetime.now(UTC).isoformat()
+            key = {'PK': f'USER#{user_id}', 'SK': f'PROFILE#{profile_id_b64}'}
 
-            self.table.update_item(
-                Key={
-                    'PK': f'USER#{user_id}',
-                    'SK': f'PROFILE#{profile_id_b64}'
-                },
-                UpdateExpression='SET messages = list_append(if_not_exists(messages, :empty_list), :message), updatedAt = :updated_at',
-                ExpressionAttributeValues={
-                    ':message': [{
-                        'content': message,
-                        'timestamp': current_time,
-                        'type': message_type
-                    }],
-                    ':empty_list': [],
-                    ':updated_at': current_time
-                }
-            )
+            # Check current message count to enforce cap
+            existing = self.table.get_item(Key=key, ProjectionExpression='messages')
+            current_messages = existing.get('Item', {}).get('messages', [])
+            if isinstance(current_messages, list) and len(current_messages) >= MAX_MESSAGES_PER_EDGE:
+                # Trim oldest messages to make room
+                trimmed = current_messages[-(MAX_MESSAGES_PER_EDGE - 1):]
+                trimmed.append({
+                    'content': message,
+                    'timestamp': current_time,
+                    'type': message_type
+                })
+                self.table.update_item(
+                    Key=key,
+                    UpdateExpression='SET messages = :msgs, updatedAt = :updated_at',
+                    ExpressionAttributeValues={':msgs': trimmed, ':updated_at': current_time}
+                )
+            else:
+                self.table.update_item(
+                    Key=key,
+                    UpdateExpression='SET messages = list_append(if_not_exists(messages, :empty_list), :message), updatedAt = :updated_at',
+                    ExpressionAttributeValues={
+                        ':message': [{
+                            'content': message,
+                            'timestamp': current_time,
+                            'type': message_type
+                        }],
+                        ':empty_list': [],
+                        ':updated_at': current_time
+                    }
+                )
 
             return {
                 'success': True,

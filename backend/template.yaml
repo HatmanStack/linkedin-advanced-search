@@ -18,7 +18,11 @@ Parameters:
   ProductionOrigins:
     Type: String
     Default: ''
-    Description: Comma-separated production origins for CORS
+    Description: Comma-separated production origins for CORS (Lambda env vars)
+  ProductionOrigin:
+    Type: String
+    Default: ''
+    Description: Primary production origin for S3 CORS (e.g., https://myapp.com)
   OpenAIApiKey:
     Type: String
     Default: ''
@@ -56,6 +60,7 @@ Globals:
 
 Conditions:
   IncludeDevOriginsCondition: !Equals [!Ref IncludeDevOrigins, 'true']
+  HasProductionOrigin: !Not [!Equals [!Ref ProductionOrigin, '']]
 
 Resources:
   # Shared Python Layer for common code (errors, utils, services)
@@ -88,6 +93,9 @@ Resources:
           KeyType: HASH
         - AttributeName: SK
           KeyType: RANGE
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
       GlobalSecondaryIndexes:
         - IndexName: GSI1
           KeySchema:
@@ -111,8 +119,16 @@ Resources:
               - GET
               - PUT
               - POST
-            AllowedOrigins:
-              - '*'
+            AllowedOrigins: !If
+              - HasProductionOrigin
+              - !If
+                - IncludeDevOriginsCondition
+                - - 'http://localhost:5173'
+                  - 'http://localhost:3000'
+                  - !Ref ProductionOrigin
+                - - !Ref ProductionOrigin
+              - - 'http://localhost:5173'
+                - 'http://localhost:3000'
             MaxAge: 3000
       NotificationConfiguration:
         QueueConfigurations:
@@ -149,15 +165,29 @@ Resources:
         - ALLOW_USER_SRP_AUTH
         - ALLOW_REFRESH_TOKEN_AUTH
       GenerateSecret: false
+      TokenValidityUnits:
+        AccessToken: hours
+        IdToken: hours
+        RefreshToken: days
+      AccessTokenValidity: 4
+      IdTokenValidity: 4
+      RefreshTokenValidity: 30
 
   HttpApi:
     Type: AWS::Serverless::HttpApi
     Properties:
       StageName: !Ref Environment
       CorsConfiguration:
-        AllowOrigins:
-          - http://localhost:5173
-          - http://localhost:3000
+        AllowOrigins: !If
+          - HasProductionOrigin
+          - !If
+            - IncludeDevOriginsCondition
+            - - http://localhost:5173
+              - http://localhost:3000
+              - !Ref ProductionOrigin
+            - - !Ref ProductionOrigin
+          - - http://localhost:5173
+            - http://localhost:3000
         AllowHeaders:
           - Content-Type
           - Authorization

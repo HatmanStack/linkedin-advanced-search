@@ -132,14 +132,6 @@ const NewConnectionCard: React.FC<NewConnectionCardProps> = ({
       // Update status from 'possible' to 'processed' via edge API
       await dbConnector.updateConnectionStatus(connection.id, 'processed', { profileId });
 
-      // Update local cache with new status to trigger re-render
-      try {
-        const { connectionCache } = await import('@/features/connections/utils/connectionCache');
-        connectionCache.update(connection.id, { status: 'processed' });
-      } catch {
-        // Ignore cache update failures
-      }
-
       // Show success feedback with animation
       toast({
         title: "Connection Removed",
@@ -276,14 +268,6 @@ const NewConnectionCard: React.FC<NewConnectionCardProps> = ({
         await dbConnector.updateConnectionStatus(connection.id, 'outgoing', { profileId });
       } catch {
         // Ignore DB update failures
-      }
-
-      // Update local cache with new status to trigger re-render
-      try {
-        const { connectionCache } = await import('@/features/connections/utils/connectionCache');
-        connectionCache.update(connection.id, { status: 'outgoing' });
-      } catch {
-        // Ignore cache update failures
       }
 
       // Regardless of response status (sent/pending/outgoing), show success and remove from UI

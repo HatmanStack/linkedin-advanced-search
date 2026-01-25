@@ -11,6 +11,7 @@ import time
 from typing import Any
 
 import requests
+from shared_services.circuit_breaker import CircuitBreaker
 
 logger = logging.getLogger(__name__)
 
@@ -107,6 +108,11 @@ class RAGStackClient:
         self.api_key = api_key
         self.max_retries = max_retries
         self.retry_delay = retry_delay
+        self._circuit_breaker = CircuitBreaker(
+            service_name='ragstack',
+            failure_threshold=5,
+            recovery_timeout=60.0,
+        )
         self.session = requests.Session()
         self.session.headers.update(
             {
@@ -133,6 +139,13 @@ class RAGStackClient:
             RAGStackNetworkError: If network request fails after retries
             RAGStackGraphQLError: If GraphQL returns errors
         """
+        # Check circuit breaker before attempting the call
+        if self._circuit_breaker.state == 'open':
+            raise RAGStackNetworkError(
+                f"Circuit breaker open for RAGStack (retry in "
+                f"{self._circuit_breaker.recovery_timeout}s)"
+            )
+
         payload = {"query": query}
         if variables:
             payload["variables"] = variables
@@ -163,6 +176,7 @@ class RAGStackClient:
                     error_messages = [e.get("message", str(e)) for e in result["errors"]]
                     raise RAGStackGraphQLError(f"GraphQL errors: {', '.join(error_messages)}")
 
+                self._circuit_breaker._on_success()
                 return result.get("data", {})
 
             except requests.exceptions.Timeout as e:
@@ -191,8 +205,10 @@ class RAGStackClient:
                 logger.info(f"Retrying in {delay} seconds...")
                 time.sleep(delay)
 
-        # All retries exhausted
-        raise last_error or RAGStackNetworkError("Request failed after all retries")
+        # All retries exhausted - record failure in circuit breaker
+        final_error = last_error or RAGStackNetworkError("Request failed after all retries")
+        self._circuit_breaker._on_failure(final_error)
+        raise final_error
 
     def create_upload_url(self, filename: str) -> dict[str, Any]:
         """

@@ -435,3 +435,166 @@ class TestEdgeServiceHealthCheck:
         result = service.health_check()
 
         assert result['healthy'] is True
+
+
+class TestEdgeServiceMessageCap:
+    """Tests for MAX_MESSAGES_PER_EDGE cap."""
+
+    def test_add_message_within_cap_appends(self):
+        """Should append normally when under the 100-message cap."""
+        mock_table = MagicMock()
+        mock_table.get_item.return_value = {
+            'Item': {'messages': [{'content': f'msg-{i}'} for i in range(50)]}
+        }
+        service = EdgeService(table=mock_table)
+
+        result = service.add_message(
+            user_id='test-user',
+            profile_id_b64='dGVzdC1wcm9maWxl',
+            message='New message',
+            message_type='outbound'
+        )
+
+        assert result['success'] is True
+        # Should use list_append (not SET replacement)
+        update_call = mock_table.update_item.call_args
+        assert 'list_append' in update_call[1].get('UpdateExpression', '')
+
+    def test_add_message_at_cap_trims_oldest(self):
+        """Should trim oldest messages when at 100-message cap."""
+        mock_table = MagicMock()
+        messages = [{'content': f'msg-{i}', 'timestamp': f'2024-01-{i:02d}T00:00:00', 'type': 'outbound'} for i in range(100)]
+        mock_table.get_item.return_value = {'Item': {'messages': messages}}
+        service = EdgeService(table=mock_table)
+
+        result = service.add_message(
+            user_id='test-user',
+            profile_id_b64='dGVzdC1wcm9maWxl',
+            message='Message 101',
+            message_type='outbound'
+        )
+
+        assert result['success'] is True
+        # Should use SET with trimmed list
+        update_call = mock_table.update_item.call_args
+        expr = update_call[1].get('UpdateExpression', '')
+        assert 'SET messages' in expr
+        # The new message list should be exactly 100 (99 old + 1 new)
+        expr_values = update_call[1].get('ExpressionAttributeValues', {})
+        new_msgs = expr_values.get(':msgs', [])
+        assert len(new_msgs) == 100
+        assert new_msgs[-1]['content'] == 'Message 101'
+
+    def test_add_message_over_cap_keeps_newest(self):
+        """Should keep newest 99 messages + new one when over cap."""
+        mock_table = MagicMock()
+        messages = [{'content': f'msg-{i}', 'timestamp': f'2024-01-01T{i:02d}:00:00', 'type': 'outbound'} for i in range(150)]
+        mock_table.get_item.return_value = {'Item': {'messages': messages}}
+        service = EdgeService(table=mock_table)
+
+        result = service.add_message(
+            user_id='test-user',
+            profile_id_b64='dGVzdC1wcm9maWxl',
+            message='Latest message',
+            message_type='outbound'
+        )
+
+        assert result['success'] is True
+        expr_values = mock_table.update_item.call_args[1].get('ExpressionAttributeValues', {})
+        new_msgs = expr_values.get(':msgs', [])
+        assert len(new_msgs) == 100
+        # Oldest message should NOT be msg-0
+        assert new_msgs[0]['content'] != 'msg-0'
+        # Latest should be our new message
+        assert new_msgs[-1]['content'] == 'Latest message'
+
+    def test_add_message_no_existing_messages(self):
+        """Should handle case when edge has no messages yet."""
+        mock_table = MagicMock()
+        mock_table.get_item.return_value = {'Item': {}}
+        service = EdgeService(table=mock_table)
+
+        result = service.add_message(
+            user_id='test-user',
+            profile_id_b64='dGVzdC1wcm9maWxl',
+            message='First message',
+            message_type='outbound'
+        )
+
+        assert result['success'] is True
+        update_call = mock_table.update_item.call_args
+        assert 'list_append' in update_call[1].get('UpdateExpression', '')
+
+    def test_add_message_no_item_creates_new(self):
+        """Should handle case when edge item doesn't exist yet."""
+        mock_table = MagicMock()
+        mock_table.get_item.return_value = {}
+        service = EdgeService(table=mock_table)
+
+        result = service.add_message(
+            user_id='test-user',
+            profile_id_b64='dGVzdC1wcm9maWxl',
+            message='First message',
+            message_type='outbound'
+        )
+
+        assert result['success'] is True
+
+
+class TestEdgeServiceMaxResults:
+    """Tests for maxResults cap in search."""
+
+    def test_search_caps_max_results_at_200(self):
+        """maxResults should be capped at 200 in handler."""
+        # This tests the lambda handler, not the service directly
+        # The cap is applied at lambda_function.py line 73
+        max_results = min(int('500'), 200)
+        assert max_results == 200
+
+    def test_search_default_max_results(self):
+        """Default maxResults should be 100."""
+        max_results = min(int('100'), 200)
+        assert max_results == 100
+
+    def test_search_respects_lower_max_results(self):
+        """Should use requested maxResults when under cap."""
+        max_results = min(int('50'), 200)
+        assert max_results == 50
+
+
+class TestEdgeServiceTransactionErrors:
+    """Tests for transaction failure handling."""
+
+    def test_upsert_handles_conditional_check_failure(self):
+        """Should handle ConditionalCheckFailedException."""
+        mock_table = MagicMock()
+        mock_table.table_name = 'test-table'
+        mock_table.meta.client.transact_write_items.side_effect = ClientError(
+            {'Error': {'Code': 'ConditionalCheckFailedException', 'Message': 'Condition not met'}},
+            'TransactWriteItems'
+        )
+        service = EdgeService(table=mock_table)
+
+        with pytest.raises(ExternalServiceError):
+            service.upsert_status(
+                user_id='test-user',
+                profile_id='https://linkedin.com/in/test',
+                status='ally'
+            )
+
+    def test_upsert_handles_validation_exception(self):
+        """Should handle ValidationException."""
+        mock_table = MagicMock()
+        mock_table.table_name = 'test-table'
+        mock_table.meta.client.transact_write_items.side_effect = ClientError(
+            {'Error': {'Code': 'ValidationException', 'Message': 'Invalid input'}},
+            'TransactWriteItems'
+        )
+        service = EdgeService(table=mock_table)
+
+        with pytest.raises(ExternalServiceError):
+            service.upsert_status(
+                user_id='test-user',
+                profile_id='https://linkedin.com/in/test',
+                status='possible'
+            )

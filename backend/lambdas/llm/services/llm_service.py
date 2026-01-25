@@ -4,7 +4,7 @@ import json
 import logging
 import os
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -104,7 +104,7 @@ class LLMService(BaseService):
 
             llm_prompt = LINKEDIN_IDEAS_PROMPT.format(
                 user_data=user_data,
-                raw_ideas=prompt or ''
+                raw_ideas=self._sanitize_prompt(prompt or '')
             )
 
             response = self.openai_client.responses.create(
@@ -119,13 +119,14 @@ class LLMService(BaseService):
             ideas = self._parse_ideas(content)
             logger.info(f"generate_ideas parsed {len(ideas)} ideas")
 
-            # Store in DynamoDB for future reference
+            # Store in DynamoDB for future reference (24h TTL)
             if self.table and ideas:
                 self.table.put_item(Item={
                     'PK': f'USER#{user_id}',
                     'SK': f'IDEAS#{job_id}',
                     'ideas': ideas,
                     'created_at': datetime.now(UTC).isoformat(),
+                    'ttl': int((datetime.now(UTC) + timedelta(hours=24)).timestamp()),
                 })
 
             return {'success': True, 'ideas': ideas}
@@ -175,7 +176,7 @@ class LLMService(BaseService):
                     if key != "linkedin_credentials":
                         formatted_user_data += f"{key}: {value}\n"
 
-            formatted_topics = '\n'.join([f"- {idea}" for idea in selected_ideas])
+            formatted_topics = '\n'.join([f"- {self._sanitize_prompt(idea, 500)}" for idea in selected_ideas])
 
             research_prompt = LINKEDIN_RESEARCH_PROMPT.format(
                 topics=formatted_topics,
@@ -193,7 +194,7 @@ class LLMService(BaseService):
                 ],
             )
 
-            # Store the OpenAI response_id so we can poll it later
+            # Store the OpenAI response_id so we can poll it later (7-day TTL)
             response_id = response.id
             if self.table:
                 self.table.put_item(Item={
@@ -202,6 +203,7 @@ class LLMService(BaseService):
                     'openai_response_id': response_id,
                     'status': 'in_progress',
                     'created_at': datetime.now(UTC).isoformat(),
+                    'ttl': int((datetime.now(UTC) + timedelta(days=7)).timestamp()),
                 })
 
             return {
@@ -345,7 +347,7 @@ class LLMService(BaseService):
                 user_data=user_data,
                 research_content=research_text,
                 post_content=post_text,
-                ideas_content=ideas_content,
+                ideas_content=self._sanitize_prompt(str(ideas_content) if ideas_content else '', 3000),
             )
 
             response = self.openai_client.responses.create(
@@ -362,6 +364,18 @@ class LLMService(BaseService):
             return {'success': False, 'error': 'Failed to synthesize research into post'}
 
     # Private helpers
+
+    def _sanitize_prompt(self, text: str, max_length: int = 2000) -> str:
+        """Sanitize user-provided prompt text to prevent injection attacks."""
+        if not text:
+            return ''
+        # Truncate to max length
+        text = text[:max_length]
+        # Strip control characters (keep newlines/tabs for readability)
+        text = ''.join(c for c in text if c in '\n\t' or (ord(c) >= 32 and ord(c) != 127))
+        # Escape curly braces to prevent .format() injection
+        text = text.replace('{', '{{').replace('}', '}}')
+        return text.strip()
 
     def _normalize_content(self, value) -> str:
         """Normalize content to string."""

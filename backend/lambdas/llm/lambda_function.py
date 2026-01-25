@@ -36,14 +36,14 @@ def _get_user_id(event):
     sub = event.get('requestContext', {}).get('authorizer', {}).get('claims', {}).get('sub')
     if sub:
         return sub
-    if event.get('headers', {}).get('Authorization') or event.get('headers', {}).get('authorization'):
-        return 'test-user-id'
     return None
 
 
 def lambda_handler(event, _context):
     """Route LLM operations to LLMService."""
     try:
+        from shared_services.observability import setup_correlation_context
+        setup_correlation_context(event, _context)
         method = event.get('requestContext', {}).get('http', {}).get('method', '')
         if method == 'OPTIONS' or event.get('httpMethod') == 'OPTIONS':
             return _resp(200, {'ok': True})

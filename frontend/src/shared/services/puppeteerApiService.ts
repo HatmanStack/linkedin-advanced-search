@@ -1,6 +1,5 @@
 import { CognitoUserPool, CognitoUserSession } from 'amazon-cognito-identity-js';
 import { cognitoConfig } from '@/config/appConfig';
-import { connectionChangeTracker } from '@/features/connections';
 import type { SearchFormData } from '@/shared/utils/validation';
 import type {
   PuppeteerApiResponse
@@ -288,11 +287,6 @@ class PuppeteerApiService {
       }
     );
 
-    if (response.success) {
-      // Mark that DynamoDB edges/messages changed
-      connectionChangeTracker.markChanged('interaction');
-    }
-
     return response;
   }
 
@@ -309,10 +303,6 @@ class PuppeteerApiService {
       }
     );
 
-    if (response.success) {
-      connectionChangeTracker.markChanged('interaction');
-    }
-
     return response;
   }
 
@@ -327,10 +317,6 @@ class PuppeteerApiService {
         body: JSON.stringify(params),
       }
     );
-
-    if (response.success) {
-      connectionChangeTracker.markChanged('interaction');
-    }
 
     return response;
   }
