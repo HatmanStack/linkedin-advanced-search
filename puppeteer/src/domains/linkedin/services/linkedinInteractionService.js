@@ -2057,7 +2057,8 @@ export class LinkedInInteractionService {
         await this.isProfileContainer('connect');
 
       } else {
-        throw new logger.error('Connect button not found in profile container');
+        logger.error('Connect button not found in profile container');
+        throw new Error('Connect button not found in profile container');
       }
     }
 

@@ -10,6 +10,7 @@ class InteractionQueue {
     // Force serialization for current single-Page architecture
     const defaultConcurrency = 1;
     this.concurrency = Math.max(1, Number(options.concurrency) || defaultConcurrency);
+    this.maxJobHistory = options.maxJobHistory || 1000;
     this.queue = [];
     this.activeCount = 0;
     this.jobs = new Map();
@@ -60,6 +61,7 @@ class InteractionQueue {
           reject(err);
         } finally {
           this.activeCount = Math.max(0, this.activeCount - 1);
+          this._evictOldJobs();
           this._dequeueNext();
         }
       };
@@ -93,6 +95,21 @@ class InteractionQueue {
         logger.error('InteractionQueue: unexpected error starting job', { jobId: next?.jobId, error: err?.message });
         this.activeCount = Math.max(0, this.activeCount - 1);
       }
+    }
+  }
+
+  _evictOldJobs() {
+    if (this.jobs.size <= this.maxJobHistory) return;
+    const completed = [];
+    for (const [id, job] of this.jobs) {
+      if (job.status === 'succeeded' || job.status === 'failed') {
+        completed.push([id, job.finishedAt || 0]);
+      }
+    }
+    completed.sort((a, b) => a[1] - b[1]);
+    const toRemove = completed.slice(0, this.jobs.size - this.maxJobHistory);
+    for (const [id] of toRemove) {
+      this.jobs.delete(id);
     }
   }
 
