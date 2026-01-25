@@ -34,9 +34,6 @@ class TestCircuitBreakerClosed:
 
     def test_single_failure_stays_closed(self):
         cb = CircuitBreaker(failure_threshold=3)
-        with pytest.raises(ValueError):
-            cb.call(lambda: (_ for _ in ()).throw(ValueError("err")))
-        # Actually need to raise properly
         def failing(): raise ValueError("err")
         with pytest.raises(ValueError):
             cb.call(failing)

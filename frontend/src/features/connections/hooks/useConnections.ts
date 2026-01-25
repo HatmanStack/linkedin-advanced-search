@@ -19,7 +19,7 @@ export const useConnections = (filters?: {
     error,
     refetch,
   } = useQuery({
-    queryKey: queryKeys.connections.byUser(user?.id ?? ''),
+    queryKey: [queryKeys.connections.byUser(user?.id ?? ''), filters],
     queryFn: async () => {
       const response = await puppeteerApiService.getConnections(filters);
       if (response.success && response.data) {

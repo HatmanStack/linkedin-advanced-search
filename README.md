@@ -36,7 +36,7 @@ Frontend (React/Vite) <-> Puppeteer Backend (Node.js/Express) <-> LinkedIn
 
 ### Prerequisites
 
-- Node.js 24+
+- Node.js 18+ (24 LTS recommended)
 - AWS account with configured credentials
 - OpenAI API key
 

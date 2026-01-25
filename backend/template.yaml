@@ -18,7 +18,11 @@ Parameters:
   ProductionOrigins:
     Type: String
     Default: ''
-    Description: Comma-separated production origins for CORS
+    Description: Comma-separated production origins for CORS (Lambda env vars)
+  ProductionOrigin:
+    Type: String
+    Default: ''
+    Description: Primary production origin for S3 CORS (e.g., https://myapp.com)
   OpenAIApiKey:
     Type: String
     Default: ''
@@ -56,6 +60,7 @@ Globals:
 
 Conditions:
   IncludeDevOriginsCondition: !Equals [!Ref IncludeDevOrigins, 'true']
+  HasProductionOrigin: !Not [!Equals [!Ref ProductionOrigin, '']]
 
 Resources:
   # Shared Python Layer for common code (errors, utils, services)
@@ -114,9 +119,16 @@ Resources:
               - GET
               - PUT
               - POST
-            AllowedOrigins:
-              - 'http://localhost:5173'
-              - 'http://localhost:3000'
+            AllowedOrigins: !If
+              - HasProductionOrigin
+              - !If
+                - IncludeDevOriginsCondition
+                - - 'http://localhost:5173'
+                  - 'http://localhost:3000'
+                  - !Ref ProductionOrigin
+                - - !Ref ProductionOrigin
+              - - 'http://localhost:5173'
+                - 'http://localhost:3000'
             MaxAge: 3000
       NotificationConfiguration:
         QueueConfigurations:

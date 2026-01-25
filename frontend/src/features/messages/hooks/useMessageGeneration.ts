@@ -40,14 +40,19 @@ export function useMessageGeneration({
   // Ref to track if we should continue the workflow after modal actions
   const continueWorkflowRef = useRef<(() => void) | null>(null);
 
+  // Ref to track latest history methods to avoid stale closures
+  const historyRef = useRef(history);
+  historyRef.current = history;
+
   // Fetch message history when modal connection changes
   useEffect(() => {
-    if (modal.selectedConnection) {
-      history.fetchHistory(modal.selectedConnection.id);
+    const connection = modal.selectedConnection;
+    if (connection) {
+      historyRef.current.fetchHistory(connection.id);
     } else {
-      history.clearHistory();
+      historyRef.current.clearHistory();
     }
-  }, [modal.selectedConnection, history]);
+  }, [modal.selectedConnection]);
 
   // Message generation for a single connection
   const generateMessageForConnection = useCallback(
@@ -132,10 +137,13 @@ export function useMessageGeneration({
       selectedConnections.includes(conn.id) && conn.status === 'ally'
     );
 
+    let wasStopped = false;
+
     for (let i = 0; i < selectedConnectionsData.length; i++) {
-      // Check if stopped
-      if (workflow.state === 'stopping' || workflow.isStopping) {
+      // Check if stopped (use isStopping getter for current state)
+      if (workflow.isStopping) {
         progressTracker.resetProgress();
+        wasStopped = true;
         break;
       }
 
@@ -150,6 +158,13 @@ export function useMessageGeneration({
       let shouldContinue = true;
 
       while (shouldContinue) {
+        // Re-check stop state before each attempt
+        if (workflow.isStopping) {
+          progressTracker.resetProgress();
+          wasStopped = true;
+          break;
+        }
+
         try {
           const generatedMessage = await generateMessageForConnection(connection);
           setGeneratedMessages(prev => new Map(prev).set(connection.id, generatedMessage));
@@ -185,18 +200,26 @@ export function useMessageGeneration({
           }
         }
       }
+
+      // Check if stopped during the inner while loop
+      if (wasStopped) break;
     }
 
-    logger.info('Message generation workflow completed');
-    progressTracker.updateProgress(selectedConnectionsData.length, undefined, 'completed');
-    errorHandler.showSuccessFeedback(`Successfully generated messages for ${selectedConnectionsData.length} connections.`, 'Generation Complete');
-    workflow.complete();
+    // Only show success if workflow completed normally (not stopped)
+    if (!wasStopped && !workflow.isStopping) {
+      logger.info('Message generation workflow completed');
+      progressTracker.updateProgress(selectedConnectionsData.length, undefined, 'completed');
+      errorHandler.showSuccessFeedback(`Successfully generated messages for ${selectedConnectionsData.length} connections.`, 'Generation Complete');
+      workflow.complete();
 
-    setTimeout(() => {
-      workflow.reset();
-      setGeneratedMessages(new Map());
-      progressTracker.resetProgress();
-    }, 2000);
+      setTimeout(() => {
+        workflow.reset();
+        setGeneratedMessages(new Map());
+        progressTracker.resetProgress();
+      }, 2000);
+    } else {
+      logger.info('Message generation workflow was stopped');
+    }
   }, [
     selectedConnections,
     conversationTopic,

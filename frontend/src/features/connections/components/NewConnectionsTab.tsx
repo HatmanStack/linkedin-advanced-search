@@ -97,10 +97,10 @@ const NewConnectionsTab = ({
     };
 
     // Handle connection removal - parent component manages cache via React Query
-    const handleRemoveConnection = useCallback((connectionId: string, newStatus: string) => {
+    const handleRemoveConnection = useCallback((connectionId: string, newStatus: 'processed' | 'outgoing') => {
         // Inform parent (Dashboard) so its source-of-truth updates via React Query
-        if (onRemoveConnection && (newStatus === 'processed' || newStatus === 'outgoing')) {
-            onRemoveConnection(connectionId, newStatus as 'processed' | 'outgoing');
+        if (onRemoveConnection) {
+            onRemoveConnection(connectionId, newStatus);
         }
     }, [onRemoveConnection]);
 

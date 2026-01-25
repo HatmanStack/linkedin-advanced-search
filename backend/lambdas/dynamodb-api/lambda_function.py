@@ -330,9 +330,10 @@ def _is_safe_url(url: str) -> bool:
                 ip = ipaddress.ip_address(sockaddr[0])
                 if ip.is_private or ip.is_reserved or ip.is_loopback or ip.is_link_local:
                     return False
-        except (socket.gaierror, ValueError):
-            # If we can't resolve, allow it (could be valid but DNS not available in Lambda)
-            pass
+        except (socket.gaierror, ValueError) as e:
+            # Fail closed: reject URLs with unresolvable hostnames
+            logger.warning(f"DNS resolution failed for hostname '{hostname}': {e}")
+            return False
         return True
     except Exception:
         return False

@@ -55,14 +55,17 @@ export function validateJwt(token) {
   }
 
   // Extract user ID from common claim names (in order of preference)
-  const userId = payload.sub || payload.user_id || payload.userId || payload.id;
+  const rawUserId = payload.sub || payload.user_id || payload.userId || payload.id;
 
-  if (!userId) {
+  if (!rawUserId) {
     logger.warn('JWT validation failed: Missing user identifier', {
       availableClaims: Object.keys(payload)
     });
     return { valid: false, reason: 'Missing user identifier' };
   }
+
+  // Ensure userId is a string for safe logging and downstream use
+  const userId = typeof rawUserId === 'string' ? rawUserId : String(rawUserId);
 
   logger.debug('JWT validation successful', {
     userId: userId.substring(0, 8) + '...',

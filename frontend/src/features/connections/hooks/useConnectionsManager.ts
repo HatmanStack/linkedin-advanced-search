@@ -120,7 +120,10 @@ export function useConnectionsManager() {
   // Wrapper to handle refetch with error handling (matches original API)
   const fetchConnectionsWithErrorHandling = useCallback(async () => {
     try {
-      await fetchConnections();
+      const result = await fetchConnections({ throwOnError: true });
+      if (result.error) {
+        throw result.error;
+      }
     } catch (err: unknown) {
       logger.error('Error fetching connections', { error: err });
       const errorMessage = err instanceof ApiError ? err.message : 'Failed to fetch connections';
