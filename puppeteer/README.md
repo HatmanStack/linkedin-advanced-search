@@ -1,16 +1,12 @@
-<div align="center">
-<h1>LinkedIn Advanced Search - Backend</h1>
-</div>
+# LinkedIn Advanced Search - Puppeteer Backend
 
-<div align="center">
-Node.js automation backend for LinkedIn interactions with queue-based processing
+Node.js automation backend for LinkedIn interactions with queue-based processing.
 
- >⚠️ **Active Development Notice**: This backend service is under active development and subject to frequent changes.
-</div>
+> **Active Development**: This backend service is under active development.
 
 ## Features
 
-- **LinkedIn Automation**: Queue-based LinkedIn search, messaging, and connection management
+- **LinkedIn Automation**: Queue-based search, messaging, and connection management
 - **Session Management**: Long-lived browser sessions with heal & restore capabilities
 - **AWS Integration**: DynamoDB and S3 storage with encrypted credential management
 - **Secure Processing**: Sealbox encryption and user data isolation
@@ -19,11 +15,13 @@ Node.js automation backend for LinkedIn interactions with queue-based processing
 ## Quick Start
 
 ### Prerequisites
+
 - Node.js 24+
 - AWS credentials configured
 - Chrome/Chromium browser
 
 ### Installation
+
 ```bash
 cd puppeteer
 npm install
@@ -31,6 +29,7 @@ cp .env.example .env
 ```
 
 ### Start Server
+
 ```bash
 npm run dev    # Development
 npm start      # Production
@@ -40,15 +39,62 @@ Server runs at `http://localhost:3001`
 
 ## API Endpoints
 
-### Core Operations
-- `POST /search` - Execute LinkedIn search with company/role filters
-- `POST /profile-init` - Initialize user profile and extract connections
-- `POST /linkedin-interactions` - Queue LinkedIn messages, connections, posts
-- `GET /heal-restore` - Check automation recovery status
-- `POST /heal-restore` - Authorize session recovery
-- `GET /health` - System health and queue status
+### Search
 
-All endpoints require JWT authentication and encrypted credentials.
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/search/` | Execute LinkedIn search with company/role filters |
+| GET | `/search/results` | Retrieve stored search results |
+| GET | `/search/health` | Search service health check |
+
+### Profile Initialization
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/profile-init/` | Initialize user profile and extract connections |
+| GET | `/profile-init/health` | Profile init service health |
+
+### LinkedIn Interactions
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/linkedin-interactions/send-message` | Send message to connection |
+| POST | `/linkedin-interactions/add-connection` | Send connection request |
+| POST | `/linkedin-interactions/create-post` | Create LinkedIn post |
+| POST | `/linkedin-interactions/follow-profile` | Follow a profile |
+| POST | `/linkedin-interactions/generate-personalized-message` | Generate AI message |
+| GET | `/linkedin-interactions/session-status` | Browser session status |
+
+### Heal & Restore
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/heal-restore/status` | Check pending recovery sessions |
+| POST | `/heal-restore/authorize` | Authorize session recovery |
+| POST | `/heal-restore/cancel` | Cancel pending recovery |
+
+### System
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/health` | System health and queue status |
+| GET | `/config/status` | Configuration report |
+
+## Authentication
+
+All `/search`, `/profile-init`, and `/linkedin-interactions` endpoints require:
+- JWT token in `Authorization: Bearer <token>` header
+- Encrypted LinkedIn credentials (sealbox format)
+
+Heal/restore and health endpoints do not require authentication.
+
+## Rate Limits
+
+| Route Group | Limit |
+|-------------|-------|
+| `/search` | 10 req/min |
+| `/profile-init` | 5 req/min |
+| `/linkedin-interactions` | 30 req/min |
 
 ## How It Works
 
@@ -57,17 +103,9 @@ All endpoints require JWT authentication and encrypted credentials.
 3. **Session Management**: Long-lived browser sessions minimize logins
 4. **Data Capture**: Multi-page screenshots stored in S3 with DynamoDB metadata
 5. **Recovery System**: Checkpoint-based recovery for interrupted processes
-6. **AWS Integration**: Direct DynamoDB and S3 operations for data persistence
 
-## Security
+## Troubleshooting
 
-- **Sealbox Encryption**: Device-specific credential encryption
-- **Session Management**: Long-lived sessions with automatic cleanup
-- **User Data Isolation**: All data isolated by Cognito user ID
-- **Audit Logging**: Comprehensive logging without sensitive data
-- **AWS Integration**: IAM roles and encrypted storage
-
-### Troubleshooting
 - **Login Issues**: LinkedIn may require 2FA or CAPTCHA
 - **Browser Crashes**: Monitor memory usage and restart if needed
 - **Queue Stalls**: Check processing delays and job limits
@@ -75,17 +113,4 @@ All endpoints require JWT authentication and encrypted credentials.
 
 ## License
 
-Apache 2.0 - see the [LICENSE](https://www.apache.org/licenses/LICENSE-2.0.html) file for details.
-
----
-
-## Work in Progress / To Do
-
-### Core Development Tasks
-- [ ] **Profile Init Logic** - Complete user personal database initialization system
-- [ ] **Multi-Message Architecture** - Implement comprehensive message handling system
-- [ ] **Message Retrieval Logic** - Build efficient message retrieval 
-- [ ] **Encrypt/Decrypt Optimization** - Enhance Sealbox encryption performance
-- [ ] **Code Refactor** - Reduce AI-generated code inefficiencies
-- [ ] **Performance Optimization** - Optimize API calls and database queries
-
+Apache 2.0 - see [LICENSE](https://www.apache.org/licenses/LICENSE-2.0.html)
