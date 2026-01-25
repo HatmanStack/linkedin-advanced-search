@@ -1,15 +1,16 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { useToast } from '@/shared/hooks';
 import { useErrorHandler } from '@/shared/hooks';
 import { useProgressTracker } from '@/features/workflow';
 import { messageGenerationService } from '@/features/messages';
 import { connectionDataContextService } from '@/features/connections';
+import { useWorkflowStateMachine } from './useWorkflowStateMachine';
+import { useMessageModal } from './useMessageModal';
+import { useMessageHistory } from './useMessageHistory';
 import type { Connection, Message } from '@/types';
 import { createLogger } from '@/shared/utils/logger';
 
 const logger = createLogger('useMessageGeneration');
-
-type WorkflowState = 'idle' | 'generating' | 'awaiting_approval' | 'stopping' | 'completed' | 'error';
 
 interface UseMessageGenerationOptions {
   connections: Connection[];
@@ -28,75 +29,95 @@ export function useMessageGeneration({
   const errorHandler = useErrorHandler();
   const progressTracker = useProgressTracker();
 
-  const [isGeneratingMessages, setIsGeneratingMessages] = useState(false);
-  const [currentConnectionIndex, setCurrentConnectionIndex] = useState(0);
+  // Composed hooks
+  const workflow = useWorkflowStateMachine();
+  const modal = useMessageModal();
+  const history = useMessageHistory();
+
+  // Generated messages map (local state)
   const [generatedMessages, setGeneratedMessages] = useState<Map<string, string>>(new Map());
-  const [workflowState, setWorkflowState] = useState<WorkflowState>('idle');
 
-  // Message modal state
-  const [messageModalOpen, setMessageModalOpen] = useState(false);
-  const [selectedConnectionForMessages, setSelectedConnectionForMessages] = useState<Connection | null>(null);
-  const [messageHistory, setMessageHistory] = useState<Message[]>([]);
+  // Ref to track if we should continue the workflow after modal actions
+  const continueWorkflowRef = useRef<(() => void) | null>(null);
 
-  const resetWorkflowState = useCallback(() => {
-    setIsGeneratingMessages(false);
-    setCurrentConnectionIndex(0);
-    setGeneratedMessages(new Map());
-    setWorkflowState('idle');
-  }, []);
+  // Fetch message history when modal connection changes
+  useEffect(() => {
+    if (modal.selectedConnection) {
+      history.fetchHistory(modal.selectedConnection.id);
+    } else {
+      history.clearHistory();
+    }
+  }, [modal.selectedConnection, history]);
+
+  // Message generation for a single connection
+  const generateMessageForConnection = useCallback(
+    async (connection: Connection): Promise<string> => {
+      const cleanedTopic = connectionDataContextService.prepareConversationTopic(conversationTopic);
+      const connectionWithHistory = { ...connection, message_history: history.messages } as Connection;
+      const context = connectionDataContextService.prepareMessageGenerationContext(
+        connectionWithHistory, cleanedTopic, userProfile || undefined, { includeMessageHistory: true }
+      );
+      const request = connectionDataContextService.createMessageGenerationRequest(context);
+      return messageGenerationService.generateMessage(request);
+    },
+    [conversationTopic, userProfile, history.messages]
+  );
+
+  // CALLBACK-BASED approval handlers (no polling!)
+  const handleApproveAndNext = useCallback(() => {
+    modal.closeModal();
+    workflow.approveAndContinue();
+    // Trigger continuation
+    if (continueWorkflowRef.current) {
+      continueWorkflowRef.current();
+    }
+  }, [modal, workflow]);
+
+  const handleSkipConnection = useCallback(() => {
+    modal.closeModal();
+    workflow.approveAndContinue();
+    // Trigger continuation
+    if (continueWorkflowRef.current) {
+      continueWorkflowRef.current();
+    }
+  }, [modal, workflow]);
+
+  const handleStopGeneration = useCallback(() => {
+    workflow.stop();
+    modal.closeModal();
+    progressTracker.resetProgress();
+    workflow.reset();
+    errorHandler.showInfoFeedback('Message generation has been stopped.', 'Generation Stopped');
+  }, [workflow, modal, progressTracker, errorHandler]);
 
   const handleMessageClick = useCallback(async (connection: Connection) => {
-    setSelectedConnectionForMessages(connection);
-    setMessageModalOpen(true);
+    modal.openModal(connection);
     try {
-      const messages: Message[] = [];
-      setMessageHistory(messages);
+      await history.fetchHistory(connection.id);
     } catch (err: unknown) {
       logger.error('Error fetching message history', { error: err });
       toast({ title: "Failed to Load Messages", description: "Could not load message history.", variant: "destructive" });
-      setMessageHistory([]);
     }
-  }, [toast]);
+  }, [modal, history, toast]);
 
   const handleCloseMessageModal = useCallback(() => {
-    setMessageModalOpen(false);
-    setSelectedConnectionForMessages(null);
-    setMessageHistory([]);
-  }, []);
+    modal.closeModal();
+    history.clearHistory();
+  }, [modal, history]);
 
   const handleSendMessage = useCallback(async (message: string): Promise<void> => {
-    logger.info('Sending message', { message, connectionId: selectedConnectionForMessages?.id });
+    logger.info('Sending message', { message, connectionId: modal.selectedConnection?.id });
     toast({ title: "Message Sending Not Implemented", description: "Message sending functionality will be available in a future update.", variant: "default" });
-    if (selectedConnectionForMessages) {
+    if (modal.selectedConnection) {
       const newMessage: Message = { id: `msg-${Date.now()}`, content: message, timestamp: new Date().toISOString(), sender: 'user' };
-      setMessageHistory(prev => [...prev, newMessage]);
+      history.addMessage(newMessage);
     }
-  }, [selectedConnectionForMessages, toast]);
+  }, [modal.selectedConnection, toast, history]);
 
-  const generateMessageForConnection = useCallback(async (connection: Connection): Promise<string> => {
-    const cleanedTopic = connectionDataContextService.prepareConversationTopic(conversationTopic);
-    const connectionWithHistory = { ...connection, message_history: messageHistory } as Connection;
-    const context = connectionDataContextService.prepareMessageGenerationContext(
-      connectionWithHistory, cleanedTopic, userProfile || undefined, { includeMessageHistory: true }
-    );
-    const request = connectionDataContextService.createMessageGenerationRequest(context);
-    return messageGenerationService.generateMessage(request);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conversationTopic, userProfile]);
-
-  const waitForUserApproval = useCallback((): Promise<void> => {
-    return new Promise((resolve) => {
-      const checkApproval = () => {
-        if (workflowState !== 'awaiting_approval') resolve();
-        else setTimeout(checkApproval, 100);
-      };
-      checkApproval();
-    });
-  }, [workflowState]);
-
-  const processSelectedConnections = useCallback(async () => {
+  // Main generation orchestrator using callbacks instead of polling
+  const handleGenerateMessages = useCallback(async () => {
     if (selectedConnections.length === 0 || !conversationTopic.trim()) {
-      errorHandler.showWarningFeedback('Please select connections and enter a conversation topic.', 'Missing Requirements');
+      toast({ title: "Missing Requirements", description: "Please select connections and enter a conversation topic.", variant: "destructive" });
       return;
     }
 
@@ -104,9 +125,7 @@ export function useMessageGeneration({
     progressTracker.initializeProgress(selectedConnections.length);
     progressTracker.setLoadingMessage('Preparing message generation...', 0, true);
 
-    setWorkflowState('generating');
-    setIsGeneratingMessages(true);
-    setCurrentConnectionIndex(0);
+    workflow.startGenerating();
     errorHandler.clearError();
 
     const selectedConnectionsData = connections.filter(conn =>
@@ -114,12 +133,12 @@ export function useMessageGeneration({
     );
 
     for (let i = 0; i < selectedConnectionsData.length; i++) {
-      if (workflowState === 'stopping') {
+      // Check if stopped
+      if (workflow.state === 'stopping' || workflow.isStopping) {
         progressTracker.resetProgress();
         break;
       }
 
-      setCurrentConnectionIndex(i);
       const connection = selectedConnectionsData[i];
       const connectionName = `${connection.first_name} ${connection.last_name}`;
 
@@ -136,11 +155,14 @@ export function useMessageGeneration({
           setGeneratedMessages(prev => new Map(prev).set(connection.id, generatedMessage));
 
           progressTracker.updateProgress(i, connectionName, 'waiting_approval');
-          setWorkflowState('awaiting_approval');
-          setSelectedConnectionForMessages(connection);
-          setMessageModalOpen(true);
+          workflow.awaitApproval();
+          modal.openModal(connection);
 
-          await waitForUserApproval();
+          // Wait for user action via callback (Promise resolves when callback fires)
+          await new Promise<void>((resolve) => {
+            continueWorkflowRef.current = resolve;
+          });
+          continueWorkflowRef.current = null;
           break;
         } catch (error) {
           logger.error('Error generating message', { connectionId: connection.id, error });
@@ -158,8 +180,7 @@ export function useMessageGeneration({
               break;
             case 'stop':
               progressTracker.resetProgress();
-              setWorkflowState('error');
-              setIsGeneratingMessages(false);
+              workflow.setError();
               return;
           }
         }
@@ -169,64 +190,51 @@ export function useMessageGeneration({
     logger.info('Message generation workflow completed');
     progressTracker.updateProgress(selectedConnectionsData.length, undefined, 'completed');
     errorHandler.showSuccessFeedback(`Successfully generated messages for ${selectedConnectionsData.length} connections.`, 'Generation Complete');
-    setWorkflowState('completed');
+    workflow.complete();
 
     setTimeout(() => {
-      resetWorkflowState();
+      workflow.reset();
+      setGeneratedMessages(new Map());
       progressTracker.resetProgress();
     }, 2000);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedConnections, conversationTopic, connections, workflowState, errorHandler, progressTracker]);
+  }, [
+    selectedConnections,
+    conversationTopic,
+    connections,
+    workflow,
+    progressTracker,
+    modal,
+    generateMessageForConnection,
+    errorHandler,
+    toast,
+  ]);
 
-  const handleStopGeneration = useCallback(() => {
-    setWorkflowState('stopping');
-    setIsGeneratingMessages(false);
-    progressTracker.resetProgress();
-    if (messageModalOpen) {
-      setMessageModalOpen(false);
-      setSelectedConnectionForMessages(null);
-    }
-    resetWorkflowState();
-    errorHandler.showInfoFeedback('Message generation has been stopped.', 'Generation Stopped');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messageModalOpen, progressTracker, errorHandler]);
-
-  const handleGenerateMessages = useCallback(() => {
-    if (selectedConnections.length === 0 || !conversationTopic.trim()) {
-      toast({ title: "Missing Requirements", description: "Please select connections and enter a conversation topic.", variant: "destructive" });
-      return;
-    }
-    processSelectedConnections();
-  }, [selectedConnections, conversationTopic, processSelectedConnections, toast]);
-
-  const handleApproveAndNext = useCallback(() => {
-    setWorkflowState('generating');
-    setMessageModalOpen(false);
-    setSelectedConnectionForMessages(null);
-  }, []);
-
-  const handleSkipConnection = useCallback(() => {
-    setWorkflowState('generating');
-    setMessageModalOpen(false);
-    setSelectedConnectionForMessages(null);
-  }, []);
-
+  // Compute current connection name
   const currentConnectionName = useMemo(() => {
-    if (!isGeneratingMessages || currentConnectionIndex >= selectedConnections.length) return undefined;
-    const currentConnectionId = selectedConnections[currentConnectionIndex];
+    if (workflow.state === 'idle' || workflow.currentIndex >= selectedConnections.length) return undefined;
+    const currentConnectionId = selectedConnections[workflow.currentIndex];
     const connection = connections.find(conn => conn.id === currentConnectionId);
     return connection ? `${connection.first_name} ${connection.last_name}` : undefined;
-  }, [isGeneratingMessages, currentConnectionIndex, selectedConnections, connections]);
+  }, [workflow.state, workflow.currentIndex, selectedConnections, connections]);
 
   return {
-    isGeneratingMessages,
-    workflowState,
-    messageModalOpen,
-    selectedConnectionForMessages,
-    messageHistory,
+    // Workflow state
+    isGeneratingMessages: workflow.isGenerating || workflow.isAwaitingApproval,
+    workflowState: workflow.state,
+
+    // Modal state
+    messageModalOpen: modal.isOpen,
+    selectedConnectionForMessages: modal.selectedConnection,
+
+    // Message state
+    messageHistory: history.messages,
     generatedMessages,
+
+    // Derived
     currentConnectionName,
     progressTracker,
+
+    // Actions
     handleMessageClick,
     handleCloseMessageModal,
     handleSendMessage,
