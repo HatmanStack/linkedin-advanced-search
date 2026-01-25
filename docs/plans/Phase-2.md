@@ -1124,10 +1124,10 @@ refactor(frontend): decompose useMessageGeneration into focused hooks
    ```
 
 **Verification Checklist:**
-- [ ] No imports of connectionCache anywhere
-- [ ] No imports of connectionChangeTracker anywhere
-- [ ] Build succeeds
-- [ ] All tests pass
+- [x] No imports of connectionCache anywhere
+- [x] No imports of connectionChangeTracker anywhere
+- [x] Build succeeds
+- [x] All tests pass
 
 **Testing Instructions:**
 
