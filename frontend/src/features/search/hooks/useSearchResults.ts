@@ -55,12 +55,7 @@ function useSearchResults(): UseSearchResultsReturn {
   const searchLinkedIn = useCallback(
     async (searchFormData: SearchFormData) => {
       setInfoMessage(null);
-      try {
-        await searchMutation.mutateAsync(searchFormData);
-      } catch (err) {
-        // Re-throw so Dashboard can handle it
-        throw err;
-      }
+      await searchMutation.mutateAsync(searchFormData);
     },
     [searchMutation]
   );

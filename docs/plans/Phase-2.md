@@ -141,10 +141,10 @@ Modernize the frontend data layer by migrating to React Query and decomposing th
    ```
 
 **Verification Checklist:**
-- [ ] `npm run build` succeeds
-- [ ] `npm test` passes
-- [ ] QueryClientProvider uses shared queryClient
-- [ ] No functionality changes yet
+- [x] `npm run build` succeeds
+- [x] `npm test` passes
+- [x] QueryClientProvider uses shared queryClient
+- [x] No functionality changes yet
 
 **Testing Instructions:**
 
@@ -291,12 +291,12 @@ refactor(frontend): establish React Query patterns and utilities
    ```
 
 **Verification Checklist:**
-- [ ] Hook returns same shape as before
-- [ ] Auto-fetches on mount when user exists
-- [ ] Doesn't fetch when user is null
-- [ ] `createConnection` optimistically updates cache
-- [ ] `updateConnection` optimistically updates cache
-- [ ] All tests pass
+- [x] Hook returns same shape as before
+- [x] Auto-fetches on mount when user exists
+- [x] Doesn't fetch when user is null
+- [x] `createConnection` optimistically updates cache
+- [x] `updateConnection` optimistically updates cache
+- [x] All tests pass
 
 **Testing Instructions:**
 
@@ -508,14 +508,14 @@ refactor(frontend): migrate useConnections to React Query
    Update barrel exports in `frontend/src/features/connections/index.ts` to remove these exports.
 
 **Verification Checklist:**
-- [ ] Hook returns same shape as before
-- [ ] Connections fetch on mount
-- [ ] Status filtering works
-- [ ] Tag filtering works
-- [ ] Selection state works
-- [ ] Optimistic updates work
-- [ ] No sessionStorage usage
-- [ ] Tests pass without cache mocks
+- [x] Hook returns same shape as before
+- [x] Connections fetch on mount
+- [x] Status filtering works
+- [x] Tag filtering works
+- [x] Selection state works
+- [x] Optimistic updates work
+- [x] No sessionStorage usage
+- [x] Tests pass without cache mocks
 
 **Testing Instructions:**
 
@@ -657,13 +657,13 @@ refactor(frontend): migrate useConnectionsManager to React Query
    This is the React Query way to signal "connections may have changed."
 
 **Verification Checklist:**
-- [ ] Hook returns same shape as before
-- [ ] Search triggers API call
-- [ ] Loading state works during search
-- [ ] Error state populated on failure
-- [ ] Info message displayed on success
-- [ ] Connections cache invalidated after search
-- [ ] localStorage persistence unchanged
+- [x] Hook returns same shape as before
+- [x] Search triggers API call
+- [x] Loading state works during search
+- [x] Error state populated on failure
+- [x] Info message displayed on success
+- [x] Connections cache invalidated after search
+- [x] localStorage persistence unchanged
 
 **Testing Instructions:**
 
@@ -1051,12 +1051,12 @@ refactor(frontend): migrate useSearchResults to React Query
    ```
 
 **Verification Checklist:**
-- [ ] Each sub-hook is independently testable
-- [ ] Composed hook maintains same return shape
-- [ ] No ESLint exhaustive-deps violations
-- [ ] No `setTimeout` polling loops
-- [ ] Modal callbacks trigger state changes
-- [ ] Tests pass for all hooks
+- [x] Each sub-hook is independently testable
+- [x] Composed hook maintains same return shape
+- [x] No ESLint exhaustive-deps violations
+- [x] No `setTimeout` polling loops
+- [x] Modal callbacks trigger state changes
+- [x] Tests pass for all hooks
 
 **Testing Instructions:**
 

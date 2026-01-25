@@ -9,8 +9,6 @@ export { ConnectionListSkeleton } from './components/ConnectionCardSkeleton';
 export { connectionDataContextService } from './services/connectionDataContextService';
 
 // Utils
-export { connectionCache } from './utils/connectionCache';
-export { connectionChangeTracker } from './utils/connectionChangeTracker';
 export * from './utils/connectionFiltering';
 
 // Hooks

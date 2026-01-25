@@ -5,12 +5,9 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { UserPlus, Building, User, Search, X, Loader2, AlertCircle, Info } from 'lucide-react';
-import { VirtualConnectionList, connectionCache } from '@/features/connections';
+import { VirtualConnectionList } from '@/features/connections';
 import { ConnectionSearchBar } from './ConnectionSearchBar';
 import type { Connection } from '@/types';
-import { createLogger } from '@/shared/utils/logger';
-
-const logger = createLogger('NewConnectionsTab');
 
 interface NewConnectionsTabProps {
     searchResults: Connection[];
@@ -99,22 +96,11 @@ const NewConnectionsTab = ({
         setSearchQuery('');
     };
 
-    // Handle connection removal with optimistic updates
+    // Handle connection removal - parent component manages cache via React Query
     const handleRemoveConnection = useCallback((connectionId: string, newStatus: string) => {
-        try {
-            // Validate that newStatus is a valid ConnectionStatus before updating cache
-            const validStatuses = ['possible', 'incoming', 'outgoing', 'ally', 'processed'];
-            if (validStatuses.includes(newStatus)) {
-                // API call is performed in the card component; here we just update UI/cache to trigger re-render
-                connectionCache.update(connectionId, { status: newStatus as 'possible' | 'incoming' | 'outgoing' | 'ally' | 'processed' });
-            }
-
-            // Inform parent (Dashboard) so its source-of-truth updates and persists across tab switches
-            if (onRemoveConnection && (newStatus === 'processed' || newStatus === 'outgoing')) {
-                onRemoveConnection(connectionId, newStatus as 'processed' | 'outgoing');
-            }
-        } catch (error) {
-            logger.error('Error removing connection', { error });
+        // Inform parent (Dashboard) so its source-of-truth updates via React Query
+        if (onRemoveConnection && (newStatus === 'processed' || newStatus === 'outgoing')) {
+            onRemoveConnection(connectionId, newStatus as 'processed' | 'outgoing');
         }
     }, [onRemoveConnection]);
 
