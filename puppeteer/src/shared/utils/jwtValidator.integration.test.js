@@ -225,7 +225,7 @@ describe('Healing encryption integration', () => {
       // Mock the crypto module
       vi.resetModules();
       vi.doMock('#utils/crypto.js', () => ({
-        encryptCredentials: vi.fn(async (creds) => ({
+        encryptCredentials: vi.fn(async (_creds) => ({
           searchPassword: 'sealbox_x25519:b64:encrypted_pass',
           jwtToken: 'sealbox_x25519:b64:encrypted_token'
         }))
