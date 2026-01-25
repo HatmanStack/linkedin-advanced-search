@@ -15,7 +15,7 @@ LinkedIn networking tool with automation and cloud infrastructure.
 
 ## Architecture
 
-```
+```text
 Frontend (React/Vite) <-> Puppeteer Backend (Node.js/Express) <-> LinkedIn
          |
     API Gateway <-> Lambda Functions <-> DynamoDB/S3
@@ -36,7 +36,7 @@ Frontend (React/Vite) <-> Puppeteer Backend (Node.js/Express) <-> LinkedIn
 
 ### Prerequisites
 
-- Node.js 18+ (24 LTS recommended)
+- Node.js 20+ (24 LTS recommended)
 - AWS account with configured credentials
 - OpenAI API key
 
@@ -76,7 +76,7 @@ sam deploy --guided
 
 - **AWS Cognito**: JWT-based authentication
 - **Sealbox Encryption**: Device-specific credential encryption
-- **Row-Level Security**: User data isolation in DynamoDB
+- **Partition-Key Isolation**: User data isolated via DynamoDB key design
 - **Just-in-Time Decryption**: Credentials decrypted only when needed
 
 ## Scripts

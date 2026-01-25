@@ -12,6 +12,9 @@ export const useConnections = (filters?: {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
+  // Build the full query key including filters for cache operations
+  const fullQueryKey = [queryKeys.connections.byUser(user?.id ?? ''), filters];
+
   // Query for fetching connections
   const {
     data: connections = [],
@@ -19,7 +22,7 @@ export const useConnections = (filters?: {
     error,
     refetch,
   } = useQuery({
-    queryKey: [queryKeys.connections.byUser(user?.id ?? ''), filters],
+    queryKey: fullQueryKey,
     queryFn: async () => {
       const response = await puppeteerApiService.getConnections(filters);
       if (response.success && response.data) {
@@ -37,7 +40,7 @@ export const useConnections = (filters?: {
     onSuccess: (response) => {
       if (response.success && response.data) {
         queryClient.setQueryData(
-          queryKeys.connections.byUser(user?.id ?? ''),
+          fullQueryKey,
           (old: Connection[] = []) => [...old, response.data as Connection]
         );
       }
@@ -55,7 +58,7 @@ export const useConnections = (filters?: {
           ? response.data as Partial<Connection>
           : {};
         queryClient.setQueryData(
-          queryKeys.connections.byUser(user?.id ?? ''),
+          fullQueryKey,
           (old: Connection[] = []) =>
             old.map((conn) =>
               conn.id === id ? { ...conn, ...updates, ...responseData } : conn

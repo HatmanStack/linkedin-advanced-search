@@ -178,9 +178,16 @@ Resources:
     Properties:
       StageName: !Ref Environment
       CorsConfiguration:
-        AllowOrigins:
-          - http://localhost:5173
-          - http://localhost:3000
+        AllowOrigins: !If
+          - HasProductionOrigin
+          - !If
+            - IncludeDevOriginsCondition
+            - - http://localhost:5173
+              - http://localhost:3000
+              - !Ref ProductionOrigin
+            - - !Ref ProductionOrigin
+          - - http://localhost:5173
+            - http://localhost:3000
         AllowHeaders:
           - Content-Type
           - Authorization

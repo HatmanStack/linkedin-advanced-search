@@ -55,17 +55,20 @@ export function useMessageGeneration({
   }, [modal.selectedConnection]);
 
   // Message generation for a single connection
+  // Note: message_history is intentionally empty during batch generation to avoid
+  // using stale history from a different connection. History is only used when
+  // viewing/editing a single connection's messages via the modal.
   const generateMessageForConnection = useCallback(
     async (connection: Connection): Promise<string> => {
       const cleanedTopic = connectionDataContextService.prepareConversationTopic(conversationTopic);
-      const connectionWithHistory = { ...connection, message_history: history.messages } as Connection;
+      const connectionWithHistory = { ...connection, message_history: [] } as Connection;
       const context = connectionDataContextService.prepareMessageGenerationContext(
-        connectionWithHistory, cleanedTopic, userProfile || undefined, { includeMessageHistory: true }
+        connectionWithHistory, cleanedTopic, userProfile || undefined, { includeMessageHistory: false }
       );
       const request = connectionDataContextService.createMessageGenerationRequest(context);
       return messageGenerationService.generateMessage(request);
     },
-    [conversationTopic, userProfile, history.messages]
+    [conversationTopic, userProfile]
   );
 
   // CALLBACK-BASED approval handlers (no polling!)

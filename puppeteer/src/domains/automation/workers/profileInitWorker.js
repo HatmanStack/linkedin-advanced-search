@@ -94,6 +94,8 @@ async function main() {
       error: err.message,
       stack: err.stack
     });
+    // Cleanup state file before exit
+    await cleanupStateFile(stateFile);
     process.exit(1);
   }
 }
