@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { useConnections } from './useConnections';
+import { createWrapper } from '@/test-utils/queryWrapper';
 import type { Connection, PuppeteerApiResponse } from '@/shared/types';
 
 // Mock the dependencies
@@ -57,7 +58,9 @@ describe('useConnections', () => {
       };
       mockGetConnections.mockResolvedValue(mockResponse);
 
-      const { result } = renderHook(() => useConnections());
+      const { result } = renderHook(() => useConnections(), {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(result.current.loading).toBe(false);
@@ -77,7 +80,9 @@ describe('useConnections', () => {
       };
       mockGetConnections.mockResolvedValue(mockResponse);
 
-      const { result } = renderHook(() => useConnections());
+      const { result } = renderHook(() => useConnections(), {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(result.current.loading).toBe(false);
@@ -94,7 +99,9 @@ describe('useConnections', () => {
       };
       mockGetConnections.mockResolvedValue(mockResponse);
 
-      const { result } = renderHook(() => useConnections());
+      const { result } = renderHook(() => useConnections(), {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(result.current.loading).toBe(false);
@@ -107,7 +114,9 @@ describe('useConnections', () => {
     it('should handle network errors', async () => {
       mockGetConnections.mockRejectedValue(new Error('Network error'));
 
-      const { result } = renderHook(() => useConnections());
+      const { result } = renderHook(() => useConnections(), {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(result.current.loading).toBe(false);
@@ -120,11 +129,12 @@ describe('useConnections', () => {
     it('should not fetch when user is not authenticated', async () => {
       mockUseAuth.mockReturnValue({ user: null });
 
-      const { result } = renderHook(() => useConnections());
-
-      await waitFor(() => {
-        expect(result.current.loading).toBe(false);
+      const { result } = renderHook(() => useConnections(), {
+        wrapper: createWrapper(),
       });
+
+      // Wait a tick to ensure no fetch was initiated
+      await new Promise((resolve) => setTimeout(resolve, 10));
 
       expect(mockGetConnections).not.toHaveBeenCalled();
       expect(result.current.connections).toEqual([]);
@@ -138,7 +148,9 @@ describe('useConnections', () => {
       mockGetConnections.mockResolvedValue(mockResponse);
 
       const filters = { status: 'ally', limit: 10 };
-      renderHook(() => useConnections(filters));
+      renderHook(() => useConnections(filters), {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(mockGetConnections).toHaveBeenCalledWith(filters);
@@ -155,7 +167,9 @@ describe('useConnections', () => {
       };
       mockGetConnections.mockResolvedValue(mockResponse);
 
-      const { result } = renderHook(() => useConnections());
+      const { result } = renderHook(() => useConnections(), {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(result.current.loading).toBe(false);
@@ -172,7 +186,9 @@ describe('useConnections', () => {
       };
       mockGetConnections.mockResolvedValue(mockResponse);
 
-      const { result } = renderHook(() => useConnections());
+      const { result } = renderHook(() => useConnections(), {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(result.current.loading).toBe(false);
@@ -189,7 +205,9 @@ describe('useConnections', () => {
       };
       mockGetConnections.mockResolvedValue(mockResponse);
 
-      const { result } = renderHook(() => useConnections());
+      const { result } = renderHook(() => useConnections(), {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(result.current.loading).toBe(false);
@@ -207,7 +225,9 @@ describe('useConnections', () => {
       };
       mockGetConnections.mockResolvedValue(mockResponse);
 
-      const { result } = renderHook(() => useConnections());
+      const { result } = renderHook(() => useConnections(), {
+        wrapper: createWrapper(),
+      });
 
       await waitFor(() => {
         expect(result.current.loading).toBe(false);

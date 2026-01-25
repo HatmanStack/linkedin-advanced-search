@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { puppeteerApiService } from '@/shared/services';
 import { useAuth } from '@/features/auth';
+import { queryKeys } from '@/shared/lib/queryKeys';
 import type { Connection } from '@/shared/types';
 
 export const useConnections = (filters?: {
@@ -9,93 +10,83 @@ export const useConnections = (filters?: {
   limit?: number;
 }) => {
   const { user } = useAuth();
-  const [connections, setConnections] = useState<Connection[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
-  const fetchConnections = useCallback(async () => {
-    if (!user) {
-      setConnections([]);
-      setLoading(false);
-      return;
-    }
-
-    try {
-      setLoading(true);
-      setError(null);
-
+  // Query for fetching connections
+  const {
+    data: connections = [],
+    isLoading: loading,
+    error,
+    refetch,
+  } = useQuery({
+    queryKey: queryKeys.connections.byUser(user?.id ?? ''),
+    queryFn: async () => {
       const response = await puppeteerApiService.getConnections(filters);
-
       if (response.success && response.data) {
-        // API service returns validated Connection[] data
-        setConnections((response.data.connections || []) as Connection[]);
-      } else {
-        setError(response.error || 'Failed to fetch connections');
-        setConnections([]);
+        return (response.data.connections || []) as Connection[];
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error');
-      setConnections([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [user, filters]);
+      throw new Error(response.error || 'Failed to fetch connections');
+    },
+    enabled: !!user,
+  });
 
-  useEffect(() => {
-    fetchConnections();
-  }, [fetchConnections]);
+  // Mutation for creating connection
+  const createMutation = useMutation({
+    mutationFn: (data: Partial<Connection>) =>
+      puppeteerApiService.createConnection(data),
+    onSuccess: (response) => {
+      if (response.success && response.data) {
+        queryClient.setQueryData(
+          queryKeys.connections.byUser(user?.id ?? ''),
+          (old: Connection[] = []) => [...old, response.data as Connection]
+        );
+      }
+    },
+  });
 
-  const createConnection = useCallback(async (
-    connectionData: Partial<Connection>
-  ): Promise<boolean> => {
+  // Mutation for updating connection
+  const updateMutation = useMutation({
+    mutationFn: ({ id, updates }: { id: string; updates: Partial<Connection> }) =>
+      puppeteerApiService.updateConnection(id, updates),
+    onSuccess: (response, { id, updates }) => {
+      if (response.success) {
+        queryClient.setQueryData(
+          queryKeys.connections.byUser(user?.id ?? ''),
+          (old: Connection[] = []) =>
+            old.map((conn) =>
+              conn.id === id ? { ...conn, ...updates, ...response.data } : conn
+            )
+        );
+      }
+    },
+  });
+
+  const createConnection = async (data: Partial<Connection>): Promise<boolean> => {
     try {
-      const response = await puppeteerApiService.createConnection(connectionData);
-
-      if (response.success && response.data) {
-        setConnections(prev => [...prev, response.data as Connection]);
-        return true;
-      } else {
-        setError(response.error || 'Failed to create connection');
-        return false;
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error');
+      const result = await createMutation.mutateAsync(data);
+      return result.success;
+    } catch {
       return false;
     }
-  }, []);
+  };
 
-  const updateConnection = useCallback(async (
+  const updateConnection = async (
     connectionId: string,
     updates: Partial<Connection>
   ): Promise<boolean> => {
     try {
-      const response = await puppeteerApiService.updateConnection(connectionId, updates);
-
-      if (response.success && response.data) {
-        const updatedData = response.data as Partial<Connection>;
-        setConnections(prev =>
-          prev.map((conn: Connection) =>
-            conn.id === connectionId
-              ? { ...conn, ...updatedData }
-              : conn
-          )
-        );
-        return true;
-      } else {
-        setError(response.error || 'Failed to update connection');
-        return false;
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error');
+      const result = await updateMutation.mutateAsync({ id: connectionId, updates });
+      return result.success;
+    } catch {
       return false;
     }
-  }, []);
+  };
 
   return {
     connections,
     loading,
-    error,
-    refetch: fetchConnections,
+    error: error?.message ?? null,
+    refetch,
     createConnection,
     updateConnection,
   };
