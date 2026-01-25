@@ -1,9 +1,12 @@
 import base64
+import ipaddress
 import json
 import logging
 import os
+import socket
 from datetime import UTC, datetime
 from typing import Any
+from urllib.parse import urlparse
 
 import boto3
 from botocore.exceptions import ClientError
@@ -73,7 +76,9 @@ def lambda_handler(event: dict[str, Any], context) -> dict[str, Any]:
       - Existing profile operations (get_details, create) using operation-based calls
     """
     try:
-        # Avoid logging the entire event to prevent accidental secret exposure
+        from shared_services.observability import setup_correlation_context
+        setup_correlation_context(event, context)
+
         logger.info("Received request")
 
         # Determine HTTP method if present (HTTP API v2 or REST API)
@@ -309,14 +314,38 @@ def get_user_settings(user_id: str) -> dict[str, Any]:
         logger.error(f"DynamoDB error (get_user_settings): {str(e)}")
         return create_response(500, {'error': 'Database error'})
 
+def _is_safe_url(url: str) -> bool:
+    """Validate URL is safe (HTTPS, non-private IP, valid hostname)."""
+    try:
+        parsed = urlparse(url)
+        if parsed.scheme != 'https':
+            return False
+        hostname = parsed.hostname
+        if not hostname:
+            return False
+        # Resolve hostname and check for private/reserved IPs
+        try:
+            addr_info = socket.getaddrinfo(hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM)
+            for _, _, _, _, sockaddr in addr_info:
+                ip = ipaddress.ip_address(sockaddr[0])
+                if ip.is_private or ip.is_reserved or ip.is_loopback or ip.is_link_local:
+                    return False
+        except (socket.gaierror, ValueError):
+            # If we can't resolve, allow it (could be valid but DNS not available in Lambda)
+            pass
+        return True
+    except Exception:
+        return False
+
+
 def validate_profile_field(field: str, value: Any) -> bool:
     """Validate profile field values for type and length constraints."""
     validators = {
         'first_name': lambda v: isinstance(v, str) and 1 <= len(v) <= 100,
         'last_name': lambda v: isinstance(v, str) and 1 <= len(v) <= 100,
         'headline': lambda v: isinstance(v, str) and len(v) <= 220,  # LinkedIn max
-        'profile_url': lambda v: isinstance(v, str) and len(v) <= 500 and v.startswith('http'),
-        'profile_picture_url': lambda v: isinstance(v, str) and len(v) <= 500 and v.startswith('http'),
+        'profile_url': lambda v: isinstance(v, str) and len(v) <= 500 and _is_safe_url(v),
+        'profile_picture_url': lambda v: isinstance(v, str) and len(v) <= 500 and _is_safe_url(v),
         'location': lambda v: isinstance(v, str) and len(v) <= 100,
         'summary': lambda v: isinstance(v, str) and len(v) <= 2600,  # LinkedIn max
         'industry': lambda v: isinstance(v, str) and len(v) <= 100,

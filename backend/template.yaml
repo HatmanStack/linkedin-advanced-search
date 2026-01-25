@@ -88,6 +88,9 @@ Resources:
           KeyType: HASH
         - AttributeName: SK
           KeyType: RANGE
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
       GlobalSecondaryIndexes:
         - IndexName: GSI1
           KeySchema:
@@ -112,7 +115,8 @@ Resources:
               - PUT
               - POST
             AllowedOrigins:
-              - '*'
+              - 'http://localhost:5173'
+              - 'http://localhost:3000'
             MaxAge: 3000
       NotificationConfiguration:
         QueueConfigurations:

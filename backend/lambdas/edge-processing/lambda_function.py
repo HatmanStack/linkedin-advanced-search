@@ -70,7 +70,7 @@ def _handle_ragstack(body, user_id):
         if not query:
             return _resp(400, {'error': 'query is required'})
         try:
-            max_results = int(body.get('maxResults', 100))
+            max_results = min(int(body.get('maxResults', 100)), 200)
         except (TypeError, ValueError):
             return _resp(400, {'error': 'maxResults must be a number'})
         results = client.search(query, max_results)
@@ -109,6 +109,9 @@ def _handle_ragstack(body, user_id):
 
 def lambda_handler(event, context):
     """Route edge operations to EdgeService."""
+    from shared_services.observability import setup_correlation_context
+    setup_correlation_context(event, context)
+
     # Debug logging
     logger.info(f"Event keys: {list(event.keys())}")
     logger.info(f"Request context: {json.dumps(_sanitize_request_context(event.get('requestContext', {})), default=str)}")

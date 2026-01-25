@@ -16,6 +16,9 @@ from shared_services.base_service import BaseService
 
 logger = logging.getLogger(__name__)
 
+# Maximum image file size (10 MB)
+MAX_IMAGE_SIZE = 10 * 1024 * 1024
+
 
 class ProfileProcessingService(BaseService):
     """
@@ -149,8 +152,18 @@ class ProfileProcessingService(BaseService):
             ExternalServiceError: On S3 failures
         """
         try:
+            # Check file size before downloading
+            head = self.s3_client.head_object(Bucket=bucket, Key=key)
+            content_length = head.get('ContentLength', 0)
+            if content_length > MAX_IMAGE_SIZE:
+                raise ValidationError(
+                    message=f'Image too large: {content_length} bytes (max {MAX_IMAGE_SIZE})',
+                    field='image_size'
+                )
             response = self.s3_client.get_object(Bucket=bucket, Key=key)
             return response['Body'].read()
+        except (ValidationError, NotFoundError):
+            raise
         except ClientError as e:
             error_code = e.response.get('Error', {}).get('Code', '')
             if error_code in ('NoSuchKey', '404', 'NotFound'):
