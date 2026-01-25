@@ -12,3 +12,6 @@ export { connectionDataContextService } from './services/connectionDataContextSe
 export { connectionCache } from './utils/connectionCache';
 export { connectionChangeTracker } from './utils/connectionChangeTracker';
 export * from './utils/connectionFiltering';
+
+// Hooks
+export { useConnectionsManager } from './hooks/useConnectionsManager';

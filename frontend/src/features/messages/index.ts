@@ -7,5 +7,8 @@ export { default as ConversationTopicPanel } from './components/ConversationTopi
 // Services
 export { messageGenerationService, MessageGenerationError } from './services/messageGenerationService';
 
+// Hooks
+export { useMessageGeneration } from './hooks/useMessageGeneration';
+
 // Types
 export type { MessageGenerationRequest } from './services/messageGenerationService';
