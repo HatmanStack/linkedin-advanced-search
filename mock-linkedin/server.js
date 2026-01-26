@@ -204,10 +204,51 @@ function generatePlaceholderPage(pageName, data = {}) {
     'search-results': `
 <!DOCTYPE html>
 <html>
-<head><title>Search Results | LinkedIn</title></head>
+<head>
+  <title>Search Results | LinkedIn</title>
+  <style>
+    .search-filters { display: flex; gap: 8px; margin-bottom: 16px; padding: 12px; background: white; border-radius: 8px; }
+    .filter-button { padding: 6px 12px; border: 1px solid #666; border-radius: 16px; background: white; cursor: pointer; }
+    .filter-button:hover { background: #f3f2ef; }
+    .filter-dropdown { display: none; position: absolute; background: white; border: 1px solid #ddd; border-radius: 8px; padding: 8px; z-index: 100; min-width: 250px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+    .filter-dropdown.open { display: block; }
+    .filter-input { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; margin-bottom: 8px; }
+    .suggestion-list { list-style: none; padding: 0; margin: 0; }
+    .suggestion-item { padding: 8px; cursor: pointer; border-radius: 4px; }
+    .suggestion-item:hover { background: #f3f2ef; }
+    .show-results-btn { width: 100%; padding: 8px; background: #0a66c2; color: white; border: none; border-radius: 16px; cursor: pointer; margin-top: 8px; }
+  </style>
+</head>
 <body>
-  <header class="global-nav" id="global-nav"></header>
+  <header class="global-nav" id="global-nav" data-view-name="navigation-homepage"></header>
   <main class="scaffold-layout">
+    <div class="search-reusables__filters-bar search-filters" style="position: relative;">
+      <button class="filter-button artdeco-pill" aria-label="Current companies filter" data-filter="currentCompany">Current companies</button>
+      <button class="filter-button artdeco-pill" aria-label="Locations filter" data-filter="geoUrn">Locations</button>
+
+      <!-- Company filter dropdown -->
+      <div id="company-filter-dropdown" class="filter-dropdown reusables-filters__filter-value-typeahead">
+        <input type="text" class="filter-input" role="combobox" placeholder="Add a company" aria-label="Add a company" data-filter-input="currentCompany">
+        <ul class="suggestion-list" id="company-suggestions" role="listbox">
+          <li class="suggestion-item" role="option" data-company-id="1586" data-company-name="Amazon">Amazon</li>
+          <li class="suggestion-item" role="option" data-company-id="1441" data-company-name="Google">Google</li>
+          <li class="suggestion-item" role="option" data-company-id="1035" data-company-name="Microsoft">Microsoft</li>
+        </ul>
+        <button class="show-results-btn" aria-label="Show results">Show results</button>
+      </div>
+
+      <!-- Location filter dropdown -->
+      <div id="location-filter-dropdown" class="filter-dropdown reusables-filters__filter-value-typeahead">
+        <input type="text" class="filter-input" role="combobox" placeholder="Add a location" aria-label="Add a location" data-filter-input="geoUrn">
+        <ul class="suggestion-list" id="location-suggestions" role="listbox">
+          <li class="suggestion-item" role="option" data-geo-urn="103644278" data-location-name="United States">United States</li>
+          <li class="suggestion-item" role="option" data-geo-urn="102571732" data-location-name="San Francisco Bay Area">San Francisco Bay Area</li>
+          <li class="suggestion-item" role="option" data-geo-urn="90000084" data-location-name="Seattle Area">Seattle Area</li>
+        </ul>
+        <button class="show-results-btn" aria-label="Show results">Show results</button>
+      </div>
+    </div>
+
     <div class="search-results-container">
       <ul class="reusable-search__entity-result-list">
         ${(data.results || state.connections.slice(0, 10)).map(person => `
@@ -225,6 +266,60 @@ function generatePlaceholderPage(pageName, data = {}) {
       <button class="artdeco-pagination__button--next" aria-label="Next">Next</button>
     </div>
   </main>
+  <script>
+    // Handle filter button clicks
+    document.querySelectorAll('.filter-button').forEach(btn => {
+      btn.addEventListener('click', function() {
+        const filter = this.dataset.filter;
+        const dropdown = document.getElementById(filter === 'currentCompany' ? 'company-filter-dropdown' : 'location-filter-dropdown');
+        // Close other dropdowns
+        document.querySelectorAll('.filter-dropdown').forEach(d => d.classList.remove('open'));
+        dropdown.classList.toggle('open');
+        // Focus input
+        dropdown.querySelector('input')?.focus();
+      });
+    });
+
+    // Handle suggestion clicks - update URL with filter
+    document.querySelectorAll('.suggestion-item').forEach(item => {
+      item.addEventListener('click', function() {
+        const companyId = this.dataset.companyId;
+        const geoUrn = this.dataset.geoUrn;
+        const url = new URL(window.location);
+        if (companyId) {
+          url.searchParams.set('currentCompany', '["' + companyId + '"]');
+        }
+        if (geoUrn) {
+          url.searchParams.set('geoUrn', '["' + geoUrn + '"]');
+        }
+        window.location.href = url.toString();
+      });
+    });
+
+    // Handle show results button
+    document.querySelectorAll('.show-results-btn').forEach(btn => {
+      btn.addEventListener('click', function() {
+        const dropdown = this.closest('.filter-dropdown');
+        const selectedSuggestion = dropdown.querySelector('.suggestion-item.selected');
+        if (selectedSuggestion) {
+          selectedSuggestion.click();
+        }
+      });
+    });
+
+    // Handle typing in filter input - filter suggestions
+    document.querySelectorAll('.filter-input').forEach(input => {
+      input.addEventListener('input', function() {
+        const dropdown = this.closest('.filter-dropdown');
+        const suggestions = dropdown.querySelectorAll('.suggestion-item');
+        const searchText = this.value.toLowerCase();
+        suggestions.forEach(s => {
+          const name = (s.dataset.companyName || s.dataset.locationName || '').toLowerCase();
+          s.style.display = name.includes(searchText) ? 'block' : 'none';
+        });
+      });
+    });
+  </script>
 </body>
 </html>`,
 
