@@ -201,7 +201,7 @@ interface DynamoDBService {
  * LinkedIn contact service interface
  */
 interface LinkedInContactService {
-  takeScreenShotAndUploadToS3(profileId: string, status: string): Promise<ScreenshotResult>;
+  scrapeProfile(profileId: string, status: string): Promise<ScreenshotResult>;
 }
 
 /**
@@ -1018,15 +1018,15 @@ export class ProfileInitService {
   }
 
   /**
-   * Capture profile screenshot using existing LinkedInContactService patterns
+   * Scrape profile to RAGStack using LinkedInContactService
    */
   async captureProfileScreenshot(profileId: string, status: string = 'ally'): Promise<ScreenshotResult> {
     try {
-      logger.info(`Capturing profile screenshot for: ${profileId}`);
+      logger.info(`Scraping profile for: ${profileId}`);
 
-      const result = await this.linkedInContactService.takeScreenShotAndUploadToS3(profileId, status);
+      const result = await this.linkedInContactService.scrapeProfile(profileId, status);
 
-      logger.info(`Profile screenshot captured successfully for: ${profileId}`);
+      logger.info(`Profile scraped successfully for: ${profileId}`);
       return result;
 
     } catch (error) {

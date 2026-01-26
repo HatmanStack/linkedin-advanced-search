@@ -673,14 +673,14 @@ Update all callers of the deprecated `takeScreenShotAndUploadToS3` method to use
    ```
 
 ### Verification Checklist
-- [ ] contactProcessor.js calls `scrapeProfile()` instead of deprecated method
-- [ ] profileInitService.ts calls `scrapeProfile()` instead of deprecated method
-- [ ] profileInitService.test.js mocks `scrapeProfile()` method
-- [ ] extractionConfig.js deleted
-- [ ] config/index.js no longer imports extractionConfig
-- [ ] config/index.js no longer has s3.screenshots, s3.profileText, paths.screenshots
-- [ ] All tests pass: `npm test`
-- [ ] No grep results for orphaned config references
+- [x] contactProcessor.js calls `scrapeProfile()` instead of deprecated method
+- [x] profileInitService.ts calls `scrapeProfile()` instead of deprecated method
+- [x] profileInitService.test.js mocks `scrapeProfile()` method
+- [x] extractionConfig.js deleted
+- [x] config/index.js no longer imports extractionConfig
+- [x] config/index.js no longer has s3.screenshots, s3.profileText, paths.screenshots
+- [x] All tests pass: `npm test`
+- [x] No grep results for orphaned config references
 
 ### Testing Instructions
 

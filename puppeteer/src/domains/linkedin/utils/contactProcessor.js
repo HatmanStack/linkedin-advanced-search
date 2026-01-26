@@ -59,9 +59,8 @@ export class ContactProcessor {
       goodContacts.push(link);
       logger.info(`Found good contact: ${link} (${goodContacts.length})`);
       
-      // During Search, capture Profile and Recent-Activity, and mark edges as "possible"
-      // Temp directory is now managed inside LinkedInContactService
-      await this.linkedInContactService.takeScreenShotAndUploadToS3(link, 'possible');
+      // During Search, scrape profile to RAGStack and mark edges as "possible"
+      await this.linkedInContactService.scrapeProfile(link, 'possible');
     
       await FileHelpers.writeJSON(this.config.paths.goodConnectionsFile, goodContacts);
     }

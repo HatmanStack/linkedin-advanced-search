@@ -178,7 +178,6 @@ async function initializeDirectories() {
   try {
     await FileHelpers.ensureDirectoryExists('logs');
     await FileHelpers.ensureDirectoryExists('data');
-    await FileHelpers.ensureDirectoryExists(config.paths.screenshots);
     logger.info('Required directories initialized');
   } catch (error) {
     logger.error('Failed to initialize directories:', error);

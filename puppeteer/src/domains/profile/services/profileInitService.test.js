@@ -80,7 +80,7 @@ describe('ProfileInitService', () => {
       getConnections: vi.fn().mockResolvedValue([])
     };
     mockLinkedInContactService = {
-      takeScreenShotAndUploadToS3: vi.fn().mockResolvedValue({ success: true })
+      scrapeProfile: vi.fn().mockResolvedValue({ success: true, message: 'Scraped', profileId: 'test' })
     };
     mockDynamoDBService = {
       setAuthToken: vi.fn(),
