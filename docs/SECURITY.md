@@ -6,7 +6,7 @@ Security is a core component of the LinkedIn Advanced Search platform, designed 
 
 We utilize a custom encryption mechanism referred to as "Sealbox" to protect sensitive user credentials (e.g., LinkedIn passwords).
 
--   **Device-Specific Keys**: Each deployment or developer machine generates a unique RSA key pair.
+-   **Device-Specific Keys**: Each deployment or developer machine generates a unique X25519 key pair via libsodium.
 -   **Public Key Encryption**: The frontend receives only the public key (`VITE_CRED_SEALBOX_PUBLIC_KEY_B64`). Credentials entered by the user are encrypted in the browser before being sent to the backend.
 -   **Private Key Decryption**: The private key resides only on the secure backend server (Puppeteer instance) and is never exposed to the client.
 -   **Just-in-Time Decryption**: Credentials are decrypted only at the moment they are needed for authentication and are kept in memory for the shortest possible duration.

@@ -115,7 +115,7 @@ export class LinkedInService {
       }
 
       if (recursion) {
-        logger.info('Recursion triggered Consider disabling 2FA');
+        logger.warn('Recursion detected: repeated login/redirect loop during authentication. If using 2FA, consider disabling it or enabling an automated 2FA bypass for this flow.');
       }
 
       // Post-login: do a short readiness probe instead of long navigation waits

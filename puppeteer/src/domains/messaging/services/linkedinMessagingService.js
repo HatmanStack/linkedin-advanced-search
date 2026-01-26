@@ -206,7 +206,7 @@ export class LinkedInMessagingService {
 
   /**
    * Wait for message sent confirmation.
-   * @returns {Promise<boolean>} True if confirmed
+   * @returns {Promise<boolean>} True if sent indicator found, false otherwise
    */
   async waitForMessageSent() {
     try {
@@ -231,7 +231,7 @@ export class LinkedInMessagingService {
         }
       }
 
-      return true; // Assume sent if no error
+      return false; // No sent indicator found
     } catch {
       return false;
     }

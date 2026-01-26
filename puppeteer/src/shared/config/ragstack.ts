@@ -29,6 +29,22 @@ export interface RagstackConfig {
   isConfigured: () => boolean;
 }
 
+// Helper to safely parse integers with fallback
+function safeParseInt(value: string | undefined, defaultValue: number): number {
+  if (!value) return defaultValue;
+  const parsed = parseInt(value, 10);
+  return Number.isNaN(parsed) || parsed <= 0 ? defaultValue : parsed;
+}
+
+// Helper to validate ScrapeMode
+function validateScrapeMode(value: string | undefined): ScrapeMode {
+  const validModes: ScrapeMode[] = ['AUTO', 'FAST', 'FULL'];
+  if (value && validModes.includes(value as ScrapeMode)) {
+    return value as ScrapeMode;
+  }
+  return 'FULL';
+}
+
 /**
  * RAGStack configuration with environment variable overrides
  */
@@ -37,9 +53,9 @@ export const ragstackConfig: RagstackConfig = {
   apiKey: process.env.RAGSTACK_API_KEY || '',
 
   scrape: {
-    maxPages: parseInt(process.env.RAGSTACK_SCRAPE_MAX_PAGES || '5', 10),
-    maxDepth: parseInt(process.env.RAGSTACK_SCRAPE_MAX_DEPTH || '1', 10),
-    scrapeMode: (process.env.RAGSTACK_SCRAPE_MODE || 'FULL') as ScrapeMode,
+    maxPages: safeParseInt(process.env.RAGSTACK_SCRAPE_MAX_PAGES, 5),
+    maxDepth: safeParseInt(process.env.RAGSTACK_SCRAPE_MAX_DEPTH, 1),
+    scrapeMode: validateScrapeMode(process.env.RAGSTACK_SCRAPE_MODE),
     scope: 'SUBPAGES' as ScrapeScope,
   },
 

@@ -211,12 +211,10 @@ export class PuppeteerService {
     }
 
     try {
-      const scrollDistance = distance ?? (direction === 'down' ?
-        'window.innerHeight' : '-window.innerHeight');
-
-      await this.page.evaluate((dist: string | number) => {
-        window.scrollBy(0, typeof dist === 'string' ? eval(dist) : dist);
-      }, scrollDistance);
+      await this.page.evaluate((dist: number | null, dir: 'up' | 'down') => {
+        const scrollDistance = dist !== null ? dist : (dir === 'down' ? window.innerHeight : -window.innerHeight);
+        window.scrollBy(0, scrollDistance);
+      }, distance, direction);
 
       await RandomHelpers.randomDelay(1000, 2000);
     } catch (error) {

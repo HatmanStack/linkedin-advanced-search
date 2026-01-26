@@ -120,7 +120,7 @@ export class LinkedInConnectionService {
         }
       }
 
-      // Check for pending request
+      // Check for pending request (outgoing)
       const pendingSelectors = [
         'button:has-text("Pending")',
         '[aria-label*="Pending"]'
@@ -130,6 +130,23 @@ export class LinkedInConnectionService {
         try {
           const element = await page.$(selector);
           if (element) return 'outgoing';
+        } catch {
+          // continue
+        }
+      }
+
+      // Check for incoming connection request
+      const incomingSelectors = [
+        'button:has-text("Accept")',
+        '[aria-label*="Accept"]',
+        'button:has-text("Respond")',
+        '[aria-label*="invitation"]'
+      ];
+
+      for (const selector of incomingSelectors) {
+        try {
+          const element = await page.$(selector);
+          if (element) return 'incoming';
         } catch {
           // continue
         }

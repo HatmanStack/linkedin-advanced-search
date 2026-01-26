@@ -128,7 +128,8 @@ python -m pytest unit/ -v --tb=short
 ```
 
 ### End-to-End Tests
-(Instruction for E2E tests if available, otherwise mention they are located in `tests/e2e`)
+
+E2E tests are located in `tests/e2e/`. Currently this directory is a placeholder for future E2E test implementation.
 
 ## Linting and Code Quality
 
