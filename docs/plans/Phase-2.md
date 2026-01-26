@@ -198,15 +198,15 @@ Replace screenshot-based data collection with RAGStack scraping in the LinkedInC
 3. **Update type imports** throughout the file for Puppeteer types.
 
 ### Verification Checklist
-- [ ] Service compiles as TypeScript
-- [ ] Constructor initializes RAGStack service when configured
-- [ ] `scrapeProfile()` extracts cookies and starts scrape job
-- [ ] `scrapeProfile()` waits for job completion
-- [ ] `scrapeProfile()` handles errors gracefully
-- [ ] Deprecated `takeScreenShotAndUploadToS3()` calls new method
-- [ ] All screenshot-related code removed
-- [ ] No S3 imports remain
-- [ ] No sharp/fs imports remain
+- [x] Service compiles as TypeScript
+- [x] Constructor initializes RAGStack service when configured
+- [x] `scrapeProfile()` extracts cookies and starts scrape job
+- [x] `scrapeProfile()` waits for job completion
+- [x] `scrapeProfile()` handles errors gracefully
+- [x] Deprecated `takeScreenShotAndUploadToS3()` calls new method
+- [x] All screenshot-related code removed
+- [x] No S3 imports remain
+- [x] No sharp/fs imports remain
 
 ### Testing Instructions
 
@@ -373,10 +373,10 @@ Verify the service factory works with the refactored TypeScript services.
 3. **No code changes required** unless imports fail at runtime.
 
 ### Verification Checklist
-- [ ] Factory loads without import errors
-- [ ] Factory function returns LinkedInContactService instance
-- [ ] Returned LinkedInContactService has `scrapeProfile()` method
-- [ ] No compilation errors
+- [x] Factory loads without import errors
+- [x] Factory function returns LinkedInContactService instance
+- [x] Returned LinkedInContactService has `scrapeProfile()` method
+- [x] No compilation errors
 
 ### Testing Instructions
 
