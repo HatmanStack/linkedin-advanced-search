@@ -114,11 +114,11 @@ export class LinkedInConnectionService {
       const session = await this.sessionManager.getInstance({ reinitializeIfUnhealthy: false });
       const page = session.getPage();
 
-      // Check for "1st" degree indicator
+      // Check for "1st" degree indicator (using Puppeteer p-selectors)
       const firstDegreeSelectors = [
-        '[data-test-id="distance-badge"]:has-text("1st")',
-        '.distance-badge:has-text("1st")',
-        '[aria-label*="1st degree"]'
+        '[data-test-id="distance-badge"] ::-p-text(1st)',
+        '.distance-badge ::-p-text(1st)',
+        '::-p-aria([name*="1st degree"])'
       ];
 
       for (const selector of firstDegreeSelectors) {
@@ -132,8 +132,8 @@ export class LinkedInConnectionService {
 
       // Check for pending request (outgoing)
       const pendingSelectors = [
-        'button:has-text("Pending")',
-        '[aria-label*="Pending"]'
+        'button ::-p-text(Pending)',
+        '::-p-aria([name*="Pending"])'
       ];
 
       for (const selector of pendingSelectors) {
@@ -147,10 +147,10 @@ export class LinkedInConnectionService {
 
       // Check for incoming connection request
       const incomingSelectors = [
-        'button:has-text("Accept")',
-        '[aria-label*="Accept"]',
-        'button:has-text("Respond")',
-        '[aria-label*="invitation"]'
+        'button ::-p-text(Accept)',
+        '::-p-aria([name*="Accept"])',
+        'button ::-p-text(Respond)',
+        '::-p-aria([name*="invitation"])'
       ];
 
       for (const selector of incomingSelectors) {
