@@ -91,9 +91,6 @@ export class LinkedInConnectionService {
         }
       }
 
-      // Add human-like delay between requests
-      await RandomHelpers.randomDelay(1000, 3000);
-
       logger.info('Connection request completed', { result });
       return result;
 
@@ -102,6 +99,9 @@ export class LinkedInConnectionService {
       result.status = 'failed';
       result.error = error.message;
       return result;
+    } finally {
+      // Always add human-like delay between requests for rate-limiting
+      await RandomHelpers.randomDelay(1000, 3000);
     }
   }
 
