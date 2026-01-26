@@ -439,54 +439,6 @@ export interface LoadingState {
   canCancel?: boolean;
 }
 
-/**
- * Progress state for workflow operations
- * 
- * @interface ProgressState
- * @description Tracks progress of multi-step operations like message generation
- */
-export interface ProgressState {
-  /** Current step number */
-  current: number;
-
-  /** Total number of steps */
-  total: number;
-
-  /** Current connection name being processed (optional) */
-  currentConnectionName?: string;
-
-  /** Current phase of the operation */
-  phase: 'preparing' | 'generating' | 'waiting_approval' | 'completed' | 'error';
-
-  /** Estimated time remaining in seconds (optional) */
-  estimatedTimeRemaining?: number;
-}
-
-/**
- * Loading state for UI components
- * 
- * @interface LoadingState
- * @description Tracks loading state with optional progress and cancellation
- */
-export interface LoadingState {
-  /** Whether currently loading */
-  isLoading: boolean;
-
-  /** Loading message to display (optional) */
-  message?: string;
-
-  /** Progress percentage 0-100 (optional) */
-  progress?: number;
-
-  /** Whether the operation can be cancelled (optional) */
-  canCancel?: boolean;
-}
-
-/**
- * Error recovery options for workflow errors
- * 
- * @interface ErrorRecoveryOptions
-
 // =============================================================================
 // API RESPONSE INTERFACES
 // =============================================================================

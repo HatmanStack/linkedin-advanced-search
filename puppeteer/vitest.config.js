@@ -6,7 +6,7 @@ export default defineConfig({
     environment: 'node',
 
     // Test file patterns
-    include: ['src/**/*.test.js'],
+    include: ['src/**/*.test.js', 'src/**/*.test.ts'],
 
     // Setup file for common mocks
     setupFiles: ['./src/setupTests.js'],

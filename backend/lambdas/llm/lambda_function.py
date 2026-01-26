@@ -4,9 +4,8 @@ import logging
 import os
 
 import boto3
+from errors.exceptions import ServiceError, ValidationError
 from openai import OpenAI
-
-# Local service import
 from services.llm_service import LLMService
 
 logger = logging.getLogger()
@@ -80,6 +79,12 @@ def lambda_handler(event, _context):
 
         return _resp(400, {'error': f'Unsupported: {op}'})
 
+    except ValidationError as e:
+        logger.warning(f"Validation error: {e.message}", extra={'details': e.details})
+        return _resp(400, {'error': e.message, 'code': e.code, 'details': e.details})
+    except ServiceError as e:
+        logger.error(f"Service error: {e.message}", extra={'code': e.code, 'details': e.details})
+        return _resp(500, {'error': e.message, 'code': e.code})
     except Exception as e:
-        logger.error(f"Error: {e}")
+        logger.exception(f"Unexpected error in LLM handler: {e}")
         return _resp(500, {'error': 'Internal server error'})

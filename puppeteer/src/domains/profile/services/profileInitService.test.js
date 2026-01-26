@@ -80,7 +80,7 @@ describe('ProfileInitService', () => {
       getConnections: vi.fn().mockResolvedValue([])
     };
     mockLinkedInContactService = {
-      takeScreenShotAndUploadToS3: vi.fn().mockResolvedValue({ success: true })
+      scrapeProfile: vi.fn().mockResolvedValue({ success: true, message: 'Scraped', profileId: 'test' })
     };
     mockDynamoDBService = {
       setAuthToken: vi.fn(),
@@ -103,12 +103,20 @@ describe('ProfileInitService', () => {
     };
 
     it('should skip ingestion when API_GATEWAY_BASE_URL is not configured', async () => {
-      // API_BASE_URL is undefined by default in tests
-      const result = await service.triggerRAGStackIngestion('profile123', mockState);
+      // Explicitly remove API_BASE_URL to ensure it's undefined
+      const oldUrl = process.env.API_GATEWAY_BASE_URL;
+      delete process.env.API_GATEWAY_BASE_URL;
 
-      expect(result).toBeNull();
-      expect(axios.get).not.toHaveBeenCalled();
-      expect(axios.post).not.toHaveBeenCalled();
+      try {
+        const result = await service.triggerRAGStackIngestion('profile123', mockState);
+
+        expect(result).toBeNull();
+        expect(axios.get).not.toHaveBeenCalled();
+        expect(axios.post).not.toHaveBeenCalled();
+      } finally {
+        // Restore if it was set (good practice)
+        if (oldUrl) process.env.API_GATEWAY_BASE_URL = oldUrl;
+      }
     });
 
     it('should skip ingestion when profile is not found in DynamoDB', async () => {

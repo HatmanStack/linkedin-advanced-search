@@ -96,12 +96,23 @@ Heal/restore and health endpoints do not require authentication.
 | `/profile-init` | 5 req/min |
 | `/linkedin-interactions` | 30 req/min |
 
+## Environment Variables
+
+See `.env.example` for all configuration options. Key variables:
+
+| Variable | Description |
+|----------|-------------|
+| `RAGSTACK_GRAPHQL_ENDPOINT` | RAGStack GraphQL API URL for profile scraping |
+| `RAGSTACK_API_KEY` | API key for RAGStack authentication |
+| `HEADLESS` | Browser headless mode (default: true) |
+| `PORT` | Server port (default: 3001) |
+
 ## How It Works
 
 1. **Authentication**: Secure credential decryption with Sealbox encryption
 2. **Queue Processing**: FIFO queue serializes LinkedIn interactions
 3. **Session Management**: Long-lived browser sessions minimize logins
-4. **Data Capture**: Multi-page screenshots stored in S3 with DynamoDB metadata
+4. **Profile Scraping**: RAGStack-based web scraping with cookie passthrough
 5. **Recovery System**: Checkpoint-based recovery for interrupted processes
 
 ## Troubleshooting

@@ -4,55 +4,106 @@ import RandomHelpers from '#utils/randomHelpers.js';
 import DynamoDBService from '../../storage/services/dynamoDBService.js';
 import LinkedInContactService from './linkedinContactService.js';
 import { decryptSealboxB64Tag } from '#utils/crypto.js';
+import type { PuppeteerService } from '../../automation/services/puppeteerService.js';
+import type { Page } from 'puppeteer';
 
+/**
+ * Connection type options
+ */
+export type ConnectionType = 'ally' | 'incoming' | 'outgoing';
 
+/**
+ * Options for getConnections method
+ */
+export interface GetConnectionsOptions {
+  connectionType?: ConnectionType;
+  maxScrolls?: number;
+}
+
+/**
+ * Result of contact analysis
+ */
+export interface ContactAnalysisResult {
+  isGoodContact?: boolean;
+  skipped?: boolean;
+  reason?: string;
+  profileId?: string;
+}
+
+/**
+ * Activity counts by timeframe
+ */
+interface ActivityCounts {
+  hour: number;
+  day: number;
+  week: number;
+}
+
+/**
+ * LinkedIn service for browser automation.
+ * Handles login, search, profile analysis, and connection management.
+ */
 export class LinkedInService {
-  constructor(puppeteerService) {
+  private puppeteer: PuppeteerService;
+  private sessionTag: string;
+  private dynamoDBService: DynamoDBService;
+  private linkedInContactService: LinkedInContactService;
+
+  constructor(puppeteerService: PuppeteerService) {
     this.puppeteer = puppeteerService;
     this.sessionTag = 'default';
     this.dynamoDBService = new DynamoDBService();
     this.linkedInContactService = new LinkedInContactService(puppeteerService);
   }
 
-
-  async login(username, password, recursion, credentialsCiphertext = null, sessionTag = 'default') {
+  async login(
+    username: string | null | undefined,
+    password: string | null | undefined,
+    recursion: boolean,
+    credentialsCiphertext: string | null = null,
+    sessionTag: string = 'default'
+  ): Promise<boolean> {
     try {
       logger.info('Starting LinkedIn login process...');
       this.sessionTag = sessionTag || 'default';
 
+      let loginUsername = username;
+      let loginPassword = password;
+
       // Just-in-time decryption if plaintext not provided
-      if ((!username || !password) && typeof credentialsCiphertext === 'string' && credentialsCiphertext.startsWith('sealbox_x25519:b64:')) {
+      if ((!loginUsername || !loginPassword) && typeof credentialsCiphertext === 'string' && credentialsCiphertext.startsWith('sealbox_x25519:b64:')) {
         try {
           const decrypted = await decryptSealboxB64Tag(credentialsCiphertext);
           if (decrypted) {
-            const obj = JSON.parse(decrypted);
-            username = obj?.email || username;
-            password = obj?.password || password;
+            const obj = JSON.parse(decrypted) as { email?: string; password?: string };
+            loginUsername = obj?.email || loginUsername;
+            loginPassword = obj?.password || loginPassword;
           }
         } catch (err) {
-          logger.error('Failed to decrypt LinkedIn credentials for login', { error: err.message, stack: err.stack });
-          throw new Error(`Credential decryption failed: ${err.message}`);
+          const error = err as Error;
+          logger.error('Failed to decrypt LinkedIn credentials for login', { error: error.message, stack: error.stack });
+          throw new Error(`Credential decryption failed: ${error.message}`);
         }
       }
 
       // Validate credentials before interacting with the page
-      if (typeof username !== 'string' || username.trim().length === 0) {
+      if (typeof loginUsername !== 'string' || loginUsername.trim().length === 0) {
         throw new Error('LinkedIn username is missing or invalid');
       }
-      if (typeof password !== 'string' || password.trim().length === 0) {
+      if (typeof loginPassword !== 'string' || loginPassword.trim().length === 0) {
         throw new Error('LinkedIn password is missing or invalid');
       }
 
       await this.puppeteer.goto(`${config.linkedin.baseUrl}/login`);
 
       // Fill username
-      const usernameSuccess = await this.puppeteer.safeType('#username', username);
+      const usernameSuccess = await this.puppeteer.safeType('#username', loginUsername);
       if (!usernameSuccess) {
         throw new Error('Failed to enter username');
       }
 
       // Fill password
-      const passwordSuccess = await this.puppeteer.safeType('#password', password);
+      const passwordSuccess = await this.puppeteer.safeType('#password', loginPassword);
       if (!passwordSuccess) {
         throw new Error('Failed to enter password');
       }
@@ -64,10 +115,15 @@ export class LinkedInService {
       }
 
       if (recursion) {
-        logger.info('Recursion triggered Consider disabling 2FA')
+        logger.warn('Recursion detected: repeated login/redirect loop during authentication. If using 2FA, consider disabling it or enabling an automated 2FA bypass for this flow.');
       }
+
       // Post-login: do a short readiness probe instead of long navigation waits
       const page = this.puppeteer.getPage();
+      if (!page) {
+        throw new Error('Browser page not available');
+      }
+
       const shortCapMs = Math.min(8000, (config.timeouts?.navigation || 15000));
       const start = Date.now();
       try {
@@ -84,23 +140,20 @@ export class LinkedInService {
       logger.debug(`Post-login readiness probe took ${spent}ms`);
 
       // After login, wait for a common homepage selector to allow time for security challenges (2FA, checkpoint, captcha)
-      // We intentionally use a long/infinite timeout controlled by config.timeouts.login (0 means no timeout)
-      // Prioritize data-view-name (stable) over class names (obfuscated)
       const homepageSelector = [
         '[data-view-name="navigation-homepage"]',
         '[data-view-name="identity-module"]',
         '[data-view-name="identity-self-profile"]',
         'header'
       ].join(', ');
+
       // Timeout of 0 means "wait indefinitely" - this is intentional to allow users
-      // to manually complete 2FA/CAPTCHA challenges. The operator monitors the browser
-      // window and completes security challenges before the automation continues.
+      // to manually complete 2FA/CAPTCHA challenges.
       const loginWaitMs = (config.timeouts?.login ?? 0);
       try {
         await page.waitForSelector(homepageSelector, { visible: true, timeout: loginWaitMs });
         logger.info('Homepage element detected after login; security challenge (if any) likely resolved.');
       } catch (e) {
-        // If a finite timeout was configured and elapsed, surface the error
         logger.error('Homepage selector did not appear within the configured login timeout.', e);
         throw e;
       }
@@ -113,12 +166,15 @@ export class LinkedInService {
     }
   }
 
-  async searchCompany(companyName) {
+  async searchCompany(companyName: string): Promise<string | null> {
     try {
       logger.info(`Extracting company ID via people search filter: ${companyName}`);
 
-      // Navigate to people search page
       const page = this.puppeteer.getPage();
+      if (!page) {
+        throw new Error('Browser page not available');
+      }
+
       await this.puppeteer.goto(`${config.linkedin.baseUrl}/search/results/people/`);
       await RandomHelpers.randomDelay(1500, 2500);
 
@@ -148,7 +204,7 @@ export class LinkedInService {
       await this._clickShowResults();
 
       // Wait for URL to update with company parameter
-      let extractedCompanyNumber = null;
+      let extractedCompanyNumber: string | null = null;
       try {
         await page.waitForFunction(
           () => /currentCompany=/.test(decodeURIComponent(window.location.href)),
@@ -164,7 +220,7 @@ export class LinkedInService {
       if (extractedCompanyNumber) {
         logger.info(`Extracted company number: ${extractedCompanyNumber}`);
       } else {
-        logger.warn(`Could not extract company ID from URL`);
+        logger.warn('Could not extract company ID from URL');
       }
 
       return extractedCompanyNumber;
@@ -175,13 +231,16 @@ export class LinkedInService {
     }
   }
 
-  async applyLocationFilter(companyLocation) {
+  async applyLocationFilter(companyLocation: string): Promise<string | null> {
     try {
       logger.info(`Applying location filter via people search: ${companyLocation}`);
 
       const page = this.puppeteer.getPage();
+      if (!page) {
+        throw new Error('Browser page not available');
+      }
 
-      // Ensure we're on the people search page (may not be if searchCompany was skipped during healing)
+      // Ensure we're on the people search page
       if (!page.url().includes('/search/results/people')) {
         await this.puppeteer.goto(`${config.linkedin.baseUrl}/search/results/people/`);
         await RandomHelpers.randomDelay(1500, 2500);
@@ -213,7 +272,7 @@ export class LinkedInService {
       await this._clickShowResults();
 
       // Wait for URL to update with geo parameter
-      let extractedGeoNumber = null;
+      let extractedGeoNumber: string | null = null;
       try {
         await page.waitForFunction(
           () => /geoUrn=/.test(decodeURIComponent(window.location.href)),
@@ -229,7 +288,7 @@ export class LinkedInService {
       if (extractedGeoNumber) {
         logger.info(`Extracted geo number: ${extractedGeoNumber}`);
       } else {
-        logger.warn(`Could not extract geo ID from URL`);
+        logger.warn('Could not extract geo ID from URL');
       }
 
       return extractedGeoNumber;
@@ -240,11 +299,10 @@ export class LinkedInService {
     }
   }
 
-  async _clickFilterButton(filterName) {
+  private async _clickFilterButton(filterName: string): Promise<boolean> {
     const page = this.puppeteer.getPage();
+    if (!page) return false;
 
-    // LinkedIn renders filters as <label> elements tied to checkboxes.
-    // Try aria selectors first, then fall back to text content matching.
     const selectors = [
       `::-p-aria(${filterName})`,
       `button[aria-label="${filterName} filter"]`,
@@ -266,13 +324,16 @@ export class LinkedInService {
 
     // Fallback: find by text content in both buttons and labels
     try {
-      const clicked = await page.evaluate((name) => {
+      const clicked = await page.evaluate((name: string) => {
         const elements = Array.from(document.querySelectorAll('button, label'));
         const match = elements.find(el => {
-          const text = el.textContent.trim().toLowerCase();
+          const text = el.textContent?.trim().toLowerCase() ?? '';
           return text.includes(name.toLowerCase());
         });
-        if (match) { match.click(); return true; }
+        if (match) {
+          (match as HTMLElement).click();
+          return true;
+        }
         return false;
       }, filterName);
       if (clicked) {
@@ -287,8 +348,10 @@ export class LinkedInService {
     return false;
   }
 
-  async _typeInFilterInput(text) {
+  private async _typeInFilterInput(text: string): Promise<boolean> {
     const page = this.puppeteer.getPage();
+    if (!page) return false;
+
     const inputSelectors = [
       'input[aria-label*="Add a company"]',
       'input[aria-label*="Add a location"]',
@@ -302,7 +365,7 @@ export class LinkedInService {
       try {
         const element = await page.$(selector);
         if (element) {
-          await element.click({ clickCount: 3 });
+          await element.click({ count: 3 });
           await page.keyboard.press('Backspace');
           await element.type(text, { delay: 50 });
           logger.debug(`Typed "${text}" in filter input: ${selector}`);
@@ -317,10 +380,10 @@ export class LinkedInService {
     return false;
   }
 
-  async _selectFilterSuggestion(searchText) {
+  private async _selectFilterSuggestion(searchText: string): Promise<boolean> {
     const page = this.puppeteer.getPage();
+    if (!page) return false;
 
-    // Wait for suggestions to appear
     const suggestionSelectors = [
       '[role="listbox"] [role="option"]',
       '[role="listbox"] li',
@@ -332,21 +395,22 @@ export class LinkedInService {
     for (const selector of suggestionSelectors) {
       try {
         await page.waitForSelector(selector, { timeout: 5000 });
-        const clicked = await page.evaluate((sel, text) => {
+        const clicked = await page.evaluate((sel: string, text: string) => {
           const items = Array.from(document.querySelectorAll(sel));
-          // Prefer exact match, then partial match
           const exactMatch = items.find(item =>
-            item.textContent.trim().toLowerCase() === text.toLowerCase()
+            item.textContent?.trim().toLowerCase() === text.toLowerCase()
           );
           const partialMatch = items.find(item =>
-            item.textContent.trim().toLowerCase().includes(text.toLowerCase())
+            item.textContent?.trim().toLowerCase().includes(text.toLowerCase())
           );
           const target = exactMatch || partialMatch;
           if (target) {
-            // Click the input/checkbox if it's a label, otherwise click the element
-            const input = target.querySelector('input');
-            if (input) { input.click(); }
-            else { target.click(); }
+            const input = target.querySelector('input') as HTMLInputElement | null;
+            if (input) {
+              input.click();
+            } else {
+              (target as HTMLElement).click();
+            }
             return true;
           }
           return false;
@@ -365,8 +429,10 @@ export class LinkedInService {
     return false;
   }
 
-  async _clickShowResults() {
+  private async _clickShowResults(): Promise<boolean> {
     const page = this.puppeteer.getPage();
+    if (!page) return false;
+
     const selectors = [
       '::-p-aria(Show results)',
       '::-p-aria(Apply current filter)',
@@ -393,10 +459,13 @@ export class LinkedInService {
       const clicked = await page.evaluate(() => {
         const buttons = Array.from(document.querySelectorAll('button'));
         const btn = buttons.find(b => {
-          const text = b.textContent.trim().toLowerCase();
+          const text = b.textContent?.trim().toLowerCase() ?? '';
           return text.includes('show results') || text.includes('apply');
         });
-        if (btn) { btn.click(); return true; }
+        if (btn) {
+          btn.click();
+          return true;
+        }
         return false;
       });
       if (clicked) {
@@ -412,12 +481,16 @@ export class LinkedInService {
     return false;
   }
 
-
-  async getLinksFromPeoplePage(pageNumber, extractedCompanyNumber = null, encodedRole = null, extractedGeoNumber = null) {
+  async getLinksFromPeoplePage(
+    pageNumber: number,
+    extractedCompanyNumber: string | null = null,
+    encodedRole: string | null = null,
+    extractedGeoNumber: string | null = null
+  ): Promise<string[]> {
     try {
       // Build URL conditionally based on available parameters
-      let urlParts = [`${config.linkedin.baseUrl}/search/results/people/?`];
-      let queryParams = [];
+      const urlParts = [`${config.linkedin.baseUrl}/search/results/people/?`];
+      const queryParams: string[] = [];
 
       if (extractedCompanyNumber) {
         queryParams.push(`currentCompany=%5B"${extractedCompanyNumber}"%5D`);
@@ -453,20 +526,17 @@ export class LinkedInService {
       return links;
     } catch (error) {
       // Return empty array instead of throwing to allow pagination to continue.
-      // A single failed page shouldn't abort the entire search - we log the error
-      // and continue to the next page. The caller handles empty pages appropriately.
       logger.error(`Failed to get links from page ${pageNumber}:`, error);
       return [];
     }
   }
 
-  async analyzeContactActivity(profileId, jwtToken) {
+  async analyzeContactActivity(profileId: string, jwtToken: string): Promise<ContactAnalysisResult> {
     try {
-      // Check if profile analysis is needed
-      logger.info('Start Analysis')
+      logger.info('Starting contact activity analysis', { profileId });
       this.dynamoDBService.setAuthToken(jwtToken);
       const shouldProcess = await this.dynamoDBService.getProfileDetails(profileId);
-      logger.info(`${shouldProcess}`);
+      logger.info('Profile details check completed', { profileId, shouldProcess });
       if (!shouldProcess) {
         logger.info(`Skipping analysis for ${profileId}: Profile was updated recently`);
         return {
@@ -482,45 +552,47 @@ export class LinkedInService {
       logger.debug(`Analyzing contact activity: ${activityUrl}`);
 
       await this.puppeteer.goto(activityUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
-      const currentUrl = this.puppeteer.getPage().url();
 
-      // Detection of security challenges - logged as warning for operator awareness.
-      // The automation pauses here; human intervention may be required.
-      // This is expected behavior when LinkedIn detects automation patterns.
-      const pageContent = await this.puppeteer.getPage().content();
+      const page = this.puppeteer.getPage();
+      if (!page) {
+        throw new Error('Browser page not available');
+      }
+
+      const currentUrl = page.url();
+
+      // Detection of security challenges
+      const pageContent = await page.content();
       if (currentUrl.includes('checkpoint') || /captcha|verify/i.test(pageContent)) {
         logger.warn('Landed on a checkpoint or captcha page - may require manual intervention');
       }
 
       let score = 0;
-      const totalCounts = { hour: 0, day: 0, week: 0 };
+      const totalCounts: ActivityCounts = { hour: 0, day: 0, week: 0 };
       const { recencyHours, recencyDays, recencyWeeks, historyToCheck } = config.linkedin;
       logger.debug(`Recency settings - Hours: ${recencyHours}, Days: ${recencyDays}, Weeks: ${recencyWeeks}`);
-      let countedSet = new Set();
+      const countedSet = new Set<string>();
 
       for (let i = 0; i < historyToCheck; i++) {
-        // LinkedIn renders timestamps in both <span aria-hidden> and <p> elements
         const timeSelector = 'span[aria-hidden="true"], p[componentkey]';
         await this.puppeteer.waitForSelector(timeSelector, { timeout: 5000 });
 
-        const result = await this.puppeteer.getPage().evaluate(
-          (existingCounts, countedArr) => {
-            const timeframes = {
+        const result = await page.evaluate(
+          (existingCounts: ActivityCounts, countedArr: string[]) => {
+            const timeframes: Record<string, RegExp> = {
               hour: /\b([1-9]|1[0-9]|2[0-3])h\b/i,
               day: /\b([1-6])d\b/i,
               week: /\b([1-4])w\b/i
             };
             const elements = Array.from(document.querySelectorAll('span[aria-hidden="true"], p[componentkey]'));
             const updatedCounts = { ...existingCounts };
-            const newCounted = [];
+            const newCounted: string[] = [];
 
             elements.forEach((el, idx) => {
-              // Use a unique key: text + index + outerHTML
               const key = `${el.textContent?.toLowerCase() ?? ''}|${idx}|${el.outerHTML}`;
               if (!countedArr.includes(key)) {
                 Object.entries(timeframes).forEach(([k, regex]) => {
                   if (regex.test(el.textContent?.toLowerCase() ?? '')) {
-                    updatedCounts[k]++;
+                    updatedCounts[k as keyof typeof updatedCounts]++;
                   }
                 });
                 newCounted.push(key);
@@ -534,7 +606,7 @@ export class LinkedInService {
         );
 
         Object.assign(totalCounts, result.updatedCounts);
-        result.newCounted.forEach(key => countedSet.add(key));
+        result.newCounted.forEach((key: string) => countedSet.add(key));
 
         score = (totalCounts.day * recencyDays) +
           (totalCounts.hour * recencyHours) +
@@ -546,7 +618,7 @@ export class LinkedInService {
           break;
         }
 
-        await this.puppeteer.getPage().evaluate(() => {
+        await page.evaluate(() => {
           window.scrollBy(0, window.innerHeight);
         });
       }
@@ -557,7 +629,6 @@ export class LinkedInService {
       if (isGoodContact) {
         await this.dynamoDBService.upsertEdgeStatus(profileId, 'possible');
         return { isGoodContact: true };
-
       }
       await this.dynamoDBService.upsertEdgeStatus(profileId, 'processed');
       await this.dynamoDBService.markBadContact(profileId);
@@ -571,29 +642,27 @@ export class LinkedInService {
 
   /**
    * Scroll to load connections with intelligent detection of when to stop
-   * @param {string} connectionType - Type of connections being loaded
-   * @param {number} maxScrolls - Maximum number of scroll attempts
-   * @returns {Promise<number>} Number of connections found after scrolling
    */
-  async scrollToLoadConnections(connectionType, maxScrolls = 5) {
+  async scrollToLoadConnections(connectionType: ConnectionType, maxScrolls: number = 5): Promise<number> {
     const page = this.puppeteer.getPage();
+    if (!page) {
+      throw new Error('Browser page not available');
+    }
+
     let previousConnectionCount = 0;
     let stableCount = 0;
-    const stableLimit = 5; // Stop after 5 consecutive stable iterations
+    const stableLimit = 5;
 
     logger.info(`Starting intelligent scroll for ${connectionType} connections (max ${maxScrolls} scrolls)`);
 
     for (let i = 0; i < maxScrolls; i++) {
       try {
-        // Check current connection count
         const currentConnectionCount = await page.evaluate(() => {
-          // Different selectors for different connection types
-          // Prioritize data-view-name and href patterns over class names
           const selectors = [
-            'a[href*="/in/"]', // General LinkedIn profile links
-            '[data-view-name="connections-profile"]', // Connection cards (new)
-            '[data-view-name="people-search-result"]', // Search result cards (new)
-            '[data-test-id="connection-card"]' // Test ID based cards (legacy)
+            'a[href*="/in/"]',
+            '[data-view-name="connections-profile"]',
+            '[data-view-name="people-search-result"]',
+            '[data-test-id="connection-card"]'
           ];
 
           let totalCount = 0;
@@ -605,7 +674,6 @@ export class LinkedInService {
           return totalCount;
         });
 
-        // Check if we found new connections
         if (currentConnectionCount > previousConnectionCount) {
           logger.debug(`Scroll ${i + 1}: Found ${currentConnectionCount} connections (+${currentConnectionCount - previousConnectionCount})`);
           previousConnectionCount = currentConnectionCount;
@@ -615,18 +683,16 @@ export class LinkedInService {
           logger.debug(`Scroll ${i + 1}: No new connections found (${currentConnectionCount} total, stable count: ${stableCount})`);
         }
 
-        // Stop if we've been stable for too long
         if (stableCount >= stableLimit) {
           logger.info(`Stopping scroll - no new connections found for ${stableLimit} attempts`);
           break;
         }
 
-        // Skip "Show more" button clicking since it doesn't work - use mouse wheel scroll
-        // Use mouse wheel scroll which actually works to load more connections
         await page.mouse.wheel({ deltaY: 1000 });
-        await RandomHelpers.randomDelay(800, 1500); // Wait for content to load
+        await RandomHelpers.randomDelay(800, 1500);
 
-      } catch (error) {
+      } catch (err) {
+        const error = err as Error;
         logger.warn(`Error during scroll ${i + 1}:`, error.message);
         break;
       }
@@ -638,12 +704,8 @@ export class LinkedInService {
 
   /**
    * Generic method to get connections from LinkedIn
-   * @param {Object} options - Configuration options
-   * @param {string} options.connectionType - 'ally', 'incoming', 'outgoing' (optional, default: 'ally')
-   * @param {number} options.maxScrolls - Maximum number of scrolls (optional, default: 50)
-   * @returns {Promise<Array>} Array of connection profile IDs
    */
-  async getConnections(options = {}) {
+  async getConnections(options: GetConnectionsOptions = {}): Promise<string[]> {
     const {
       connectionType = 'ally',
       maxScrolls = 5
@@ -655,8 +717,7 @@ export class LinkedInService {
         maxScrolls
       });
 
-      // Navigate to connections page based on type
-      let targetUrl;
+      let targetUrl: string;
       switch (connectionType) {
         case 'ally':
           targetUrl = `${config.linkedin.baseUrl}/mynetwork/invite-connect/connections/`;
@@ -674,10 +735,8 @@ export class LinkedInService {
       await this.puppeteer.goto(targetUrl);
       await this.puppeteer.waitForSelector('body', { timeout: 10000 });
 
-      // Scroll to load all connections dynamically
       await this.scrollToLoadConnections(connectionType, maxScrolls);
 
-      // Extract profile links after scrolling is complete
       const profileIds = await this.puppeteer.extractLinks();
 
       logger.info(`Extracted ${profileIds.length} ${connectionType} connections`);
@@ -694,7 +753,6 @@ export class LinkedInService {
       throw error;
     }
   }
-
 }
 
 export default LinkedInService;

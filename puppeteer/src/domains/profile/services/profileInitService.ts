@@ -7,33 +7,240 @@ import { generateProfileMarkdown } from '../utils/profileMarkdownGenerator.js';
 import axios from 'axios';
 import fs from 'fs/promises';
 import path from 'path';
+import type { PuppeteerService } from '../../automation/services/puppeteerService.js';
+import type { LinkedInService, ConnectionType } from '../../linkedin/services/linkedinService.js';
+import type { Page } from 'puppeteer';
+
+/**
+ * Profile initialization state
+ */
+export interface ProfileInitState {
+  requestId?: string;
+  recursionCount?: number;
+  healPhase?: string;
+  currentProcessingList?: string;
+  currentBatch?: number;
+  currentIndex?: number;
+  jwtToken?: string;
+  searchName?: string;
+  searchPassword?: string;
+  credentialsCiphertext?: string;
+  masterIndexFile?: string;
+  totalConnections?: {
+    ally: number;
+    incoming: number;
+    outgoing: number;
+  };
+  completedBatches?: number[];
+  lastError?: {
+    connectionType: string;
+    message: string;
+    timestamp: string;
+  };
+  listCreationState?: {
+    connectionType: string;
+    expansionAttempt: number;
+    currentFileIndex: number;
+  };
+}
+
+/**
+ * Master index file structure
+ */
+interface MasterIndex {
+  metadata: {
+    capturedAt: string;
+    totalAllies: number;
+    totalIncoming: number;
+    totalOutgoing: number;
+    batchSize: number;
+    [key: string]: unknown;
+  };
+  files: {
+    allyConnections: FileReference[];
+    incomingConnections: FileReference[];
+    outgoingConnections: FileReference[];
+    [key: string]: FileReference[];
+  };
+  processingState: {
+    currentList: string;
+    currentBatch: number;
+    currentIndex: number;
+    completedBatches: number[];
+  };
+}
+
+/**
+ * File reference in master index
+ */
+interface FileReference {
+  fileName: string;
+  filePath?: string;
+  fileIndex?: number;
+  totalLinks?: number;
+  capturedAt?: string;
+  isComplete?: boolean;
+}
+
+/**
+ * Batch data structure
+ */
+interface BatchData {
+  batchNumber: number;
+  connectionType: string;
+  connections: string[];
+  batchMetadata?: {
+    startIndex: number;
+    endIndex: number;
+    capturedAt: string;
+  };
+}
+
+/**
+ * Processing result
+ */
+interface ProcessingResult {
+  processed: number;
+  skipped: number;
+  errors: number;
+  connectionTypes?: Record<string, TypeResult>;
+  progressSummary?: unknown;
+  batches?: BatchResult[];
+}
+
+/**
+ * Type-specific processing result
+ */
+interface TypeResult {
+  processed: number;
+  skipped: number;
+  errors: number;
+  batches: BatchResult[];
+}
+
+/**
+ * Batch processing result
+ */
+interface BatchResult {
+  batchNumber: number;
+  batchFilePath?: string;
+  processed: number;
+  skipped: number;
+  errors: number;
+  connections: ConnectionProcessResult[];
+  startTime?: string;
+  endTime?: string;
+  duration?: number;
+}
+
+/**
+ * Individual connection processing result
+ */
+interface ConnectionProcessResult {
+  profileId: string;
+  action?: string;
+  status?: string;
+  reason?: string;
+  error?: string;
+  errorType?: string;
+  errorCategory?: string;
+  index: number;
+}
+
+/**
+ * Initialization result
+ */
+export interface InitializationResult {
+  success: boolean;
+  message: string;
+  data: ProcessingResult;
+  metadata: {
+    requestId: string;
+    duration: number;
+    timestamp: string;
+  };
+}
+
+/**
+ * Scrape result
+ */
+interface ScrapeResult {
+  success: boolean;
+  message?: string;
+  data?: unknown;
+}
+
+/**
+ * Error details from categorization
+ */
+interface ErrorDetails {
+  type?: string;
+  category: string;
+  severity?: string;
+  isRecoverable?: boolean;
+  retryable?: boolean;
+  maxRetries?: number;
+  skipConnection?: boolean;
+  httpStatus?: number;
+  message?: string;
+  suggestions?: string[];
+}
+
+/**
+ * DynamoDB service interface
+ */
+interface DynamoDBService {
+  setAuthToken(token: string): void;
+  checkEdgeExists(profileId: string): Promise<boolean>;
+  upsertEdgeStatus(profileId: string, status: string): Promise<unknown>;
+  getProfileDetails(profileId: string): Promise<unknown>;
+  markBadContact(profileId: string): Promise<void>;
+}
+
+/**
+ * LinkedIn contact service interface
+ */
+interface LinkedInContactService {
+  scrapeProfile(profileId: string, status: string): Promise<ScrapeResult>;
+}
 
 /**
  * Gets the API base URL from environment, with proper normalization
- * @returns {string|undefined} Normalized API base URL or undefined
  */
-function getApiBaseUrl() {
+function getApiBaseUrl(): string | undefined {
   const baseUrl = process.env.API_GATEWAY_BASE_URL;
   if (!baseUrl) return undefined;
   return baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
 }
 
-
+/**
+ * Profile initialization service.
+ * Handles LinkedIn profile database initialization with batch processing.
+ */
 export class ProfileInitService {
-  constructor(puppeteerService, linkedInService, linkedInContactService, dynamoDBService) {
+  private puppeteer: PuppeteerService;
+  private linkedInService: LinkedInService;
+  private linkedInContactService: LinkedInContactService;
+  private dynamoDBService: DynamoDBService;
+  private batchSize: number;
+
+  constructor(
+    puppeteerService: PuppeteerService,
+    linkedInService: LinkedInService,
+    linkedInContactService: LinkedInContactService,
+    dynamoDBService: DynamoDBService
+  ) {
     this.puppeteer = puppeteerService;
     this.linkedInService = linkedInService;
     this.linkedInContactService = linkedInContactService;
     this.dynamoDBService = dynamoDBService;
-    this.batchSize = 100; // Default batch size, configurable
+    this.batchSize = 100;
   }
 
   /**
    * Initialize user profile database with LinkedIn data
-   * @param {Object} state - Profile initialization state
-   * @returns {Promise<Object>} Initialization result
    */
-  async initializeUserProfile(state) {
+  async initializeUserProfile(state: ProfileInitState): Promise<InitializationResult> {
     const requestId = state.requestId || 'unknown';
     const startTime = Date.now();
 
@@ -49,13 +256,15 @@ export class ProfileInitService {
       });
 
       // Set auth token for DynamoDB operations
-      this.dynamoDBService.setAuthToken(state.jwtToken);
+      if (state.jwtToken) {
+        this.dynamoDBService.setAuthToken(state.jwtToken);
+      }
 
       // Perform LinkedIn login using existing LinkedInService
       await this.linkedInService.login(
         state.searchName,
         state.searchPassword,
-        state.recursionCount > 0,
+        (state.recursionCount || 0) > 0,
         state.credentialsCiphertext,
         'profile-init'
       );
@@ -84,7 +293,8 @@ export class ProfileInitService {
         }
       };
 
-    } catch (error) {
+    } catch (err) {
+      const error = err as Error & { context?: Record<string, unknown> };
       const totalDuration = Date.now() - startTime;
       const errorDetails = LinkedInErrorHandler.categorizeError(error);
 
@@ -121,14 +331,10 @@ export class ProfileInitService {
     }
   }
 
-
-
   /**
    * Process connection lists with batch processing
-   * @param {Object} state - Profile initialization state
-   * @returns {Promise<Object>} Processing result
    */
-  async processConnectionLists(state) {
+  async processConnectionLists(state: ProfileInitState): Promise<ProcessingResult> {
     try {
       logger.info('Starting connection list processing');
 
@@ -138,9 +344,7 @@ export class ProfileInitService {
       // Create master index file if not resuming from healing
       let masterIndexFile = state.masterIndexFile;
       if (!masterIndexFile) {
-        masterIndexFile = await this._createMasterIndexFile(state);
-
-        // Update state with master index file path
+        masterIndexFile = await this._createMasterIndexFile();
         state.masterIndexFile = masterIndexFile;
       }
 
@@ -157,8 +361,8 @@ export class ProfileInitService {
       }
 
       // Process each connection type
-      const connectionTypes = ['ally', 'outgoing', 'incoming'];
-      const results = {
+      const connectionTypes: ConnectionType[] = ['ally', 'outgoing', 'incoming'];
+      const results: ProcessingResult = {
         processed: 0,
         skipped: 0,
         errors: 0,
@@ -167,7 +371,7 @@ export class ProfileInitService {
       };
 
       // Track what we've processed in this run to prevent duplicates
-      const processedInThisRun = new Set();
+      const processedInThisRun = new Set<string>();
 
       for (const connectionType of connectionTypes) {
         // Skip if we've already processed this type in this run
@@ -175,8 +379,6 @@ export class ProfileInitService {
           logger.info(`Skipping ${connectionType} connections - already processed in this run`);
           continue;
         }
-
-
 
         // Skip if we're resuming from a specific list and this isn't it
         if (state.currentProcessingList && state.currentProcessingList !== connectionType) {
@@ -196,7 +398,7 @@ export class ProfileInitService {
             state
           );
 
-          results.connectionTypes[connectionType] = typeResult;
+          results.connectionTypes![connectionType] = typeResult;
           results.processed += typeResult.processed;
           results.skipped += typeResult.skipped;
           results.errors += typeResult.errors;
@@ -216,7 +418,7 @@ export class ProfileInitService {
           // Update state with error information for potential healing
           state.lastError = {
             connectionType,
-            message: error.message,
+            message: (error as Error).message,
             timestamp: new Date().toISOString()
           };
 
@@ -244,23 +446,18 @@ export class ProfileInitService {
 
   /**
    * Create master index file for tracking connection lists
-   * @param {Object} state - Profile initialization state
-   * @returns {Promise<string>} Path to master index file
    */
-  async _createMasterIndexFile() {
+  private async _createMasterIndexFile(): Promise<string> {
     try {
       const timestamp = Date.now();
       const masterIndexFile = path.join('data', `profile-init-index-${timestamp}.json`);
 
-      // Use placeholder counts - actual counts will be determined during processing
-      const connectionCounts = { ally: 0, incoming: 0, outgoing: 0 };
-
-      const masterIndex = {
+      const masterIndex: MasterIndex = {
         metadata: {
           capturedAt: new Date().toISOString(),
-          totalAllies: connectionCounts.ally || connectionCounts.allies,
-          totalIncoming: connectionCounts.incoming,
-          totalOutgoing: connectionCounts.outgoing,
+          totalAllies: 0,
+          totalIncoming: 0,
+          totalOutgoing: 0,
           batchSize: this.batchSize
         },
         files: {
@@ -289,13 +486,11 @@ export class ProfileInitService {
 
   /**
    * Load master index from file
-   * @param {string} masterIndexFile - Path to master index file
-   * @returns {Promise<Object>} Master index data
    */
-  async _loadMasterIndex(masterIndexFile) {
+  private async _loadMasterIndex(masterIndexFile: string): Promise<MasterIndex> {
     try {
       const content = await fs.readFile(masterIndexFile, 'utf8');
-      return JSON.parse(content);
+      return JSON.parse(content) as MasterIndex;
     } catch (error) {
       logger.error(`Failed to load master index from ${masterIndexFile}:`, error);
       throw error;
@@ -304,10 +499,8 @@ export class ProfileInitService {
 
   /**
    * Update master index file with current progress
-   * @param {string} masterIndexFile - Path to master index file
-   * @param {Object} masterIndex - Master index data
    */
-  async _updateMasterIndex(masterIndexFile, masterIndex) {
+  private async _updateMasterIndex(masterIndexFile: string, masterIndex: MasterIndex): Promise<void> {
     try {
       await fs.writeFile(masterIndexFile, JSON.stringify(masterIndex, null, 2));
       logger.debug(`Updated master index file: ${masterIndexFile}`);
@@ -319,32 +512,26 @@ export class ProfileInitService {
 
   /**
    * Process connections for a specific type (ally, incoming, outgoing)
-   * @param {string} connectionType - Type of connections to process
-   * @param {Object} masterIndex - Master index data
-   * @param {Object} state - Profile initialization state
-   * @returns {Promise<Object>} Processing result for this type
    */
-  async _processConnectionType(connectionType, masterIndex, state) {
+  private async _processConnectionType(
+    connectionType: ConnectionType,
+    masterIndex: MasterIndex,
+    state: ProfileInitState
+  ): Promise<TypeResult> {
     try {
       logger.info(`Processing ${connectionType} connections`);
 
-      const result = {
+      const result: TypeResult = {
         processed: 0,
         skipped: 0,
         errors: 0,
         batches: []
       };
 
-      // Get connection list for this type
-      let connections;
-
       // Get connections using LinkedInService
-      connections = await this.linkedInService.getConnections({
-        caller: 'profileinit',
+      const connections = await this.linkedInService.getConnections({
         connectionType: connectionType,
-        loadAll: true,
-        maxScrolls: 15,
-        timeoutMs: 20000
+        maxScrolls: 15
       });
 
       if (!connections || connections.length === 0) {
@@ -396,14 +583,14 @@ export class ProfileInitService {
 
   /**
    * Create batch files for a connection type
-   * @param {string} connectionType - Type of connections
-   * @param {Array} connections - Array of connection profile IDs
-   * @param {Object} masterIndex - Master index data
-   * @returns {Promise<Array>} Array of batch file paths
    */
-  async _createBatchFiles(connectionType, connections, masterIndex) {
+  private async _createBatchFiles(
+    connectionType: ConnectionType,
+    connections: string[],
+    masterIndex: MasterIndex
+  ): Promise<string[]> {
     try {
-      const batchFiles = [];
+      const batchFiles: string[] = [];
       const totalBatches = Math.ceil(connections.length / this.batchSize);
 
       for (let i = 0; i < totalBatches; i++) {
@@ -414,7 +601,7 @@ export class ProfileInitService {
         const batchFileName = `${connectionType}-connections-batch-${i}.json`;
         const batchFilePath = path.join('data', batchFileName);
 
-        const batchData = {
+        const batchData: BatchData = {
           batchNumber: i,
           connectionType: connectionType,
           connections: batchConnections,
@@ -429,11 +616,11 @@ export class ProfileInitService {
         batchFiles.push(batchFilePath);
 
         // Update master index with batch file reference
-        const connectionKey = `${connectionType}Connections`;
+        const connectionKey = `${connectionType}Connections` as keyof MasterIndex['files'];
         if (!masterIndex.files[connectionKey]) {
           masterIndex.files[connectionKey] = [];
         }
-        masterIndex.files[connectionKey].push(batchFileName);
+        masterIndex.files[connectionKey].push({ fileName: batchFileName });
       }
 
       logger.info(`Created ${batchFiles.length} batch files for ${connectionType} connections`);
@@ -447,14 +634,11 @@ export class ProfileInitService {
 
   /**
    * Process a single batch file
-   * @param {string} batchFilePath - Path to batch file
-   * @param {Object} state - Profile initialization state
-   * @returns {Promise<Object>} Batch processing result
    */
-  async _processBatch(batchFilePath, state) {
+  private async _processBatch(batchFilePath: string, state: ProfileInitState): Promise<BatchResult> {
     const requestId = state.requestId || 'unknown';
     const startTime = Date.now();
-    let batchData = null;
+    let batchData: BatchData | null = null;
 
     try {
       logger.info(`Processing batch file: ${batchFilePath}`, {
@@ -467,17 +651,17 @@ export class ProfileInitService {
       // Load batch data with error handling
       try {
         const batchContent = await fs.readFile(batchFilePath, 'utf8');
-        batchData = JSON.parse(batchContent);
+        batchData = JSON.parse(batchContent) as BatchData;
       } catch (fileError) {
         logger.error(`Failed to load batch file: ${batchFilePath}`, {
           requestId,
           batchFilePath,
-          error: fileError.message
+          error: (fileError as Error).message
         });
-        throw new Error(`Batch file loading failed: ${fileError.message}`);
+        throw new Error(`Batch file loading failed: ${(fileError as Error).message}`);
       }
 
-      const result = {
+      const result: BatchResult = {
         batchNumber: batchData.batchNumber,
         batchFilePath,
         processed: 0,
@@ -487,7 +671,7 @@ export class ProfileInitService {
         startTime: new Date().toISOString()
       };
 
-      logger.info(`Starting batch processing`, {
+      logger.info('Starting batch processing', {
         requestId,
         batchNumber: batchData.batchNumber,
         totalConnections: batchData.connections.length,
@@ -507,8 +691,8 @@ export class ProfileInitService {
           continue;
         }
 
-        let connectionProfileId = batchData.connections[i];
-        let connectionStatus = batchData.connectionType;
+        const connectionProfileId = batchData.connections[i];
+        const connectionStatus = batchData.connectionType;
 
         try {
           // Update current processing index in state for recovery
@@ -521,11 +705,11 @@ export class ProfileInitService {
             profileId: connectionProfileId,
             status: connectionStatus
           });
+
           // Check if edge already exists to avoid reprocessing
           const edgeExists = await this.dynamoDBService.checkEdgeExists(connectionProfileId);
 
           if (edgeExists) {
-
             logger.debug(`Skipping ${connectionProfileId}: Edge already exists`);
 
             result.skipped++;
@@ -537,7 +721,7 @@ export class ProfileInitService {
             });
 
             // Record skipped connection in monitoring
-            profileInitMonitor.recordConnection(requestId, connectionProfileId, 'skipped', {
+            profileInitMonitor.recordConnection(requestId, connectionProfileId, 'skipped', 0, {
               batchNumber: batchData.batchNumber,
               connectionIndex: i,
               reason: 'Edge already exists'
@@ -547,10 +731,7 @@ export class ProfileInitService {
           }
 
           // Process the connection (create database entry)
-          // Extract connection type from batch data or connection status
-
           await this._processConnection(connectionProfileId, state, connectionStatus);
-
 
           result.processed++;
           result.connections.push({
@@ -560,7 +741,7 @@ export class ProfileInitService {
           });
 
           // Record successful connection processing in monitoring
-          profileInitMonitor.recordConnection(requestId, connectionProfileId, 'processed', {
+          profileInitMonitor.recordConnection(requestId, connectionProfileId, 'processed', 0, {
             batchNumber: batchData.batchNumber,
             connectionIndex: i,
             batchProgress: `${i + 1}/${batchData.connections.length}`
@@ -573,7 +754,8 @@ export class ProfileInitService {
             batchProgress: `${i + 1}/${batchData.connections.length}`
           });
 
-        } catch (error) {
+        } catch (err) {
+          const error = err as Error & { context?: Record<string, unknown> };
           const errorDetails = LinkedInErrorHandler.categorizeError(error);
 
           logger.error(`Failed to process connection ${connectionProfileId} at index ${i}`, {
@@ -598,7 +780,7 @@ export class ProfileInitService {
           });
 
           // Record error connection in monitoring
-          profileInitMonitor.recordConnection(requestId, connectionProfileId, 'error', {
+          profileInitMonitor.recordConnection(requestId, connectionProfileId, 'error', 0, {
             batchNumber: batchData.batchNumber,
             connectionIndex: i,
             errorType: errorDetails.type,
@@ -607,7 +789,6 @@ export class ProfileInitService {
           });
 
           // For certain errors, we might want to continue processing other connections
-          // rather than failing the entire batch
           if (this._isConnectionLevelError(error)) {
             logger.warn(`Connection-level error for ${connectionProfileId}, continuing with next connection`, {
               requestId,
@@ -619,7 +800,7 @@ export class ProfileInitService {
           }
 
           // For more serious errors, we should fail the batch
-          logger.error(`Serious error encountered, failing batch`, {
+          logger.error('Serious error encountered, failing batch', {
             requestId,
             batchNumber: batchData.batchNumber,
             profileId: connectionProfileId,
@@ -650,7 +831,7 @@ export class ProfileInitService {
       result.endTime = new Date().toISOString();
       result.duration = batchDuration;
 
-      logger.info(`Batch processing completed successfully`, {
+      logger.info('Batch processing completed successfully', {
         requestId,
         batchNumber: result.batchNumber,
         batchDuration,
@@ -664,7 +845,8 @@ export class ProfileInitService {
 
       return result;
 
-    } catch (error) {
+    } catch (err) {
+      const error = err as Error & { context?: Record<string, unknown> };
       const batchDuration = Date.now() - startTime;
 
       logger.error(`Failed to process batch ${batchFilePath}`, {
@@ -698,15 +880,13 @@ export class ProfileInitService {
 
   /**
    * Determine if an error is connection-specific and shouldn't fail the entire batch
-   * @param {Error} error - The error that occurred
-   * @returns {boolean} True if this is a connection-level error
    */
-  _isConnectionLevelError(error) {
+  private _isConnectionLevelError(error: Error): boolean {
     const connectionLevelErrors = [
       /profile.*not.*found/i,
       /profile.*private/i,
       /profile.*unavailable/i,
-      /screenshot.*failed/i,
+      /scrape.*failed/i,
       /invalid.*profile/i,
       /profile.*deleted/i
     ];
@@ -717,11 +897,12 @@ export class ProfileInitService {
 
   /**
    * Process a single connection profile
-   * @param {string} connectionProfileId - LinkedIn profile ID
-   * @param {Object} state - Profile initialization state
-   * @param {string} connectionType - Type of connection (ally, incoming, outgoing)
    */
-  async _processConnection(connectionProfileId, state, connectionType) {
+  private async _processConnection(
+    connectionProfileId: string,
+    state: ProfileInitState,
+    connectionType: string
+  ): Promise<void> {
     const requestId = state.requestId || 'unknown';
     const startTime = Date.now();
 
@@ -733,49 +914,45 @@ export class ProfileInitService {
         currentIndex: state.currentIndex
       });
 
-      let screenshotResult = null;
-      let databaseResult = null;
+      let scrapeResult: ScrapeResult | null = null;
+      let databaseResult: unknown = null;
 
       try {
-        // Capture screenshots for required pages per status
-        logger.debug(`Capturing screenshot for connection: ${connectionProfileId}`, {
+        // Scrape profile using RAGStack
+        logger.debug(`Initiating profile scrape for connection: ${connectionProfileId}`, {
           requestId,
           profileId: connectionProfileId
         });
 
-        screenshotResult = await this.captureProfileScreenshot(connectionProfileId, connectionType);
+        scrapeResult = await this.performProfileScrape(connectionProfileId, connectionType);
 
-        if (screenshotResult && screenshotResult.success) {
-          logger.debug(`Screenshot captured successfully for ${connectionProfileId}`, {
+        if (scrapeResult && scrapeResult.success) {
+          logger.debug(`Profile scrape successful for ${connectionProfileId}`, {
             requestId,
-            profileId: connectionProfileId,
-            screenshotPath: screenshotResult.path
+            profileId: connectionProfileId
           });
         } else {
-          logger.warn(`Screenshot capture failed for ${connectionProfileId}`, {
+          logger.warn(`Profile scrape failed for ${connectionProfileId}`, {
             requestId,
             profileId: connectionProfileId,
-            reason: screenshotResult?.message || 'Unknown screenshot error'
+            reason: scrapeResult?.message || 'Unknown scrape error'
           });
         }
 
-        // Create database entry for the connection using existing DynamoDB patterns
+        // Create database entry for the connection
         logger.debug(`Creating database entry for connection: ${connectionProfileId}`, {
           requestId,
           profileId: connectionProfileId
         });
 
-        // Use central edge manager to create edge for this connection
         databaseResult = await this.dynamoDBService.upsertEdgeStatus(connectionProfileId, connectionType);
 
-        // Trigger RAGStack ingestion for non-'possible' connection types
-        // Note: 'possible' connections are not processed in profile init
-        // This is fire-and-forget - failures are logged but don't block processing
+        // Trigger RAGStack ingestion (fire-and-forget)
         this.triggerRAGStackIngestion(connectionProfileId, state).catch(err => {
           logger.debug('Async RAGStack ingestion failed (non-blocking)', {
             requestId,
             profileId: connectionProfileId,
-            error: err.message
+            error: (err as Error).message
           });
         });
 
@@ -784,11 +961,12 @@ export class ProfileInitService {
           requestId,
           profileId: connectionProfileId,
           processingDuration,
-          screenshotSuccess: screenshotResult?.success || false,
+          scrapeSuccess: scrapeResult?.success || false,
           databaseSuccess: !!databaseResult
         });
 
-      } catch (processingError) {
+      } catch (processingErr) {
+        const processingError = processingErr as Error & { context?: Record<string, unknown> };
         const processingDuration = Date.now() - startTime;
         const errorDetails = LinkedInErrorHandler.categorizeError(processingError);
 
@@ -810,8 +988,8 @@ export class ProfileInitService {
           profileId: connectionProfileId,
           duration: processingDuration,
           errorDetails,
-          screenshotAttempted: !!screenshotResult,
-          screenshotSuccess: screenshotResult?.success || false,
+          scrapeAttempted: !!scrapeResult,
+          scrapeSuccess: scrapeResult?.success || false,
           databaseAttempted: !!databaseResult
         };
 
@@ -821,13 +999,12 @@ export class ProfileInitService {
     } catch (error) {
       const totalDuration = Date.now() - startTime;
 
-      // Log the error with full context
       logger.error(`Connection processing failed for ${connectionProfileId}`, {
         requestId,
         profileId: connectionProfileId,
         totalDuration,
-        message: error.message,
-        stack: error.stack,
+        message: (error as Error).message,
+        stack: (error as Error).stack,
         currentState: {
           batch: state.currentBatch,
           index: state.currentIndex,
@@ -836,63 +1013,49 @@ export class ProfileInitService {
       });
 
       throw error;
-
     }
   }
 
-
   /**
-   * Capture profile screenshot using existing LinkedInContactService patterns
-   * @param {string} profileId - LinkedIn profile ID
-   * @param {string} status - Connection status (ally, incoming, outgoing, possible)
-   * @returns {Promise<Object>} Screenshot capture result
+   * Scrape profile using RAGStack via LinkedInContactService
    */
-  async captureProfileScreenshot(profileId, status = 'ally') {
+  async performProfileScrape(profileId: string, status: string = 'ally'): Promise<ScrapeResult> {
     try {
-      logger.info(`Capturing profile screenshot for: ${profileId}`);
+      logger.info(`Initiating RAGStack scrape for: ${profileId}`);
 
-      // Use existing LinkedInContactService method
-      const result = await this.linkedInContactService.takeScreenShotAndUploadToS3(profileId, status);
+      const result = await this.linkedInContactService.scrapeProfile(profileId, status);
 
-      logger.info(`Profile screenshot captured successfully for: ${profileId}`);
+      logger.info(`RAGStack scrape completed for: ${profileId}`);
       return result;
 
     } catch (error) {
-      logger.error(`Failed to capture profile screenshot for ${profileId}:`, error);
+      logger.error(`Failed to scrape profile ${profileId}:`, error);
       throw error;
     }
   }
 
-
-
-
-
   /**
    * Load existing links from saved files for healing recovery
-   * @param {string} connectionType - Type of connections (ally, incoming, outgoing)
-   * @param {Object} masterIndex - Master index containing file references
-   * @returns {Promise<Array>} Array of existing links
    */
-  async _loadExistingLinksFromFiles(connectionType, masterIndex) {
+  private async _loadExistingLinksFromFiles(connectionType: string, masterIndex: MasterIndex): Promise<string[]> {
     try {
-      const connectionKey = `${connectionType}Connections`;
+      const connectionKey = `${connectionType}Connections` as keyof MasterIndex['files'];
       const fileReferences = masterIndex.files[connectionKey] || [];
-      const allLinks = [];
+      const allLinks: string[] = [];
 
       for (const fileRef of fileReferences) {
         try {
-          const filePath = path.join('data', fileRef.fileName || fileRef);
+          const filePath = path.join('data', fileRef.fileName);
           const fileContent = await fs.readFile(filePath, 'utf8');
-          const fileData = JSON.parse(fileContent);
+          const fileData = JSON.parse(fileContent) as { links?: string[]; invitations?: Array<{ originalUrl?: string; profileId?: string }> };
 
           if (fileData.links) {
             allLinks.push(...fileData.links);
           } else if (fileData.invitations) {
-            // Handle invitation files
             allLinks.push(...fileData.invitations.map(inv => inv.originalUrl || `/in/${inv.profileId}`));
           }
         } catch (fileError) {
-          logger.warn(`Failed to load file ${fileRef.fileName || fileRef}:`, fileError.message);
+          logger.warn(`Failed to load file ${fileRef.fileName}:`, (fileError as Error).message);
         }
       }
 
@@ -907,10 +1070,8 @@ export class ProfileInitService {
 
   /**
    * Determine if an error during list creation should trigger healing
-   * @param {Error} error - The error that occurred
-   * @returns {boolean} True if healing should be triggered
    */
-  _shouldTriggerListCreationHealing(error) {
+  private _shouldTriggerListCreationHealing(error: Error): boolean {
     const recoverableListCreationErrors = [
       /timeout/i,
       /navigation.*failed/i,
@@ -933,14 +1094,15 @@ export class ProfileInitService {
 
   /**
    * Handle healing during list creation
-   * @param {Object} state - Current state
-   * @param {string} connectionType - Type of connection being collected
-   * @param {number} expansionAttempt - Current expansion attempt
-   * @param {number} currentFileIndex - Current file index
-   * @param {Object} masterIndex - Current master index
-   * @param {Error} error - Error that triggered healing
    */
-  async _handleListCreationHealing(state, connectionType, expansionAttempt, currentFileIndex, masterIndex, error) {
+  private async _handleListCreationHealing(
+    state: ProfileInitState,
+    connectionType: string,
+    expansionAttempt: number,
+    currentFileIndex: number,
+    masterIndex: MasterIndex,
+    error: Error
+  ): Promise<void> {
     const requestId = state.requestId || 'unknown';
 
     logger.warn(`List creation failed for ${connectionType}. Initiating healing.`, {
@@ -963,15 +1125,17 @@ export class ProfileInitService {
     );
 
     // Update master index with healing state
-    await this._updateMasterIndex(state.masterIndexFile, masterIndex);
+    if (state.masterIndexFile) {
+      await this._updateMasterIndex(state.masterIndexFile, masterIndex);
+    }
 
     logger.info('Created list creation healing state', {
       requestId,
       healingState: {
         healPhase: healingState.healPhase,
-        connectionType: healingState.listCreationState.connectionType,
-        expansionAttempt: healingState.listCreationState.expansionAttempt,
-        currentFileIndex: healingState.listCreationState.currentFileIndex,
+        connectionType: healingState.listCreationState?.connectionType,
+        expansionAttempt: healingState.listCreationState?.expansionAttempt,
+        currentFileIndex: healingState.listCreationState?.currentFileIndex,
         recursionCount: healingState.recursionCount
       }
     });
@@ -982,12 +1146,13 @@ export class ProfileInitService {
 
   /**
    * Save links to file with proper file management and master index updates
-   * @param {Array} links - Array of links to save
-   * @param {string} connectionType - Type of connections (ally, incoming, outgoing)
-   * @param {number} fileIndex - Current file index
-   * @param {Object} masterIndex - Master index for tracking files
    */
-  async _saveLinksToFile(links, connectionType, fileIndex, masterIndex) {
+  private async _saveLinksToFile(
+    links: string[],
+    connectionType: string,
+    fileIndex: number,
+    masterIndex: MasterIndex
+  ): Promise<string> {
     try {
       const timestamp = Date.now();
       const fileName = `${connectionType}-connections-${fileIndex}-${timestamp}.json`;
@@ -1000,7 +1165,7 @@ export class ProfileInitService {
           return match && match[1] ? match[1].replace(/\/$/, '').split('?')[0] : null;
         }
         return link;
-      }).filter(id => id && id !== 'undefined' && id.length > 0);
+      }).filter((id): id is string => id !== null && id !== 'undefined' && id.length > 0);
 
       const fileData = {
         connectionType: connectionType,
@@ -1021,7 +1186,7 @@ export class ProfileInitService {
       await fs.writeFile(filePath, JSON.stringify(fileData, null, 2));
 
       // Update master index
-      const connectionKey = `${connectionType}Connections`;
+      const connectionKey = `${connectionType}Connections` as keyof MasterIndex['files'];
       if (!masterIndex.files[connectionKey]) {
         masterIndex.files[connectionKey] = [];
       }
@@ -1031,7 +1196,7 @@ export class ProfileInitService {
         f.fileIndex === fileIndex || f.fileName === fileName
       );
 
-      const fileReference = {
+      const fileReference: FileReference = {
         fileName: fileName,
         filePath: filePath,
         fileIndex: fileIndex,
@@ -1048,7 +1213,7 @@ export class ProfileInitService {
 
       // Update metadata totals
       const totalKey = `total${connectionType.charAt(0).toUpperCase() + connectionType.slice(1)}`;
-      const currentTotal = masterIndex.files[connectionKey].reduce((sum, file) => sum + file.totalLinks, 0);
+      const currentTotal = masterIndex.files[connectionKey].reduce((sum, file) => sum + (file.totalLinks || 0), 0);
       masterIndex.metadata[totalKey] = currentTotal;
 
       logger.info(`Saved ${profileIds.length} ${connectionType} links to ${fileName}`, {
@@ -1068,16 +1233,12 @@ export class ProfileInitService {
 
   /**
    * Collect all visible connection links on the current page
-   * @param {Object} page - Puppeteer page object
-   * @param {Set} allLinks - Set to store collected links
    */
-  async _collectVisibleLinks(page, allLinks) {
+  private async _collectVisibleLinks(page: Page, allLinks: Set<string>): Promise<void> {
     try {
       const newLinks = await page.evaluate(() => {
-        const links = new Set();
+        const links = new Set<string>();
 
-        // Multiple selectors to find connection profile links
-        // Prioritize data-view-name and href patterns over class names
         const selectors = [
           'a[href*="/in/"]',
           '[data-view-name="connections-profile"] a[href*="/in/"]',
@@ -1087,12 +1248,11 @@ export class ProfileInitService {
         ];
 
         for (const selector of selectors) {
-          const elements = document.querySelectorAll(selector);
+          const elements = Array.from(document.querySelectorAll(selector));
 
           for (const element of elements) {
             const href = element.getAttribute('href');
             if (href && href.includes('/in/')) {
-              // Clean up the URL
               const cleanHref = href.split('?')[0].replace(/\/$/, '');
               if (cleanHref.match(/\/in\/[^\/]+$/)) {
                 links.add(cleanHref);
@@ -1119,18 +1279,14 @@ export class ProfileInitService {
     }
   }
 
-
-
-
-
   /**
    * Enhanced error handling with retry logic and detailed logging
-   * @param {Error} error - The error that occurred
-   * @param {Object} context - Error context information
-   * @param {number} retryCount - Current retry attempt
-   * @returns {Promise<boolean>} True if error was handled and should retry
    */
-  async _handleServiceError(error, context = {}, retryCount = 0) {
+  private async _handleServiceError(
+    error: Error,
+    context: { requestId?: string; profileId?: string } = {},
+    retryCount: number = 0
+  ): Promise<boolean> {
     const errorDetails = this._categorizeServiceError(error);
     const requestId = context.requestId || 'unknown';
 
@@ -1147,26 +1303,19 @@ export class ProfileInitService {
       context
     });
 
-    // Handle specific error types
     switch (errorDetails.category) {
       case 'authentication':
         return await this._handleAuthenticationError(error, context, retryCount, errorDetails);
-
       case 'network':
         return await this._handleNetworkError(error, context, retryCount, errorDetails);
-
       case 'linkedin':
         return await this._handleLinkedInError(error, context, retryCount, errorDetails);
-
       case 'browser':
         return await this._handleBrowserError(error, context, retryCount, errorDetails);
-
       case 'database':
-        return await this._handleDatabaseError(error, context, retryCount, errorDetails);
-
+        return await this._handleDatabaseError(error, context);
       case 'connection':
-        return await this._handleConnectionError(error, context, retryCount, errorDetails);
-
+        return await this._handleConnectionError(error, context);
       default:
         logger.error('Unhandled error type', {
           requestId,
@@ -1178,9 +1327,21 @@ export class ProfileInitService {
   }
 
   /**
+   * Categorize service error
+   */
+  private _categorizeServiceError(error: Error): ErrorDetails {
+    return LinkedInErrorHandler.categorizeError(error);
+  }
+
+  /**
    * Handle authentication-related errors
    */
-  async _handleAuthenticationError(error, context, retryCount, errorDetails) {
+  private async _handleAuthenticationError(
+    _error: Error,
+    context: { requestId?: string },
+    retryCount: number,
+    errorDetails: ErrorDetails
+  ): Promise<boolean> {
     const requestId = context.requestId || 'unknown';
 
     if (retryCount < (errorDetails.maxRetries || 3)) {
@@ -1189,7 +1350,7 @@ export class ProfileInitService {
         retryCount,
         maxRetries: errorDetails.maxRetries
       });
-      return true; // Trigger healing
+      return true;
     }
 
     logger.error('Authentication failed after maximum retries', {
@@ -1203,11 +1364,16 @@ export class ProfileInitService {
   /**
    * Handle network-related errors
    */
-  async _handleNetworkError(error, context, retryCount, errorDetails) {
+  private async _handleNetworkError(
+    _error: Error,
+    context: { requestId?: string },
+    retryCount: number,
+    errorDetails: ErrorDetails
+  ): Promise<boolean> {
     const requestId = context.requestId || 'unknown';
 
     if (retryCount < (errorDetails.maxRetries || 5)) {
-      const backoffDelay = Math.min(1000 * Math.pow(2, retryCount), 30000); // Exponential backoff, max 30s
+      const backoffDelay = Math.min(1000 * Math.pow(2, retryCount), 30000);
 
       logger.warn('Network error - will retry with backoff', {
         requestId,
@@ -1217,7 +1383,7 @@ export class ProfileInitService {
       });
 
       await RandomHelpers.randomDelay(backoffDelay, backoffDelay + 1000);
-      return true; // Trigger healing
+      return true;
     }
 
     logger.error('Network error failed after maximum retries', {
@@ -1231,11 +1397,16 @@ export class ProfileInitService {
   /**
    * Handle LinkedIn-specific errors
    */
-  async _handleLinkedInError(error, context, retryCount, errorDetails) {
+  private async _handleLinkedInError(
+    _error: Error,
+    context: { requestId?: string },
+    retryCount: number,
+    errorDetails: ErrorDetails
+  ): Promise<boolean> {
     const requestId = context.requestId || 'unknown';
 
     if (retryCount < (errorDetails.maxRetries || 2)) {
-      const backoffDelay = Math.min(5000 * Math.pow(2, retryCount), 60000); // Longer backoff for LinkedIn
+      const backoffDelay = Math.min(5000 * Math.pow(2, retryCount), 60000);
 
       logger.warn('LinkedIn error - will retry with extended backoff', {
         requestId,
@@ -1245,7 +1416,7 @@ export class ProfileInitService {
       });
 
       await RandomHelpers.randomDelay(backoffDelay, backoffDelay + 5000);
-      return true; // Trigger healing
+      return true;
     }
 
     logger.error('LinkedIn error failed after maximum retries', {
@@ -1259,7 +1430,12 @@ export class ProfileInitService {
   /**
    * Handle browser-related errors
    */
-  async _handleBrowserError(error, context, retryCount, errorDetails) {
+  private async _handleBrowserError(
+    _error: Error,
+    context: { requestId?: string },
+    retryCount: number,
+    errorDetails: ErrorDetails
+  ): Promise<boolean> {
     const requestId = context.requestId || 'unknown';
 
     if (retryCount < (errorDetails.maxRetries || 3)) {
@@ -1268,7 +1444,7 @@ export class ProfileInitService {
         retryCount,
         maxRetries: errorDetails.maxRetries
       });
-      return true; // Trigger healing
+      return true;
     }
 
     logger.error('Browser error failed after maximum retries', {
@@ -1282,7 +1458,7 @@ export class ProfileInitService {
   /**
    * Handle database-related errors
    */
-  async _handleDatabaseError(error, context) {
+  private async _handleDatabaseError(error: Error, context: { requestId?: string }): Promise<boolean> {
     const requestId = context.requestId || 'unknown';
 
     logger.error('Database error - not retryable', {
@@ -1291,14 +1467,13 @@ export class ProfileInitService {
       context
     });
 
-    // Database errors are typically not recoverable through healing
     return false;
   }
 
   /**
    * Handle connection-level errors (profile-specific)
    */
-  async _handleConnectionError(error, context) {
+  private async _handleConnectionError(error: Error, context: { requestId?: string; profileId?: string }): Promise<boolean> {
     const requestId = context.requestId || 'unknown';
 
     logger.warn('Connection-level error - will skip this connection', {
@@ -1307,17 +1482,13 @@ export class ProfileInitService {
       message: error.message
     });
 
-    // Connection errors should not fail the entire process
-    return false; // Don't trigger healing, just skip this connection
+    return false;
   }
 
   /**
    * Trigger RAGStack ingestion for a profile
-   * @param {string} profileId - Profile ID to ingest
-   * @param {Object} state - Current state with JWT token
-   * @returns {Promise<Object|null>} Ingestion result or null if skipped/failed
    */
-  async triggerRAGStackIngestion(profileId, state) {
+  async triggerRAGStackIngestion(profileId: string, state: ProfileInitState): Promise<unknown> {
     const requestId = state.requestId || 'unknown';
 
     try {
@@ -1397,11 +1568,10 @@ export class ProfileInitService {
       return result;
 
     } catch (error) {
-      // Log but don't fail - ingestion is best-effort
       logger.warn('RAGStack ingestion failed (non-fatal)', {
         requestId,
         profileId,
-        error: error.message
+        error: (error as Error).message
       });
       return null;
     }
@@ -1409,11 +1579,11 @@ export class ProfileInitService {
 
   /**
    * Fetch profile data from DynamoDB for ingestion
-   * @param {string} profileId - Profile ID
-   * @param {Object} state - State with JWT token
-   * @returns {Promise<Object|null>} Profile data or null
    */
-  async _fetchProfileForIngestion(profileId, state) {
+  private async _fetchProfileForIngestion(
+    profileId: string,
+    state: ProfileInitState
+  ): Promise<{ profile?: Record<string, unknown> } | null> {
     try {
       const apiBaseUrl = getApiBaseUrl();
       if (!apiBaseUrl) return null;
@@ -1430,7 +1600,7 @@ export class ProfileInitService {
     } catch (error) {
       logger.debug('Failed to fetch profile for ingestion', {
         profileId,
-        error: error.message
+        error: (error as Error).message
       });
       return null;
     }
@@ -1438,11 +1608,11 @@ export class ProfileInitService {
 
   /**
    * Call RAGStack proxy Lambda
-   * @param {Object} payload - Request payload
-   * @param {Object} state - State with JWT token
-   * @returns {Promise<Object>} Response data
    */
-  async _callRAGStackProxy(payload, state) {
+  private async _callRAGStackProxy(
+    payload: Record<string, unknown>,
+    state: ProfileInitState
+  ): Promise<{ documentId?: string } | null> {
     const apiBaseUrl = getApiBaseUrl();
     if (!apiBaseUrl) {
       throw new Error('API_GATEWAY_BASE_URL not configured');
@@ -1457,7 +1627,6 @@ export class ProfileInitService {
 
     return response.data;
   }
-
 }
 
 export default ProfileInitService;
