@@ -542,9 +542,9 @@ Document the new RAGStack environment variables and create `.env.example`.
    - Note that profile scraping requires RAGStack to be deployed
 
 ### Verification Checklist
-- [ ] `.env.example` created with RAGStack variables
-- [ ] Variables have descriptive comments
-- [ ] README updated if applicable
+- [x] `.env.example` created with RAGStack variables
+- [x] Variables have descriptive comments
+- [x] README updated if applicable
 
 ### Testing Instructions
 
