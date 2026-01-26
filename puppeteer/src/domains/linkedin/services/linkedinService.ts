@@ -533,10 +533,10 @@ export class LinkedInService {
 
   async analyzeContactActivity(profileId: string, jwtToken: string): Promise<ContactAnalysisResult> {
     try {
-      logger.info('Start Analysis');
+      logger.info('Starting contact activity analysis', { profileId });
       this.dynamoDBService.setAuthToken(jwtToken);
       const shouldProcess = await this.dynamoDBService.getProfileDetails(profileId);
-      logger.info(`${shouldProcess}`);
+      logger.info('Profile details check completed', { profileId, shouldProcess });
       if (!shouldProcess) {
         logger.info(`Skipping analysis for ${profileId}: Profile was updated recently`);
         return {

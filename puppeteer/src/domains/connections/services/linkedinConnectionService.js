@@ -91,7 +91,7 @@ export class LinkedInConnectionService {
       logger.error('Failed to send connection request', { error: error.message, profileId });
       result.status = 'failed';
       result.error = error.message;
-      throw error;
+      return result;
     }
   }
 

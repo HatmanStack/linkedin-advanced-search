@@ -48,7 +48,7 @@ This guide provides instructions for setting up your development environment and
 4.  **Generate Encryption Keys**:
     Generate the necessary public/private key pairs for Sealbox encryption.
     ```bash
-    cd puppeteer && node scripts/generate-device-keypair.js && cd ..
+    node scripts/dev-tools/generate-device-keypair.js
     ```
 
 ## Testing Environments
