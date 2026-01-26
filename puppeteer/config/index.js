@@ -2,6 +2,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import extractionConfig from './extractionConfig.js';
+import { ragstackConfig } from '../src/shared/config/ragstack.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -181,6 +182,9 @@ export const config = {
 
   // Text Extraction Configuration
   extraction: extractionConfig,
+
+  // RAGStack Configuration
+  ragstack: ragstackConfig,
 };
 
 export default config;
