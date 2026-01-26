@@ -70,8 +70,8 @@ npm run dev
 
 ### 2. Hybrid Mode (Frontend + Puppeteer + Mock Server)
 **Best for**: Testing the automation logic (Puppeteer) against a stable, offline target.
--   **Puppeteer Backend**: Configured to scrape `localhost:3333` instead of `linkedin.com`.
--   **Mock Server**: serves the HTML pages.
+-   **Puppeteer Backend**: Configured to scrape `localhost:3333` instead of LinkedIn.
+-   **Mock Server**: Serves the HTML pages.
 
 **Configuration**:
 In your root `.env` file:

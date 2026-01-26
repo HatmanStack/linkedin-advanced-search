@@ -5,6 +5,7 @@
  */
 
 import { logger } from '#utils/logger.js';
+import { RandomHelpers } from '#utils/randomHelpers.js';
 
 /**
  * Connection service for LinkedIn connection requests.
@@ -65,6 +66,12 @@ export class LinkedInConnectionService {
         return result;
       }
 
+      if (currentStatus === 'incoming') {
+        logger.info('Incoming connection request exists from this profile');
+        result.status = 'incoming';
+        return result;
+      }
+
       // Find and click connect button
       const connected = await this.clickConnectButton(connectionMessage);
       result.status = connected ? 'sent' : 'failed';
@@ -83,6 +90,9 @@ export class LinkedInConnectionService {
           logger.warn('Failed to record connection edge', { error: error.message });
         }
       }
+
+      // Add human-like delay between requests
+      await RandomHelpers.randomDelay(1000, 3000);
 
       logger.info('Connection request completed', { result });
       return result;
