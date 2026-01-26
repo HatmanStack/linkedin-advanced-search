@@ -7,3 +7,7 @@
 
 // Types
 export * from './types/ragstack.js';
+
+// Services
+export { RagstackScrapeService } from './services/ragstackScrapeService.js';
+export type { WaitOptions } from './services/ragstackScrapeService.js';
