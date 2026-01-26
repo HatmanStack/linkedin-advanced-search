@@ -162,12 +162,12 @@ export interface InitializationResult {
 }
 
 /**
- * Screenshot result
+ * Scrape result
  */
-interface ScreenshotResult {
+interface ScrapeResult {
   success: boolean;
-  path?: string;
   message?: string;
+  data?: unknown;
 }
 
 /**
@@ -201,7 +201,7 @@ interface DynamoDBService {
  * LinkedIn contact service interface
  */
 interface LinkedInContactService {
-  scrapeProfile(profileId: string, status: string): Promise<ScreenshotResult>;
+  scrapeProfile(profileId: string, status: string): Promise<ScrapeResult>;
 }
 
 /**
@@ -886,7 +886,7 @@ export class ProfileInitService {
       /profile.*not.*found/i,
       /profile.*private/i,
       /profile.*unavailable/i,
-      /screenshot.*failed/i,
+      /scrape.*failed/i,
       /invalid.*profile/i,
       /profile.*deleted/i
     ];
@@ -914,29 +914,28 @@ export class ProfileInitService {
         currentIndex: state.currentIndex
       });
 
-      let screenshotResult: ScreenshotResult | null = null;
+      let scrapeResult: ScrapeResult | null = null;
       let databaseResult: unknown = null;
 
       try {
-        // Capture screenshots for required pages per status
-        logger.debug(`Capturing screenshot for connection: ${connectionProfileId}`, {
+        // Scrape profile using RAGStack
+        logger.debug(`Initiating profile scrape for connection: ${connectionProfileId}`, {
           requestId,
           profileId: connectionProfileId
         });
 
-        screenshotResult = await this.captureProfileScreenshot(connectionProfileId, connectionType);
+        scrapeResult = await this.performProfileScrape(connectionProfileId, connectionType);
 
-        if (screenshotResult && screenshotResult.success) {
-          logger.debug(`Screenshot captured successfully for ${connectionProfileId}`, {
+        if (scrapeResult && scrapeResult.success) {
+          logger.debug(`Profile scrape successful for ${connectionProfileId}`, {
             requestId,
-            profileId: connectionProfileId,
-            screenshotPath: screenshotResult.path
+            profileId: connectionProfileId
           });
         } else {
-          logger.warn(`Screenshot capture failed for ${connectionProfileId}`, {
+          logger.warn(`Profile scrape failed for ${connectionProfileId}`, {
             requestId,
             profileId: connectionProfileId,
-            reason: screenshotResult?.message || 'Unknown screenshot error'
+            reason: scrapeResult?.message || 'Unknown scrape error'
           });
         }
 
@@ -962,7 +961,7 @@ export class ProfileInitService {
           requestId,
           profileId: connectionProfileId,
           processingDuration,
-          screenshotSuccess: screenshotResult?.success || false,
+          scrapeSuccess: scrapeResult?.success || false,
           databaseSuccess: !!databaseResult
         });
 
@@ -989,8 +988,8 @@ export class ProfileInitService {
           profileId: connectionProfileId,
           duration: processingDuration,
           errorDetails,
-          screenshotAttempted: !!screenshotResult,
-          screenshotSuccess: screenshotResult?.success || false,
+          scrapeAttempted: !!scrapeResult,
+          scrapeSuccess: scrapeResult?.success || false,
           databaseAttempted: !!databaseResult
         };
 
@@ -1018,19 +1017,19 @@ export class ProfileInitService {
   }
 
   /**
-   * Scrape profile to RAGStack using LinkedInContactService
+   * Scrape profile using RAGStack via LinkedInContactService
    */
-  async captureProfileScreenshot(profileId: string, status: string = 'ally'): Promise<ScreenshotResult> {
+  async performProfileScrape(profileId: string, status: string = 'ally'): Promise<ScrapeResult> {
     try {
-      logger.info(`Scraping profile for: ${profileId}`);
+      logger.info(`Initiating RAGStack scrape for: ${profileId}`);
 
       const result = await this.linkedInContactService.scrapeProfile(profileId, status);
 
-      logger.info(`Profile scraped successfully for: ${profileId}`);
+      logger.info(`RAGStack scrape completed for: ${profileId}`);
       return result;
 
     } catch (error) {
-      logger.error(`Failed to capture profile screenshot for ${profileId}:`, error);
+      logger.error(`Failed to scrape profile ${profileId}:`, error);
       throw error;
     }
   }
