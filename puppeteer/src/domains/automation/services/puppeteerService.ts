@@ -1,15 +1,32 @@
-import puppeteer from 'puppeteer';
+import puppeteer, { Browser, Page, HTTPResponse, ElementHandle, ScreenshotOptions, WaitForSelectorOptions, GoToOptions, ClickOptions } from 'puppeteer';
 import config from '#shared-config/index.js';
 import { logger } from '#utils/logger.js';
 import RandomHelpers from '#utils/randomHelpers.js';
 
+/**
+ * Options for link extraction
+ */
+export interface ExtractLinksOptions {
+  timeoutMs?: number;
+  autoScroll?: boolean;
+  maxScrolls?: number;
+  stableLimit?: number;
+}
+
+/**
+ * Puppeteer service for browser automation.
+ * Manages browser lifecycle and provides helper methods for common operations.
+ */
 export class PuppeteerService {
+  private browser: Browser | null;
+  private page: Page | null;
+
   constructor() {
     this.browser = null;
     this.page = null;
   }
 
-  async initialize() {
+  async initialize(): Promise<Page> {
     try {
       const resolvedHeadless = !!config.puppeteer.headless;
       const displayEnv = process.env.DISPLAY || '';
@@ -17,7 +34,7 @@ export class PuppeteerService {
       logger.info(
         `Initializing Puppeteer browser... HEADLESS env=${process.env.HEADLESS} resolved headless=${resolvedHeadless} DISPLAY=${displayEnv || 'unset'} session=${sessionType || 'unknown'}`
       );
-      
+
       const launchArgs = [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -37,13 +54,12 @@ export class PuppeteerService {
       }
 
       // If user asked for UI but no DISPLAY is available, warn and keep headless to avoid crash
-      const effectiveHeadless = !resolvedHeadless && !displayEnv ? 'new' : (resolvedHeadless ? 'new' : false);
+      const effectiveHeadless: boolean | 'shell' = !resolvedHeadless && !displayEnv ? 'shell' : (resolvedHeadless ? 'shell' : false);
       if (!resolvedHeadless && !displayEnv) {
         logger.warn('HEADLESS=false requested but DISPLAY is not set. Browser UI cannot be shown in this environment. Running headless instead.');
       }
 
       this.browser = await puppeteer.launch({
-        // In Puppeteer v20+, headless can be a string 'new'.
         headless: effectiveHeadless,
         slowMo: config.puppeteer.slowMo,
         defaultViewport: null,
@@ -51,7 +67,7 @@ export class PuppeteerService {
       });
 
       this.page = await this.browser.newPage();
-      
+
       // Set viewport
       await this.page.setViewport({
         width: config.puppeteer.viewport.width,
@@ -62,10 +78,10 @@ export class PuppeteerService {
 
       // Set user agent
       await this.page.setUserAgent(RandomHelpers.getRandomUserAgent());
-      
+
       // Set default timeout
       this.page.setDefaultTimeout(config.timeouts.default);
-      
+
       logger.info('Puppeteer browser initialized successfully');
       return this.page;
     } catch (error) {
@@ -74,7 +90,7 @@ export class PuppeteerService {
     }
   }
 
-  async goto(url, options = {}) {
+  async goto(url: string, options: GoToOptions = {}): Promise<HTTPResponse | null> {
     if (!this.page) {
       throw new Error('Browser not initialized. Call initialize() first.');
     }
@@ -86,10 +102,10 @@ export class PuppeteerService {
         timeout: config.timeouts.navigation,
         ...options
       });
-      
+
       // Add random delay to mimic human behavior
       await RandomHelpers.randomDelay(1000, 3000);
-      
+
       return response;
     } catch (error) {
       logger.error(`Failed to navigate to ${url}:`, error);
@@ -97,7 +113,7 @@ export class PuppeteerService {
     }
   }
 
-  async waitForSelector(selector, options = {}) {
+  async waitForSelector(selector: string, options: WaitForSelectorOptions = {}): Promise<ElementHandle | null> {
     if (!this.page) {
       throw new Error('Browser not initialized. Call initialize() first.');
     }
@@ -113,7 +129,7 @@ export class PuppeteerService {
     }
   }
 
-  async safeClick(selector, options = {}) {
+  async safeClick(selector: string, options: ClickOptions = {}): Promise<boolean> {
     if (!this.page) {
       throw new Error('Browser not initialized. Call initialize() first.');
     }
@@ -132,7 +148,7 @@ export class PuppeteerService {
     }
   }
 
-  async safeType(selector, text, options = {}) {
+  async safeType(selector: string, text: unknown, options: { delay?: number } = {}): Promise<boolean> {
     if (!this.page) {
       throw new Error('Browser not initialized. Call initialize() first.');
     }
@@ -144,17 +160,17 @@ export class PuppeteerService {
         return false;
       }
 
+      let inputText: string;
       if (typeof text !== 'string') {
         try {
-          text = String(text);
+          inputText = String(text);
         } catch {
           logger.warn(`safeType could not convert non-string text for selector: ${selector}`);
           return false;
         }
+      } else {
+        inputText = text;
       }
-
-      // Optionally trim to avoid accidental whitespace-only input
-      const inputText = text;
 
       const element = await this.waitForSelector(selector);
       if (element) {
@@ -171,7 +187,7 @@ export class PuppeteerService {
     }
   }
 
-  async screenshot(path, options = {}) {
+  async screenshot(path: string, options: ScreenshotOptions = {}): Promise<void> {
     if (!this.page) {
       throw new Error('Browser not initialized. Call initialize() first.');
     }
@@ -189,19 +205,19 @@ export class PuppeteerService {
     }
   }
 
-  async scrollPage(direction = 'down', distance = null) {
+  async scrollPage(direction: 'up' | 'down' = 'down', distance: number | null = null): Promise<void> {
     if (!this.page) {
       throw new Error('Browser not initialized. Call initialize() first.');
     }
 
     try {
-      const scrollDistance = distance || (direction === 'down' ? 
+      const scrollDistance = distance ?? (direction === 'down' ?
         'window.innerHeight' : '-window.innerHeight');
-      
-      await this.page.evaluate((dist) => {
+
+      await this.page.evaluate((dist: string | number) => {
         window.scrollBy(0, typeof dist === 'string' ? eval(dist) : dist);
       }, scrollDistance);
-      
+
       await RandomHelpers.randomDelay(1000, 2000);
     } catch (error) {
       logger.error('Failed to scroll page:', error);
@@ -209,14 +225,14 @@ export class PuppeteerService {
     }
   }
 
-  async extractLinks(selector = null, options = {}) {
+  async extractLinks(selector: string | null = null, options: ExtractLinksOptions = {}): Promise<string[]> {
     if (!this.page) {
       throw new Error('Browser not initialized. Call initialize() first.');
     }
 
     try {
       // Backward-compat: if a selector was provided, try to wait for it first
-      const waitSelectors = [];
+      const waitSelectors: string[] = [];
       if (typeof selector === 'string' && selector.trim().length > 0) {
         waitSelectors.push(selector.trim());
       }
@@ -245,7 +261,10 @@ export class PuppeteerService {
 
       if (!anyFound) {
         // As a last resort, give the DOM a brief moment and proceed
+        logger.debug('extractLinks: No selectors found, waiting 1s...');
         await new Promise(res => setTimeout(res, 1000));
+      } else {
+        logger.debug('extractLinks: Found matching selector');
       }
 
       // Optionally auto-scroll/load to trigger lazy-loaded results until saturation
@@ -259,7 +278,7 @@ export class PuppeteerService {
         for (let i = 0; i < maxIterations; i++) {
           try {
             const didClickShowMore = await this.page.evaluate(() => {
-              function isVisible(el) {
+              function isVisible(el: Element | null): boolean {
                 if (!el) return false;
                 const style = window.getComputedStyle(el);
                 const rect = el.getBoundingClientRect();
@@ -274,7 +293,7 @@ export class PuppeteerService {
               ];
 
               for (const sel of candidates) {
-                const btn = document.querySelector(sel);
+                const btn = document.querySelector(sel) as HTMLButtonElement | null;
                 if (btn && isVisible(btn)) {
                   const text = (btn.textContent || '').toLowerCase();
                   const aria = (btn.getAttribute('aria-label') || '').toLowerCase();
@@ -321,7 +340,10 @@ export class PuppeteerService {
 
       const profileIds = await this.page.evaluate(() => {
         const anchors = Array.from(document.querySelectorAll('a[href]'));
-        const ids = new Set();
+        const ids = new Set<string>();
+        const debugInfo: string[] = [];
+
+        debugInfo.push(`Total anchors found: ${anchors.length}`);
 
         for (const a of anchors) {
           const rawHref = a.getAttribute('href') || '';
@@ -341,7 +363,11 @@ export class PuppeteerService {
           }
 
           // Quick filter to LinkedIn domains
-          if (!/linkedin\.com/i.test(href)) continue;
+          if (!/linkedin\.com/i.test(href)) {
+            continue;
+          }
+
+          debugInfo.push(`LinkedIn href: ${href}`);
 
           try {
             href = decodeURIComponent(href);
@@ -353,11 +379,17 @@ export class PuppeteerService {
           const match = href.match(/\/in\/([^\/?#]+)/i);
           if (match && match[1]) {
             ids.add(match[1]);
+            debugInfo.push(`Extracted ID: ${match[1]}`);
           }
         }
 
+        // Log debug info to console (visible in browser dev tools)
+        console.log('[extractLinks debug]', debugInfo.join(' | '));
+
         return Array.from(ids);
       });
+
+      logger.debug(`extractLinks result: ${profileIds.length} IDs found`);
 
       return profileIds;
     } catch (error) {
@@ -366,7 +398,7 @@ export class PuppeteerService {
     }
   }
 
-  async close() {
+  async close(): Promise<void> {
     try {
       if (this.browser) {
         await this.browser.close();
@@ -379,11 +411,11 @@ export class PuppeteerService {
     }
   }
 
-  getPage() {
+  getPage(): Page | null {
     return this.page;
   }
 
-  getBrowser() {
+  getBrowser(): Browser | null {
     return this.browser;
   }
 }

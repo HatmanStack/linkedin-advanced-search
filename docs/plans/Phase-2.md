@@ -458,12 +458,12 @@ Delete the deprecated text extraction and S3 upload services.
    ```
 
 ### Verification Checklist
-- [ ] `textExtractionService.js` deleted
-- [ ] `s3TextUploadService.js` deleted
-- [ ] `schemas/profileTextSchema.js` deleted
-- [ ] No remaining imports of deleted files
-- [ ] TypeScript/build still compiles: `npm run build` or `npx tsc --noEmit`
-- [ ] Tests still pass: `npm test`
+- [x] `textExtractionService.js` deleted
+- [x] `s3TextUploadService.js` deleted
+- [x] `schemas/profileTextSchema.js` deleted
+- [x] No remaining imports of deleted files
+- [x] TypeScript/build still compiles: `npm run build` or `npx tsc --noEmit`
+- [x] Tests still pass: `npm test`
 
 ### Testing Instructions
 

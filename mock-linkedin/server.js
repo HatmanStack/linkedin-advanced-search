@@ -404,10 +404,22 @@ app.get('/in/:profileId/overlay/about-this-profile/', (req, res) => {
 
 // Search results
 app.get('/search/results/people/', (req, res) => {
-  const { keywords, company, title } = req.query;
+  const { keywords, currentCompany, page } = req.query;
+  console.log(`[MOCK] Search request: currentCompany=${currentCompany}, page=${page}, connections=${state.connections.length}`);
 
   // Filter mock connections based on search params
   let results = [...state.connections];
+
+  // If currentCompany filter is applied, show Amazon employees
+  if (currentCompany) {
+    results = results.filter(c =>
+      c.company?.toLowerCase().includes('amazon') ||
+      c.headline?.toLowerCase().includes('amazon') ||
+      c.headline?.toLowerCase().includes('aws')
+    );
+    console.log(`[MOCK] Company filter applied, returning ${results.length} Amazon results`);
+  }
+
   if (keywords) {
     results = results.filter(c =>
       c.name?.toLowerCase().includes(keywords.toLowerCase()) ||
@@ -415,8 +427,65 @@ app.get('/search/results/people/', (req, res) => {
     );
   }
 
-  servePage('search-results', res, { results, keywords, company, title });
+  // If we have results and a company filter, inject them directly into the HTML
+  if (results.length > 0 && currentCompany) {
+    const resultsHtml = generateSearchResultsHtml(results);
+    return res.send(resultsHtml);
+  }
+
+  servePage('search-results', res, { results, keywords });
 });
+
+// Generate search results HTML with mock people
+function generateSearchResultsHtml(people) {
+  // Use linkedin.com URLs - Puppeteer filters for this domain
+  // The browser will navigate to these, but our mock intercepts them
+  const peopleHtml = people.map(person => `
+    <li class="reusable-search__result-container" style="padding:12px; margin-bottom:8px; background:white; border-radius:8px; list-style:none;">
+      <div class="entity-result" style="display:flex; align-items:flex-start; gap:12px;">
+        <div style="width:72px; height:72px; background:#e7e2dc; border-radius:50%; flex-shrink:0;"></div>
+        <div style="flex:1;">
+          <a href="https://www.linkedin.com/in/${escapeHtml(person.profileId)}/" class="entity-result__title-text app-aware-link" style="font-weight:600; color:#000; text-decoration:none; display:block; margin-bottom:4px;">
+            <span>${escapeHtml(person.name)}</span>
+          </a>
+          <p class="entity-result__primary-subtitle" style="color:#666; margin:0 0 4px 0; font-size:14px;">${escapeHtml(person.headline || '')}</p>
+          <p style="color:#666; margin:0 0 8px 0; font-size:12px;">${escapeHtml(person.connectionDegree || '2nd')} · ${escapeHtml(person.recentActivity || 'Active recently')}</p>
+          <button aria-label="Connect with ${escapeHtml(person.name)}" style="padding:6px 16px; border:1px solid #0a66c2; border-radius:16px; background:transparent; color:#0a66c2; cursor:pointer;">Connect</button>
+        </div>
+      </div>
+    </li>
+  `).join('');
+
+  return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Search Results | Mock LinkedIn</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f3f2ef; margin: 0; padding: 20px; }
+    .search-results-container { max-width: 900px; margin: 0 auto; }
+    header { background: white; padding: 12px 20px; margin-bottom: 20px; border-radius: 8px; }
+    h1 { font-size: 18px; margin: 0; }
+  </style>
+</head>
+<body>
+  <header class="global-nav" id="global-nav" data-view-name="navigation-homepage">
+    <h1>${people.length} results</h1>
+  </header>
+  <main class="scaffold-layout">
+    <div class="search-results-container">
+      <ul class="reusable-search__entity-result-list" style="padding:0; margin:0;">
+        ${peopleHtml}
+      </ul>
+      <button class="artdeco-pagination__button--next" aria-label="Next" style="display:none;">Next</button>
+    </div>
+  </main>
+  <script src="/public/mock-interactions.js"></script>
+</body>
+</html>`;
+}
 
 // Messaging - main view
 app.get('/messaging/', (req, res) => {
@@ -491,10 +560,90 @@ app.get('/api/state', (req, res) => {
   res.json(state);
 });
 
+// ============ MOCK DynamoDB API (for testing) ============
+
+// Edge operations (upsert_status, check_exists)
+app.post('/edge', (req, res) => {
+  const { operation, profileId, linkedinurl, updates } = req.body;
+
+  console.log('\n========== MOCK DynamoDB: POST /edge ==========');
+  console.log('Request body:', JSON.stringify(req.body, null, 2));
+  console.log('===============================================\n');
+
+  if (operation === 'upsert_status') {
+    // Store edge in memory
+    state.edges = state.edges || {};
+    state.edges[profileId] = {
+      profileId,
+      ...updates,
+      createdAt: state.edges[profileId]?.createdAt || new Date().toISOString()
+    };
+    console.log(`✅ Upserted edge for "${profileId}":`);
+    console.log('   Status:', updates?.status);
+    console.log('   Full edge:', JSON.stringify(state.edges[profileId], null, 2));
+    return res.json({ success: true, edge: state.edges[profileId] });
+  }
+
+  if (operation === 'check_exists') {
+    const exists = !!(state.edges && state.edges[linkedinurl]);
+    console.log(`🔍 Edge exists check for "${linkedinurl}": ${exists}`);
+    return res.json({ result: { exists } });
+  }
+
+  console.log('❌ Unknown operation:', operation);
+  res.status(400).json({ error: 'Unknown operation' });
+});
+
+// Profiles operations
+app.get('/profiles', (req, res) => {
+  const { profileId } = req.query;
+
+  console.log('\n========== MOCK DynamoDB: GET /profiles ==========');
+  console.log('Query params:', JSON.stringify(req.query, null, 2));
+  console.log('==================================================\n');
+
+  state.profiles = state.profiles || {};
+  const profile = state.profiles[profileId];
+
+  if (profile) {
+    console.log(`✅ Found profile "${profileId}":`, JSON.stringify(profile, null, 2));
+    return res.json({ profile });
+  }
+
+  console.log(`⚪ Profile "${profileId}" not found (will trigger analysis)`);
+  return res.json({ profile: null });
+});
+
+app.post('/profiles', (req, res) => {
+  const { operation, profileId, updates } = req.body;
+
+  console.log('\n========== MOCK DynamoDB: POST /profiles ==========');
+  console.log('Request body:', JSON.stringify(req.body, null, 2));
+  console.log('===================================================\n');
+
+  state.profiles = state.profiles || {};
+
+  if (operation === 'create') {
+    state.profiles[profileId] = {
+      profileId,
+      ...updates,
+      createdAt: new Date().toISOString()
+    };
+    console.log(`✅ Created profile "${profileId}":`);
+    console.log('   Updates:', JSON.stringify(updates, null, 2));
+    return res.json({ success: true, profile: state.profiles[profileId] });
+  }
+
+  console.log('❌ Unknown operation:', operation);
+  res.status(400).json({ error: 'Unknown operation' });
+});
+
 // Reset state
 app.post('/api/reset', (req, res) => {
   state.loggedIn = false;
   state.messages = [];
+  state.edges = {};
+  state.profiles = {};
   state.posts = [];
   state.sentInvitations = [];
   loadMockData();

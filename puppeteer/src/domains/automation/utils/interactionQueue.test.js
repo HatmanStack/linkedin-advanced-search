@@ -119,7 +119,9 @@ describe('InteractionQueue', () => {
     it('records error on failed job', async () => {
       try {
         await queue.enqueue(() => { throw new Error('oops'); });
-      } catch {}
+      } catch {
+        // Expected: enqueue rejects with the task error. We verify the job record below.
+      }
 
       const job = [...queue.jobs.values()][0];
       expect(job.status).toBe('failed');

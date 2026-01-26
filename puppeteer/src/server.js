@@ -9,6 +9,8 @@ import profileInitRoutes from '../routes/profileInitRoutes.js';
 import linkedinInteractionRoutes from '../routes/linkedinInteractionRoutes.js';
 import ConfigInitializer from './shared/config/configInitializer.js';
 import { createRateLimiter } from './shared/middleware/rateLimiter.js';
+import { linkedInInteractionQueue } from './domains/automation/utils/interactionQueue.js';
+import { BrowserSessionManager } from './domains/session/services/browserSessionManager.js';
 
 const app = express();
 
@@ -80,12 +82,19 @@ app.use('/profile-init', createRateLimiter({ windowMs: 60000, max: 5, name: 'pro
 app.use('/linkedin-interactions', createRateLimiter({ windowMs: 60000, max: 30, name: 'interactions' }), linkedinInteractionRoutes);
 
 // Health check endpoint with configuration status
-app.get('/health', (req, res) => {
+app.get('/health', async (req, res) => {
   try {
     const configStatus = ConfigInitializer.getInitializationStatus();
-    
+    const queueStatus = linkedInInteractionQueue.getQueueStatus();
+    const sessionHealth = await BrowserSessionManager.getHealthStatus();
+
+    // Determine overall health based on components
+    const memoryPressure = queueStatus.memoryPressure;
+    const isHealthy = !memoryPressure.isUnderPressure &&
+                      configStatus.configurationValid !== false;
+
     res.json({
-      status: 'healthy',
+      status: isHealthy ? 'healthy' : 'degraded',
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
       environment: config.nodeEnv,
@@ -95,7 +104,29 @@ app.get('/health', (req, res) => {
         featuresEnabled: configStatus.featuresEnabled,
         healthStatus: configStatus.healthStatus
       },
-      memory: process.memoryUsage(),
+      session: {
+        isActive: sessionHealth.isActive,
+        isHealthy: sessionHealth.isHealthy,
+        isAuthenticated: sessionHealth.isAuthenticated,
+        lastActivity: sessionHealth.lastActivity,
+        sessionAge: sessionHealth.sessionAge,
+        errorCount: sessionHealth.errorCount,
+        currentUrl: sessionHealth.currentUrl
+      },
+      queue: {
+        activeJobs: queueStatus.activeJobs,
+        queuedJobs: queueStatus.queuedJobs,
+        totalJobsTracked: queueStatus.totalJobsTracked,
+        concurrency: queueStatus.concurrency
+      },
+      memory: {
+        raw: process.memoryUsage(),
+        heapUsedMB: memoryPressure.heapUsedMB,
+        heapTotalMB: memoryPressure.heapTotalMB,
+        heapUsedPercent: memoryPressure.heapUsedPercent,
+        isUnderPressure: memoryPressure.isUnderPressure,
+        threshold: memoryPressure.threshold
+      },
       version: process.version
     });
   } catch (error) {
