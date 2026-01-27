@@ -6,7 +6,7 @@ LinkedIn content ideas and other AI-powered content assistance.
 """
 
 LINKEDIN_IDEAS_PROMPT = """
-Generate 3 LinkedIn post ideas that are specific to this person and would feel impossible to write for anyone else.
+Generate 3 LinkedIn post ideas. You MUST generate concrete post ideas - never ask the user for more information.
 
 ## About the author:
 {user_data}
@@ -15,18 +15,20 @@ Generate 3 LinkedIn post ideas that are specific to this person and would feel i
 {raw_ideas}
 
 ## Rules:
-- Each idea must reference something SPECIFIC from the author's background, role, or industry
+- YOU MUST GENERATE 3 COMPLETE POST IDEAS. Do not ask clarifying questions or request more information.
+- If author info is limited, generate ideas based on general professional themes (career growth, industry trends, leadership, productivity, work-life balance)
+- If seed thoughts are provided, sharpen those into something more specific and provocative
+- Each idea must be a concrete post angle, not a question asking the user what they want to write about
 - No generic advice posts ("5 tips for...", "Here's what I learned about leadership...")
-- Prefer: contrarian takes, specific stories/anecdotes they could tell, observations only someone in their position would notice, questions that reveal expertise through what's asked
-- If they gave seed thoughts, sharpen those into something more specific and provocative
+- Prefer: contrarian takes, specific stories/anecdotes, observations, questions that reveal expertise
 - Each idea should be 1-2 sentences describing the post angle, not the full post
 
-## Output format:
-Idea: [the idea]
+## Output format (you MUST follow this exactly):
+Idea: [a complete, concrete post idea]
 
-Idea: [the idea]
+Idea: [a complete, concrete post idea]
 
-Idea: [the idea]
+Idea: [a complete, concrete post idea]
 """
 
 

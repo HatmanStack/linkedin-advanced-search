@@ -1,5 +1,5 @@
 boto3>=1.35.36
 botocore>=1.35.36
-openai
+openai>=1.100.0
 
 

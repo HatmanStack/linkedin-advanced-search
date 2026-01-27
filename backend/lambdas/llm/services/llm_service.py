@@ -355,7 +355,31 @@ class LLMService(BaseService):
                 input=llm_prompt,
             )
 
-            content = response.output_text if hasattr(response, 'output_text') else str(response)
+            # Try output_text first, then fallback to extracting from output array
+            content = None
+            if hasattr(response, 'output_text') and response.output_text:
+                content = response.output_text
+                logger.info(f"synthesize_research: got content from output_text, length={len(content)}")
+            elif hasattr(response, 'output') and response.output:
+                # Fallback: extract text from output array items
+                text_parts = []
+                for item in response.output:
+                    if hasattr(item, 'type') and item.type == 'message':
+                        if hasattr(item, 'content') and item.content:
+                            for content_item in item.content:
+                                if hasattr(content_item, 'text'):
+                                    text_parts.append(content_item.text)
+                    elif hasattr(item, 'text'):
+                        text_parts.append(item.text)
+                content = '\n'.join(text_parts) if text_parts else None
+                logger.info(f"synthesize_research: extracted content from output array, length={len(content) if content else 0}")
+
+            content_preview = content[:200] if content else 'EMPTY'
+            logger.info(f"synthesize_research response: content_length={len(content) if content else 0}, content_preview={content_preview}")
+
+            if not content or not content.strip():
+                logger.error("synthesize_research returned empty content from OpenAI")
+                return {'success': False, 'error': 'OpenAI returned empty content'}
 
             return {'success': True, 'content': content.strip()}
 
