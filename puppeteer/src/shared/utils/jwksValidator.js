@@ -41,6 +41,15 @@ export async function verifyJwtSignature(token) {
     return { valid: false, reason: 'No token provided' };
   }
 
+  // Get expected issuer and audience from environment
+  const expectedIssuer = process.env.COGNITO_ISSUER;
+  const expectedAudience = process.env.COGNITO_CLIENT_ID || process.env.COGNITO_AUDIENCE;
+
+  if (!expectedIssuer) {
+    logger.error('COGNITO_ISSUER environment variable not configured');
+    return { valid: false, reason: 'JWT validation not configured' };
+  }
+
   try {
     // Decode payload to get issuer (don't verify yet)
     const parts = token.split('.');
@@ -59,20 +68,42 @@ export async function verifyJwtSignature(token) {
     const decodedPayload = JSON.parse(Buffer.from(base64, 'base64').toString('utf8'));
     const issuer = decodedPayload.iss;
 
-    // Validate issuer is a Cognito User Pool
-    if (!issuer || !issuer.includes('cognito-idp')) {
-      logger.warn('JWT signature verification: Invalid issuer', { issuer });
-      return { valid: false, reason: 'Invalid issuer - not a Cognito token' };
+    // Validate issuer matches expected Cognito issuer exactly
+    if (!issuer || issuer !== expectedIssuer) {
+      logger.warn('JWT signature verification: Issuer mismatch', {
+        expected: expectedIssuer,
+        received: issuer,
+      });
+      return { valid: false, reason: 'Invalid issuer' };
     }
 
     // Get JWKS client for this issuer
     const jwks = await getJWKS(issuer);
 
-    // Verify the token signature
-    const { payload } = await jwtVerify(token, jwks, {
-      issuer,
+    // Build verification options
+    const verifyOptions = {
+      issuer: expectedIssuer,
       clockTolerance: 30, // 30 second clock skew tolerance
-    });
+    };
+
+    // Add audience validation if configured (for ID tokens)
+    if (expectedAudience) {
+      verifyOptions.audience = expectedAudience;
+    }
+
+    // Verify the token signature
+    const { payload } = await jwtVerify(token, jwks, verifyOptions);
+
+    // For access tokens, validate client_id claim if audience validation wasn't used
+    if (!expectedAudience && payload.client_id && process.env.COGNITO_CLIENT_ID) {
+      if (payload.client_id !== process.env.COGNITO_CLIENT_ID) {
+        logger.warn('JWT signature verification: client_id mismatch', {
+          expected: process.env.COGNITO_CLIENT_ID,
+          received: payload.client_id,
+        });
+        return { valid: false, reason: 'Invalid client_id' };
+      }
+    }
 
     // Extract user ID from verified payload
     const userId = payload.sub || payload.user_id || payload.userId || payload.id;

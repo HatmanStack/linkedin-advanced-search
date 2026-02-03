@@ -87,9 +87,21 @@ export function createRedisRateLimiter(options = {}) {
 
       const results = await multi.exec();
 
-      // results = [[null, count], [null, ttl]]
-      const count = results[0][1];
-      const ttl = results[1][1];
+      // results = [[err, value], [err, value]] - check for per-command errors
+      if (!results || results.length < 2) {
+        throw new Error('Unexpected Redis multi.exec() result');
+      }
+
+      const [incrResult, ttlResult] = results;
+      if (incrResult[0]) {
+        throw new Error(`Redis INCR failed: ${incrResult[0].message}`);
+      }
+      if (ttlResult[0]) {
+        throw new Error(`Redis TTL failed: ${ttlResult[0].message}`);
+      }
+
+      const count = incrResult[1];
+      const ttl = ttlResult[1];
 
       // Set TTL on first request in window
       if (ttl === -1) {
