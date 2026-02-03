@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sparkles, Search, X } from 'lucide-react';
 import { createLogger } from '@/shared/utils/logger';
+import { usePostComposer } from '../contexts/PostComposerContext';
 
 const logger = createLogger('PostAIAssistant');
 
@@ -17,20 +18,19 @@ interface PostAIAssistantProps {
   onIdeasUpdate?: (newIdeas: string[]) => Promise<void>;
 }
 
-const SELECTED_IDEAS_STORAGE_KEY = 'ai_selected_ideas';
-
-const PostAIAssistant = ({ 
-  onGenerateIdeas, 
-  onResearchTopics, 
-  isGeneratingIdeas, 
+const PostAIAssistant = ({
+  onGenerateIdeas,
+  onResearchTopics,
+  isGeneratingIdeas,
   isResearching,
   ideas,
   onIdeasUpdate
 }: PostAIAssistantProps) => {
+  const { selectedIdeas: contextSelectedIdeas, updateSelectedIdeas } = usePostComposer();
   const [showResearchInput, setShowResearchInput] = useState(false);
   const [researchQuery, setResearchQuery] = useState('');
   const [ideaPrompt, setIdeaPrompt] = useState('');
-  const [selectedIdeas, setSelectedIdeas] = useState<Set<number>>(new Set());
+  const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set());
   const [localIdeas, setLocalIdeas] = useState<string[]>([]);
 
   // Session storage key for ideas
@@ -45,18 +45,16 @@ const PostAIAssistant = ({
         parsed = JSON.parse(storedIdeas);
         setLocalIdeas(parsed ?? []);
       }
-      // hydrate selected ideas
-      const storedSelected = sessionStorage.getItem(SELECTED_IDEAS_STORAGE_KEY);
-      if (storedSelected) {
-        const selectedList: string[] = JSON.parse(storedSelected);
+      // hydrate selected indices from context's selected ideas
+      if (contextSelectedIdeas.length > 0) {
         const indices = new Set<number>();
         (parsed || localIdeas).forEach((idea: string, idx: number) => {
-          if (selectedList.includes(idea)) indices.add(idx);
+          if (contextSelectedIdeas.includes(idea)) indices.add(idx);
         });
-        if (indices.size > 0) setSelectedIdeas(indices);
+        if (indices.size > 0) setSelectedIndices(indices);
       }
     } catch (error) {
-      logger.error('Failed to load ideas/selection from session storage', { error });
+      logger.error('Failed to load ideas from session storage', { error });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -74,15 +72,11 @@ const PostAIAssistant = ({
     }
   }, [ideas]);
 
-  // Persist selected idea texts whenever selection or list changes
+  // Sync selected ideas to context whenever selection or list changes
   useEffect(() => {
-    try {
-      const selectedTexts = Array.from(selectedIdeas).map(idx => localIdeas[idx]).filter(Boolean);
-      sessionStorage.setItem(SELECTED_IDEAS_STORAGE_KEY, JSON.stringify(selectedTexts));
-    } catch (e) {
-      logger.error('Failed to persist selected ideas', { error: e });
-    }
-  }, [selectedIdeas, localIdeas]);
+    const selectedTexts = Array.from(selectedIndices).map(idx => localIdeas[idx]).filter(Boolean);
+    updateSelectedIdeas(selectedTexts);
+  }, [selectedIndices, localIdeas, updateSelectedIdeas]);
 
   const handleResearchSubmit = () => {
     if (researchQuery.trim()) {
@@ -108,7 +102,7 @@ const PostAIAssistant = ({
     }
     
     // Clear selection if deleted idea was selected and shift indices
-    const newSelected = new Set(selectedIdeas);
+    const newSelected = new Set(selectedIndices);
     newSelected.delete(index);
     const adjustedSelected = new Set<number>();
     newSelected.forEach(selectedIndex => {
@@ -118,7 +112,7 @@ const PostAIAssistant = ({
         adjustedSelected.add(selectedIndex);
       }
     });
-    setSelectedIdeas(adjustedSelected);
+    setSelectedIndices(adjustedSelected);
     
     // Notify parent if callback exists
     if (onIdeasUpdate) {
@@ -127,18 +121,18 @@ const PostAIAssistant = ({
   };
 
   const handleIdeaToggle = (index: number) => {
-    const newSelected = new Set(selectedIdeas);
+    const newSelected = new Set(selectedIndices);
     if (newSelected.has(index)) {
       newSelected.delete(index);
     } else {
       newSelected.add(index);
     }
-    setSelectedIdeas(newSelected);
+    setSelectedIndices(newSelected);
   };
 
   const handleResearchTopicsClick = () => {
     const hasCustomTopic = Boolean(ideaPrompt.trim());
-    const hasSelected = Boolean(localIdeas && localIdeas.length > 0 && selectedIdeas.size > 0);
+    const hasSelected = Boolean(localIdeas && localIdeas.length > 0 && selectedIndices.size > 0);
 
     // If textarea has content, research the custom topic
     if (hasCustomTopic) {
@@ -146,14 +140,14 @@ const PostAIAssistant = ({
       setIdeaPrompt(''); // Clear the textarea after sending
       return;
     }
-    
+
     // If we have selected ideas, research those
     if (hasSelected) {
-      const selectedIdeasList = Array.from(selectedIdeas).map(index => localIdeas[index]);
+      const selectedIdeasList = Array.from(selectedIndices).map(index => localIdeas[index]);
       onResearchTopics(selectedIdeasList);
       return;
     }
-    
+
     // If neither, do nothing (button will be disabled in UI)
     setShowResearchInput(false);
   };
@@ -169,7 +163,7 @@ const PostAIAssistant = ({
             <input
               type="checkbox"
               id={`idea-${index}`}
-              checked={selectedIdeas.has(index)}
+              checked={selectedIndices.has(index)}
               onChange={() => handleIdeaToggle(index)}
               className="mt-1 h-4 w-4 text-purple-600 bg-white/10 border-white/20 rounded focus:ring-purple-500/40 focus:ring-2"
             />
@@ -226,7 +220,7 @@ const PostAIAssistant = ({
           
           {(() => {
             const hasCustomTopic = Boolean(ideaPrompt.trim());
-            const hasSelected = Boolean(localIdeas && localIdeas.length > 0 && selectedIdeas.size > 0);
+            const hasSelected = Boolean(localIdeas && localIdeas.length > 0 && selectedIndices.size > 0);
             const canResearch = hasCustomTopic || hasSelected;
             return (
               <Button 

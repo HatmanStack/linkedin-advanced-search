@@ -14,6 +14,7 @@ const NewPostTabInner = () => {
     isResearching,
     isSynthesizing,
     ideas,
+    selectedIdeas,
     synthesizedPost,
     generateIdeas,
     researchTopics,
@@ -83,7 +84,8 @@ const NewPostTabInner = () => {
         <div className="flex items-center gap-3">
           <Button
             onClick={handleSynthesize}
-            disabled={isSynthesizing}
+            disabled={isSynthesizing || isResearching || selectedIdeas.length === 0}
+            title={selectedIdeas.length === 0 ? 'Select at least one idea to synthesize' : undefined}
             className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white"
           >
             <Sparkles className="h-4 w-4 mr-2" />
