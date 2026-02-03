@@ -1,13 +1,58 @@
 /**
  * @fileoverview Core TypeScript interfaces and types for the Connection Management System
- * 
+ *
  * This file contains the essential types and interfaces used throughout
  * the connection management system. It provides type safety for components, services,
  * and API interactions while maintaining consistency across the application.
- * 
+ *
  * @author Connection Management System
  * @version 2.0.0
  */
+
+// =============================================================================
+// BRANDED TYPES - Nominal typing for ID safety
+// =============================================================================
+
+/**
+ * Branded type helper for compile-time nominal typing.
+ * Prevents accidental mixing of string IDs from different domains.
+ */
+declare const __brand: unique symbol;
+type Brand<B> = { [__brand]: B };
+
+/** Branded type for Connection IDs (base64 encoded LinkedIn URL) */
+export type ConnectionId = string & Brand<'ConnectionId'>;
+
+/** Branded type for User IDs (Cognito sub) */
+export type UserId = string & Brand<'UserId'>;
+
+/** Branded type for Message IDs */
+export type MessageId = string & Brand<'MessageId'>;
+
+/** Branded type for LinkedIn Profile IDs */
+export type ProfileId = string & Brand<'ProfileId'>;
+
+// =============================================================================
+// DISCRIMINATED UNION TYPES - For type-safe API responses
+// =============================================================================
+
+/**
+ * Discriminated union for API operation results.
+ * Forces callers to check success before accessing data.
+ */
+export type ApiResult<T, E = ApiErrorInfo> =
+  | { success: true; data: T }
+  | { success: false; error: E };
+
+/**
+ * Discriminated union for async operation status.
+ * Useful for React Query and loading states.
+ */
+export type AsyncStatus<T> =
+  | { status: 'idle' }
+  | { status: 'loading' }
+  | { status: 'success'; data: T }
+  | { status: 'error'; error: Error };
 
 // =============================================================================
 // CORE DATA INTERFACES

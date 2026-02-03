@@ -19,12 +19,10 @@ class HealAndRestoreService {
   private eventSource: EventSource | null = null;
   private listeners: ((notification: HealAndRestoreNotification) => void)[] = [];
   private isPolling = false;
-  // isListening is scaffolding for WebSocket/SSE implementation.
-  // Currently unused because startListening() is a no-op stub.
-  // Keeping for when real-time notifications are implemented.
-  // @ts-expect-error - Reserved for WebSocket/SSE implementation
   private isListening = false;
   private ignoredSessionIds: Set<string> = new Set();
+  private pollAttempts = 0;
+  private readonly maxPollAttempts = 720; // 1 hour at 5-second intervals
 
 
   // Check if auto-approve is enabled for this session
@@ -69,7 +67,10 @@ class HealAndRestoreService {
 
   // Start listening for heal and restore notifications
   startListening(): void {
-    // Polling not yet implemented
+    if (!this.isPolling) {
+      this.startPolling();
+    }
+    this.isListening = true;
   }
 
   // Stop listening for notifications
@@ -97,14 +98,24 @@ class HealAndRestoreService {
     this.listeners.forEach(listener => listener(notification));
   }
 
-  // Polling implementation ready but not currently wired up.
-  // Will be enabled when backend SSE/WebSocket is replaced with polling fallback.
-  // Method is intentionally defined to allow easy activation without code changes.
-  // @ts-expect-error - Method defined but not yet called; remove when activated
+  // Poll for heal and restore status when SSE/WebSocket is unavailable
   private startPolling(): void {
     if (this.isPolling) return;
     this.isPolling = true;
+    this.pollAttempts = 0;
+
     const poll = async () => {
+      // Stop polling if disabled or max attempts reached
+      if (!this.isPolling || this.pollAttempts >= this.maxPollAttempts) {
+        if (this.pollAttempts >= this.maxPollAttempts) {
+          logger.warn('Max poll attempts reached, stopping heal and restore polling');
+        }
+        this.isPolling = false;
+        return;
+      }
+
+      this.pollAttempts++;
+
       try {
         const response = await puppeteerApiService.checkHealAndRestoreStatus();
         if (response.success && response.data?.pendingSession) {
@@ -129,8 +140,10 @@ class HealAndRestoreService {
         logger.error('Error polling for heal and restore status', { error });
       }
 
-      // Poll every 5 seconds
-      setTimeout(poll, 5000);
+      // Poll every 5 seconds if still active
+      if (this.isPolling) {
+        setTimeout(poll, 5000);
+      }
     };
 
     poll();

@@ -8,9 +8,19 @@ import healAndRestoreRoutes from '../routes/healAndRestore.js';
 import profileInitRoutes from '../routes/profileInitRoutes.js';
 import linkedinInteractionRoutes from '../routes/linkedinInteractionRoutes.js';
 import ConfigInitializer from './shared/config/configInitializer.js';
-import { createRateLimiter } from './shared/middleware/rateLimiter.js';
+import { createRateLimiter as createMemoryRateLimiter } from './shared/middleware/rateLimiter.js';
+import { createRedisRateLimiter, closeRedisConnection } from './shared/middleware/redisRateLimiter.js';
 import { linkedInInteractionQueue } from './domains/automation/utils/interactionQueue.js';
 import { BrowserSessionManager } from './domains/session/services/browserSessionManager.js';
+import { stopMonitoring as stopProfileMonitoring } from './domains/profile/utils/profileInitMonitor.js';
+
+// Use Redis rate limiter if REDIS_URL is configured, otherwise use memory
+const createRateLimiter = process.env.REDIS_URL ? createRedisRateLimiter : createMemoryRateLimiter;
+if (process.env.REDIS_URL) {
+  logger.info('Using Redis-backed rate limiting');
+} else {
+  logger.info('Using in-memory rate limiting (set REDIS_URL for distributed rate limiting)');
+}
 
 const app = express();
 
@@ -59,6 +69,23 @@ app.use(cors({
   credentials: true,
   optionsSuccessStatus: 204 // Some legacy browsers (IE11) choke on 204
 }));
+
+// Security headers middleware
+app.use((req, res, next) => {
+  // Prevent MIME type sniffing
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  // Prevent clickjacking
+  res.setHeader('X-Frame-Options', 'DENY');
+  // XSS protection (legacy browsers)
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  // Control referrer information
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  // Enforce HTTPS in production
+  if (config.nodeEnv === 'production') {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  }
+  next();
+});
 
 // Body parser middleware
 app.use(express.json({ limit: '50mb' }));
@@ -186,15 +213,15 @@ async function initializeDirectories() {
 }
 
 // Graceful shutdown
-process.on('SIGTERM', () => {
-  logger.info('SIGTERM received, shutting down gracefully');
+async function shutdown(signal) {
+  logger.info(`${signal} received, shutting down gracefully`);
+  stopProfileMonitoring();
+  await closeRedisConnection();
   process.exit(0);
-});
+}
 
-process.on('SIGINT', () => {
-  logger.info('SIGINT received, shutting down gracefully');
-  process.exit(0);
-});
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
 
 // Start server
 async function startServer() {

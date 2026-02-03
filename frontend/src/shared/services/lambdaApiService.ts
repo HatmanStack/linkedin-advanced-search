@@ -103,11 +103,6 @@ export interface ApiResponse<T = unknown> {
  */
 class LambdaApiService {
   protected apiClient: AxiosInstance;
-  // authToken is set but currently authorization flows through Cognito JWT in headers.
-  // This field is scaffolding for potential token refresh or custom auth flows.
-  // Keeping it prevents breaking changes when auth enhancement is implemented.
-  // @ts-expect-error - Field is set by setAuthToken() but not yet consumed by requests
-  private authToken: string | null = null;
   private readonly maxRetries: number = 3;
   private readonly retryDelay: number = 1000; // Base delay in milliseconds
 
@@ -171,25 +166,11 @@ class LambdaApiService {
     try {
       // Use existing Cognito service to get token
       const token = await CognitoAuthService.getCurrentUserToken();
-      if (token) {
-        this.authToken = token;
-        return token;
-      }
-      return null;
+      return token || null;
     } catch (error) {
       logger.error('Error getting auth token', { error });
       return null;
     }
-  }
-
-  /**
-   * Clear stored authentication token
-   * Used when user logs out or token becomes invalid
-   * 
-   * @public
-   */
-  public clearAuthToken(): void {
-    this.authToken = null;
   }
 
   /**
@@ -256,23 +237,39 @@ class LambdaApiService {
   /**
    * Make authenticated request to Lambda endpoints with retry logic
    * Handles Lambda response format, implements exponential backoff, and provides comprehensive error handling
-   * 
+   *
    * @template T - The expected response body type
    * @param endpoint - The endpoint to call (e.g., '/edges', '/llm')
    * @param operation - The Lambda operation to execute
    * @param params - Parameters to send with the operation
+   * @param options - Optional request options including AbortSignal for cancellation
    * @returns Promise resolving to the operation response body
    * @throws {ApiError} When the request fails after all retries
    * @private
    */
-  private async makeRequest<T>(endpoint: string, operation: string, params: Record<string, unknown> = {}): Promise<T> {
+  private async makeRequest<T>(
+    endpoint: string,
+    operation: string,
+    params: Record<string, unknown> = {},
+    options: { signal?: AbortSignal } = {}
+  ): Promise<T> {
     let lastError: Error | null = null;
 
     for (let attempt = 1; attempt <= this.maxRetries; attempt++) {
+      // Check if request was aborted before attempting
+      if (options.signal?.aborted) {
+        throw new ApiError({
+          message: 'Request was cancelled',
+          code: 'ABORT_ERR',
+        });
+      }
+
       try {
         const response = await this.apiClient.post<ApiResponse<T>>(endpoint, {
           operation,
           ...params,
+        }, {
+          signal: options.signal,
         });
 
         // Handle both direct API Gateway responses and Lambda proxy responses
@@ -311,11 +308,19 @@ class LambdaApiService {
           return responseData;
         }
       } catch (error) {
+        // Handle abort errors immediately without retry
+        if (error instanceof Error && error.name === 'CanceledError') {
+          throw new ApiError({
+            message: 'Request was cancelled',
+            code: 'ABORT_ERR',
+          });
+        }
+
         lastError = error instanceof Error ? error : new Error('Unknown error occurred during API request');
-        
+
         // Check if error is retryable
         const apiError = error instanceof ApiError ? error : this.transformError(error as AxiosError);
-        
+
         if (!apiError.retryable || attempt === this.maxRetries) {
           logger.error(`API request failed after ${attempt} attempts`, {
             endpoint,

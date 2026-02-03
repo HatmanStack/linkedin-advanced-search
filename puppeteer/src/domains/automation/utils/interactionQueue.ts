@@ -65,6 +65,8 @@ export interface InteractionQueueOptions {
   concurrency?: number;
   maxJobHistory?: number;
   memoryThresholdPercent?: number;
+  /** TTL for completed jobs in milliseconds (default: 30 minutes) */
+  jobTtlMs?: number;
 }
 
 /**
@@ -103,9 +105,11 @@ class InteractionQueue {
   private readonly concurrency: number;
   private readonly maxJobHistory: number;
   private readonly memoryThresholdPercent: number;
+  private readonly jobTtlMs: number;
   private queue: QueueItem[];
   private activeCount: number;
   private jobs: Map<string, JobRecord>;
+  private lastTtlCleanup: number;
 
   constructor(options: InteractionQueueOptions = {}) {
     // Force serialization for current single-Page architecture
@@ -113,9 +117,11 @@ class InteractionQueue {
     this.concurrency = Math.max(1, Number(options.concurrency) || defaultConcurrency);
     this.maxJobHistory = options.maxJobHistory || 1000;
     this.memoryThresholdPercent = options.memoryThresholdPercent || 80;
+    this.jobTtlMs = options.jobTtlMs || 30 * 60 * 1000; // 30 minutes default
     this.queue = [];
     this.activeCount = 0;
     this.jobs = new Map();
+    this.lastTtlCleanup = Date.now();
   }
 
   /**
@@ -290,6 +296,13 @@ class InteractionQueue {
    * Evict oldest completed/failed jobs when over maxJobHistory.
    */
   private _evictOldJobs(): void {
+    // Also run TTL cleanup periodically (every 5 minutes)
+    const now = Date.now();
+    if (now - this.lastTtlCleanup > 5 * 60 * 1000) {
+      this._evictStaleJobs();
+      this.lastTtlCleanup = now;
+    }
+
     if (this.jobs.size <= this.maxJobHistory) return;
     const completed: [string, number][] = [];
     for (const [id, job] of this.jobs) {
@@ -301,6 +314,33 @@ class InteractionQueue {
     const toRemove = completed.slice(0, this.jobs.size - this.maxJobHistory);
     for (const [id] of toRemove) {
       this.jobs.delete(id);
+    }
+  }
+
+  /**
+   * Evict completed/failed jobs older than TTL threshold.
+   * Prevents stale job accumulation even when under maxJobHistory limit.
+   */
+  private _evictStaleJobs(): void {
+    const staleThreshold = Date.now() - this.jobTtlMs;
+    let evictedCount = 0;
+
+    for (const [id, job] of this.jobs) {
+      if (job.status === 'succeeded' || job.status === 'failed') {
+        const jobTime = job.finishedAt || job.createdAt;
+        if (jobTime < staleThreshold) {
+          this.jobs.delete(id);
+          evictedCount++;
+        }
+      }
+    }
+
+    if (evictedCount > 0) {
+      logger.debug('InteractionQueue: TTL eviction completed', {
+        evicted: evictedCount,
+        remaining: this.jobs.size,
+        ttlMs: this.jobTtlMs
+      });
     }
   }
 
