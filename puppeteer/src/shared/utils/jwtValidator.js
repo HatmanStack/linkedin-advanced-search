@@ -1,7 +1,11 @@
 import { logger } from '#utils/logger.js';
+import { verifyJwtSignature } from './jwksValidator.js';
 
 // Clock skew tolerance in seconds (allows for minor time sync differences)
 const CLOCK_SKEW_TOLERANCE_SECONDS = 30;
+
+// Feature flag to enable signature verification (default: false for backwards compatibility)
+const VERIFY_SIGNATURE = process.env.JWT_VERIFY_SIGNATURE === 'true';
 
 /**
  * Validate a JWT token for structure, expiration, and required claims.
@@ -120,4 +124,44 @@ function decodeJwtPayload(payloadB64) {
     }
     throw new Error('Invalid payload encoding');
   }
+}
+
+/**
+ * Validate a JWT token with optional signature verification.
+ *
+ * When JWT_VERIFY_SIGNATURE=true is set, this performs full cryptographic
+ * signature verification using the Cognito JWKS endpoint. Otherwise, it
+ * only validates structure and expiration (backwards compatible mode).
+ *
+ * @param {string} token - The JWT token to validate
+ * @returns {Promise<Object>} Validation result:
+ *   - { valid: true, payload: Object, userId: string, signatureVerified?: boolean } on success
+ *   - { valid: false, reason: string } on failure
+ */
+export async function validateJwtFull(token) {
+  // First do quick structural validation
+  const structuralResult = validateJwt(token);
+  if (!structuralResult.valid) {
+    return structuralResult;
+  }
+
+  // If signature verification is disabled, return structural result
+  if (!VERIFY_SIGNATURE) {
+    return {
+      ...structuralResult,
+      signatureVerified: false,
+    };
+  }
+
+  // Perform full signature verification
+  logger.debug('Performing JWT signature verification');
+  return verifyJwtSignature(token);
+}
+
+/**
+ * Check if signature verification is enabled.
+ * @returns {boolean} True if JWT_VERIFY_SIGNATURE=true
+ */
+export function isSignatureVerificationEnabled() {
+  return VERIFY_SIGNATURE;
 }

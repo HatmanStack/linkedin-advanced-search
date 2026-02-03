@@ -10,6 +10,7 @@ const logger = createLogger('PostComposer');
 const IDEAS_STORAGE_KEY = 'ai_generated_ideas';
 const RESEARCH_STORAGE_KEY = 'ai_research_content';
 const SYNTHESIZED_STORAGE_KEY = 'ai_synthesized_post';
+const SELECTED_IDEAS_STORAGE_KEY = 'ai_selected_ideas';
 
 interface PostComposerContextValue {
   isGeneratingIdeas: boolean;
@@ -17,6 +18,8 @@ interface PostComposerContextValue {
   isSynthesizing: boolean;
   ideas: string[];
   updateIdeas: (ideas: string[]) => void;
+  selectedIdeas: string[];
+  updateSelectedIdeas: (ideas: string[]) => void;
   researchContent: string | null;
   synthesizedPost: string | null;
   generateIdeas: (prompt?: string) => Promise<string[]>;
@@ -42,6 +45,7 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
   const [isResearching, setIsResearching] = useState(false);
   const [isSynthesizing, setIsSynthesizing] = useState(false);
   const [ideas, setIdeas] = useState<string[]>([]);
+  const [selectedIdeas, setSelectedIdeas] = useState<string[]>([]);
   const [researchContent, setResearchContent] = useState<string | null>(null);
   const [synthesizedPost, setSynthesizedPost] = useState<string | null>(null);
 
@@ -49,10 +53,12 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     if (!user || !userProfile) {
       setIdeas([]);
+      setSelectedIdeas([]);
       setResearchContent(null);
       setSynthesizedPost(null);
       try {
         sessionStorage.removeItem(IDEAS_STORAGE_KEY);
+        sessionStorage.removeItem(SELECTED_IDEAS_STORAGE_KEY);
         sessionStorage.removeItem(RESEARCH_STORAGE_KEY);
         sessionStorage.removeItem(SYNTHESIZED_STORAGE_KEY);
       } catch { /* ignore */ }
@@ -77,6 +83,14 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
     try {
       const storedPost = sessionStorage.getItem(SYNTHESIZED_STORAGE_KEY);
       if (storedPost) setSynthesizedPost(storedPost);
+    } catch { /* ignore */ }
+
+    try {
+      const storedSelected = sessionStorage.getItem(SELECTED_IDEAS_STORAGE_KEY);
+      if (storedSelected) {
+        const parsed = JSON.parse(storedSelected);
+        if (Array.isArray(parsed)) setSelectedIdeas(parsed);
+      }
     } catch { /* ignore */ }
   }, [user, userProfile]);
 
@@ -108,24 +122,20 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [userProfile]);
 
-  const synthesizeResearch = useCallback(async () => {
-    // Gather selected ideas from session storage
-    let selectedIdeas: string[] | undefined;
-    try {
-      const si = sessionStorage.getItem('ai_selected_ideas');
-      if (si) {
-        const parsed = JSON.parse(si);
-        if (Array.isArray(parsed) && parsed.length > 0) selectedIdeas = parsed;
-      }
-    } catch { /* ignore */ }
+  const updateSelectedIdeas = useCallback((ideas: string[]) => {
+    setSelectedIdeas(ideas);
+    try { sessionStorage.setItem(SELECTED_IDEAS_STORAGE_KEY, JSON.stringify(ideas)); } catch { /* ignore */ }
+  }, []);
 
-    logger.debug('synthesize: start', { hasResearch: !!researchContent, ideasCount: selectedIdeas?.length || 0 });
+  const synthesizeResearch = useCallback(async () => {
+    const ideasForSynthesis = selectedIdeas.length > 0 ? selectedIdeas : undefined;
+    logger.debug('synthesize: start', { hasResearch: !!researchContent, ideasCount: ideasForSynthesis?.length || 0 });
     setIsSynthesizing(true);
     try {
       const synthesized = await postsService.synthesizeResearch({
         existing_content: '',
         research_content: researchContent ?? undefined,
-        selected_ideas: selectedIdeas,
+        selected_ideas: ideasForSynthesis,
       }, userProfile || undefined);
       if (synthesized?.content) {
         setSynthesizedPost(synthesized.content);
@@ -134,7 +144,7 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       setIsSynthesizing(false);
     }
-  }, [researchContent, userProfile]);
+  }, [researchContent, selectedIdeas, userProfile]);
 
   const clearResearch = useCallback(async () => {
     setResearchContent(null);
@@ -172,6 +182,8 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
     isSynthesizing,
     ideas,
     updateIdeas,
+    selectedIdeas,
+    updateSelectedIdeas,
     researchContent,
     synthesizedPost,
     generateIdeas,
@@ -180,7 +192,7 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
     clearResearch,
     clearIdea,
     clearSynthesizedPost,
-  }), [isGeneratingIdeas, isResearching, isSynthesizing, ideas, updateIdeas, researchContent, synthesizedPost, generateIdeas, researchTopics, synthesizeResearch, clearResearch, clearIdea, clearSynthesizedPost]);
+  }), [isGeneratingIdeas, isResearching, isSynthesizing, ideas, updateIdeas, selectedIdeas, updateSelectedIdeas, researchContent, synthesizedPost, generateIdeas, researchTopics, synthesizeResearch, clearResearch, clearIdea, clearSynthesizedPost]);
 
   return (
     <PostComposerContext.Provider value={value}>

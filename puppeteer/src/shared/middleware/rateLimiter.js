@@ -1,6 +1,29 @@
 import { logger } from '#utils/logger.js';
 
 /**
+ * Extract user ID from request for rate limiting.
+ * Exported for use by Redis rate limiter.
+ *
+ * @param {import('express').Request} req - Express request object
+ * @returns {string} User identifier
+ */
+export function extractUserId(req) {
+  // Try to extract from decoded JWT (set by auth middleware)
+  if (req.user?.sub) return req.user.sub;
+  if (req.user?.id) return req.user.id;
+
+  // Fallback to Authorization header hash (for unprocessed JWTs)
+  const authHeader = req.headers?.authorization || '';
+  if (authHeader) {
+    // Use last 8 chars of token as pseudo-ID (avoids storing full token)
+    return `anon:${authHeader.slice(-8)}`;
+  }
+
+  // Fallback to IP
+  return `ip:${req.ip || req.connection?.remoteAddress || 'unknown'}`;
+}
+
+/**
  * In-memory per-user rate limiter middleware.
  *
  * Tracks request counts per user (extracted from JWT) with a sliding window.
@@ -30,22 +53,6 @@ export function createRateLimiter(options = {}) {
         userWindows.delete(userId);
       }
     }
-  }
-
-  function extractUserId(req) {
-    // Try to extract from decoded JWT (set by auth middleware)
-    if (req.user?.sub) return req.user.sub;
-    if (req.user?.id) return req.user.id;
-
-    // Fallback to Authorization header hash (for unprocessed JWTs)
-    const authHeader = req.headers?.authorization || '';
-    if (authHeader) {
-      // Use last 8 chars of token as pseudo-ID (avoids storing full token)
-      return `anon:${authHeader.slice(-8)}`;
-    }
-
-    // Fallback to IP
-    return `ip:${req.ip || req.connection?.remoteAddress || 'unknown'}`;
   }
 
   return function rateLimiterMiddleware(req, res, next) {

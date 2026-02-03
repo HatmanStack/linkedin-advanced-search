@@ -344,9 +344,35 @@ export class ProfileInitMonitor {
 // Create singleton instance
 export const profileInitMonitor = new ProfileInitMonitor();
 
-// Log summary every 5 minutes
-setInterval(() => {
-  profileInitMonitor.logSummary();
-}, 5 * 60 * 1000);
+// Interval reference for cleanup
+let summaryIntervalId = null;
+
+/**
+ * Start periodic monitoring summary logging
+ * Safe to call multiple times - will not create duplicate intervals
+ */
+export function startMonitoring() {
+  if (!summaryIntervalId) {
+    summaryIntervalId = setInterval(() => {
+      profileInitMonitor.logSummary();
+    }, 5 * 60 * 1000);
+    logger.info('Profile init monitoring started');
+  }
+}
+
+/**
+ * Stop periodic monitoring summary logging
+ * Should be called during graceful shutdown to prevent memory leaks
+ */
+export function stopMonitoring() {
+  if (summaryIntervalId) {
+    clearInterval(summaryIntervalId);
+    summaryIntervalId = null;
+    logger.info('Profile init monitoring stopped');
+  }
+}
+
+// Auto-start monitoring on module load (maintains existing behavior)
+startMonitoring();
 
 export default ProfileInitMonitor;

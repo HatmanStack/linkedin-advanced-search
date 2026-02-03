@@ -9,7 +9,7 @@
 
 LinkedIn networking tool with automation and cloud infrastructure. Built for efficiency, security, and scalability.
 
-> **Active Development**: This project is under active development. Features and APIs may change without notice.
+** THIS REPO IS IN ACTIVE DEVELOPMENT AND WILL CHANGE OFTEN **
 
 ## 📚 Documentation
 

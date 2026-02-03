@@ -2,7 +2,9 @@ import { CognitoUserPool, CognitoUserSession } from 'amazon-cognito-identity-js'
 import { cognitoConfig } from '@/config/appConfig';
 import type { SearchFormData } from '@/shared/utils/validation';
 import type {
-  PuppeteerApiResponse
+  PuppeteerApiResponse,
+  Connection,
+  Message,
 } from '@/shared/types';
 import { createLogger } from '@/shared/utils/logger';
 
@@ -183,7 +185,7 @@ class PuppeteerApiService {
     tags?: string[];
     limit?: number;
     lastKey?: string;
-  }): Promise<PuppeteerApiResponse<{ connections: unknown[]; lastKey?: string }>> {
+  }): Promise<PuppeteerApiResponse<{ connections: Connection[]; lastKey?: string }>> {
     const params = new URLSearchParams();
     if (filters?.status) params.append('status', filters.status);
     if (filters?.tags) params.append('tags', filters.tags.join(','));
@@ -191,20 +193,20 @@ class PuppeteerApiService {
     if (filters?.lastKey) params.append('lastKey', filters.lastKey);
 
     const queryString = params.toString();
-    return this.makeRequest<{ connections: unknown[]; lastKey?: string }>(
+    return this.makeRequest<{ connections: Connection[]; lastKey?: string }>(
       `/connections${queryString ? `?${queryString}` : ''}`
     );
   }
 
-  async createConnection(connection: unknown): Promise<PuppeteerApiResponse<unknown>> {
-    return this.makeRequest<unknown>('/connections', {
+  async createConnection(connection: Partial<Connection>): Promise<PuppeteerApiResponse<Connection>> {
+    return this.makeRequest<Connection>('/connections', {
       method: 'POST',
       body: JSON.stringify(connection),
     });
   }
 
-  async updateConnection(connectionId: string, updates: unknown): Promise<PuppeteerApiResponse<unknown>> {
-    return this.makeRequest<unknown>(`/connections/${connectionId}`, {
+  async updateConnection(connectionId: string, updates: Partial<Connection>): Promise<PuppeteerApiResponse<Connection>> {
+    return this.makeRequest<Connection>(`/connections/${connectionId}`, {
       method: 'PUT',
       body: JSON.stringify(updates),
     });
@@ -215,52 +217,52 @@ class PuppeteerApiService {
     connectionId?: string;
     isSent?: boolean;
     limit?: number;
-  }): Promise<PuppeteerApiResponse<{ messages: unknown[] }>> {
+  }): Promise<PuppeteerApiResponse<{ messages: Message[] }>> {
     const params = new URLSearchParams();
     if (filters?.connectionId) params.append('connectionId', filters.connectionId);
     if (filters?.isSent !== undefined) params.append('isSent', filters.isSent.toString());
     if (filters?.limit) params.append('limit', filters.limit.toString());
 
     const queryString = params.toString();
-    return this.makeRequest<{ messages: unknown[] }>(
+    return this.makeRequest<{ messages: Message[] }>(
       `/messages${queryString ? `?${queryString}` : ''}`
     );
   }
 
-  async createMessage(message: unknown): Promise<PuppeteerApiResponse<unknown>> {
-    return this.makeRequest<unknown>('/messages', {
+  async createMessage(message: Partial<Message>): Promise<PuppeteerApiResponse<Message>> {
+    return this.makeRequest<Message>('/messages', {
       method: 'POST',
       body: JSON.stringify(message),
     });
   }
 
   // Topic Operations
-  async getTopics(): Promise<PuppeteerApiResponse<unknown[]>> {
-    return this.makeRequest<unknown[]>('/topics');
+  async getTopics(): Promise<PuppeteerApiResponse<Record<string, unknown>[]>> {
+    return this.makeRequest<Record<string, unknown>[]>('/topics');
   }
 
-  async createTopic(topic: unknown): Promise<PuppeteerApiResponse<unknown>> {
-    return this.makeRequest<unknown>('/topics', {
+  async createTopic(topic: Record<string, unknown>): Promise<PuppeteerApiResponse<Record<string, unknown>>> {
+    return this.makeRequest<Record<string, unknown>>('/topics', {
       method: 'POST',
       body: JSON.stringify(topic),
     });
   }
 
   // Draft Operations
-  async getDrafts(): Promise<PuppeteerApiResponse<unknown[]>> {
-    return this.makeRequest<unknown[]>('/drafts');
+  async getDrafts(): Promise<PuppeteerApiResponse<Record<string, unknown>[]>> {
+    return this.makeRequest<Record<string, unknown>[]>('/drafts');
   }
 
-  async createDraft(draft: unknown): Promise<PuppeteerApiResponse<unknown>> {
-    return this.makeRequest<unknown>('/drafts', {
+  async createDraft(draft: Record<string, unknown>): Promise<PuppeteerApiResponse<Record<string, unknown>>> {
+    return this.makeRequest<Record<string, unknown>>('/drafts', {
       method: 'POST',
       body: JSON.stringify(draft),
     });
   }
 
   // LinkedIn Integration
-  async performLinkedInSearch(criteria: unknown): Promise<PuppeteerApiResponse<unknown>> {
-    return this.makeRequest<unknown>('/search', {
+  async performLinkedInSearch(criteria: SearchFormData): Promise<PuppeteerApiResponse<{ results: Connection[] }>> {
+    return this.makeRequest<{ results: Connection[] }>('/search', {
       method: 'POST',
       body: JSON.stringify(criteria),
     });
