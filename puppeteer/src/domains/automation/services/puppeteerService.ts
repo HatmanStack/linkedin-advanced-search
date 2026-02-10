@@ -420,6 +420,7 @@ export class PuppeteerService {
         }
 
         // Log debug info to console (visible in browser dev tools)
+        // eslint-disable-next-line no-console
         console.log('[extractLinks debug]', debugInfo.join(' | '));
 
         return Array.from(ids);

@@ -5,7 +5,6 @@ import DynamoDBService from '../../storage/services/dynamoDBService.js';
 import LinkedInContactService from './linkedinContactService.js';
 import { decryptSealboxB64Tag } from '#utils/crypto.js';
 import type { PuppeteerService } from '../../automation/services/puppeteerService.js';
-import type { Page } from 'puppeteer';
 
 /**
  * Connection type options

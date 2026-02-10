@@ -15,8 +15,8 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html', 'lcov'],
-      include: ['src/**/*.js'],
-      exclude: ['src/**/*.test.js', 'src/setupTests.js'],
+      include: ['src/**/*.{js,ts}'],
+      exclude: ['src/**/*.test.{js,ts}', 'src/setupTests.js'],
     },
 
     // Globals for cleaner test syntax

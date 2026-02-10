@@ -295,7 +295,7 @@ export class ProfileInitService {
     } catch (err) {
       const error = err as Error & { context?: Record<string, unknown> };
       const totalDuration = Date.now() - startTime;
-      const errorDetails = LinkedInErrorHandler.categorizeError(error);
+      const errorDetails = LinkedInErrorHandler.categorizeError(error) as ErrorDetails;
 
       logger.error('Profile initialization failed', {
         requestId,
@@ -756,7 +756,7 @@ export class ProfileInitService {
           });
         } catch (err) {
           const error = err as Error & { context?: Record<string, unknown> };
-          const errorDetails = LinkedInErrorHandler.categorizeError(error);
+          const errorDetails = LinkedInErrorHandler.categorizeError(error) as ErrorDetails;
 
           logger.error(`Failed to process connection ${connectionProfileId} at index ${i}`, {
             requestId,
@@ -974,7 +974,7 @@ export class ProfileInitService {
       } catch (processingErr) {
         const processingError = processingErr as Error & { context?: Record<string, unknown> };
         const processingDuration = Date.now() - startTime;
-        const errorDetails = LinkedInErrorHandler.categorizeError(processingError);
+        const errorDetails = LinkedInErrorHandler.categorizeError(processingError) as ErrorDetails;
 
         logger.error(`Failed to process connection ${connectionProfileId}`, {
           requestId,
@@ -1135,7 +1135,14 @@ export class ProfileInitService {
       currentFileIndex,
       masterIndex,
       `List creation failed: ${error.message}`
-    );
+    ) as ProfileInitState & {
+      healPhase: string;
+      listCreationState?: {
+        connectionType: string;
+        expansionAttempt: number;
+        currentFileIndex: number;
+      };
+    };
 
     // Update master index with healing state
     if (state.masterIndexFile) {
@@ -1348,7 +1355,7 @@ export class ProfileInitService {
    * Categorize service error
    */
   private _categorizeServiceError(error: Error): ErrorDetails {
-    return LinkedInErrorHandler.categorizeError(error);
+    return LinkedInErrorHandler.categorizeError(error) as ErrorDetails;
   }
 
   /**
