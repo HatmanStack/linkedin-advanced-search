@@ -195,8 +195,8 @@ def test_create_profile_operation(dynamodb_table_with_data, api_gateway_event_po
     """Test creating a new profile"""
     response = dynamodb_api_module.lambda_handler(api_gateway_event_post, lambda_context)
 
-    # Should return success or error with proper status code
-    assert response['statusCode'] in [200, 201, 400, 500]
+    # With mocked DynamoDB, expect success or validation error
+    assert response['statusCode'] in [200, 201, 400]
     assert 'body' in response
     body = json.loads(response['body'])
     assert isinstance(body, dict)
@@ -215,7 +215,7 @@ def test_update_user_settings_operation(dynamodb_table_with_data, api_gateway_ev
 
     response = dynamodb_api_module.lambda_handler(event, lambda_context)
 
-    assert response['statusCode'] in [200, 400, 500]
+    assert response['statusCode'] == 200
     body = json.loads(response['body'])
     assert isinstance(body, dict)
 
@@ -229,8 +229,8 @@ def test_invalid_operation(dynamodb_table_with_data, api_gateway_event_post, lam
 
     response = dynamodb_api_module.lambda_handler(event, lambda_context)
 
-    # Should return error or handle gracefully
-    assert response['statusCode'] in [400, 404, 500]
+    # Invalid operation should return client error
+    assert response['statusCode'] in [400, 404]
 
 
 def test_malformed_request_body(dynamodb_table_with_data, api_gateway_event_post, lambda_context, dynamodb_api_module):
@@ -240,7 +240,7 @@ def test_malformed_request_body(dynamodb_table_with_data, api_gateway_event_post
 
     response = dynamodb_api_module.lambda_handler(event, lambda_context)
 
-    # Should handle JSON parse error gracefully
+    # Malformed JSON should return 400 or 500 (unhandled parse error)
     assert response['statusCode'] in [400, 500]
 
 
