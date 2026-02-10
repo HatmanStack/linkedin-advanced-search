@@ -787,6 +787,11 @@ app.post('/api/reset', (req, res) => {
   res.json({ success: true });
 });
 
+// Health check endpoint for Docker
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'healthy', service: 'mock-linkedin' });
+});
+
 // Catch-all for unhandled routes
 app.use('*', (req, res) => {
   console.log(`[MOCK] Unhandled route: ${req.method} ${req.originalUrl}`);

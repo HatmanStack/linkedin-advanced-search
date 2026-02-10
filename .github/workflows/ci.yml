@@ -88,8 +88,9 @@ jobs:
         working-directory: ./tests/backend
         run: python -m pytest unit/ -v --tb=short
 
-  # E2E Tests temporarily disabled - docker compose --wait hangs without health checks on all services
-  # TODO: Add health checks to mock-linkedin, puppeteer-backend, frontend services
+  # E2E Tests disabled - puppeteer-backend service fails to start in CI
+  # Issue: Service becomes unhealthy after 2+ minutes even with extended health check timeouts
+  # TODO: Debug why puppeteer-backend won't start in GitHub Actions environment
   # e2e:
   #   name: E2E Tests
   #   needs: [frontend, puppeteer, backend]
