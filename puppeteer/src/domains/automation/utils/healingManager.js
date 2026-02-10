@@ -24,10 +24,12 @@ export class HealingManager {
    * @returns {boolean} True if profile init healing
    */
   _isProfileInitHealing(params) {
-    return params.healPhase === 'profile-init' ||
-           params.currentProcessingList !== undefined ||
-           params.masterIndexFile !== undefined ||
-           params.batchSize !== undefined;
+    return (
+      params.healPhase === 'profile-init' ||
+      params.currentProcessingList !== undefined ||
+      params.masterIndexFile !== undefined ||
+      params.batchSize !== undefined
+    );
   }
 
   /**
@@ -42,7 +44,7 @@ export class HealingManager {
       healReason: params.healReason,
       currentProcessingList: params.currentProcessingList,
       currentBatch: params.currentBatch,
-      currentIndex: params.currentIndex
+      currentIndex: params.currentIndex,
     });
 
     const stateFile = await this._createProfileInitStateFile(params);
@@ -72,7 +74,7 @@ export class HealingManager {
       recursionCount,
       healPhase,
       healReason,
-      resumeIndex
+      resumeIndex,
     });
 
     const stateFile = await this._createStateFile({
@@ -88,7 +90,7 @@ export class HealingManager {
       extractedCompanyNumber,
       extractedGeoNumber,
       healPhase,
-      healReason
+      healReason,
     });
 
     await this._launchWorkerProcess(stateFile);
@@ -107,7 +109,7 @@ export class HealingManager {
     // Encrypt sensitive credentials
     const encryptedCreds = await encryptCredentials({
       searchPassword: stateData.searchPassword,
-      jwtToken: stateData.jwtToken
+      jwtToken: stateData.jwtToken,
     });
 
     if (!encryptedCreds && (stateData.searchPassword || stateData.jwtToken)) {
@@ -139,7 +141,7 @@ export class HealingManager {
       requestId: stateData.requestId,
       userProfileId: stateData.userProfileId,
       sessionId: stateData.sessionId,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
 
     fsSync.writeFileSync(stateFile, JSON.stringify(profileInitState, null, 2));
@@ -148,7 +150,7 @@ export class HealingManager {
       requestId: stateData.requestId,
       recursionCount: profileInitState.recursionCount,
       healPhase: profileInitState.healPhase,
-      credentialsEncrypted: !!encryptedCreds
+      credentialsEncrypted: !!encryptedCreds,
     });
 
     return stateFile;
@@ -163,7 +165,7 @@ export class HealingManager {
     const workerPath = path.join(__dirname, '../workers/profileInitWorker.js');
     const worker = spawn('node', [workerPath, stateFile], {
       detached: true,
-      stdio: 'ignore'
+      stdio: 'ignore',
     });
     worker.unref();
 
@@ -182,7 +184,7 @@ export class HealingManager {
     // Encrypt sensitive credentials
     const encryptedCreds = await encryptCredentials({
       searchPassword: stateData.searchPassword,
-      jwtToken: stateData.jwtToken
+      jwtToken: stateData.jwtToken,
     });
 
     if (!encryptedCreds && (stateData.searchPassword || stateData.jwtToken)) {
@@ -199,7 +201,7 @@ export class HealingManager {
     fsSync.writeFileSync(stateFile, JSON.stringify(stateToWrite, null, 2));
 
     logger.info(`Created search healing state file: ${stateFile}`, {
-      credentialsEncrypted: !!encryptedCreds
+      credentialsEncrypted: !!encryptedCreds,
     });
 
     return stateFile;
@@ -210,7 +212,7 @@ export class HealingManager {
     const workerPath = path.join(__dirname, '../workers/searchWorker.js');
     const worker = spawn('node', [workerPath, stateFile], {
       detached: true,
-      stdio: 'ignore'
+      stdio: 'ignore',
     });
     worker.unref();
     logger.info(`Launched healing worker with state file: ${stateFile}`);

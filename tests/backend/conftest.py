@@ -35,6 +35,7 @@ os.environ['LOG_LEVEL'] = 'DEBUG'
 os.environ['COGNITO_USER_POOL_ID'] = 'test-pool-id'
 os.environ['COGNITO_REGION'] = 'us-west-2'
 os.environ['ALLOWED_ORIGINS'] = 'http://localhost:5173,http://localhost:3000'
+os.environ['OPENAI_API_KEY'] = 'test-key-for-unit-tests'
 
 
 def load_lambda_module(lambda_name: str):

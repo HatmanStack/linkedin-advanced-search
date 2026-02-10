@@ -14,7 +14,7 @@ export const generateUniqueUserId = (email: string, isCognito: boolean = false):
     // Cognito will provide the actual UUID, this is just a fallback
     return `cognito-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   }
-  
+
   // For mock/development users
   return `mock-${Date.now()}-${email.replace(/[^a-zA-Z0-9]/g, '')}`;
 };
@@ -23,14 +23,8 @@ export const generateUniqueUserId = (email: string, isCognito: boolean = false):
  * Validate user object has required fields for database mapping
  */
 export const validateUserForDatabase = (user: User): boolean => {
-  return !!(
-    user.id &&
-    user.email &&
-    user.id.length > 0 &&
-    user.email.includes('@')
-  );
+  return !!(user.id && user.email && user.id.length > 0 && user.email.includes('@'));
 };
-
 
 /**
  * Security considerations for user data
@@ -62,4 +56,3 @@ export const securityUtils = {
     return !!(user.firstName || user.lastName || user.email);
   },
 };
-

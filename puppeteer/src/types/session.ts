@@ -53,7 +53,10 @@ export interface IPuppeteerService {
   getBrowser(): Browser | null;
   getPage(): Page | null;
   goto(url: string, options?: { waitUntil?: string; timeout?: number }): Promise<unknown>;
-  waitForSelector(selector: string, options?: { timeout?: number; visible?: boolean }): Promise<unknown>;
+  waitForSelector(
+    selector: string,
+    options?: { timeout?: number; visible?: boolean }
+  ): Promise<unknown>;
   close(): Promise<void>;
 }
 

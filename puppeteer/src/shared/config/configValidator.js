@@ -6,7 +6,6 @@ import config from '../config/index.js';
  * Implements requirement 4.4 for configuration validation
  */
 export class ConfigValidator {
-  
   /**
    * Validation rules for LinkedIn interaction configuration
    */
@@ -16,48 +15,48 @@ export class ConfigValidator {
     sessionHealthCheckInterval: { min: 60000, max: 600000 }, // 1 to 10 minutes
     maxSessionErrors: { min: 1, max: 10 },
     sessionRecoveryTimeout: { min: 10000, max: 300000 }, // 10 seconds to 5 minutes
-    
+
     // Concurrency Control
     maxConcurrentInteractions: { min: 1, max: 10 },
     maxConcurrentSessions: { min: 1, max: 3 },
     interactionQueueSize: { min: 10, max: 1000 },
-    
+
     // Rate Limiting
     rateLimitWindow: { min: 10000, max: 3600000 }, // 10 seconds to 1 hour
     rateLimitMax: { min: 1, max: 100 },
     dailyInteractionLimit: { min: 10, max: 2000 },
     hourlyInteractionLimit: { min: 5, max: 500 },
-    
+
     // Retry Configuration
     retryAttempts: { min: 1, max: 10 },
     retryBaseDelay: { min: 100, max: 10000 }, // 100ms to 10 seconds
     retryMaxDelay: { min: 1000, max: 1800000 }, // 1 second to 30 minutes
     retryJitterFactor: { min: 0, max: 1 },
-    
+
     // Human Behavior
     humanDelayMin: { min: 500, max: 5000 },
     humanDelayMax: { min: 1000, max: 10000 },
     actionsPerMinute: { min: 1, max: 30 },
     actionsPerHour: { min: 10, max: 1000 },
-    
+
     // Typing Simulation
     typingSpeedMin: { min: 50, max: 200 },
     typingSpeedMax: { min: 80, max: 300 },
     typingPauseChance: { min: 0, max: 1 },
     typingPauseMin: { min: 100, max: 2000 },
     typingPauseMax: { min: 500, max: 5000 },
-    
+
     // Content Limits
     maxMessageLength: { min: 1000, max: 10000 },
     maxPostLength: { min: 100, max: 5000 },
     maxConnectionMessageLength: { min: 50, max: 500 },
-    
+
     // Timeouts
     navigationTimeout: { min: 5000, max: 120000 }, // 5 seconds to 2 minutes
     elementWaitTimeout: { min: 1000, max: 60000 }, // 1 second to 1 minute
     messageComposeTimeout: { min: 5000, max: 60000 },
     postCreationTimeout: { min: 10000, max: 120000 },
-    connectionRequestTimeout: { min: 5000, max: 60000 }
+    connectionRequestTimeout: { min: 5000, max: 60000 },
   };
 
   /**
@@ -69,23 +68,23 @@ export class ConfigValidator {
       isValid: true,
       errors: [],
       warnings: [],
-      recommendations: []
+      recommendations: [],
     };
 
     const linkedinConfig = config.linkedinInteractions;
 
     // Validate numeric ranges
     this.validateNumericRanges(linkedinConfig, result);
-    
+
     // Validate logical consistency
     this.validateLogicalConsistency(linkedinConfig, result);
-    
+
     // Validate feature flags
     this.validateFeatureFlags(linkedinConfig, result);
-    
+
     // Validate environment-specific settings
     this.validateEnvironmentSettings(linkedinConfig, result);
-    
+
     // Generate recommendations
     this.generateRecommendations(linkedinConfig, result);
 
@@ -101,7 +100,7 @@ export class ConfigValidator {
   static validateNumericRanges(linkedinConfig, result) {
     for (const [key, rule] of Object.entries(this.validationRules)) {
       const value = linkedinConfig[key];
-      
+
       if (value === undefined || value === null) {
         result.warnings.push(`Configuration '${key}' is not set, using default value`);
         continue;
@@ -114,7 +113,9 @@ export class ConfigValidator {
       }
 
       if (value < rule.min) {
-        result.errors.push(`Configuration '${key}' (${value}) is below minimum value (${rule.min})`);
+        result.errors.push(
+          `Configuration '${key}' (${value}) is below minimum value (${rule.min})`
+        );
         result.isValid = false;
       }
 
@@ -161,12 +162,16 @@ export class ConfigValidator {
 
     // Rate limiting consistency
     if (linkedinConfig.hourlyInteractionLimit > linkedinConfig.dailyInteractionLimit) {
-      result.warnings.push('hourlyInteractionLimit is higher than dailyInteractionLimit, which may cause issues');
+      result.warnings.push(
+        'hourlyInteractionLimit is higher than dailyInteractionLimit, which may cause issues'
+      );
     }
 
     // Actions per time period consistency
     if (linkedinConfig.actionsPerMinute * 60 > linkedinConfig.actionsPerHour) {
-      result.warnings.push('actionsPerMinute * 60 exceeds actionsPerHour, which may cause rate limiting');
+      result.warnings.push(
+        'actionsPerMinute * 60 exceeds actionsPerHour, which may cause rate limiting'
+      );
     }
 
     // Session timeout vs health check interval
@@ -181,10 +186,10 @@ export class ConfigValidator {
   static validateFeatureFlags(linkedinConfig, result) {
     const featureFlags = [
       'enableMessageSending',
-      'enableConnectionRequests', 
+      'enableConnectionRequests',
       'enablePostCreation',
       'enableHumanBehavior',
-      'enableSuspiciousActivityDetection'
+      'enableSuspiciousActivityDetection',
     ];
 
     let enabledFeatures = 0;
@@ -200,7 +205,9 @@ export class ConfigValidator {
 
     // Validate dependent features
     if (linkedinConfig.enableSuspiciousActivityDetection && !linkedinConfig.enableHumanBehavior) {
-      result.warnings.push('Suspicious activity detection works best with human behavior simulation enabled');
+      result.warnings.push(
+        'Suspicious activity detection works best with human behavior simulation enabled'
+      );
     }
   }
 
@@ -222,12 +229,16 @@ export class ConfigValidator {
       }
 
       if (linkedinConfig.screenshotOnError) {
-        result.warnings.push('Screenshot on error is enabled in production (may impact performance)');
+        result.warnings.push(
+          'Screenshot on error is enabled in production (may impact performance)'
+        );
       }
 
       // Stricter limits for production
       if (linkedinConfig.maxConcurrentInteractions > 5) {
-        result.warnings.push('High concurrent interaction limit in production may trigger rate limiting');
+        result.warnings.push(
+          'High concurrent interaction limit in production may trigger rate limiting'
+        );
       }
 
       if (linkedinConfig.actionsPerMinute > 10) {
@@ -252,12 +263,15 @@ export class ConfigValidator {
    */
   static generateRecommendations(linkedinConfig, result) {
     // Performance recommendations
-    if (linkedinConfig.sessionTimeout < 1800000) { // 30 minutes
+    if (linkedinConfig.sessionTimeout < 1800000) {
+      // 30 minutes
       result.recommendations.push('Consider increasing sessionTimeout for better performance');
     }
 
     if (linkedinConfig.maxConcurrentInteractions === 1) {
-      result.recommendations.push('Consider allowing more concurrent interactions for better throughput');
+      result.recommendations.push(
+        'Consider allowing more concurrent interactions for better throughput'
+      );
     }
 
     // Security recommendations
@@ -266,7 +280,9 @@ export class ConfigValidator {
     }
 
     if (linkedinConfig.humanDelayMin < 2000) {
-      result.recommendations.push('Consider increasing minimum human delay for more realistic behavior');
+      result.recommendations.push(
+        'Consider increasing minimum human delay for more realistic behavior'
+      );
     }
 
     // Reliability recommendations
@@ -286,28 +302,28 @@ export class ConfigValidator {
     if (result.isValid) {
       logger.info('LinkedIn interaction configuration validation passed', {
         warningCount: result.warnings.length,
-        recommendationCount: result.recommendations.length
+        recommendationCount: result.recommendations.length,
       });
     } else {
       logger.error('LinkedIn interaction configuration validation failed', {
         errorCount: result.errors.length,
-        warningCount: result.warnings.length
+        warningCount: result.warnings.length,
       });
     }
 
     // Log errors
-    result.errors.forEach(error => {
+    result.errors.forEach((error) => {
       logger.error('Configuration error:', error);
     });
 
     // Log warnings
-    result.warnings.forEach(warning => {
+    result.warnings.forEach((warning) => {
       logger.warn('Configuration warning:', warning);
     });
 
     // Log recommendations in development
     if (config.nodeEnv === 'development') {
-      result.recommendations.forEach(recommendation => {
+      result.recommendations.forEach((recommendation) => {
         logger.info('Configuration recommendation:', recommendation);
       });
     }
@@ -318,7 +334,7 @@ export class ConfigValidator {
    */
   static getConfigurationSummary() {
     const linkedinConfig = config.linkedinInteractions;
-    
+
     return {
       environment: config.nodeEnv,
       sessionTimeout: linkedinConfig.sessionTimeout,
@@ -332,8 +348,8 @@ export class ConfigValidator {
       featuresEnabled: {
         messageSending: linkedinConfig.enableMessageSending,
         connectionRequests: linkedinConfig.enableConnectionRequests,
-        postCreation: linkedinConfig.enablePostCreation
-      }
+        postCreation: linkedinConfig.enablePostCreation,
+      },
     };
   }
 
@@ -342,9 +358,9 @@ export class ConfigValidator {
    */
   static validateOnStartup() {
     logger.info('Validating LinkedIn interaction configuration...');
-    
+
     const validation = this.validateConfiguration();
-    
+
     if (!validation.isValid) {
       logger.error('Configuration validation failed, application may not work correctly');
 

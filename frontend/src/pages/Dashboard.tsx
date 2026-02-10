@@ -1,11 +1,25 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { MessageSquare, Users, Settings, UserPlus, FileText, LogOut, AlertCircle, Database } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  MessageSquare,
+  Users,
+  Settings,
+  UserPlus,
+  FileText,
+  LogOut,
+  AlertCircle,
+  Database,
+} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/features/auth';
 import { useHealAndRestore } from '@/features/workflow';
-import { useConnectionsManager, NewConnectionsTab, VirtualConnectionList, ConnectionListSkeleton } from '@/features/connections';
+import {
+  useConnectionsManager,
+  NewConnectionsTab,
+  VirtualConnectionList,
+  ConnectionListSkeleton,
+} from '@/features/connections';
 import { ConversationTopicPanel, MessageModal, useMessageGeneration } from '@/features/messages';
 import { useLinkedInSearch } from '@/features/search';
 import { NewPostTab } from '@/features/posts';
@@ -71,19 +85,19 @@ const Dashboard = () => {
     handleLinkedInSearch,
   } = useLinkedInSearch({ fetchConnections });
 
-  const {
-    isInitializing,
-    initializationMessage,
-    initializationError,
-    initializeProfile,
-  } = useProfileInit();
+  const { isInitializing, initializationMessage, initializationError, initializeProfile } =
+    useProfileInit();
 
   // Start listening for heal and restore notifications
-  useEffect(() => { startListening(); }, [startListening]);
+  useEffect(() => {
+    startListening();
+  }, [startListening]);
 
   // Fetch user profile once on mount
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { refreshUserProfile(); }, []);
+  useEffect(() => {
+    refreshUserProfile();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Display name from user profile context
   const displayName = useMemo(() => {
@@ -91,10 +105,15 @@ const Dashboard = () => {
     return fullName || userProfile?.email || user?.firstName || user?.email || 'User';
   }, [userProfile, user]);
 
-  const handleSignOut = async () => { await signOut(); navigate('/'); };
+  const handleSignOut = async () => {
+    await signOut();
+    navigate('/');
+  };
 
   const handleInitializeProfile = async () => {
-    await initializeProfile(() => { fetchConnections(); });
+    await initializeProfile(() => {
+      fetchConnections();
+    });
   };
 
   return (
@@ -109,11 +128,22 @@ const Dashboard = () => {
             </div>
             <div className="flex items-center space-x-4">
               <span className="text-white">Welcome, {displayName}</span>
-              <Button variant="ghost" className="text-white hover:bg-white/10" onClick={() => navigate('/profile')}>
-                <Settings className="h-4 w-4 mr-2" />Profile
+              <Button
+                variant="ghost"
+                className="text-white hover:bg-white/10"
+                onClick={() => navigate('/profile')}
+              >
+                <Settings className="h-4 w-4 mr-2" />
+                Profile
               </Button>
-              <Button variant="ghost" onClick={handleSignOut} className="text-white hover:bg-white/10">
-                <LogOut className="h-4 w-4 mr-2" />Sign Out
+              <Button
+                variant="ghost"
+                data-testid="sign-out-button"
+                onClick={handleSignOut}
+                className="text-white hover:bg-white/10"
+              >
+                <LogOut className="h-4 w-4 mr-2" />
+                Sign Out
               </Button>
             </div>
           </div>
@@ -123,31 +153,49 @@ const Dashboard = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-white mb-2">Your Network Dashboard</h1>
-          <p className="text-slate-300">Manage your connections, discover new people, and create engaging content.</p>
+          <p className="text-slate-300">
+            Manage your connections, discover new people, and create engaging content.
+          </p>
         </div>
 
         <Tabs defaultValue="connections" className="space-y-6">
           <TabsList className="grid w-full grid-cols-3 bg-white/5 border-white/10">
-            <TabsTrigger value="connections" className="text-white data-[state=active]:bg-blue-600 data-[state=active]:text-white">
-              <Users className="h-4 w-4 mr-2" />Connections
+            <TabsTrigger
+              value="connections"
+              className="text-white data-[state=active]:bg-blue-600 data-[state=active]:text-white"
+            >
+              <Users className="h-4 w-4 mr-2" />
+              Connections
             </TabsTrigger>
-            <TabsTrigger value="new-connections" className="text-white data-[state=active]:bg-blue-600 data-[state=active]:text-white">
-              <UserPlus className="h-4 w-4 mr-2" />New Connections
+            <TabsTrigger
+              value="new-connections"
+              className="text-white data-[state=active]:bg-blue-600 data-[state=active]:text-white"
+            >
+              <UserPlus className="h-4 w-4 mr-2" />
+              New Connections
             </TabsTrigger>
-            <TabsTrigger value="new-post" className="text-white data-[state=active]:bg-blue-600 data-[state=active]:text-white">
-              <FileText className="h-4 w-4 mr-2" />New Post
+            <TabsTrigger
+              value="new-post"
+              className="text-white data-[state=active]:bg-blue-600 data-[state=active]:text-white"
+            >
+              <FileText className="h-4 w-4 mr-2" />
+              New Post
             </TabsTrigger>
           </TabsList>
 
           <TabsContent value="connections" className="space-y-6">
             {initializationMessage && (
               <div className="bg-green-600/20 border border-green-500/30 rounded-lg p-3">
-                <p className="text-green-200 text-sm font-medium"><strong>Success:</strong> {initializationMessage}</p>
+                <p className="text-green-200 text-sm font-medium">
+                  <strong>Success:</strong> {initializationMessage}
+                </p>
               </div>
             )}
             {initializationError && (
               <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3">
-                <p className="text-red-300 text-sm font-medium"><strong>Error:</strong> {initializationError}</p>
+                <p className="text-red-300 text-sm font-medium">
+                  <strong>Error:</strong> {initializationError}
+                </p>
               </div>
             )}
 
@@ -170,7 +218,12 @@ const Dashboard = () => {
                       <div>
                         <h3 className="text-red-300 font-medium">Failed to Load Connections</h3>
                         <p className="text-red-400 text-sm mt-1">{connectionsError}</p>
-                        <Button variant="outline" size="sm" className="mt-3 border-red-500/30 text-red-300 hover:bg-red-500/10" onClick={fetchConnections}>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="mt-3 border-red-500/30 text-red-300 hover:bg-red-500/10"
+                          onClick={fetchConnections}
+                        >
                           Try Again
                         </Button>
                       </div>
@@ -179,23 +232,38 @@ const Dashboard = () => {
                 )}
 
                 {!connectionsLoading && !connectionsError && (
-                  <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-lg p-6">
+                  <div
+                    data-testid="connections-list"
+                    className="bg-white/5 backdrop-blur-md border border-white/10 rounded-lg p-6"
+                  >
                     <div className="flex items-center justify-between mb-4">
                       <h2 className="text-xl font-semibold text-white">Your Connections</h2>
                       <div className="flex items-center gap-4">
                         <div className="text-sm text-slate-400">
                           {filteredConnections.length} of {connectionCounts.total} connections
                         </div>
-                        <Button onClick={handleInitializeProfile} disabled={isInitializing}
-                          className="bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700 text-white">
+                        <Button
+                          onClick={handleInitializeProfile}
+                          disabled={isInitializing}
+                          className="bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700 text-white"
+                        >
                           <Database className="h-4 w-4 mr-2" />
-                          {isInitializing ? 'Initializing...' : connectionCounts.ally > 0 ? 'Refresh' : 'Initialize Profile Database'}
+                          {isInitializing
+                            ? 'Initializing...'
+                            : connectionCounts.ally > 0
+                              ? 'Refresh'
+                              : 'Initialize Profile Database'}
                         </Button>
                       </div>
                     </div>
 
                     {filteredConnections.length === 0 ? (
-                      <NoConnectionsState type="filtered" onRefresh={fetchConnections} onClearFilters={() => setSelectedStatus('all')} className="py-16" />
+                      <NoConnectionsState
+                        type="filtered"
+                        onRefresh={fetchConnections}
+                        onClearFilters={() => setSelectedStatus('all')}
+                        className="py-16"
+                      />
                     ) : (
                       <VirtualConnectionList
                         connections={filteredConnections}
@@ -220,7 +288,11 @@ const Dashboard = () => {
 
               <div className="space-y-6">
                 <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-lg p-6">
-                  <StatusPicker selectedStatus={selectedStatus} onStatusChange={setSelectedStatus} connectionCounts={connectionCounts} />
+                  <StatusPicker
+                    selectedStatus={selectedStatus}
+                    onStatusChange={setSelectedStatus}
+                    connectionCounts={connectionCounts}
+                  />
                 </div>
                 <ConversationTopicPanel
                   topic={conversationTopic}
@@ -231,7 +303,12 @@ const Dashboard = () => {
                   onStopGeneration={handleStopGeneration}
                   currentConnectionName={currentConnectionName}
                 />
-                <ProgressIndicator progressState={progressTracker.progressState} loadingState={progressTracker.loadingState} onCancel={handleStopGeneration} className="mt-4" />
+                <ProgressIndicator
+                  progressState={progressTracker.progressState}
+                  loadingState={progressTracker.loadingState}
+                  onCancel={handleStopGeneration}
+                  className="mt-4"
+                />
               </div>
             </div>
           </TabsContent>
@@ -252,7 +329,9 @@ const Dashboard = () => {
             />
             {searchError && (
               <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4">
-                <p className="text-red-300"><strong>Error:</strong> {searchError}</p>
+                <p className="text-red-300">
+                  <strong>Error:</strong> {searchError}
+                </p>
               </div>
             )}
           </TabsContent>

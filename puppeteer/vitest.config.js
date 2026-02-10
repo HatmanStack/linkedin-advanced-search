@@ -15,8 +15,14 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html', 'lcov'],
-      include: ['src/**/*.js'],
-      exclude: ['src/**/*.test.js', 'src/setupTests.js'],
+      include: ['src/**/*.{js,ts}'],
+      exclude: ['src/**/*.test.{js,ts}', 'src/setupTests.js'],
+      thresholds: {
+        lines: 12,
+        branches: 13,
+        functions: 15,
+        statements: 12,
+      },
     },
 
     // Globals for cleaner test syntax

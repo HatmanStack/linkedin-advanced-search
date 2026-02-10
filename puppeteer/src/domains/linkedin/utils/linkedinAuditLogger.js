@@ -5,7 +5,6 @@ import { logger } from '#utils/logger.js';
  * Implements requirement 7.1, 7.2, 7.3 for audit trails and monitoring
  */
 export class LinkedInAuditLogger {
-  
   /**
    * Log interaction attempt
    * @param {string} operation - Operation being attempted
@@ -24,8 +23,8 @@ export class LinkedInAuditLogger {
         // Remove sensitive data
         messageContent: context.messageContent ? '[REDACTED]' : undefined,
         connectionMessage: context.connectionMessage ? '[REDACTED]' : undefined,
-        content: context.content ? '[REDACTED]' : undefined
-      }
+        content: context.content ? '[REDACTED]' : undefined,
+      },
     };
 
     logger.info('LinkedIn interaction attempt', auditData);
@@ -49,15 +48,15 @@ export class LinkedInAuditLogger {
         ...result,
         // Include relevant metrics
         duration: context.duration,
-        attemptCount: context.attemptCount || 1
+        attemptCount: context.attemptCount || 1,
       },
       context: {
         profileId: context.profileId,
         recipientProfileId: context.recipientProfileId,
         contentLength: context.contentLength,
         hasMedia: context.hasMedia,
-        hasMessage: context.hasMessage
-      }
+        hasMessage: context.hasMessage,
+      },
     };
 
     logger.info('LinkedIn interaction success', auditData);
@@ -81,14 +80,14 @@ export class LinkedInAuditLogger {
         message: error.message,
         category: context.errorCategory,
         code: context.errorCode,
-        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
       },
       context: {
         profileId: context.profileId,
         recipientProfileId: context.recipientProfileId,
         attemptCount: context.attemptCount || 1,
-        duration: context.duration
-      }
+        duration: context.duration,
+      },
     };
 
     logger.error('LinkedIn interaction failure', auditData);
@@ -110,8 +109,8 @@ export class LinkedInAuditLogger {
       rateLimitInfo: {
         retryAfter: context.retryAfter,
         attemptCount: context.attemptCount,
-        recentInteractions: context.recentInteractions
-      }
+        recentInteractions: context.recentInteractions,
+      },
     };
 
     logger.warn('LinkedIn rate limiting detected', auditData);
@@ -134,8 +133,8 @@ export class LinkedInAuditLogger {
         isAuthenticated: sessionInfo.isAuthenticated,
         sessionAge: sessionInfo.sessionAge,
         errorCount: sessionInfo.errorCount,
-        memoryUsage: sessionInfo.memoryUsage
-      }
+        memoryUsage: sessionInfo.memoryUsage,
+      },
     };
 
     const logLevel = eventType === 'crash' || eventType === 'error' ? 'error' : 'info';
@@ -157,8 +156,8 @@ export class LinkedInAuditLogger {
       authInfo: {
         jwtValid: context.jwtValid,
         linkedinAuthenticated: context.linkedinAuthenticated,
-        sessionExpired: context.sessionExpired
-      }
+        sessionExpired: context.sessionExpired,
+      },
     };
 
     const logLevel = eventType === 'failure' || eventType === 'expired' ? 'warn' : 'info';
@@ -182,8 +181,8 @@ export class LinkedInAuditLogger {
         interactionCount: context.interactionCount,
         timeWindow: context.timeWindow,
         patterns: context.patterns,
-        riskLevel: context.riskLevel
-      }
+        riskLevel: context.riskLevel,
+      },
     };
 
     logger.warn('Suspicious activity detected', auditData);
@@ -205,8 +204,8 @@ export class LinkedInAuditLogger {
         delay: context.delay,
         typingSpeed: context.typingSpeed,
         mouseMovement: context.mouseMovement,
-        scrollPattern: context.scrollPattern
-      }
+        scrollPattern: context.scrollPattern,
+      },
     };
 
     logger.debug('Human behavior simulation', auditData);
@@ -228,8 +227,8 @@ export class LinkedInAuditLogger {
         originalError: context.originalError,
         attemptCount: context.attemptCount,
         recoveryActions: context.recoveryActions,
-        success: context.success
-      }
+        success: context.success,
+      },
     };
 
     const logLevel = context.success ? 'info' : 'warn';
@@ -253,7 +252,7 @@ export class LinkedInAuditLogger {
         failedInteractions: 0,
         rateLimitEvents: 0,
         sessionCrashes: 0,
-        averageResponseTime: 0
+        averageResponseTime: 0,
       },
       errorBreakdown: {
         authentication: 0,
@@ -261,10 +260,10 @@ export class LinkedInAuditLogger {
         linkedin: 0,
         validation: 0,
         network: 0,
-        system: 0
+        system: 0,
       },
       topErrors: [],
-      recommendations: []
+      recommendations: [],
     };
 
     logger.info('Generated interaction summary', summary);
@@ -288,8 +287,8 @@ export class LinkedInAuditLogger {
         duration,
         memoryUsage: process.memoryUsage(),
         cpuUsage: process.cpuUsage(),
-        browserMetrics: context.browserMetrics
-      }
+        browserMetrics: context.browserMetrics,
+      },
     };
 
     // Log as warning if operation took too long

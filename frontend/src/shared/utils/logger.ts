@@ -35,7 +35,7 @@ const SENSITIVE_PATTERNS = [
   'sessionId',
   'ssn',
   'creditCard',
-  'cvv'
+  'cvv',
 ];
 
 /**
@@ -54,14 +54,14 @@ const maskSensitiveData = (data: unknown): unknown => {
   }
 
   if (Array.isArray(data)) {
-    return data.map(item => maskSensitiveData(item));
+    return data.map((item) => maskSensitiveData(item));
   }
 
   const masked: Record<string, unknown> = {};
 
   for (const [key, value] of Object.entries(data)) {
     const lowerKey = key.toLowerCase();
-    const isSensitive = SENSITIVE_PATTERNS.some(pattern =>
+    const isSensitive = SENSITIVE_PATTERNS.some((pattern) =>
       lowerKey.includes(pattern.toLowerCase())
     );
 
@@ -102,7 +102,7 @@ const log = (level: LogLevel, message: string, context?: LogContext): void => {
     timestamp: new Date().toISOString(),
     level,
     message,
-    context: context ? maskSensitiveData(context) as LogContext : undefined
+    context: context ? (maskSensitiveData(context) as LogContext) : undefined,
   };
 
   // In production, only log warnings and errors
@@ -176,21 +176,17 @@ export const logger = {
    */
   log: (level: LogLevel, message: string, context?: LogContext): void => {
     log(level, message, context);
-  }
+  },
 };
 
 /**
  * Helper to create a scoped logger for a specific module
  */
 export const createLogger = (module: string) => ({
-  debug: (message: string, context?: LogContext) =>
-    logger.debug(`[${module}] ${message}`, context),
-  info: (message: string, context?: LogContext) =>
-    logger.info(`[${module}] ${message}`, context),
-  warn: (message: string, context?: LogContext) =>
-    logger.warn(`[${module}] ${message}`, context),
-  error: (message: string, context?: LogContext) =>
-    logger.error(`[${module}] ${message}`, context),
+  debug: (message: string, context?: LogContext) => logger.debug(`[${module}] ${message}`, context),
+  info: (message: string, context?: LogContext) => logger.info(`[${module}] ${message}`, context),
+  warn: (message: string, context?: LogContext) => logger.warn(`[${module}] ${message}`, context),
+  error: (message: string, context?: LogContext) => logger.error(`[${module}] ${message}`, context),
 });
 
 export default logger;

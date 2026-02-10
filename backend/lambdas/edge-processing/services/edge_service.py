@@ -1,4 +1,5 @@
 """EdgeService - Business logic for edge management operations."""
+
 import base64
 import logging
 from datetime import UTC, datetime
@@ -34,6 +35,8 @@ class EdgeService(BaseService):
         table,
         ragstack_endpoint: str = '',
         ragstack_api_key: str = '',
+        ragstack_client=None,
+        ingestion_service=None,
     ):
         """
         Initialize EdgeService with injected dependencies.
@@ -42,11 +45,15 @@ class EdgeService(BaseService):
             table: DynamoDB Table resource
             ragstack_endpoint: RAGStack GraphQL API endpoint URL
             ragstack_api_key: RAGStack API key for authentication
+            ragstack_client: Optional pre-built RAGStackClient instance
+            ingestion_service: Optional pre-built IngestionService instance
         """
         super().__init__()
         self.table = table
         self.ragstack_endpoint = ragstack_endpoint
         self.ragstack_api_key = ragstack_api_key
+        self.ragstack_client = ragstack_client
+        self.ingestion_service = ingestion_service
 
     def health_check(self) -> dict[str, Any]:
         """Check service health by verifying table access."""
@@ -54,23 +61,12 @@ class EdgeService(BaseService):
             # reload() fetches current table metadata from DynamoDB
             self.table.reload()
             status = self.table.table_status
-            return {
-                'healthy': status == 'ACTIVE',
-                'details': {'table_status': status}
-            }
+            return {'healthy': status == 'ACTIVE', 'details': {'table_status': status}}
         except Exception as e:
-            return {
-                'healthy': False,
-                'details': {'error': str(e)}
-            }
+            return {'healthy': False, 'details': {'error': str(e)}}
 
     def upsert_status(
-        self,
-        user_id: str,
-        profile_id: str,
-        status: str,
-        added_at: str | None = None,
-        messages: list | None = None
+        self, user_id: str, profile_id: str, status: str, added_at: str | None = None, messages: list | None = None
     ) -> dict[str, Any]:
         """
         Create or update edge status (idempotent upsert).
@@ -101,7 +97,7 @@ class EdgeService(BaseService):
                 'updatedAt': current_time,
                 'messages': messages or [],
                 'GSI1PK': f'USER#{user_id}',
-                'GSI1SK': f'STATUS#{status}#PROFILE#{profile_id_b64}'
+                'GSI1SK': f'STATUS#{status}#PROFILE#{profile_id_b64}',
             }
             if status == 'processed':
                 user_profile_edge['processedAt'] = current_time
@@ -113,22 +109,24 @@ class EdgeService(BaseService):
             self.table.meta.client.transact_write_items(
                 TransactItems=[
                     {'Put': {'TableName': table_name, 'Item': self._serialize_item(user_profile_edge)}},
-                    {'Update': {
-                        'TableName': table_name,
-                        'Key': {
-                            'PK': serializer.serialize(f'PROFILE#{profile_id_b64}'),
-                            'SK': serializer.serialize(f'USER#{user_id}')
-                        },
-                        'UpdateExpression': 'SET addedAt = if_not_exists(addedAt, :added), #status = :status, lastAttempt = :lastAttempt, updatedAt = :updated ADD attempts :inc',
-                        'ExpressionAttributeNames': {'#status': 'status'},
-                        'ExpressionAttributeValues': {
-                            ':added': serializer.serialize(added_at or current_time),
-                            ':status': serializer.serialize(status),
-                            ':lastAttempt': serializer.serialize(current_time),
-                            ':updated': serializer.serialize(current_time),
-                            ':inc': serializer.serialize(1)
+                    {
+                        'Update': {
+                            'TableName': table_name,
+                            'Key': {
+                                'PK': serializer.serialize(f'PROFILE#{profile_id_b64}'),
+                                'SK': serializer.serialize(f'USER#{user_id}'),
+                            },
+                            'UpdateExpression': 'SET addedAt = if_not_exists(addedAt, :added), #status = :status, lastAttempt = :lastAttempt, updatedAt = :updated ADD attempts :inc',
+                            'ExpressionAttributeNames': {'#status': 'status'},
+                            'ExpressionAttributeValues': {
+                                ':added': serializer.serialize(added_at or current_time),
+                                ':status': serializer.serialize(status),
+                                ':lastAttempt': serializer.serialize(current_time),
+                                ':updated': serializer.serialize(current_time),
+                                ':inc': serializer.serialize(1),
+                            },
                         }
-                    }}
+                    },
                 ]
             )
 
@@ -137,9 +135,7 @@ class EdgeService(BaseService):
             ragstack_error = None
 
             if status in INGESTION_TRIGGER_STATUSES:
-                ingestion_result = self._trigger_ragstack_ingestion(
-                    profile_id_b64, user_id
-                )
+                ingestion_result = self._trigger_ragstack_ingestion(profile_id_b64, user_id)
                 if ingestion_result.get('success'):
                     ragstack_ingested = True
                     self._update_ingestion_flag(user_id, profile_id_b64, current_time)
@@ -152,23 +148,17 @@ class EdgeService(BaseService):
                 'profileId': profile_id_b64,
                 'status': status,
                 'ragstack_ingested': ragstack_ingested,
-                'ragstack_error': ragstack_error
+                'ragstack_error': ragstack_error,
             }
 
         except ClientError as e:
-            logger.error(f"DynamoDB error in upsert_status: {e}")
+            logger.error(f'DynamoDB error in upsert_status: {e}')
             raise ExternalServiceError(
-                message='Failed to upsert edge',
-                service='DynamoDB',
-                original_error=str(e)
+                message='Failed to upsert edge', service='DynamoDB', original_error=str(e)
             ) from e
 
     def add_message(
-        self,
-        user_id: str,
-        profile_id_b64: str,
-        message: str,
-        message_type: str = 'outbound'
+        self, user_id: str, profile_id_b64: str, message: str, message_type: str = 'outbound'
     ) -> dict[str, Any]:
         """
         Add a message to an existing edge.
@@ -198,51 +188,33 @@ class EdgeService(BaseService):
             current_messages = existing.get('Item', {}).get('messages', [])
             if isinstance(current_messages, list) and len(current_messages) >= MAX_MESSAGES_PER_EDGE:
                 # Trim oldest messages to make room
-                trimmed = current_messages[-(MAX_MESSAGES_PER_EDGE - 1):]
-                trimmed.append({
-                    'content': message,
-                    'timestamp': current_time,
-                    'type': message_type
-                })
+                trimmed = current_messages[-(MAX_MESSAGES_PER_EDGE - 1) :]
+                trimmed.append({'content': message, 'timestamp': current_time, 'type': message_type})
                 self.table.update_item(
                     Key=key,
                     UpdateExpression='SET messages = :msgs, updatedAt = :updated_at',
-                    ExpressionAttributeValues={':msgs': trimmed, ':updated_at': current_time}
+                    ExpressionAttributeValues={':msgs': trimmed, ':updated_at': current_time},
                 )
             else:
                 self.table.update_item(
                     Key=key,
                     UpdateExpression='SET messages = list_append(if_not_exists(messages, :empty_list), :message), updatedAt = :updated_at',
                     ExpressionAttributeValues={
-                        ':message': [{
-                            'content': message,
-                            'timestamp': current_time,
-                            'type': message_type
-                        }],
+                        ':message': [{'content': message, 'timestamp': current_time, 'type': message_type}],
                         ':empty_list': [],
-                        ':updated_at': current_time
-                    }
+                        ':updated_at': current_time,
+                    },
                 )
 
-            return {
-                'success': True,
-                'message': 'Message added successfully',
-                'profileId': profile_id_b64
-            }
+            return {'success': True, 'message': 'Message added successfully', 'profileId': profile_id_b64}
 
         except ClientError as e:
-            logger.error(f"DynamoDB error in add_message: {e}")
+            logger.error(f'DynamoDB error in add_message: {e}')
             raise ExternalServiceError(
-                message='Failed to add message',
-                service='DynamoDB',
-                original_error=str(e)
+                message='Failed to add message', service='DynamoDB', original_error=str(e)
             ) from e
 
-    def get_connections_by_status(
-        self,
-        user_id: str,
-        status: str | None = None
-    ) -> dict[str, Any]:
+    def get_connections_by_status(self, user_id: str, status: str | None = None) -> dict[str, Any]:
         """
         Get user connections, optionally filtered by status.
 
@@ -258,18 +230,12 @@ class EdgeService(BaseService):
                 response = self.table.query(
                     IndexName='GSI1',
                     KeyConditionExpression='GSI1PK = :pk AND begins_with(GSI1SK, :sk)',
-                    ExpressionAttributeValues={
-                        ':pk': f'USER#{user_id}',
-                        ':sk': f'STATUS#{status}#'
-                    }
+                    ExpressionAttributeValues={':pk': f'USER#{user_id}', ':sk': f'STATUS#{status}#'},
                 )
             else:
                 response = self.table.query(
                     KeyConditionExpression='PK = :pk AND begins_with(SK, :sk)',
-                    ExpressionAttributeValues={
-                        ':pk': f'USER#{user_id}',
-                        ':sk': 'PROFILE#'
-                    }
+                    ExpressionAttributeValues={':pk': f'USER#{user_id}', ':sk': 'PROFILE#'},
                 )
 
             connections = []
@@ -279,30 +245,18 @@ class EdgeService(BaseService):
                     continue
 
                 profile_data = self._get_profile_metadata(profile_id)
-                connection = self._format_connection_object(
-                    profile_id, profile_data, edge_item
-                )
+                connection = self._format_connection_object(profile_id, profile_data, edge_item)
                 connections.append(connection)
 
-            return {
-                'success': True,
-                'connections': connections,
-                'count': len(connections)
-            }
+            return {'success': True, 'connections': connections, 'count': len(connections)}
 
         except ClientError as e:
-            logger.error(f"DynamoDB error in get_connections_by_status: {e}")
+            logger.error(f'DynamoDB error in get_connections_by_status: {e}')
             raise ExternalServiceError(
-                message='Failed to get connections',
-                service='DynamoDB',
-                original_error=str(e)
+                message='Failed to get connections', service='DynamoDB', original_error=str(e)
             ) from e
 
-    def get_messages(
-        self,
-        user_id: str,
-        profile_id_b64: str
-    ) -> dict[str, Any]:
+    def get_messages(self, user_id: str, profile_id_b64: str) -> dict[str, Any]:
         """
         Get message history for an edge.
 
@@ -314,45 +268,24 @@ class EdgeService(BaseService):
             dict with formatted messages list
         """
         try:
-            response = self.table.get_item(
-                Key={
-                    'PK': f'USER#{user_id}',
-                    'SK': f'PROFILE#{profile_id_b64}'
-                }
-            )
+            response = self.table.get_item(Key={'PK': f'USER#{user_id}', 'SK': f'PROFILE#{profile_id_b64}'})
 
             if 'Item' not in response:
-                return {
-                    'success': True,
-                    'messages': [],
-                    'count': 0
-                }
+                return {'success': True, 'messages': [], 'count': 0}
 
             edge_item = response['Item']
             raw_messages = edge_item.get('messages', [])
-            formatted_messages = self._format_messages(
-                raw_messages, profile_id_b64, edge_item
-            )
+            formatted_messages = self._format_messages(raw_messages, profile_id_b64, edge_item)
 
-            return {
-                'success': True,
-                'messages': formatted_messages,
-                'count': len(formatted_messages)
-            }
+            return {'success': True, 'messages': formatted_messages, 'count': len(formatted_messages)}
 
         except ClientError as e:
-            logger.error(f"DynamoDB error in get_messages: {e}")
+            logger.error(f'DynamoDB error in get_messages: {e}')
             raise ExternalServiceError(
-                message='Failed to get messages',
-                service='DynamoDB',
-                original_error=str(e)
+                message='Failed to get messages', service='DynamoDB', original_error=str(e)
             ) from e
 
-    def check_exists(
-        self,
-        user_id: str,
-        profile_id_b64: str
-    ) -> dict[str, Any]:
+    def check_exists(self, user_id: str, profile_id_b64: str) -> dict[str, Any]:
         """
         Check if an edge exists between user and profile.
 
@@ -364,12 +297,7 @@ class EdgeService(BaseService):
             dict with exists flag and edge data if exists
         """
         try:
-            response = self.table.get_item(
-                Key={
-                    'PK': f'USER#{user_id}',
-                    'SK': f'PROFILE#{profile_id_b64}'
-                }
-            )
+            response = self.table.get_item(Key={'PK': f'USER#{user_id}', 'SK': f'PROFILE#{profile_id_b64}'})
 
             edge_exists = 'Item' in response
             edge_data = response.get('Item', {}) if edge_exists else {}
@@ -382,17 +310,56 @@ class EdgeService(BaseService):
                     'status': edge_data.get('status'),
                     'addedAt': edge_data.get('addedAt'),
                     'updatedAt': edge_data.get('updatedAt'),
-                    'processedAt': edge_data.get('processedAt')
-                } if edge_exists else None
+                    'processedAt': edge_data.get('processedAt'),
+                }
+                if edge_exists
+                else None,
             }
 
         except ClientError as e:
-            logger.error(f"DynamoDB error in check_exists: {e}")
+            logger.error(f'DynamoDB error in check_exists: {e}')
             raise ExternalServiceError(
-                message='Failed to check edge existence',
-                service='DynamoDB',
-                original_error=str(e)
+                message='Failed to check edge existence', service='DynamoDB', original_error=str(e)
             ) from e
+
+    # =========================================================================
+    # RAGStack proxy operations
+    # =========================================================================
+
+    def ragstack_search(self, query: str, max_results: int = 100) -> dict[str, Any]:
+        """Search RAGStack for matching profiles."""
+        if not self.ragstack_client:
+            raise ExternalServiceError(
+                message='RAGStack not configured',
+                service='RAGStack',
+            )
+        results = self.ragstack_client.search(query, max_results)
+        return {'results': results, 'totalResults': len(results)}
+
+    def ragstack_ingest(
+        self,
+        profile_id: str,
+        markdown_content: str,
+        metadata: dict[str, Any],
+        user_id: str,
+    ) -> dict[str, Any]:
+        """Ingest a profile document into RAGStack."""
+        if not self.ingestion_service:
+            raise ExternalServiceError(
+                message='RAGStack not configured',
+                service='RAGStack',
+            )
+        metadata['user_id'] = user_id
+        return self.ingestion_service.ingest_profile(profile_id, markdown_content, metadata)
+
+    def ragstack_status(self, document_id: str) -> dict[str, Any]:
+        """Get ingestion status for a document."""
+        if not self.ragstack_client:
+            raise ExternalServiceError(
+                message='RAGStack not configured',
+                service='RAGStack',
+            )
+        return self.ragstack_client.get_document_status(document_id)
 
     # =========================================================================
     # Private helper methods
@@ -406,23 +373,13 @@ class EdgeService(BaseService):
     def _get_profile_metadata(self, profile_id: str) -> dict:
         """Fetch profile metadata from DynamoDB."""
         try:
-            response = self.table.get_item(
-                Key={
-                    'PK': f'PROFILE#{profile_id}',
-                    'SK': '#METADATA'
-                }
-            )
+            response = self.table.get_item(Key={'PK': f'PROFILE#{profile_id}', 'SK': '#METADATA'})
             return response.get('Item', {})
         except Exception as e:
-            logger.warning(f"Failed to fetch profile metadata: {e}")
+            logger.warning(f'Failed to fetch profile metadata: {e}')
             return {}
 
-    def _format_connection_object(
-        self,
-        profile_id: str,
-        profile_data: dict,
-        edge_item: dict
-    ) -> dict:
+    def _format_connection_object(self, profile_id: str, profile_data: dict, edge_item: dict) -> dict:
         """Format connection object for frontend consumption."""
         full_name = profile_data.get('name', '')
         name_parts = full_name.split(' ', 1) if full_name else ['', '']
@@ -435,9 +392,7 @@ class EdgeService(BaseService):
         # Use enum-based conversion likelihood
         conversion_likelihood = None
         if edge_item.get('status') == 'possible':
-            conversion_likelihood = self._calculate_conversion_likelihood(
-                profile_data, edge_item
-            )
+            conversion_likelihood = self._calculate_conversion_likelihood(profile_data, edge_item)
 
         return {
             'id': profile_id,
@@ -456,40 +411,25 @@ class EdgeService(BaseService):
             'last_action_summary': edge_item.get('lastActionSummary', ''),
             'status': edge_item.get('status', ''),
             'conversion_likelihood': conversion_likelihood,
-            'message_history': messages if isinstance(messages, list) else []
+            'message_history': messages if isinstance(messages, list) else [],
         }
 
-    def _calculate_conversion_likelihood(
-        self,
-        profile_data: dict,
-        edge_item: dict
-    ) -> str:
+    def _calculate_conversion_likelihood(self, profile_data: dict, edge_item: dict) -> str:
         """
         Calculate conversion likelihood using enum classification.
 
         Returns string enum value ('high', 'medium', 'low').
         """
         # Map edge_item fields to expected format
-        edge_data = {
-            'date_added': edge_item.get('addedAt'),
-            'connection_attempts': edge_item.get('attempts', 0)
-        }
+        edge_data = {'date_added': edge_item.get('addedAt'), 'connection_attempts': edge_item.get('attempts', 0)}
 
         # Map profile_data fields
-        profile = {
-            'headline': profile_data.get('headline'),
-            'summary': profile_data.get('summary')
-        }
+        profile = {'headline': profile_data.get('headline'), 'summary': profile_data.get('summary')}
 
         result = classify_conversion_likelihood(profile, edge_data)
         return result.value
 
-    def _format_messages(
-        self,
-        raw_messages: list,
-        profile_id: str,
-        edge_item: dict
-    ) -> list[dict]:
+    def _format_messages(self, raw_messages: list, profile_id: str, edge_item: dict) -> list[dict]:
         """Format raw messages for frontend consumption."""
         formatted = []
 
@@ -500,7 +440,7 @@ class EdgeService(BaseService):
                         'id': f'{profile_id}_{i}',
                         'content': msg,
                         'timestamp': edge_item.get('addedAt', ''),
-                        'sender': 'user'
+                        'sender': 'user',
                     }
                 elif isinstance(msg, dict):
                     sender = msg.get('sender', msg.get('type', 'user'))
@@ -513,37 +453,35 @@ class EdgeService(BaseService):
                         'id': msg.get('id', f'{profile_id}_{i}'),
                         'content': msg.get('content', str(msg)),
                         'timestamp': msg.get('timestamp', edge_item.get('addedAt', '')),
-                        'sender': sender
+                        'sender': sender,
                     }
                 else:
                     formatted_msg = {
                         'id': f'{profile_id}_{i}',
                         'content': str(msg),
                         'timestamp': edge_item.get('addedAt', ''),
-                        'sender': 'user'
+                        'sender': 'user',
                     }
 
                 formatted.append(formatted_msg)
 
             except Exception as e:
-                logger.warning(f"Error formatting message {i}: {e}")
-                formatted.append({
-                    'id': f'{profile_id}_{i}_error',
-                    'content': '[Message formatting error]',
-                    'timestamp': edge_item.get('addedAt', ''),
-                    'sender': 'user'
-                })
+                logger.warning(f'Error formatting message {i}: {e}')
+                formatted.append(
+                    {
+                        'id': f'{profile_id}_{i}_error',
+                        'content': '[Message formatting error]',
+                        'timestamp': edge_item.get('addedAt', ''),
+                        'sender': 'user',
+                    }
+                )
 
         return formatted
 
-    def _trigger_ragstack_ingestion(
-        self,
-        profile_id_b64: str,
-        user_id: str
-    ) -> dict:
+    def _trigger_ragstack_ingestion(self, profile_id_b64: str, user_id: str) -> dict:
         """Trigger RAGStack ingestion for a profile via direct HTTP call."""
         if not self.ragstack_endpoint or not self.ragstack_api_key:
-            logger.warning("RAGStack not configured, skipping ingestion")
+            logger.warning('RAGStack not configured, skipping ingestion')
             return {'success': False, 'error': 'RAGStack not configured'}
 
         try:
@@ -556,12 +494,13 @@ class EdgeService(BaseService):
             # Generate markdown
             try:
                 from utils.profile_markdown import generate_profile_markdown
+
                 markdown_content = generate_profile_markdown(profile_data)
             except ImportError as e:
-                logger.error(f"Failed to import profile_markdown: {e}")
+                logger.error(f'Failed to import profile_markdown: {e}')
                 return {'success': False, 'error': 'Markdown generator module not available'}
             except Exception as e:
-                logger.error(f"Error generating markdown: {e}")
+                logger.error(f'Error generating markdown: {e}')
                 return {'success': False, 'error': f'Markdown generation failed: {e}'}
 
             # Call RAGStack directly via shared client
@@ -573,7 +512,7 @@ class EdgeService(BaseService):
             result = ingestion_svc.ingest_profile(
                 profile_id=profile_id_b64,
                 markdown_content=markdown_content,
-                metadata={'user_id': user_id, 'source': 'edge_processing'}
+                metadata={'user_id': user_id, 'source': 'edge_processing'},
             )
 
             if result.get('status') in ('uploaded', 'indexed'):
@@ -582,27 +521,16 @@ class EdgeService(BaseService):
                 return {'success': False, 'error': result.get('error', 'Ingestion failed')}
 
         except Exception as e:
-            logger.error(f"Error triggering RAGStack ingestion: {e}")
+            logger.error(f'Error triggering RAGStack ingestion: {e}')
             return {'success': False, 'error': str(e)}
 
-    def _update_ingestion_flag(
-        self,
-        user_id: str,
-        profile_id_b64: str,
-        timestamp: str
-    ) -> None:
+    def _update_ingestion_flag(self, user_id: str, profile_id_b64: str, timestamp: str) -> None:
         """Update edge with RAGStack ingestion status."""
         try:
             self.table.update_item(
-                Key={
-                    'PK': f'USER#{user_id}',
-                    'SK': f'PROFILE#{profile_id_b64}'
-                },
+                Key={'PK': f'USER#{user_id}', 'SK': f'PROFILE#{profile_id_b64}'},
                 UpdateExpression='SET ragstack_ingested = :ingested, ragstack_ingested_at = :ingested_at',
-                ExpressionAttributeValues={
-                    ':ingested': True,
-                    ':ingested_at': timestamp
-                }
+                ExpressionAttributeValues={':ingested': True, ':ingested_at': timestamp},
             )
         except Exception as e:
-            logger.warning(f"Failed to update ingestion flag: {e}")
+            logger.warning(f'Failed to update ingestion flag: {e}')

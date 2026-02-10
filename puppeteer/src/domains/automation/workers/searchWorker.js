@@ -40,7 +40,7 @@ async function main() {
       companyName: state.companyName,
       resumeIndex: state.resumeIndex,
       recursionCount: state.recursionCount,
-      healPhase: state.healPhase
+      healPhase: state.healPhase,
     });
 
     // Decrypt credentials
@@ -79,17 +79,16 @@ async function main() {
     // For now, log error and exit non-zero since resumption not implemented
     logger.error('Search healing worker: resumption logic not implemented', {
       resumeIndex: state.resumeIndex,
-      companyName: state.companyName
+      companyName: state.companyName,
     });
 
     // Cleanup state file since we can't actually resume
     await cleanupStateFile(stateFile);
     process.exit(1);
-
   } catch (err) {
     logger.error('Search healing worker failed', {
       error: err.message,
-      stack: err.stack
+      stack: err.stack,
     });
     // Cleanup state file before exit
     await cleanupStateFile(stateFile);

@@ -20,12 +20,7 @@ vi.mock('@/shared/utils/logger', () => ({
   }),
 }));
 
-import {
-  transformErrorForUser,
-  getToastVariant,
-  ERROR_MESSAGES,
-  logError,
-} from './errorHandling';
+import { transformErrorForUser, getToastVariant, ERROR_MESSAGES, logError } from './errorHandling';
 import { ApiError } from '@/shared/services';
 
 describe('errorHandling', () => {

@@ -66,7 +66,7 @@ export class LinkedInNavigationService {
       const navigationTimeout = this.configManager.get('navigationTimeout', 30000);
       await session.goto(profileUrl, {
         waitUntil: 'domcontentloaded',
-        timeout: navigationTimeout
+        timeout: navigationTimeout,
       });
 
       // Wait for profile page to load completely
@@ -87,7 +87,6 @@ export class LinkedInNavigationService {
 
       logger.info(`Successfully navigated to profile: ${profileId}`);
       return true;
-
     } catch (error) {
       logger.error(`Failed to navigate to profile ${profileId}:`, error);
       await this.sessionManager.recordError(error);
@@ -107,7 +106,7 @@ export class LinkedInNavigationService {
         '[data-view-name="profile-top-card-verified-badge"]',
         '[data-view-name="profile-main-level"]',
         '[data-view-name="profile-self-view"]',
-        '[data-test-id="profile-top-card"]'
+        '[data-test-id="profile-top-card"]',
       ];
 
       for (const selector of profileIndicators) {
@@ -125,7 +124,6 @@ export class LinkedInNavigationService {
       // Check URL pattern as fallback
       const currentUrl = page.url();
       return currentUrl.includes('/in/') || currentUrl.includes('/profile/');
-
     } catch (error) {
       logger.debug('Profile page verification failed:', error.message);
       return false;
@@ -154,8 +152,12 @@ export class LinkedInNavigationService {
         const metrics = await page.evaluate(() => {
           const ready = document.readyState;
           const main = !!document.querySelector('main, [role="main"]');
-          const scaffold = !!document.querySelector('[data-view-name*="navigation-"]') || !!document.querySelector('header');
-          const nav = !!document.querySelector('header') || !!document.querySelector('[data-view-name="navigation-homepage"]');
+          const scaffold =
+            !!document.querySelector('[data-view-name*="navigation-"]') ||
+            !!document.querySelector('header');
+          const nav =
+            !!document.querySelector('header') ||
+            !!document.querySelector('[data-view-name="navigation-homepage"]');
           const anchors = document.querySelectorAll('a[href]')?.length || 0;
           const images = document.images?.length || 0;
           const height = document.body?.scrollHeight || 0;
@@ -164,7 +166,8 @@ export class LinkedInNavigationService {
           return { ready, main, scaffold, nav, anchors, images, height, isCheckpoint };
         });
 
-        const baseUiPresent = (metrics.main || metrics.scaffold || metrics.nav) && metrics.ready !== 'loading';
+        const baseUiPresent =
+          (metrics.main || metrics.scaffold || metrics.nav) && metrics.ready !== 'loading';
 
         if (
           lastMetrics &&
@@ -182,7 +185,7 @@ export class LinkedInNavigationService {
         }
 
         lastMetrics = metrics;
-        await new Promise(resolve => setTimeout(resolve, sampleIntervalMs));
+        await new Promise((resolve) => setTimeout(resolve, sampleIntervalMs));
       }
 
       // Fallback: ensure at least a key container exists
@@ -190,7 +193,7 @@ export class LinkedInNavigationService {
         session.waitForSelector('main', { timeout: 2000 }),
         session.waitForSelector('.scaffold-layout', { timeout: 2000 }),
         session.waitForSelector('[data-test-id]', { timeout: 2000 }),
-        new Promise(resolve => setTimeout(resolve, 2000))
+        new Promise((resolve) => setTimeout(resolve, 2000)),
       ]);
     } catch {
       logger.debug('LinkedIn page load heuristic finished without full stability; proceeding');
@@ -218,14 +221,19 @@ export class LinkedInNavigationService {
           imgs: document.images.length,
         }));
 
-        if (last && metrics.ready !== 'loading' && metrics.links === last.links && metrics.imgs === last.imgs) {
+        if (
+          last &&
+          metrics.ready !== 'loading' &&
+          metrics.links === last.links &&
+          metrics.imgs === last.imgs
+        ) {
           stable += 1;
           if (stable >= 3) return true;
         } else {
           stable = 0;
         }
         last = metrics;
-        await new Promise(resolve => setTimeout(resolve, sampleIntervalMs));
+        await new Promise((resolve) => setTimeout(resolve, sampleIntervalMs));
       }
     } catch (error) {
       logger.debug('Page stability monitoring failed', { error: error.message });
@@ -293,7 +301,7 @@ export class LinkedInNavigationService {
    * @param {number} ms - Milliseconds to delay
    */
   async delay(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }
 

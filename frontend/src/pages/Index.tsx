@@ -1,5 +1,5 @@
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { MessageSquare, Users, Zap, ArrowRight, CheckCircle, LogIn } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/features/auth';
@@ -23,19 +23,21 @@ const Index = () => {
   const features = [
     {
       icon: Users,
-      title: "Smart Connection Analysis",
-      description: "AI analyzes your LinkedIn connections' profiles to understand their interests and background"
+      title: 'Smart Connection Analysis',
+      description:
+        "AI analyzes your LinkedIn connections' profiles to understand their interests and background",
     },
     {
       icon: MessageSquare,
-      title: "Personalized Message Crafting",
-      description: "Generate meaningful, contextual conversation starters based on mutual interests and goals"
+      title: 'Personalized Message Crafting',
+      description:
+        'Generate meaningful, contextual conversation starters based on mutual interests and goals',
     },
     {
       icon: Zap,
-      title: "Topic-Focused Outreach",
-      description: "Define what you want to discuss and get tailored messages for each connection"
-    }
+      title: 'Topic-Focused Outreach',
+      description: 'Define what you want to discuss and get tailored messages for each connection',
+    },
   ];
 
   return (
@@ -52,20 +54,34 @@ const Index = () => {
               {user ? (
                 <>
                   <span className="text-white">Welcome, {user.firstName || user.email}</span>
-                  <Button onClick={handleGetStarted} className="bg-blue-600 hover:bg-blue-700 text-white">
+                  <Button
+                    onClick={handleGetStarted}
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                  >
                     Dashboard
                   </Button>
-                  <Button onClick={handleSignOut} variant="outline" className="bg-slate-700 border-white/20 text-white hover:bg-white/10">
+                  <Button
+                    onClick={handleSignOut}
+                    variant="outline"
+                    className="bg-slate-700 border-white/20 text-white hover:bg-white/10"
+                  >
                     Sign Out
                   </Button>
                 </>
               ) : (
                 <>
-                  <Button onClick={() => navigate('/auth')} variant="ghost" className="text-white hover:bg-white/10">
+                  <Button
+                    onClick={() => navigate('/auth')}
+                    variant="ghost"
+                    className="text-white hover:bg-white/10"
+                  >
                     <LogIn className="h-4 w-4 mr-2" />
                     Sign In
                   </Button>
-                  <Button onClick={handleGetStarted} className="bg-blue-600 hover:bg-blue-700 text-white">
+                  <Button
+                    onClick={handleGetStarted}
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                  >
                     Get Started
                   </Button>
                 </>
@@ -80,29 +96,32 @@ const Index = () => {
         <div className="text-center">
           <h1 className="text-5xl md:text-6xl font-bold text-white mb-6 leading-tight">
             Turn Your LinkedIn Network Into
-            <span className="bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent"> Meaningful Conversations</span>
+            <span className="bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+              {' '}
+              Meaningful Conversations
+            </span>
           </h1>
           <p className="text-xl text-slate-300 mb-8 max-w-3xl mx-auto">
-            AI-powered conversation starters that analyze your connections' profiles and craft personalized messages based on what you want to discuss.
+            AI-powered conversation starters that analyze your connections' profiles and craft
+            personalized messages based on what you want to discuss.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button 
+            <Button
               onClick={handleGetStarted}
-              size="lg" 
+              size="lg"
               className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-8 py-3 text-lg"
             >
               {user ? 'Go to Dashboard' : 'Start Networking Smarter'}
               <ArrowRight className="ml-2 h-5 w-5" />
             </Button>
-            
-            <Button 
-              variant="outline" 
+
+            <Button
+              variant="outline"
               size="lg"
               className="bg-slate-700 border-white/20 text-white hover:bg-white/10 px-8 py-3 text-lg"
             >
               See How It Works
             </Button>
-            
           </div>
         </div>
       </div>
@@ -120,7 +139,10 @@ const Index = () => {
 
         <div className="grid md:grid-cols-3 gap-8">
           {features.map((feature, index) => (
-            <Card key={index} className="bg-white/5 backdrop-blur-md border-white/10 hover:bg-white/10 transition-all duration-300">
+            <Card
+              key={index}
+              className="bg-white/5 backdrop-blur-md border-white/10 hover:bg-white/10 transition-all duration-300"
+            >
               <CardHeader>
                 <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-500 rounded-lg flex items-center justify-center mb-4">
                   <feature.icon className="h-6 w-6 text-white" />
@@ -147,10 +169,10 @@ const Index = () => {
               </h3>
               <div className="space-y-4">
                 {[
-                  "Personalized messages get 3x higher response rates",
-                  "Save hours of research time per connection",
-                  "Build authentic professional relationships",
-                  "Track conversation topics and outcomes"
+                  'Personalized messages get 3x higher response rates',
+                  'Save hours of research time per connection',
+                  'Build authentic professional relationships',
+                  'Track conversation topics and outcomes',
                 ].map((benefit, index) => (
                   <div key={index} className="flex items-center space-x-3">
                     <CheckCircle className="h-5 w-5 text-green-400 flex-shrink-0" />
@@ -171,10 +193,14 @@ const Index = () => {
                   </div>
                   <div className="bg-blue-600/20 rounded-lg p-4">
                     <p className="text-white text-sm">
-                      "Hi Sarah! I noticed your recent post about AI in product development. As someone working on similar challenges in the fintech space, I'd love to hear your thoughts on..."
+                      "Hi Sarah! I noticed your recent post about AI in product development. As
+                      someone working on similar challenges in the fintech space, I'd love to hear
+                      your thoughts on..."
                     </p>
                   </div>
-                  <div className="text-slate-400 text-xs">✨ Generated based on recent activity and mutual interests</div>
+                  <div className="text-slate-400 text-xs">
+                    ✨ Generated based on recent activity and mutual interests
+                  </div>
                 </div>
               </div>
             </div>
@@ -188,11 +214,12 @@ const Index = () => {
           Ready to Transform Your Networking?
         </h3>
         <p className="text-xl text-slate-300 mb-8 max-w-2xl mx-auto">
-          Join professionals who are building meaningful connections with AI-powered conversation starters.
+          Join professionals who are building meaningful connections with AI-powered conversation
+          starters.
         </p>
-        <Button 
+        <Button
           onClick={handleGetStarted}
-          size="lg" 
+          size="lg"
           className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-8 py-3 text-lg"
         >
           {user ? 'Go to Dashboard' : 'Get Started for Free'}
@@ -209,7 +236,10 @@ const Index = () => {
               <span className="text-white font-semibold">LinkedIn Advanced Search</span>
             </div>
             <div className="text-slate-400 text-sm text-center">
-              © 2025 LinkedIn Advanced Search. Some stuff from <a href="https://github.com/hatmanstack" className="text-red-400">Hatman</a>
+              © 2025 LinkedIn Advanced Search. Some stuff from{' '}
+              <a href="https://github.com/hatmanstack" className="text-red-400">
+                Hatman
+              </a>
             </div>
           </div>
         </div>

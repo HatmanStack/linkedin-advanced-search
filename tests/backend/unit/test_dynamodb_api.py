@@ -127,16 +127,13 @@ def test_cors_preflight_response(dynamodb_table_with_data, api_gateway_event_opt
     assert response['body'] == ''
 
 
-def test_get_user_settings_authenticated(api_gateway_event_get, lambda_context, dynamodb_api_module):
+def test_get_user_settings_authenticated(dynamodb_table_with_data, api_gateway_event_get, lambda_context, dynamodb_api_module):
     """Test that authenticated GET request returns proper response structure"""
-    # Note: This test verifies the Lambda responds properly to authenticated requests.
-    # The Lambda may return 200 (user found), 200 with empty settings (user not found),
-    # or 500 (DynamoDB error in test environment without mocked tables).
-    # Full mocking of module-level boto3 clients requires refactoring the Lambda code.
-    response = dynamodb_api_module.lambda_handler(api_gateway_event_get, lambda_context)
+    # Patch the service's table with the moto-mocked table (correct region)
+    with patch.object(dynamodb_api_module.service, 'table', dynamodb_table_with_data):
+        response = dynamodb_api_module.lambda_handler(api_gateway_event_get, lambda_context)
 
-    # Should process the request (not reject with 401)
-    assert response['statusCode'] in [200, 500]
+    assert response['statusCode'] == 200
     assert 'body' in response
     assert 'headers' in response
     # CORS headers should be present
@@ -195,8 +192,8 @@ def test_create_profile_operation(dynamodb_table_with_data, api_gateway_event_po
     """Test creating a new profile"""
     response = dynamodb_api_module.lambda_handler(api_gateway_event_post, lambda_context)
 
-    # Should return success or error with proper status code
-    assert response['statusCode'] in [200, 201, 400, 500]
+    # With mocked DynamoDB, expect success or validation error
+    assert response['statusCode'] in [200, 201, 400]
     assert 'body' in response
     body = json.loads(response['body'])
     assert isinstance(body, dict)
@@ -215,7 +212,7 @@ def test_update_user_settings_operation(dynamodb_table_with_data, api_gateway_ev
 
     response = dynamodb_api_module.lambda_handler(event, lambda_context)
 
-    assert response['statusCode'] in [200, 400, 500]
+    assert response['statusCode'] == 200
     body = json.loads(response['body'])
     assert isinstance(body, dict)
 
@@ -229,8 +226,8 @@ def test_invalid_operation(dynamodb_table_with_data, api_gateway_event_post, lam
 
     response = dynamodb_api_module.lambda_handler(event, lambda_context)
 
-    # Should return error or handle gracefully
-    assert response['statusCode'] in [400, 404, 500]
+    # Invalid operation should return client error
+    assert response['statusCode'] in [400, 404]
 
 
 def test_malformed_request_body(dynamodb_table_with_data, api_gateway_event_post, lambda_context, dynamodb_api_module):
@@ -240,7 +237,7 @@ def test_malformed_request_body(dynamodb_table_with_data, api_gateway_event_post
 
     response = dynamodb_api_module.lambda_handler(event, lambda_context)
 
-    # Should handle JSON parse error gracefully
+    # Malformed JSON should return 400 or 500 (unhandled parse error)
     assert response['statusCode'] in [400, 500]
 
 
@@ -267,9 +264,16 @@ def test_unknown_origin_cors(dynamodb_table_with_data, api_gateway_event_options
 
 def test_dynamodb_error_handling(dynamodb_table_with_data, api_gateway_event_get, lambda_context, dynamodb_api_module):
     """Test handling of DynamoDB errors"""
-    # Patch the module's TABLE_NAME to simulate DynamoDB error
-    with patch.object(dynamodb_api_module, 'TABLE_NAME', 'nonexistent-table'):
+    from botocore.exceptions import ClientError
+
+    # Patch the service's table to raise ClientError on get_item
+    with patch.object(dynamodb_api_module.service, 'table') as mock_table:
+        mock_table.get_item.side_effect = ClientError(
+            {'Error': {'Code': 'InternalServerError', 'Message': 'Test'}},
+            'GetItem'
+        )
         response = dynamodb_api_module.lambda_handler(api_gateway_event_get, lambda_context)
 
-        # Should handle DynamoDB error gracefully
-        assert response['statusCode'] in [500, 503]
+        assert response['statusCode'] == 500
+        body = json.loads(response['body'])
+        assert body['error'] == 'Database error'

@@ -25,7 +25,7 @@ export async function waitForHealAndRestoreAuthorization(sessionId) {
   const sessions = await loadSessions();
   sessions[sessionId] = {
     timestamp: Date.now(),
-    status: 'pending'
+    status: 'pending',
   };
   await saveSessions(sessions);
   logger.info(`Waiting for heal and restore authorization for session: ${sessionId}`);
@@ -43,14 +43,14 @@ export async function waitForHealAndRestoreAuthorization(sessionId) {
     const checkAuthorization = async () => {
       const sessions = await loadSessions();
       const session = sessions[sessionId];
-      
+
       if (!session) {
         // Session was deleted (authorized or timed out)
         clearTimeout(timeout);
         resolve();
         return;
       }
-      
+
       if (session.status === 'authorized') {
         // Clean up authorized session
         delete sessions[sessionId];
@@ -68,7 +68,7 @@ export async function waitForHealAndRestoreAuthorization(sessionId) {
         reject(new Error('Heal and restore cancelled'));
         return;
       }
-      
+
       // Check again in 1 second
       setTimeout(checkAuthorization, 1000);
     };
@@ -115,6 +115,6 @@ export async function getPendingAuthorizations() {
     .filter(([_, data]) => data.status === 'pending')
     .map(([sessionId, data]) => ({
       sessionId,
-      timestamp: data.timestamp
+      timestamp: data.timestamp,
     }));
 }

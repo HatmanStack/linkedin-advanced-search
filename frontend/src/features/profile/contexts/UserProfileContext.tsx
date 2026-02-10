@@ -14,12 +14,12 @@ interface UserProfileContextType {
   // LinkedIn credentials
   ciphertext: LinkedInCredentialsCiphertext;
   setCiphertext: (ciphertext: LinkedInCredentialsCiphertext) => void;
-  
+
   // General user profile
   userProfile: UserProfile | null;
   updateUserProfile: (updates: Partial<UserProfile>) => Promise<void>;
   refreshUserProfile: () => Promise<void>;
-  
+
   // Loading states
   isLoading: boolean;
 }
@@ -39,7 +39,7 @@ export const UserProfileProvider = ({ children }: { children: ReactNode }) => {
   // Fetch user profile from API
   const fetchUserProfile = async () => {
     if (!user) return;
-    
+
     setIsLoading(true);
     try {
       const response = await lambdaApiService.getUserProfile();
@@ -47,7 +47,7 @@ export const UserProfileProvider = ({ children }: { children: ReactNode }) => {
         success: response.success,
         hasData: !!response.data,
         hasCredentials: !!response.data?.linkedin_credentials,
-        error: response.error
+        error: response.error,
       });
       if (response.success && response.data) {
         setUserProfile(response.data);
@@ -58,10 +58,12 @@ export const UserProfileProvider = ({ children }: { children: ReactNode }) => {
           try {
             sessionStorage.setItem('li_credentials_ciphertext', response.data.linkedin_credentials);
           } catch {
-        // Ignore storage errors
-      }
+            // Ignore storage errors
+          }
         }
-        try { sessionStorage.setItem('profile_fetched', 'true'); } catch {
+        try {
+          sessionStorage.setItem('profile_fetched', 'true');
+        } catch {
           // Ignore storage errors
         }
       }
@@ -75,14 +77,16 @@ export const UserProfileProvider = ({ children }: { children: ReactNode }) => {
   // Update user profile
   const updateUserProfile = async (updates: Partial<UserProfile>) => {
     if (!user) return;
-    
+
     setIsLoading(true);
     try {
       const response = await lambdaApiService.updateUserProfile(updates);
       if (response.success) {
         // Refresh the profile to get updated data
         await fetchUserProfile();
-        try { sessionStorage.setItem('profile_fetched', 'true'); } catch {
+        try {
+          sessionStorage.setItem('profile_fetched', 'true');
+        } catch {
           // Ignore storage errors
         }
       } else {
@@ -109,9 +113,9 @@ export const UserProfileProvider = ({ children }: { children: ReactNode }) => {
       logger.debug('Loading credentials from sessionStorage', {
         hasStored: !!stored,
         startsWithPrefix: stored ? stored.startsWith('sealbox_x25519:b64:') : false,
-        length: stored ? stored.length : 0
+        length: stored ? stored.length : 0,
       });
-      if (stored && (stored.startsWith('sealbox_x25519:b64:'))) {
+      if (stored && stored.startsWith('sealbox_x25519:b64:')) {
         setCiphertextState(stored);
         logger.debug('Credentials loaded successfully');
       } else {
@@ -122,10 +126,18 @@ export const UserProfileProvider = ({ children }: { children: ReactNode }) => {
     }
 
     if (user) {
-      const alreadyFetched = (() => { try { return sessionStorage.getItem('profile_fetched') === 'true'; } catch { return false; } })();
+      const alreadyFetched = (() => {
+        try {
+          return sessionStorage.getItem('profile_fetched') === 'true';
+        } catch {
+          return false;
+        }
+      })();
       if (!alreadyFetched) {
         // Set flag BEFORE fetch to minimize race window with other components
-        try { sessionStorage.setItem('profile_fetched', 'true'); } catch {
+        try {
+          sessionStorage.setItem('profile_fetched', 'true');
+        } catch {
           // Ignore storage errors - still proceed with fetch
         }
         // Guarded fetch for non-dashboard entry points
@@ -136,38 +148,37 @@ export const UserProfileProvider = ({ children }: { children: ReactNode }) => {
   }, [user]);
 
   // Memoize the context value to prevent unnecessary re-renders
-  const contextValue = useMemo(() => ({
-    ciphertext,
-    setCiphertext: (value: LinkedInCredentialsCiphertext) => {
-      logger.debug('setCiphertext called', {
-        hasValue: !!value,
-        startsWithPrefix: value ? value.startsWith('sealbox_x25519:b64:') : false
-      });
-      setCiphertextState(value);
-      try {
-        if (value && value.startsWith('sealbox_x25519:b64:')) {
-          sessionStorage.setItem('li_credentials_ciphertext', value);
-          logger.debug('Credentials saved to sessionStorage');
-        } else {
-          sessionStorage.removeItem('li_credentials_ciphertext');
-          logger.debug('Credentials removed from sessionStorage');
+  const contextValue = useMemo(
+    () => ({
+      ciphertext,
+      setCiphertext: (value: LinkedInCredentialsCiphertext) => {
+        logger.debug('setCiphertext called', {
+          hasValue: !!value,
+          startsWithPrefix: value ? value.startsWith('sealbox_x25519:b64:') : false,
+        });
+        setCiphertextState(value);
+        try {
+          if (value && value.startsWith('sealbox_x25519:b64:')) {
+            sessionStorage.setItem('li_credentials_ciphertext', value);
+            logger.debug('Credentials saved to sessionStorage');
+          } else {
+            sessionStorage.removeItem('li_credentials_ciphertext');
+            logger.debug('Credentials removed from sessionStorage');
+          }
+        } catch {
+          // Ignore storage errors
         }
-      } catch {
-        // Ignore storage errors
-      }
-    },
-    userProfile,
-    updateUserProfile,
-    refreshUserProfile,
-    isLoading
+      },
+      userProfile,
+      updateUserProfile,
+      refreshUserProfile,
+      isLoading,
+    }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [ciphertext, userProfile, isLoading]);
-
-  return (
-    <UserProfileContext.Provider value={contextValue}>
-      {children}
-    </UserProfileContext.Provider>
+    [ciphertext, userProfile, isLoading]
   );
+
+  return <UserProfileContext.Provider value={contextValue}>{children}</UserProfileContext.Provider>;
 };
 
 export const useUserProfile = () => {

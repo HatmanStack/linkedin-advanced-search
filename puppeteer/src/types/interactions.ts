@@ -42,10 +42,10 @@ export interface ConnectionResult {
  * Connection status values.
  */
 export type ConnectionStatus =
-  | 'ally'        // Already connected (1st degree)
-  | 'outgoing'    // Pending request sent by user
-  | 'incoming'    // Pending request received
-  | 'sent'        // Just sent in this operation
+  | 'ally' // Already connected (1st degree)
+  | 'outgoing' // Pending request sent by user
+  | 'incoming' // Pending request received
+  | 'sent' // Just sent in this operation
   | 'not_connected'
   | 'unknown';
 

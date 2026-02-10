@@ -80,8 +80,8 @@ export class LinkedInContactService {
 
       // Wait for completion (with timeout)
       const finalJob = await this.ragstackService.waitForCompletion(job.jobId, {
-        pollInterval: 3000,  // 3 seconds
-        timeout: 180000,     // 3 minutes
+        pollInterval: 3000, // 3 seconds
+        timeout: 180000, // 3 minutes
       });
 
       const success = finalJob.status === 'COMPLETED';

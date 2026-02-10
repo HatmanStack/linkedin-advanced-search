@@ -5,22 +5,22 @@ import type { Connection } from '@/types';
 
 // Mock dependencies BEFORE importing hook
 vi.mock('@/features/auth', () => ({
-  useAuth: vi.fn(() => ({ user: { id: 'user-123' } }))
+  useAuth: vi.fn(() => ({ user: { id: 'user-123' } })),
 }));
 
 vi.mock('@/shared/hooks', () => ({
-  useToast: vi.fn(() => ({ toast: vi.fn() }))
+  useToast: vi.fn(() => ({ toast: vi.fn() })),
 }));
 
 vi.mock('@/shared/services', () => ({
   lambdaApiService: {
-    getConnectionsByStatus: vi.fn(() => Promise.resolve([]))
+    getConnectionsByStatus: vi.fn(() => Promise.resolve([])),
   },
-  ApiError: class ApiError extends Error {}
+  ApiError: class ApiError extends Error {},
 }));
 
 vi.mock('@/shared/utils/logger', () => ({
-  createLogger: () => ({ info: vi.fn(), error: vi.fn(), debug: vi.fn(), warn: vi.fn() })
+  createLogger: () => ({ info: vi.fn(), error: vi.fn(), debug: vi.fn(), warn: vi.fn() }),
 }));
 
 // Import hook AFTER mocks are set up
@@ -29,13 +29,47 @@ import { useAuth } from '@/features/auth';
 import { lambdaApiService } from '@/shared/services';
 
 const mockUseAuth = useAuth as ReturnType<typeof vi.fn>;
-const mockGetConnectionsByStatus = lambdaApiService.getConnectionsByStatus as ReturnType<typeof vi.fn>;
+const mockGetConnectionsByStatus = lambdaApiService.getConnectionsByStatus as ReturnType<
+  typeof vi.fn
+>;
 
 const mockConnections: Connection[] = [
-  { id: '1', first_name: 'John', last_name: 'Doe', status: 'ally', tags: ['tech'], position: 'Engineer', company: 'Test Corp' } as Connection,
-  { id: '2', first_name: 'Jane', last_name: 'Smith', status: 'incoming', tags: ['design'], position: 'Designer', company: 'Design Co' } as Connection,
-  { id: '3', first_name: 'Bob', last_name: 'Wilson', status: 'outgoing', tags: ['tech'], position: 'Manager', company: 'Big Corp' } as Connection,
-  { id: '4', first_name: 'Alice', last_name: 'Lee', status: 'possible', tags: [], position: 'PM', company: 'Startup Inc' } as Connection,
+  {
+    id: '1',
+    first_name: 'John',
+    last_name: 'Doe',
+    status: 'ally',
+    tags: ['tech'],
+    position: 'Engineer',
+    company: 'Test Corp',
+  } as Connection,
+  {
+    id: '2',
+    first_name: 'Jane',
+    last_name: 'Smith',
+    status: 'incoming',
+    tags: ['design'],
+    position: 'Designer',
+    company: 'Design Co',
+  } as Connection,
+  {
+    id: '3',
+    first_name: 'Bob',
+    last_name: 'Wilson',
+    status: 'outgoing',
+    tags: ['tech'],
+    position: 'Manager',
+    company: 'Big Corp',
+  } as Connection,
+  {
+    id: '4',
+    first_name: 'Alice',
+    last_name: 'Lee',
+    status: 'possible',
+    tags: [],
+    position: 'PM',
+    company: 'Startup Inc',
+  } as Connection,
 ];
 
 describe('useConnectionsManager', () => {
@@ -96,7 +130,7 @@ describe('useConnectionsManager', () => {
         incoming: 1,
         outgoing: 1,
         ally: 1,
-        total: 3
+        total: 3,
       });
     });
   });
@@ -113,9 +147,11 @@ describe('useConnectionsManager', () => {
 
       // 'possible' should be excluded from 'all'
       expect(result.current.filteredConnections.length).toBe(3);
-      expect(result.current.filteredConnections.every(
-        (c: Connection) => ['incoming', 'outgoing', 'ally'].includes(c.status)
-      )).toBe(true);
+      expect(
+        result.current.filteredConnections.every((c: Connection) =>
+          ['incoming', 'outgoing', 'ally'].includes(c.status)
+        )
+      ).toBe(true);
     });
 
     it('filters by specific status', async () => {

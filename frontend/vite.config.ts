@@ -19,6 +19,27 @@ export default defineConfig({
     global: 'globalThis',
     'process.env': 'import.meta.env'
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          'vendor-query': ['@tanstack/react-query'],
+          'vendor-auth': ['amazon-cognito-identity-js', 'libsodium-wrappers-sumo'],
+          'vendor-ui': [
+            '@radix-ui/react-alert-dialog', '@radix-ui/react-checkbox',
+            '@radix-ui/react-dialog', '@radix-ui/react-label',
+            '@radix-ui/react-popover', '@radix-ui/react-progress',
+            '@radix-ui/react-scroll-area', '@radix-ui/react-select',
+            '@radix-ui/react-separator', '@radix-ui/react-slot',
+            '@radix-ui/react-tabs', '@radix-ui/react-toast',
+            '@radix-ui/react-tooltip',
+          ],
+          'vendor-markdown': ['react-markdown', 'remark-gfm'],
+        },
+      },
+    },
+  },
   optimizeDeps: {
     include: ['amazon-cognito-identity-js']
   },

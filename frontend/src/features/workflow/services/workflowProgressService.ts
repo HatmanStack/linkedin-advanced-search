@@ -68,7 +68,7 @@ export type CompletionCallback = (stats: WorkflowCompletionStats) => void;
 
 /**
  * Service for tracking and managing workflow progress during message generation
- * 
+ *
  * This service handles progress tracking, connection processing state,
  * completion notifications, and workflow reset functionality.
  */
@@ -97,7 +97,7 @@ export class WorkflowProgressService {
 
   /**
    * Initialize workflow with connections to process
-   * 
+   *
    * @param connections - Array of connections to process
    */
   initializeWorkflow(connections: Connection[]): void {
@@ -113,7 +113,7 @@ export class WorkflowProgressService {
 
   /**
    * Start processing a specific connection
-   * 
+   *
    * @param connection - Connection being processed
    * @param index - Index of the connection in the workflow
    */
@@ -131,7 +131,7 @@ export class WorkflowProgressService {
 
   /**
    * Mark connection as successfully processed
-   * 
+   *
    * @param connectionId - ID of the processed connection
    */
   markConnectionSuccess(connectionId: string): void {
@@ -145,7 +145,7 @@ export class WorkflowProgressService {
 
   /**
    * Mark connection as failed
-   * 
+   *
    * @param connectionId - ID of the failed connection
    * @param errorMessage - Error message for the failure
    */
@@ -161,7 +161,7 @@ export class WorkflowProgressService {
 
   /**
    * Mark connection as skipped
-   * 
+   *
    * @param connectionId - ID of the skipped connection
    */
   markConnectionSkipped(connectionId: string): void {
@@ -222,7 +222,8 @@ export class WorkflowProgressService {
       return 0;
     }
 
-    const completed = this.progressState.processedConnections.length +
+    const completed =
+      this.progressState.processedConnections.length +
       this.progressState.failedConnections.length +
       this.progressState.skippedConnections.length;
 
@@ -252,7 +253,7 @@ export class WorkflowProgressService {
 
   /**
    * Subscribe to progress updates
-   * 
+   *
    * @param callback - Function to call on progress updates
    * @returns Unsubscribe function
    */
@@ -269,7 +270,7 @@ export class WorkflowProgressService {
 
   /**
    * Subscribe to completion notifications
-   * 
+   *
    * @param callback - Function to call on workflow completion
    * @returns Unsubscribe function
    */
@@ -292,7 +293,8 @@ export class WorkflowProgressService {
       return undefined;
     }
 
-    const completedConnections = this.progressState.processedConnections.length +
+    const completedConnections =
+      this.progressState.processedConnections.length +
       this.progressState.failedConnections.length +
       this.progressState.skippedConnections.length;
 
@@ -311,7 +313,8 @@ export class WorkflowProgressService {
    * Check if workflow is completed and notify callbacks
    */
   private checkWorkflowCompletion(): void {
-    const totalProcessed = this.progressState.processedConnections.length +
+    const totalProcessed =
+      this.progressState.processedConnections.length +
       this.progressState.failedConnections.length +
       this.progressState.skippedConnections.length;
 
@@ -334,7 +337,7 @@ export class WorkflowProgressService {
    * Notify all progress update callbacks
    */
   private notifyProgressUpdate(): void {
-    this.progressCallbacks.forEach(callback => {
+    this.progressCallbacks.forEach((callback) => {
       try {
         callback(this.getProgressState());
       } catch (error) {
@@ -349,7 +352,7 @@ export class WorkflowProgressService {
   private notifyCompletion(): void {
     const stats = this.getCompletionStats();
 
-    this.completionCallbacks.forEach(callback => {
+    this.completionCallbacks.forEach((callback) => {
       try {
         callback(stats);
       } catch (error) {
@@ -371,9 +374,7 @@ export class WorkflowProgressService {
       ? Math.round((Date.now() - this.progressState.startTime) / 1000)
       : 0;
 
-    const successRate = totalProcessed > 0
-      ? Math.round((successful / totalProcessed) * 100)
-      : 0;
+    const successRate = totalProcessed > 0 ? Math.round((successful / totalProcessed) * 100) : 0;
 
     return {
       totalProcessed,

@@ -1,4 +1,5 @@
 """Custom exceptions and error handling utilities."""
+
 from .exceptions import (
     AuthorizationError,
     ConfigurationError,

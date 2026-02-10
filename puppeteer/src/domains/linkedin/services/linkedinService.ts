@@ -5,7 +5,6 @@ import DynamoDBService from '../../storage/services/dynamoDBService.js';
 import LinkedInContactService from './linkedinContactService.js';
 import { decryptSealboxB64Tag } from '#utils/crypto.js';
 import type { PuppeteerService } from '../../automation/services/puppeteerService.js';
-import type { Page } from 'puppeteer';
 
 /**
  * Connection type options
@@ -71,7 +70,11 @@ export class LinkedInService {
       let loginPassword = password;
 
       // Just-in-time decryption if plaintext not provided
-      if ((!loginUsername || !loginPassword) && typeof credentialsCiphertext === 'string' && credentialsCiphertext.startsWith('sealbox_x25519:b64:')) {
+      if (
+        (!loginUsername || !loginPassword) &&
+        typeof credentialsCiphertext === 'string' &&
+        credentialsCiphertext.startsWith('sealbox_x25519:b64:')
+      ) {
         try {
           const decrypted = await decryptSealboxB64Tag(credentialsCiphertext);
           if (decrypted) {
@@ -81,7 +84,10 @@ export class LinkedInService {
           }
         } catch (err) {
           const error = err as Error;
-          logger.error('Failed to decrypt LinkedIn credentials for login', { error: error.message, stack: error.stack });
+          logger.error('Failed to decrypt LinkedIn credentials for login', {
+            error: error.message,
+            stack: error.stack,
+          });
           throw new Error(`Credential decryption failed: ${error.message}`);
         }
       }
@@ -115,7 +121,9 @@ export class LinkedInService {
       }
 
       if (recursion) {
-        logger.warn('Recursion detected: repeated login/redirect loop during authentication. If using 2FA, consider disabling it or enabling an automated 2FA bypass for this flow.');
+        logger.warn(
+          'Recursion detected: repeated login/redirect loop during authentication. If using 2FA, consider disabling it or enabling an automated 2FA bypass for this flow.'
+        );
       }
 
       // Post-login: do a short readiness probe instead of long navigation waits
@@ -124,12 +132,14 @@ export class LinkedInService {
         throw new Error('Browser page not available');
       }
 
-      const shortCapMs = Math.min(8000, (config.timeouts?.navigation || 15000));
+      const shortCapMs = Math.min(8000, config.timeouts?.navigation || 15000);
       const start = Date.now();
       try {
         await Promise.race([
           page.waitForFunction(() => document.readyState === 'complete', { timeout: shortCapMs }),
-          page.waitForSelector('header, [data-view-name="navigation-homepage"]', { timeout: shortCapMs / 2 })
+          page.waitForSelector('header, [data-view-name="navigation-homepage"]', {
+            timeout: shortCapMs / 2,
+          }),
         ]);
       } catch {
         // Intentionally swallowed: LinkedIn is an SPA that may not trigger traditional
@@ -144,15 +154,17 @@ export class LinkedInService {
         '[data-view-name="navigation-homepage"]',
         '[data-view-name="identity-module"]',
         '[data-view-name="identity-self-profile"]',
-        'header'
+        'header',
       ].join(', ');
 
       // Timeout of 0 means "wait indefinitely" - this is intentional to allow users
       // to manually complete 2FA/CAPTCHA challenges.
-      const loginWaitMs = (config.timeouts?.login ?? 0);
+      const loginWaitMs = config.timeouts?.login ?? 0;
       try {
         await page.waitForSelector(homepageSelector, { visible: true, timeout: loginWaitMs });
-        logger.info('Homepage element detected after login; security challenge (if any) likely resolved.');
+        logger.info(
+          'Homepage element detected after login; security challenge (if any) likely resolved.'
+        );
       } catch (e) {
         logger.error('Homepage selector did not appear within the configured login timeout.', e);
         throw e;
@@ -224,7 +236,6 @@ export class LinkedInService {
       }
 
       return extractedCompanyNumber;
-
     } catch (error) {
       logger.error(`Failed to extract Company ID for ${companyName}:`, error);
       throw error;
@@ -274,10 +285,9 @@ export class LinkedInService {
       // Wait for URL to update with geo parameter
       let extractedGeoNumber: string | null = null;
       try {
-        await page.waitForFunction(
-          () => /geoUrn=/.test(decodeURIComponent(window.location.href)),
-          { timeout: 10000 }
-        );
+        await page.waitForFunction(() => /geoUrn=/.test(decodeURIComponent(window.location.href)), {
+          timeout: 10000,
+        });
         const currentUrl = decodeURIComponent(page.url());
         const geoMatch = currentUrl.match(/geoUrn=\["?(\d+)"?\]/);
         extractedGeoNumber = geoMatch ? geoMatch[1] : null;
@@ -292,7 +302,6 @@ export class LinkedInService {
       }
 
       return extractedGeoNumber;
-
     } catch (error) {
       logger.error('Failed to apply location filter:', error);
       throw error;
@@ -326,7 +335,7 @@ export class LinkedInService {
     try {
       const clicked = await page.evaluate((name: string) => {
         const elements = Array.from(document.querySelectorAll('button, label'));
-        const match = elements.find(el => {
+        const match = elements.find((el) => {
           const text = el.textContent?.trim().toLowerCase() ?? '';
           return text.includes(name.toLowerCase());
         });
@@ -395,26 +404,30 @@ export class LinkedInService {
     for (const selector of suggestionSelectors) {
       try {
         await page.waitForSelector(selector, { timeout: 5000 });
-        const clicked = await page.evaluate((sel: string, text: string) => {
-          const items = Array.from(document.querySelectorAll(sel));
-          const exactMatch = items.find(item =>
-            item.textContent?.trim().toLowerCase() === text.toLowerCase()
-          );
-          const partialMatch = items.find(item =>
-            item.textContent?.trim().toLowerCase().includes(text.toLowerCase())
-          );
-          const target = exactMatch || partialMatch;
-          if (target) {
-            const input = target.querySelector('input') as HTMLInputElement | null;
-            if (input) {
-              input.click();
-            } else {
-              (target as HTMLElement).click();
+        const clicked = await page.evaluate(
+          (sel: string, text: string) => {
+            const items = Array.from(document.querySelectorAll(sel));
+            const exactMatch = items.find(
+              (item) => item.textContent?.trim().toLowerCase() === text.toLowerCase()
+            );
+            const partialMatch = items.find((item) =>
+              item.textContent?.trim().toLowerCase().includes(text.toLowerCase())
+            );
+            const target = exactMatch || partialMatch;
+            if (target) {
+              const input = target.querySelector('input') as HTMLInputElement | null;
+              if (input) {
+                input.click();
+              } else {
+                (target as HTMLElement).click();
+              }
+              return true;
             }
-            return true;
-          }
-          return false;
-        }, selector, searchText);
+            return false;
+          },
+          selector,
+          searchText
+        );
 
         if (clicked) {
           logger.debug(`Selected suggestion for "${searchText}" with: ${selector}`);
@@ -458,7 +471,7 @@ export class LinkedInService {
     try {
       const clicked = await page.evaluate(() => {
         const buttons = Array.from(document.querySelectorAll('button'));
-        const btn = buttons.find(b => {
+        const btn = buttons.find((b) => {
           const text = b.textContent?.trim().toLowerCase() ?? '';
           return text.includes('show results') || text.includes('apply');
         });
@@ -531,7 +544,10 @@ export class LinkedInService {
     }
   }
 
-  async analyzeContactActivity(profileId: string, jwtToken: string): Promise<ContactAnalysisResult> {
+  async analyzeContactActivity(
+    profileId: string,
+    jwtToken: string
+  ): Promise<ContactAnalysisResult> {
     try {
       logger.info('Starting contact activity analysis', { profileId });
       this.dynamoDBService.setAuthToken(jwtToken);
@@ -542,7 +558,7 @@ export class LinkedInService {
         return {
           skipped: true,
           reason: 'Profile was updated recently',
-          profileId
+          profileId,
         };
       }
 
@@ -569,7 +585,9 @@ export class LinkedInService {
       let score = 0;
       const totalCounts: ActivityCounts = { hour: 0, day: 0, week: 0 };
       const { recencyHours, recencyDays, recencyWeeks, historyToCheck } = config.linkedin;
-      logger.debug(`Recency settings - Hours: ${recencyHours}, Days: ${recencyDays}, Weeks: ${recencyWeeks}`);
+      logger.debug(
+        `Recency settings - Hours: ${recencyHours}, Days: ${recencyDays}, Weeks: ${recencyWeeks}`
+      );
       const countedSet = new Set<string>();
 
       for (let i = 0; i < historyToCheck; i++) {
@@ -581,9 +599,11 @@ export class LinkedInService {
             const timeframes: Record<string, RegExp> = {
               hour: /\b([1-9]|1[0-9]|2[0-3])h\b/i,
               day: /\b([1-6])d\b/i,
-              week: /\b([1-4])w\b/i
+              week: /\b([1-4])w\b/i,
             };
-            const elements = Array.from(document.querySelectorAll('span[aria-hidden="true"], p[componentkey]'));
+            const elements = Array.from(
+              document.querySelectorAll('span[aria-hidden="true"], p[componentkey]')
+            );
             const updatedCounts = { ...existingCounts };
             const newCounted: string[] = [];
 
@@ -608,9 +628,10 @@ export class LinkedInService {
         Object.assign(totalCounts, result.updatedCounts);
         result.newCounted.forEach((key: string) => countedSet.add(key));
 
-        score = (totalCounts.day * recencyDays) +
-          (totalCounts.hour * recencyHours) +
-          (totalCounts.week * recencyWeeks);
+        score =
+          totalCounts.day * recencyDays +
+          totalCounts.hour * recencyHours +
+          totalCounts.week * recencyWeeks;
 
         logger.debug(`Contact ${profileId} - Iteration ${i + 1}, Score: ${score}`);
 
@@ -643,7 +664,10 @@ export class LinkedInService {
   /**
    * Scroll to load connections with intelligent detection of when to stop
    */
-  async scrollToLoadConnections(connectionType: ConnectionType, maxScrolls: number = 5): Promise<number> {
+  async scrollToLoadConnections(
+    connectionType: ConnectionType,
+    maxScrolls: number = 5
+  ): Promise<number> {
     const page = this.puppeteer.getPage();
     if (!page) {
       throw new Error('Browser page not available');
@@ -653,7 +677,9 @@ export class LinkedInService {
     let stableCount = 0;
     const stableLimit = 5;
 
-    logger.info(`Starting intelligent scroll for ${connectionType} connections (max ${maxScrolls} scrolls)`);
+    logger.info(
+      `Starting intelligent scroll for ${connectionType} connections (max ${maxScrolls} scrolls)`
+    );
 
     for (let i = 0; i < maxScrolls; i++) {
       try {
@@ -662,11 +688,11 @@ export class LinkedInService {
             'a[href*="/in/"]',
             '[data-view-name="connections-profile"]',
             '[data-view-name="people-search-result"]',
-            '[data-test-id="connection-card"]'
+            '[data-test-id="connection-card"]',
           ];
 
           let totalCount = 0;
-          selectors.forEach(selector => {
+          selectors.forEach((selector) => {
             const elements = document.querySelectorAll(selector);
             totalCount = Math.max(totalCount, elements.length);
           });
@@ -675,12 +701,16 @@ export class LinkedInService {
         });
 
         if (currentConnectionCount > previousConnectionCount) {
-          logger.debug(`Scroll ${i + 1}: Found ${currentConnectionCount} connections (+${currentConnectionCount - previousConnectionCount})`);
+          logger.debug(
+            `Scroll ${i + 1}: Found ${currentConnectionCount} connections (+${currentConnectionCount - previousConnectionCount})`
+          );
           previousConnectionCount = currentConnectionCount;
           stableCount = 0;
         } else {
           stableCount++;
-          logger.debug(`Scroll ${i + 1}: No new connections found (${currentConnectionCount} total, stable count: ${stableCount})`);
+          logger.debug(
+            `Scroll ${i + 1}: No new connections found (${currentConnectionCount} total, stable count: ${stableCount})`
+          );
         }
 
         if (stableCount >= stableLimit) {
@@ -690,7 +720,6 @@ export class LinkedInService {
 
         await page.mouse.wheel({ deltaY: 1000 });
         await RandomHelpers.randomDelay(800, 1500);
-
       } catch (err) {
         const error = err as Error;
         logger.warn(`Error during scroll ${i + 1}:`, error.message);
@@ -706,15 +735,12 @@ export class LinkedInService {
    * Generic method to get connections from LinkedIn
    */
   async getConnections(options: GetConnectionsOptions = {}): Promise<string[]> {
-    const {
-      connectionType = 'ally',
-      maxScrolls = 5
-    } = options;
+    const { connectionType = 'ally', maxScrolls = 5 } = options;
 
     try {
       logger.info(`Getting ${connectionType} connections`, {
         connectionType,
-        maxScrolls
+        maxScrolls,
       });
 
       let targetUrl: string;
@@ -742,12 +768,11 @@ export class LinkedInService {
       logger.info(`Extracted ${profileIds.length} ${connectionType} connections`);
 
       if (profileIds.length > 0) {
-        const sampleIds = profileIds.slice(0, 3).map(id => id.substring(0, 5) + '...');
+        const sampleIds = profileIds.slice(0, 3).map((id) => id.substring(0, 5) + '...');
         logger.debug(`Sample profile IDs: ${sampleIds.join(', ')}`);
       }
 
       return profileIds;
-
     } catch (error) {
       logger.error(`Failed to get ${connectionType} connections:`, error);
       throw error;

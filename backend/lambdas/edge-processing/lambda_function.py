@@ -1,4 +1,5 @@
 """LinkedIn Edge Management Lambda - Routes edge and RAGStack operations."""
+
 import json
 import logging
 import os
@@ -15,8 +16,37 @@ table = boto3.resource('dynamodb').Table(os.environ.get('DYNAMODB_TABLE_NAME', '
 RAGSTACK_GRAPHQL_ENDPOINT = os.environ.get('RAGSTACK_GRAPHQL_ENDPOINT', '')
 RAGSTACK_API_KEY = os.environ.get('RAGSTACK_API_KEY', '')
 
-HEADERS = {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*',
-           'Access-Control-Allow-Headers': 'Content-Type,Authorization', 'Access-Control-Allow-Methods': 'POST,OPTIONS'}
+# Module-level RAGStack clients for warm container reuse
+_ragstack_client = None
+_ingestion_service = None
+
+if RAGSTACK_GRAPHQL_ENDPOINT and RAGSTACK_API_KEY:
+    from shared_services.ingestion_service import IngestionService
+    from shared_services.ragstack_client import RAGStackClient
+
+    _ragstack_client = RAGStackClient(RAGSTACK_GRAPHQL_ENDPOINT, RAGSTACK_API_KEY)
+    _ingestion_service = IngestionService(_ragstack_client)
+
+# CORS configuration
+ALLOWED_ORIGINS_ENV = os.environ.get('ALLOWED_ORIGINS', 'http://localhost:5173')
+ALLOWED_ORIGINS = [o.strip() for o in ALLOWED_ORIGINS_ENV.split(',') if o.strip()]
+
+BASE_HEADERS = {
+    'Content-Type': 'application/json',
+    'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+    'Access-Control-Allow-Methods': 'POST,OPTIONS',
+}
+
+
+def _get_origin_from_event(event):
+    headers = event.get('headers') or {}
+    return headers.get('origin') or headers.get('Origin')
+
+
+def _cors_headers(event):
+    origin = _get_origin_from_event(event)
+    allow_origin = origin if origin in ALLOWED_ORIGINS else (ALLOWED_ORIGINS[0] if ALLOWED_ORIGINS else '*')
+    return {**BASE_HEADERS, 'Access-Control-Allow-Origin': allow_origin, 'Vary': 'Origin'}
 
 
 def _sanitize_request_context(request_context):
@@ -30,7 +60,9 @@ def _sanitize_request_context(request_context):
             sanitized[key] = '[REDACTED]'
         elif isinstance(value, dict):
             sanitized[key] = {
-                k: '[REDACTED]' if any(s in k.lower() for s in ('token', 'authorization', 'claim', 'secret', 'credential')) else v
+                k: '[REDACTED]'
+                if any(s in k.lower() for s in ('token', 'authorization', 'claim', 'secret', 'credential'))
+                else v
                 for k, v in value.items()
             }
         else:
@@ -38,8 +70,17 @@ def _sanitize_request_context(request_context):
     return sanitized
 
 
-def _resp(code, body):
-    return {'statusCode': code, 'headers': HEADERS, 'body': json.dumps(body)}
+def _resp(code, body, event=None):
+    headers = (
+        _cors_headers(event)
+        if event
+        else {
+            **BASE_HEADERS,
+            'Access-Control-Allow-Origin': ALLOWED_ORIGINS[0] if ALLOWED_ORIGINS else '*',
+            'Vary': 'Origin',
+        }
+    )
+    return {'statusCode': code, 'headers': headers, 'body': json.dumps(body)}
 
 
 def _get_user_id(event):
@@ -56,117 +97,138 @@ def _get_user_id(event):
     return None
 
 
-def _handle_ragstack(body, user_id):
-    """Handle /ragstack route - search and ingest operations."""
-    if not RAGSTACK_GRAPHQL_ENDPOINT or not RAGSTACK_API_KEY:
-        return _resp(503, {'error': 'RAGStack not configured'})
+def _handle_ragstack(body, user_id, svc, event=None):
+    """Handle /ragstack route - thin dispatcher to EdgeService RAGStack methods."""
+    if not svc.ragstack_client:
+        return _resp(503, {'error': 'RAGStack not configured'}, event)
 
     operation = body.get('operation')
 
     if operation == 'search':
-        from shared_services.ragstack_client import RAGStackClient
-        client = RAGStackClient(RAGSTACK_GRAPHQL_ENDPOINT, RAGSTACK_API_KEY)
         query = body.get('query', '')
         if not query:
-            return _resp(400, {'error': 'query is required'})
+            return _resp(400, {'error': 'query is required'}, event)
         try:
             max_results = min(int(body.get('maxResults', 100)), 200)
         except (TypeError, ValueError):
-            return _resp(400, {'error': 'maxResults must be a number'})
-        results = client.search(query, max_results)
-        return _resp(200, {'results': results, 'totalResults': len(results)})
+            return _resp(400, {'error': 'maxResults must be a number'}, event)
+        result = svc.ragstack_search(query, max_results)
+        return _resp(200, result, event)
 
     elif operation == 'ingest':
-        from shared_services.ingestion_service import IngestionService
-        from shared_services.ragstack_client import RAGStackClient
-        client = RAGStackClient(RAGSTACK_GRAPHQL_ENDPOINT, RAGSTACK_API_KEY)
-        svc = IngestionService(client)
         profile_id = body.get('profileId')
         markdown_content = body.get('markdownContent')
         metadata = body.get('metadata') or {}
         if not isinstance(metadata, dict):
-            return _resp(400, {'error': 'metadata must be an object'})
+            return _resp(400, {'error': 'metadata must be an object'}, event)
         if not profile_id:
-            return _resp(400, {'error': 'profileId is required'})
+            return _resp(400, {'error': 'profileId is required'}, event)
         if not markdown_content:
-            return _resp(400, {'error': 'markdownContent is required'})
-        metadata['user_id'] = user_id
-        result = svc.ingest_profile(profile_id, markdown_content, metadata)
-        return _resp(200, result)
+            return _resp(400, {'error': 'markdownContent is required'}, event)
+        result = svc.ragstack_ingest(profile_id, markdown_content, metadata, user_id)
+        return _resp(200, result, event)
 
     elif operation == 'status':
-        from shared_services.ragstack_client import RAGStackClient
-        client = RAGStackClient(RAGSTACK_GRAPHQL_ENDPOINT, RAGSTACK_API_KEY)
         document_id = body.get('documentId')
         if not document_id:
-            return _resp(400, {'error': 'documentId is required'})
-        status = client.get_document_status(document_id)
-        return _resp(200, status)
+            return _resp(400, {'error': 'documentId is required'}, event)
+        result = svc.ragstack_status(document_id)
+        return _resp(200, result, event)
 
     else:
-        return _resp(400, {'error': f'Unsupported ragstack operation: {operation}'})
+        return _resp(400, {'error': f'Unsupported ragstack operation: {operation}'}, event)
 
 
 def lambda_handler(event, context):
     """Route edge operations to EdgeService."""
     from shared_services.observability import setup_correlation_context
+
     setup_correlation_context(event, context)
 
     # Debug logging
-    logger.info(f"Event keys: {list(event.keys())}")
-    logger.info(f"Request context: {json.dumps(_sanitize_request_context(event.get('requestContext', {})), default=str)}")
+    logger.info(f'Event keys: {list(event.keys())}')
+    logger.info(
+        f'Request context: {json.dumps(_sanitize_request_context(event.get("requestContext", {})), default=str)}'
+    )
 
     # Handle CORS preflight
     if event.get('requestContext', {}).get('http', {}).get('method') == 'OPTIONS':
-        return _resp(200, {'message': 'OK'})
+        return _resp(200, {'message': 'OK'}, event)
 
     try:
-        body = json.loads(event.get('body', '{}')) if isinstance(event.get('body'), str) else event.get('body') or event or {}
+        body = (
+            json.loads(event.get('body', '{}'))
+            if isinstance(event.get('body'), str)
+            else event.get('body') or event or {}
+        )
         user_id = _get_user_id(event)
-        logger.info(f"Extracted user_id: {user_id}")
+        logger.info(f'Extracted user_id: {user_id}')
         if not user_id:
-            return _resp(401, {'error': 'Unauthorized'})
+            return _resp(401, {'error': 'Unauthorized'}, event)
 
         # Determine route
         raw_path = event.get('rawPath', '') or event.get('path', '')
-        if '/ragstack' in raw_path:
-            return _handle_ragstack(body, user_id)
 
         op, pid, updates = body.get('operation'), body.get('profileId'), body.get('updates', {})
-        svc = EdgeService(table=table, ragstack_endpoint=RAGSTACK_GRAPHQL_ENDPOINT, ragstack_api_key=RAGSTACK_API_KEY)
+        svc = EdgeService(
+            table=table,
+            ragstack_endpoint=RAGSTACK_GRAPHQL_ENDPOINT,
+            ragstack_api_key=RAGSTACK_API_KEY,
+            ragstack_client=_ragstack_client,
+            ingestion_service=_ingestion_service,
+        )
+
+        if '/ragstack' in raw_path:
+            return _handle_ragstack(body, user_id, svc, event)
 
         if op == 'get_connections_by_status':
             r = svc.get_connections_by_status(user_id, updates.get('status'))
-            return _resp(200, {'connections': r.get('connections', []), 'count': r.get('count', 0)})
+            return _resp(200, {'connections': r.get('connections', []), 'count': r.get('count', 0)}, event)
         if op == 'upsert_status':
             if not pid:
-                return _resp(400, {'error': 'profileId required'})
-            return _resp(200, {'result': svc.upsert_status(user_id, pid, updates.get('status', 'pending'), updates.get('addedAt'), updates.get('messages'))})
+                return _resp(400, {'error': 'profileId required'}, event)
+            return _resp(
+                200,
+                {
+                    'result': svc.upsert_status(
+                        user_id, pid, updates.get('status', 'pending'), updates.get('addedAt'), updates.get('messages')
+                    )
+                },
+                event,
+            )
         if op == 'add_message':
             if not pid:
-                return _resp(400, {'error': 'profileId required'})
-            return _resp(200, {'result': svc.add_message(user_id, pid, updates.get('message', ''), updates.get('messageType', 'outbound'))})
+                return _resp(400, {'error': 'profileId required'}, event)
+            return _resp(
+                200,
+                {
+                    'result': svc.add_message(
+                        user_id, pid, updates.get('message', ''), updates.get('messageType', 'outbound')
+                    )
+                },
+                event,
+            )
         if op == 'get_messages':
             if not pid:
-                return _resp(400, {'error': 'profileId required'})
+                return _resp(400, {'error': 'profileId required'}, event)
             r = svc.get_messages(user_id, pid)
-            return _resp(200, {'messages': r.get('messages', []), 'count': r.get('count', 0)})
+            return _resp(200, {'messages': r.get('messages', []), 'count': r.get('count', 0)}, event)
         if op == 'check_exists':
             if not pid:
-                return _resp(400, {'error': 'profileId required'})
-            return _resp(200, svc.check_exists(user_id, pid))
-        return _resp(400, {'error': f'Unsupported operation: {op}'})
+                return _resp(400, {'error': 'profileId required'}, event)
+            return _resp(200, svc.check_exists(user_id, pid), event)
+        return _resp(400, {'error': f'Unsupported operation: {op}'}, event)
 
     except ValidationError as e:
-        return _resp(400, {'error': e.message})
+        return _resp(400, {'error': e.message}, event)
     except NotFoundError as e:
-        return _resp(404, {'error': e.message})
+        return _resp(404, {'error': e.message}, event)
     except AuthorizationError as e:
-        return _resp(403, {'error': e.message})
+        return _resp(403, {'error': e.message}, event)
     except ExternalServiceError as e:
-        return _resp(502, {'error': e.message})
+        return _resp(502, {'error': e.message}, event)
     except ServiceError as e:
-        return _resp(500, {'error': e.message})
+        return _resp(500, {'error': e.message}, event)
     except Exception as e:
-        logger.error(f"Error: {e}")
-        return _resp(500, {'error': 'Internal server error'})
+        logger.error(f'Error: {e}')
+        return _resp(500, {'error': 'Internal server error'}, event)

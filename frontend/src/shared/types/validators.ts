@@ -1,14 +1,11 @@
 /**
- * @fileoverview Data validation functions for the Connection Management System
+ * @fileoverview Data validation using Zod schemas for the Connection Management System
  *
- * This file contains validation functions that check data integrity, sanitize input,
- * and provide detailed validation results. These functions work alongside type guards
- * to ensure data quality throughout the application.
- *
- * @author Connection Management System
- * @version 1.0.0
+ * Validates and sanitizes Connection, Message, and filter data using Zod schemas.
+ * All exported function signatures are preserved from the manual implementation.
  */
 
+import { z } from 'zod';
 import { createLogger } from '@/shared/utils/logger';
 
 const logger = createLogger('Validators');
@@ -21,7 +18,6 @@ import type {
   MessageSender,
   ValidationResult,
   TransformOptions,
-  // Removed unused database operation types
 } from './index';
 
 import {
@@ -42,7 +38,6 @@ import {
 // VALIDATION CONSTANTS
 // =============================================================================
 
-/** Maximum length for text fields */
 export const MAX_TEXT_LENGTH = {
   NAME: 100,
   POSITION: 200,
@@ -54,55 +49,172 @@ export const MAX_TEXT_LENGTH = {
   TAG: 50,
 } as const;
 
-/** Minimum length for required fields */
 export const MIN_TEXT_LENGTH = {
   NAME: 1,
   ID: 1,
   MESSAGE_CONTENT: 1,
 } as const;
 
-/** Maximum array lengths */
 export const MAX_ARRAY_LENGTH = {
   TAGS: 20,
   COMMON_INTERESTS: 50,
   MESSAGES: 1000,
 } as const;
 
-/** Valid conversion likelihood values */
 export const VALID_CONVERSION_LIKELIHOODS = ['high', 'medium', 'low'] as const;
 
 // =============================================================================
 // BATCH VALIDATION RESULT
 // =============================================================================
 
-/**
- * Result of batch validation for connections
- *
- * @interface BatchValidationResult
- * @description Contains separated valid connections, errors, and warnings for batch processing
- */
 export interface BatchValidationResult {
-  /** Successfully validated connections */
   validConnections: Connection[];
-
-  /** Validation errors by connection index */
   errors: Array<{ index: number; errors: string[] }>;
-
-  /** Validation warnings (e.g., sanitized data) */
   warnings: string[];
+}
+
+// =============================================================================
+// ZOD SCHEMAS
+// =============================================================================
+
+const connectionStatusSchema = z.enum(['possible', 'incoming', 'outgoing', 'ally', 'processed']);
+const messageSenderSchema = z.enum(['user', 'connection']);
+const conversionLikelihoodSchema = z.enum(['high', 'medium', 'low']);
+
+const messageSchema = z.object({
+  id: z.string().min(1, 'Message ID is required and must be a non-empty string'),
+  content: z
+    .string()
+    .min(
+      MIN_TEXT_LENGTH.MESSAGE_CONTENT,
+      'Message content is required and must be at least 1 character'
+    )
+    .max(
+      MAX_TEXT_LENGTH.MESSAGE_CONTENT,
+      `Message content is too long (max ${MAX_TEXT_LENGTH.MESSAGE_CONTENT} characters)`
+    ),
+  timestamp: z.string().refine(isValidISODate, 'Message timestamp must be a valid ISO date string'),
+  sender: messageSenderSchema,
+});
+
+const connectionSchema = z.object({
+  id: z
+    .string()
+    .min(1, 'Connection ID is required and must be a non-empty string')
+    .max(
+      MAX_TEXT_LENGTH.NAME * 2,
+      `Connection ID is too long (max ${MAX_TEXT_LENGTH.NAME * 2} characters)`
+    ),
+  first_name: z
+    .string()
+    .min(MIN_TEXT_LENGTH.NAME, 'First name is required and must be at least 1 character')
+    .max(MAX_TEXT_LENGTH.NAME, `First name is too long (max ${MAX_TEXT_LENGTH.NAME} characters)`),
+  last_name: z
+    .string()
+    .min(MIN_TEXT_LENGTH.NAME, 'Last name is required and must be at least 1 character')
+    .max(MAX_TEXT_LENGTH.NAME, `Last name is too long (max ${MAX_TEXT_LENGTH.NAME} characters)`),
+  position: z
+    .string()
+    .max(
+      MAX_TEXT_LENGTH.POSITION,
+      `Position is too long (max ${MAX_TEXT_LENGTH.POSITION} characters)`
+    ),
+  company: z
+    .string()
+    .max(
+      MAX_TEXT_LENGTH.COMPANY,
+      `Company is too long (max ${MAX_TEXT_LENGTH.COMPANY} characters)`
+    ),
+  status: connectionStatusSchema,
+  location: z.string().max(MAX_TEXT_LENGTH.LOCATION).optional(),
+  headline: z.string().max(MAX_TEXT_LENGTH.HEADLINE).optional(),
+  recent_activity: z.string().max(MAX_TEXT_LENGTH.SUMMARY).optional(),
+  last_action_summary: z.string().max(MAX_TEXT_LENGTH.SUMMARY).optional(),
+  last_activity_summary: z.string().max(MAX_TEXT_LENGTH.SUMMARY).optional(),
+  messages: z.number().nonnegative('Message count must be a non-negative number').optional(),
+  conversion_likelihood: conversionLikelihoodSchema.optional(),
+  date_added: z.string().refine(isValidISODate).optional(),
+  linkedin_url: z.string().refine(isValidUrl).optional(),
+  common_interests: z
+    .array(z.string().min(1).max(MAX_TEXT_LENGTH.TAG))
+    .max(MAX_ARRAY_LENGTH.COMMON_INTERESTS)
+    .optional(),
+  tags: z.array(z.string().min(1).max(MAX_TEXT_LENGTH.TAG)).max(MAX_ARRAY_LENGTH.TAGS).optional(),
+  message_history: z.array(messageSchema).max(MAX_ARRAY_LENGTH.MESSAGES).optional(),
+  isFakeData: z.boolean().optional(),
+});
+
+// =============================================================================
+// SANITIZATION HELPERS
+// =============================================================================
+
+function sanitizeString(value: unknown, fallback: string): string {
+  if (typeof value === 'string' && value.length > 0) return value.trim();
+  return fallback;
+}
+
+function sanitizeConnectionStatus(value: unknown): ConnectionStatus | null {
+  if (isConnectionStatus(value)) return value;
+  if (typeof value === 'string') {
+    const n = value.toLowerCase().trim();
+    switch (n) {
+      case 'new':
+      case 'potential':
+        return 'possible';
+      case 'pending':
+      case 'received':
+        return 'incoming';
+      case 'sent':
+      case 'requested':
+        return 'outgoing';
+      case 'connected':
+      case 'accepted':
+        return 'ally';
+      case 'removed':
+      case 'ignored':
+        return 'processed';
+      default:
+        return null;
+    }
+  }
+  return null;
+}
+
+function sanitizeMessageSender(value: unknown): MessageSender | null {
+  if (isMessageSender(value)) return value;
+  if (typeof value === 'string') {
+    const n = value.toLowerCase().trim();
+    if (['user', 'me', 'self'].includes(n)) return 'user';
+    if (['connection', 'contact', 'them', 'other'].includes(n)) return 'connection';
+  }
+  return null;
+}
+
+function sanitizeTimestamp(value: unknown): string | null {
+  if (typeof value === 'string' && isValidISODate(value)) return value;
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === 'number' && isFinite(value)) {
+    try {
+      return new Date(value).toISOString();
+    } catch {
+      return null;
+    }
+  }
+  if (typeof value === 'string') {
+    try {
+      const d = new Date(value);
+      if (!isNaN(d.getTime())) return d.toISOString();
+    } catch {
+      /* fall through */
+    }
+  }
+  return null;
 }
 
 // =============================================================================
 // CORE VALIDATION FUNCTIONS
 // =============================================================================
 
-/**
- * Validates a Connection object and provides detailed results
- * 
- * @param connection - The connection object to validate
- * @param options - Validation options
- * @returns Detailed validation result
- */
 export function validateConnection(
   connection: unknown,
   options: TransformOptions = {}
@@ -111,7 +223,6 @@ export function validateConnection(
   const warnings: string[] = [];
   let sanitizedData: Partial<Connection> | null = null;
 
-  // Basic type check
   if (!isConnection(connection)) {
     if (options.sanitize) {
       sanitizedData = sanitizeConnectionData(connection);
@@ -128,116 +239,52 @@ export function validateConnection(
   }
 
   const conn = (sanitizedData || connection) as Connection;
+  const result = connectionSchema.safeParse(conn);
 
-  // Validate required fields
-  if (!isNonEmptyString(conn.id)) {
-    errors.push('Connection ID is required and must be a non-empty string');
-  } else if (conn.id.length > MAX_TEXT_LENGTH.NAME * 2) {
-    errors.push(`Connection ID is too long (max ${MAX_TEXT_LENGTH.NAME * 2} characters)`);
+  if (!result.success) {
+    for (const issue of result.error.issues) {
+      const msg = issue.message;
+      // Treat optional field length warnings as warnings, not errors
+      const path0 = String(issue.path[0] ?? '');
+      const isOptionalField = [
+        'location',
+        'headline',
+        'recent_activity',
+        'last_action_summary',
+        'date_added',
+        'linkedin_url',
+      ].includes(path0);
+      if (isOptionalField && issue.code === 'too_big') {
+        warnings.push(msg);
+      } else {
+        errors.push(msg);
+      }
+    }
   }
 
-  if (!conn.first_name || conn.first_name.length < MIN_TEXT_LENGTH.NAME) {
-    errors.push('First name is required and must be at least 1 character');
-  } else if (conn.first_name.length > MAX_TEXT_LENGTH.NAME) {
-    errors.push(`First name is too long (max ${MAX_TEXT_LENGTH.NAME} characters)`);
-  }
-
-  if (!conn.last_name || conn.last_name.length < MIN_TEXT_LENGTH.NAME) {
-    errors.push('Last name is required and must be at least 1 character');
-  } else if (conn.last_name.length > MAX_TEXT_LENGTH.NAME) {
-    errors.push(`Last name is too long (max ${MAX_TEXT_LENGTH.NAME} characters)`);
-  }
-
-  if (conn.position.length > MAX_TEXT_LENGTH.POSITION) {
-    errors.push(`Position is too long (max ${MAX_TEXT_LENGTH.POSITION} characters)`);
-  }
-
-  if (conn.company.length > MAX_TEXT_LENGTH.COMPANY) {
-    errors.push(`Company is too long (max ${MAX_TEXT_LENGTH.COMPANY} characters)`);
-  }
-
-  if (!isConnectionStatus(conn.status)) {
-    errors.push('Invalid connection status');
-  }
-
-  // Validate optional fields
+  // Additional warnings for optional fields that are valid but notable
   if (conn.location && conn.location.length > MAX_TEXT_LENGTH.LOCATION) {
-    warnings.push(`Location is too long (max ${MAX_TEXT_LENGTH.LOCATION} characters)`);
+    if (!warnings.some((w) => w.includes('Location')))
+      warnings.push(`Location is too long (max ${MAX_TEXT_LENGTH.LOCATION} characters)`);
   }
-
   if (conn.headline && conn.headline.length > MAX_TEXT_LENGTH.HEADLINE) {
-    warnings.push(`Headline is too long (max ${MAX_TEXT_LENGTH.HEADLINE} characters)`);
+    if (!warnings.some((w) => w.includes('Headline')))
+      warnings.push(`Headline is too long (max ${MAX_TEXT_LENGTH.HEADLINE} characters)`);
   }
-
   if (conn.recent_activity && conn.recent_activity.length > MAX_TEXT_LENGTH.SUMMARY) {
-    warnings.push(`Recent activity is too long (max ${MAX_TEXT_LENGTH.SUMMARY} characters)`);
+    if (!warnings.some((w) => w.includes('Recent activity')))
+      warnings.push(`Recent activity is too long (max ${MAX_TEXT_LENGTH.SUMMARY} characters)`);
   }
-
   if (conn.last_action_summary && conn.last_action_summary.length > MAX_TEXT_LENGTH.SUMMARY) {
-    warnings.push(`Last action summary is too long (max ${MAX_TEXT_LENGTH.SUMMARY} characters)`);
-  }
-
-  // Validate numeric fields
-  if (conn.messages !== undefined) {
-    if (!isValidNumber(conn.messages) || conn.messages < 0) {
-      errors.push('Message count must be a non-negative number');
-    }
-  }
-
-  if (conn.conversion_likelihood !== undefined) {
-    if (!isConversionLikelihood(conn.conversion_likelihood)) {
-      errors.push('Conversion likelihood must be one of: high, medium, low');
-    }
-  }
-
-  // Validate date fields
-  if (conn.date_added && !isValidISODate(conn.date_added)) {
-    warnings.push('Date added is not a valid ISO date string');
-  }
-
-  // Validate URL fields
-  if (conn.linkedin_url && !isValidUrl(conn.linkedin_url)) {
-    warnings.push('LinkedIn URL is not a valid URL');
-  }
-
-  // Validate array fields
-  if (conn.common_interests) {
-    if (conn.common_interests.length > MAX_ARRAY_LENGTH.COMMON_INTERESTS) {
-      warnings.push(`Too many common interests (max ${MAX_ARRAY_LENGTH.COMMON_INTERESTS})`);
-    }
-    
-    conn.common_interests.forEach((interest, index) => {
-      if (!isNonEmptyString(interest)) {
-        errors.push(`Common interest at index ${index} must be a non-empty string`);
-      } else if (interest.length > MAX_TEXT_LENGTH.TAG) {
-        warnings.push(`Common interest "${interest}" is too long (max ${MAX_TEXT_LENGTH.TAG} characters)`);
-      }
-    });
-  }
-
-  if (conn.tags) {
-    if (conn.tags.length > MAX_ARRAY_LENGTH.TAGS) {
-      warnings.push(`Too many tags (max ${MAX_ARRAY_LENGTH.TAGS})`);
-    }
-    
-    conn.tags.forEach((tag, index) => {
-      if (!isNonEmptyString(tag)) {
-        errors.push(`Tag at index ${index} must be a non-empty string`);
-      } else if (tag.length > MAX_TEXT_LENGTH.TAG) {
-        warnings.push(`Tag "${tag}" is too long (max ${MAX_TEXT_LENGTH.TAG} characters)`);
-      }
-    });
+    if (!warnings.some((w) => w.includes('Last action summary')))
+      warnings.push(`Last action summary is too long (max ${MAX_TEXT_LENGTH.SUMMARY} characters)`);
   }
 
   if (conn.message_history) {
-    if (conn.message_history.length > MAX_ARRAY_LENGTH.MESSAGES) {
-      warnings.push(`Too many messages in history (max ${MAX_ARRAY_LENGTH.MESSAGES})`);
-    }
-    
     conn.message_history.forEach((message, index) => {
-      const messageValidation = validateMessage(message);
-      if (!messageValidation.isValid) {
-        errors.push(`Message at index ${index}: ${messageValidation.errors.join(', ')}`);
+      const mv = validateMessage(message);
+      if (!mv.isValid) {
+        errors.push(`Message at index ${index}: ${mv.errors.join(', ')}`);
       }
     });
   }
@@ -250,13 +297,6 @@ export function validateConnection(
   };
 }
 
-/**
- * Validates a Message object
- * 
- * @param message - The message object to validate
- * @param options - Validation options
- * @returns Detailed validation result
- */
 export function validateMessage(
   message: unknown,
   options: TransformOptions = {}
@@ -281,24 +321,12 @@ export function validateMessage(
   }
 
   const msg = (sanitizedData || message) as Message;
+  const result = messageSchema.safeParse(msg);
 
-  // Validate required fields
-  if (!isNonEmptyString(msg.id)) {
-    errors.push('Message ID is required and must be a non-empty string');
-  }
-
-  if (!msg.content || msg.content.length < MIN_TEXT_LENGTH.MESSAGE_CONTENT) {
-    errors.push('Message content is required and must be at least 1 character');
-  } else if (msg.content.length > MAX_TEXT_LENGTH.MESSAGE_CONTENT) {
-    errors.push(`Message content is too long (max ${MAX_TEXT_LENGTH.MESSAGE_CONTENT} characters)`);
-  }
-
-  if (!isValidISODate(msg.timestamp)) {
-    errors.push('Message timestamp must be a valid ISO date string');
-  }
-
-  if (!isMessageSender(msg.sender)) {
-    errors.push('Message sender must be either "user" or "connection"');
+  if (!result.success) {
+    for (const issue of result.error.issues) {
+      errors.push(issue.message);
+    }
   }
 
   return {
@@ -309,12 +337,6 @@ export function validateMessage(
   };
 }
 
-/**
- * Validates ConnectionFilters object
- * 
- * @param filters - The filters object to validate
- * @returns Detailed validation result
- */
 export function validateConnectionFilters(filters: unknown): ValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
@@ -326,75 +348,48 @@ export function validateConnectionFilters(filters: unknown): ValidationResult {
 
   const f = filters as ConnectionFilters;
 
-  // Validate status filter
-  if (f.status !== undefined) {
-    if (f.status !== 'all' && !isConnectionStatus(f.status)) {
-      errors.push('Invalid status filter value');
-    }
+  if (f.status !== undefined && f.status !== 'all' && !isConnectionStatus(f.status)) {
+    errors.push('Invalid status filter value');
   }
 
-  // Validate tags filter
   if (f.tags !== undefined) {
-    if (f.tags.length > MAX_ARRAY_LENGTH.TAGS) {
+    if (f.tags.length > MAX_ARRAY_LENGTH.TAGS)
       warnings.push(`Too many tag filters (max ${MAX_ARRAY_LENGTH.TAGS})`);
-    }
-    
     f.tags.forEach((tag, index) => {
-      if (!isNonEmptyString(tag)) {
+      if (!isNonEmptyString(tag))
         errors.push(`Tag filter at index ${index} must be a non-empty string`);
-      } else if (tag.length > MAX_TEXT_LENGTH.TAG) {
+      else if (tag.length > MAX_TEXT_LENGTH.TAG)
         warnings.push(`Tag filter "${tag}" is too long (max ${MAX_TEXT_LENGTH.TAG} characters)`);
-      }
     });
   }
 
-  // Validate text filters
-  if (f.company && f.company.length > MAX_TEXT_LENGTH.COMPANY) {
+  if (f.company && f.company.length > MAX_TEXT_LENGTH.COMPANY)
     warnings.push(`Company filter is too long (max ${MAX_TEXT_LENGTH.COMPANY} characters)`);
-  }
-
-  if (f.location && f.location.length > MAX_TEXT_LENGTH.LOCATION) {
+  if (f.location && f.location.length > MAX_TEXT_LENGTH.LOCATION)
     warnings.push(`Location filter is too long (max ${MAX_TEXT_LENGTH.LOCATION} characters)`);
-  }
-
-  if (f.searchTerm && f.searchTerm.length > MAX_TEXT_LENGTH.SUMMARY) {
+  if (f.searchTerm && f.searchTerm.length > MAX_TEXT_LENGTH.SUMMARY)
     warnings.push(`Search term is too long (max ${MAX_TEXT_LENGTH.SUMMARY} characters)`);
-  }
 
-  return {
-    isValid: errors.length === 0,
-    errors,
-    warnings,
-  };
+  return { isValid: errors.length === 0, errors, warnings };
 }
 
 // =============================================================================
 // DATA SANITIZATION FUNCTIONS
 // =============================================================================
 
-/**
- * Attempts to sanitize connection data to make it valid
- * 
- * @param data - Raw connection data
- * @returns Sanitized connection object or null if unsalvageable
- */
 export function sanitizeConnectionData(data: unknown): Connection | null {
   if (typeof data !== 'object' || data === null) return null;
-
   const obj = data as Record<string, unknown>;
 
   try {
-    // Extract and sanitize required fields
     const id = sanitizeString(obj.id, 'unknown-connection');
     const first_name = sanitizeString(obj.first_name, 'Unknown');
     const last_name = sanitizeString(obj.last_name, '');
     const position = sanitizeString(obj.position, '');
     const company = sanitizeString(obj.company, '');
     const status = sanitizeConnectionStatus(obj.status);
+    if (!status) return null;
 
-    if (!status) return null; // Can't sanitize invalid status
-
-    // Create base connection object
     const connection: Connection = {
       id: id.substring(0, MAX_TEXT_LENGTH.NAME * 2),
       first_name: first_name.substring(0, MAX_TEXT_LENGTH.NAME),
@@ -404,66 +399,43 @@ export function sanitizeConnectionData(data: unknown): Connection | null {
       status,
     };
 
-    // Add optional fields if they exist and are valid
-    if (obj.location && typeof obj.location === 'string') {
+    if (obj.location && typeof obj.location === 'string')
       connection.location = obj.location.substring(0, MAX_TEXT_LENGTH.LOCATION);
-    }
-
-    if (obj.headline && typeof obj.headline === 'string') {
+    if (obj.headline && typeof obj.headline === 'string')
       connection.headline = obj.headline.substring(0, MAX_TEXT_LENGTH.HEADLINE);
-    }
-
-    if (obj.recent_activity && typeof obj.recent_activity === 'string') {
+    if (obj.recent_activity && typeof obj.recent_activity === 'string')
       connection.recent_activity = obj.recent_activity.substring(0, MAX_TEXT_LENGTH.SUMMARY);
-    }
-
-    if (obj.last_action_summary && typeof obj.last_action_summary === 'string') {
-      connection.last_action_summary = obj.last_action_summary.substring(0, MAX_TEXT_LENGTH.SUMMARY);
-    }
-
-    if (obj.last_activity_summary && typeof obj.last_activity_summary === 'string') {
-      connection.last_activity_summary = obj.last_activity_summary.substring(0, MAX_TEXT_LENGTH.SUMMARY);
-    }
-
-    // Sanitize numeric fields
-    if (isValidNumber(obj.messages) && obj.messages >= 0) {
-      connection.messages = Math.floor(obj.messages);
-    }
-
-    if (isConversionLikelihood(obj.conversion_likelihood)) {
+    if (obj.last_action_summary && typeof obj.last_action_summary === 'string')
+      connection.last_action_summary = obj.last_action_summary.substring(
+        0,
+        MAX_TEXT_LENGTH.SUMMARY
+      );
+    if (obj.last_activity_summary && typeof obj.last_activity_summary === 'string')
+      connection.last_activity_summary = obj.last_activity_summary.substring(
+        0,
+        MAX_TEXT_LENGTH.SUMMARY
+      );
+    if (isValidNumber(obj.messages) && (obj.messages as number) >= 0)
+      connection.messages = Math.floor(obj.messages as number);
+    if (isConversionLikelihood(obj.conversion_likelihood))
       connection.conversion_likelihood = obj.conversion_likelihood;
-    }
-
-    // Sanitize date fields
-    if (typeof obj.date_added === 'string' && isValidISODate(obj.date_added)) {
+    if (typeof obj.date_added === 'string' && isValidISODate(obj.date_added))
       connection.date_added = obj.date_added;
-    }
-
-    // Sanitize URL fields
-    if (typeof obj.linkedin_url === 'string' && isValidUrl(obj.linkedin_url)) {
+    if (typeof obj.linkedin_url === 'string' && isValidUrl(obj.linkedin_url))
       connection.linkedin_url = obj.linkedin_url;
-    }
-
-    // Sanitize boolean fields
-    if (typeof obj.isFakeData === 'boolean') {
-      connection.isFakeData = obj.isFakeData;
-    }
-
-    // Sanitize array fields
+    if (typeof obj.isFakeData === 'boolean') connection.isFakeData = obj.isFakeData;
     if (Array.isArray(obj.common_interests)) {
       connection.common_interests = obj.common_interests
-        .filter(item => typeof item === 'string' && item.length > 0)
-        .map(item => (item as string).substring(0, MAX_TEXT_LENGTH.TAG))
+        .filter((item) => typeof item === 'string' && item.length > 0)
+        .map((item) => (item as string).substring(0, MAX_TEXT_LENGTH.TAG))
         .slice(0, MAX_ARRAY_LENGTH.COMMON_INTERESTS);
     }
-
     if (Array.isArray(obj.tags)) {
       connection.tags = obj.tags
-        .filter(item => typeof item === 'string' && item.length > 0)
-        .map(item => (item as string).substring(0, MAX_TEXT_LENGTH.TAG))
+        .filter((item) => typeof item === 'string' && item.length > 0)
+        .map((item) => (item as string).substring(0, MAX_TEXT_LENGTH.TAG))
         .slice(0, MAX_ARRAY_LENGTH.TAGS);
     }
-
     if (Array.isArray(obj.message_history)) {
       connection.message_history = obj.message_history
         .map(sanitizeMessageData)
@@ -478,15 +450,8 @@ export function sanitizeConnectionData(data: unknown): Connection | null {
   }
 }
 
-/**
- * Attempts to sanitize message data to make it valid
- * 
- * @param data - Raw message data
- * @returns Sanitized message object or null if unsalvageable
- */
 export function sanitizeMessageData(data: unknown): Message | null {
   if (typeof data !== 'object' || data === null) return null;
-
   const obj = data as Record<string, unknown>;
 
   try {
@@ -494,7 +459,6 @@ export function sanitizeMessageData(data: unknown): Message | null {
     const content = sanitizeString(obj.content, '');
     const timestamp = sanitizeTimestamp(obj.timestamp);
     const sender = sanitizeMessageSender(obj.sender);
-
     if (!content || !timestamp || !sender) return null;
 
     return {
@@ -510,137 +474,9 @@ export function sanitizeMessageData(data: unknown): Message | null {
 }
 
 // =============================================================================
-// HELPER SANITIZATION FUNCTIONS
-// =============================================================================
-
-/**
- * Sanitizes a string value with fallback
- * 
- * @param value - Value to sanitize
- * @param fallback - Fallback value if sanitization fails
- * @returns Sanitized string
- */
-function sanitizeString(value: unknown, fallback: string): string {
-  if (typeof value === 'string' && value.length > 0) {
-    return value.trim();
-  }
-  return fallback;
-}
-
-/**
- * Sanitizes a connection status value
- * 
- * @param value - Value to sanitize
- * @returns Valid connection status or null
- */
-function sanitizeConnectionStatus(value: unknown): ConnectionStatus | null {
-  if (isConnectionStatus(value)) {
-    return value;
-  }
-  
-  // Try to map common variations
-  if (typeof value === 'string') {
-    const normalized = value.toLowerCase().trim();
-    switch (normalized) {
-      case 'new':
-      case 'potential':
-        return 'possible';
-      case 'pending':
-      case 'received':
-        return 'incoming';
-      case 'sent':
-      case 'requested':
-        return 'outgoing';
-      case 'connected':
-      case 'accepted':
-        return 'ally';
-      case 'removed':
-      case 'ignored':
-        return 'processed';
-      default:
-        return null;
-    }
-  }
-  
-  return null;
-}
-
-/**
- * Sanitizes a message sender value
- * 
- * @param value - Value to sanitize
- * @returns Valid message sender or null
- */
-function sanitizeMessageSender(value: unknown): MessageSender | null {
-  if (isMessageSender(value)) {
-    return value;
-  }
-  
-  // Try to map common variations
-  if (typeof value === 'string') {
-    const normalized = value.toLowerCase().trim();
-    if (['user', 'me', 'self'].includes(normalized)) {
-      return 'user';
-    }
-    if (['connection', 'contact', 'them', 'other'].includes(normalized)) {
-      return 'connection';
-    }
-  }
-  
-  return null;
-}
-
-/**
- * Sanitizes a timestamp value
- * 
- * @param value - Value to sanitize
- * @returns Valid ISO timestamp or null
- */
-function sanitizeTimestamp(value: unknown): string | null {
-  if (typeof value === 'string' && isValidISODate(value)) {
-    return value;
-  }
-  
-  // Try to parse as Date
-  if (value instanceof Date) {
-    return value.toISOString();
-  }
-  
-  // Try to parse as number (Unix timestamp)
-  if (typeof value === 'number' && isFinite(value)) {
-    try {
-      return new Date(value).toISOString();
-    } catch {
-      return null;
-    }
-  }
-  
-  // Try to parse string as date
-  if (typeof value === 'string') {
-    try {
-      const date = new Date(value);
-      if (!isNaN(date.getTime())) {
-        return date.toISOString();
-      }
-    } catch {
-      // Fall through to null
-    }
-  }
-  
-  return null;
-}
-
-// =============================================================================
 // BATCH VALIDATION FUNCTIONS
 // =============================================================================
 
-/**
- * Validates an array of connections and returns a structured batch result
- *
- * @param connections - Array of connection objects to validate
- * @param options - Validation options
- * @returns BatchValidationResult with valid connections, errors, and warnings
- */
 export function validateConnections(
   connections: unknown[],
   options: TransformOptions = {}
@@ -651,47 +487,31 @@ export function validateConnections(
 
   connections.forEach((conn, index) => {
     const result = validateConnection(conn, options);
-
     if (result.isValid && conn) {
-      // Connection passed validation
       validConnections.push(conn as Connection);
     } else if (result.sanitizedData) {
-      // Connection was sanitized and is now valid
       validConnections.push(result.sanitizedData as Connection);
       warnings.push(`Connection at index ${index} was sanitized`);
     } else {
-      // Connection failed validation
       errors.push({ index, errors: result.errors });
     }
-
-    // Collect any warnings from validation
     if (result.warnings && result.warnings.length > 0) {
-      result.warnings.forEach(w => warnings.push(`Connection ${index}: ${w}`));
+      result.warnings.forEach((w) => warnings.push(`Connection ${index}: ${w}`));
     }
   });
 
   return { validConnections, errors, warnings };
 }
 
-/**
- * Validates an array of messages
- * 
- * @param messages - Array of message objects to validate
- * @param options - Validation options
- * @returns Validation results for each message
- */
 export function validateMessages(
   messages: unknown[],
   options: TransformOptions = {}
 ): ValidationResult[] {
   return messages.map((message, index) => {
     const result = validateMessage(message, options);
-    
-    // Add index information to errors
     if (!result.isValid) {
-      result.errors = result.errors.map(error => `Message ${index}: ${error}`);
+      result.errors = result.errors.map((error) => `Message ${index}: ${error}`);
     }
-    
     return result;
   });
 }
@@ -700,12 +520,6 @@ export function validateMessages(
 // PARAMETER VALIDATION FUNCTIONS
 // =============================================================================
 
-/**
- * Validates connection query parameters
- * 
- * @param params - Query parameters to validate
- * @returns Validation result
- */
 export function validateConnectionQueryParams(params: unknown): ValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
@@ -717,48 +531,27 @@ export function validateConnectionQueryParams(params: unknown): ValidationResult
 
   const p = params as Record<string, unknown>;
 
-  if (p.userId !== undefined && !isNonEmptyString(p.userId)) {
+  if (p.userId !== undefined && !isNonEmptyString(p.userId))
     errors.push('User ID must be a non-empty string');
-  }
-
-  if (p.status !== undefined && !isConnectionStatus(p.status)) {
+  if (p.status !== undefined && !isConnectionStatus(p.status))
     errors.push('Status must be a valid connection status');
-  }
-
-  if (p.limit !== undefined && !isPositiveInteger(p.limit)) {
+  if (p.limit !== undefined && !isPositiveInteger(p.limit))
     errors.push('Limit must be a positive integer');
-  } else if (p.limit && (p.limit as number) > 1000) {
+  else if (p.limit && (p.limit as number) > 1000)
     warnings.push('Limit is very high, consider using pagination');
-  }
-
-  if (p.offset !== undefined && 
-      !(typeof p.offset === 'string' || isValidNumber(p.offset))) {
+  if (p.offset !== undefined && !(typeof p.offset === 'string' || isValidNumber(p.offset)))
     errors.push('Offset must be a string or number');
-  }
-
-  if (p.sortBy !== undefined && 
-      !['date_added', 'name', 'company', 'status'].includes(p.sortBy as string)) {
+  if (
+    p.sortBy !== undefined &&
+    !['date_added', 'name', 'company', 'status'].includes(p.sortBy as string)
+  )
     errors.push('Sort by must be one of: date_added, name, company, status');
-  }
-
-  if (p.sortOrder !== undefined && 
-      !['asc', 'desc'].includes(p.sortOrder as string)) {
+  if (p.sortOrder !== undefined && !['asc', 'desc'].includes(p.sortOrder as string))
     errors.push('Sort order must be either "asc" or "desc"');
-  }
 
-  return {
-    isValid: errors.length === 0,
-    errors,
-    warnings,
-  };
+  return { isValid: errors.length === 0, errors, warnings };
 }
 
-/**
- * Validates update connection parameters
- * 
- * @param params - Update parameters to validate
- * @returns Validation result
- */
 export function validateUpdateConnectionParams(params: unknown): ValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
@@ -770,51 +563,35 @@ export function validateUpdateConnectionParams(params: unknown): ValidationResul
 
   const p = params as Record<string, unknown>;
 
-  if (!isNonEmptyString(p.connectionId)) {
+  if (!isNonEmptyString(p.connectionId))
     errors.push('Connection ID is required and must be a non-empty string');
-  }
 
   if (typeof p.updates !== 'object' || p.updates === null) {
     errors.push('Updates must be an object');
   } else {
     const updates = p.updates as Record<string, unknown>;
-    
-    if (Object.keys(updates).length === 0) {
-      warnings.push('No updates specified');
-    }
-
-    // Validate individual update fields
-    if (updates.status !== undefined && !isConnectionStatus(updates.status)) {
+    if (Object.keys(updates).length === 0) warnings.push('No updates specified');
+    if (updates.status !== undefined && !isConnectionStatus(updates.status))
       errors.push('Status update must be a valid connection status');
-    }
-
     if (updates.tags !== undefined) {
-      if (!Array.isArray(updates.tags)) {
-        errors.push('Tags must be an array');
-      } else if (!updates.tags.every(tag => typeof tag === 'string')) {
+      if (!Array.isArray(updates.tags)) errors.push('Tags must be an array');
+      else if (!updates.tags.every((tag) => typeof tag === 'string'))
         errors.push('All tags must be strings');
-      }
     }
-
-    if (updates.last_action_summary !== undefined && 
-        typeof updates.last_action_summary !== 'string') {
+    if (
+      updates.last_action_summary !== undefined &&
+      typeof updates.last_action_summary !== 'string'
+    )
       errors.push('Last action summary must be a string');
-    }
-
-    if (updates.conversion_likelihood !== undefined) {
-      if (!isConversionLikelihood(updates.conversion_likelihood)) {
-        errors.push('Conversion likelihood must be one of: high, medium, low');
-      }
-    }
+    if (
+      updates.conversion_likelihood !== undefined &&
+      !isConversionLikelihood(updates.conversion_likelihood)
+    )
+      errors.push('Conversion likelihood must be one of: high, medium, low');
   }
 
-  if (p.updateTimestamp !== undefined && typeof p.updateTimestamp !== 'boolean') {
+  if (p.updateTimestamp !== undefined && typeof p.updateTimestamp !== 'boolean')
     errors.push('Update timestamp flag must be a boolean');
-  }
 
-  return {
-    isValid: errors.length === 0,
-    errors,
-    warnings,
-  };
+  return { isValid: errors.length === 0, errors, warnings };
 }

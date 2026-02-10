@@ -4,7 +4,7 @@ import { useLinkedInSearch } from './useLinkedInSearch';
 
 // Mock dependencies
 vi.mock('@/shared/hooks', () => ({
-  useToast: vi.fn(() => ({ toast: vi.fn() }))
+  useToast: vi.fn(() => ({ toast: vi.fn() })),
 }));
 
 vi.mock('@/features/search', () => ({
@@ -13,15 +13,15 @@ vi.mock('@/features/search', () => ({
     error: null,
     infoMessage: null,
     searchLinkedIn: vi.fn(() => Promise.resolve()),
-  }))
+  })),
 }));
 
 vi.mock('@/features/profile', () => ({
-  useUserProfile: vi.fn(() => ({ ciphertext: 'sealbox_x25519:b64:testdata==' }))
+  useUserProfile: vi.fn(() => ({ ciphertext: 'sealbox_x25519:b64:testdata==' })),
 }));
 
 vi.mock('@/shared/utils/logger', () => ({
-  createLogger: () => ({ info: vi.fn(), error: vi.fn(), debug: vi.fn(), warn: vi.fn() })
+  createLogger: () => ({ info: vi.fn(), error: vi.fn(), debug: vi.fn(), warn: vi.fn() }),
 }));
 
 import { useSearchResults } from '@/features/search';
@@ -42,7 +42,9 @@ describe('useLinkedInSearch', () => {
       infoMessage: null,
       searchLinkedIn: mockSearchLinkedIn,
     } as unknown as ReturnType<typeof useSearchResults>);
-    vi.mocked(useToast).mockReturnValue({ toast: mockToast } as unknown as ReturnType<typeof useToast>);
+    vi.mocked(useToast).mockReturnValue({ toast: mockToast } as unknown as ReturnType<
+      typeof useToast
+    >);
   });
 
   describe('initial state', () => {
@@ -99,7 +101,12 @@ describe('useLinkedInSearch', () => {
   describe('handleLinkedInSearch', () => {
     it('sets isSearchingLinkedIn to true during search', async () => {
       let resolveSearch: () => void;
-      mockSearchLinkedIn.mockImplementation(() => new Promise(r => { resolveSearch = r; }));
+      mockSearchLinkedIn.mockImplementation(
+        () =>
+          new Promise((r) => {
+            resolveSearch = r;
+          })
+      );
 
       const { result } = renderHook(() =>
         useLinkedInSearch({ fetchConnections: mockFetchConnections })
@@ -111,7 +118,7 @@ describe('useLinkedInSearch', () => {
           company: 'Acme',
           job: 'Engineer',
           location: 'NYC',
-          userId: 'user-1'
+          userId: 'user-1',
         });
       });
 
@@ -135,7 +142,7 @@ describe('useLinkedInSearch', () => {
           company: 'Google',
           job: 'PM',
           location: 'SF',
-          userId: 'user-1'
+          userId: 'user-1',
         });
       });
 
@@ -144,7 +151,7 @@ describe('useLinkedInSearch', () => {
           companyName: 'Google',
           companyRole: 'PM',
           companyLocation: 'SF',
-          userId: 'user-1'
+          userId: 'user-1',
         })
       );
     });
@@ -159,7 +166,7 @@ describe('useLinkedInSearch', () => {
           company: 'Acme',
           job: 'Dev',
           location: 'LA',
-          userId: 'user-1'
+          userId: 'user-1',
         });
       });
 
@@ -178,14 +185,14 @@ describe('useLinkedInSearch', () => {
           company: 'Acme',
           job: 'Dev',
           location: 'LA',
-          userId: 'user-1'
+          userId: 'user-1',
         });
       });
 
       expect(mockToast).toHaveBeenCalledWith(
         expect.objectContaining({
           title: 'Search Failed',
-          variant: 'destructive'
+          variant: 'destructive',
         })
       );
     });
@@ -202,7 +209,7 @@ describe('useLinkedInSearch', () => {
           company: 'Acme',
           job: 'Dev',
           location: 'LA',
-          userId: 'user-1'
+          userId: 'user-1',
         });
       });
 

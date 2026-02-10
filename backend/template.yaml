@@ -310,11 +310,20 @@ Resources:
             Auth:
               Authorizer: NONE
 
+  ProfileProcessingDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub 'linkedin-profile-processing-dlq-${Environment}'
+      MessageRetentionPeriod: 1209600  # 14 days
+
   ProfileProcessingQueue:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: !Sub 'linkedin-profile-processing-queue-${Environment}'
       VisibilityTimeout: 300
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt ProfileProcessingDLQ.Arn
+        maxReceiveCount: 3
 
   ProfileProcessingFunction:
     Type: AWS::Serverless::Function
@@ -340,7 +349,7 @@ Resources:
             - Effect: Allow
               Action:
                 - bedrock:InvokeModel
-              Resource: '*'
+              Resource: !Sub 'arn:aws:bedrock:${AWS::Region}::foundation-model/*'
       Events:
         SQSEvent:
           Type: SQS
@@ -391,7 +400,7 @@ Resources:
             - Effect: Allow
               Action:
                 - bedrock:InvokeModel
-              Resource: '*'
+              Resource: !Sub 'arn:aws:bedrock:${AWS::Region}::foundation-model/*'
       Events:
         LLMApi:
           Type: HttpApi
@@ -429,3 +438,6 @@ Outputs:
   ProfileProcessingQueueUrl:
     Description: SQS queue URL for profile processing
     Value: !Ref ProfileProcessingQueue
+  ProfileProcessingDLQUrl:
+    Description: Dead letter queue URL for failed profile processing
+    Value: !Ref ProfileProcessingDLQ

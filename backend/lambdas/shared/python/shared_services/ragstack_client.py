@@ -100,9 +100,9 @@ class RAGStackClient:
             retry_delay: Base delay between retries (exponential backoff)
         """
         if not endpoint:
-            raise ValueError("endpoint is required")
+            raise ValueError('endpoint is required')
         if not api_key:
-            raise ValueError("api_key is required")
+            raise ValueError('api_key is required')
 
         self.endpoint = endpoint
         self.api_key = api_key
@@ -116,14 +116,12 @@ class RAGStackClient:
         self.session = requests.Session()
         self.session.headers.update(
             {
-                "Content-Type": "application/json",
-                "x-api-key": api_key,
+                'Content-Type': 'application/json',
+                'x-api-key': api_key,
             }
         )
 
-    def _execute_graphql(
-        self, query: str, variables: dict[str, Any] | None = None
-    ) -> dict[str, Any]:
+    def _execute_graphql(self, query: str, variables: dict[str, Any] | None = None) -> dict[str, Any]:
         """
         Execute a GraphQL query/mutation with retry logic.
 
@@ -142,13 +140,12 @@ class RAGStackClient:
         # Check circuit breaker before attempting the call
         if self._circuit_breaker.state == 'open':
             raise RAGStackNetworkError(
-                f"Circuit breaker open for RAGStack (retry in "
-                f"{self._circuit_breaker.recovery_timeout}s)"
+                f'Circuit breaker open for RAGStack (retry in {self._circuit_breaker.recovery_timeout}s)'
             )
 
-        payload = {"query": query}
+        payload = {'query': query}
         if variables:
-            payload["variables"] = variables
+            payload['variables'] = variables
 
         last_error = None
 
@@ -162,9 +159,9 @@ class RAGStackClient:
 
                 # Handle HTTP errors
                 if response.status_code == 401:
-                    raise RAGStackAuthError("Invalid API key")
+                    raise RAGStackAuthError('Invalid API key')
                 if response.status_code == 403:
-                    raise RAGStackAuthError("Access denied - check API key permissions")
+                    raise RAGStackAuthError('Access denied - check API key permissions')
 
                 response.raise_for_status()
 
@@ -172,41 +169,41 @@ class RAGStackClient:
                 result = response.json()
 
                 # Check for GraphQL errors
-                if "errors" in result:
-                    error_messages = [e.get("message", str(e)) for e in result["errors"]]
-                    raise RAGStackGraphQLError(f"GraphQL errors: {', '.join(error_messages)}")
+                if 'errors' in result:
+                    error_messages = [e.get('message', str(e)) for e in result['errors']]
+                    raise RAGStackGraphQLError(f'GraphQL errors: {", ".join(error_messages)}')
 
                 self._circuit_breaker._on_success()
-                return result.get("data", {})
+                return result.get('data', {})
 
             except requests.exceptions.Timeout as e:
-                last_error = RAGStackNetworkError(f"Request timeout: {e}")
-                logger.warning(f"Timeout on attempt {attempt + 1}/{self.max_retries}")
+                last_error = RAGStackNetworkError(f'Request timeout: {e}')
+                logger.warning(f'Timeout on attempt {attempt + 1}/{self.max_retries}')
 
             except requests.exceptions.ConnectionError as e:
-                last_error = RAGStackNetworkError(f"Connection error: {e}")
-                logger.warning(f"Connection error on attempt {attempt + 1}/{self.max_retries}")
+                last_error = RAGStackNetworkError(f'Connection error: {e}')
+                logger.warning(f'Connection error on attempt {attempt + 1}/{self.max_retries}')
 
             except requests.exceptions.RequestException as e:
-                last_error = RAGStackNetworkError(f"Request failed: {e}")
-                logger.warning(f"Request error on attempt {attempt + 1}/{self.max_retries}")
+                last_error = RAGStackNetworkError(f'Request failed: {e}')
+                logger.warning(f'Request error on attempt {attempt + 1}/{self.max_retries}')
 
             except (RAGStackAuthError, RAGStackGraphQLError):
                 # Don't retry auth or GraphQL errors
                 raise
 
             except json.JSONDecodeError as e:
-                last_error = RAGStackError(f"Invalid JSON response: {e}")
-                logger.warning(f"JSON decode error on attempt {attempt + 1}/{self.max_retries}")
+                last_error = RAGStackError(f'Invalid JSON response: {e}')
+                logger.warning(f'JSON decode error on attempt {attempt + 1}/{self.max_retries}')
 
             # Exponential backoff before retry
             if attempt < self.max_retries - 1:
                 delay = self.retry_delay * (2**attempt)
-                logger.info(f"Retrying in {delay} seconds...")
+                logger.info(f'Retrying in {delay} seconds...')
                 time.sleep(delay)
 
         # All retries exhausted - record failure in circuit breaker
-        final_error = last_error or RAGStackNetworkError("Request failed after all retries")
+        final_error = last_error or RAGStackNetworkError('Request failed after all retries')
         self._circuit_breaker._on_failure(final_error)
         raise final_error
 
@@ -224,21 +221,21 @@ class RAGStackClient:
             - fields: Additional form fields for S3 upload (if multipart)
         """
         if not filename:
-            raise ValueError("filename is required")
+            raise ValueError('filename is required')
 
         result = self._execute_graphql(
             self.CREATE_UPLOAD_URL_MUTATION,
-            {"filename": filename},
+            {'filename': filename},
         )
 
-        upload_data = result.get("createUploadUrl")
+        upload_data = result.get('createUploadUrl')
         if not upload_data:
-            raise RAGStackGraphQLError("No upload URL returned from API")
+            raise RAGStackGraphQLError('No upload URL returned from API')
 
         return {
-            "uploadUrl": upload_data.get("uploadUrl"),
-            "documentId": upload_data.get("documentId"),
-            "fields": upload_data.get("fields") or {},
+            'uploadUrl': upload_data.get('uploadUrl'),
+            'documentId': upload_data.get('documentId'),
+            'fields': upload_data.get('fields') or {},
         }
 
     def search(self, query: str, max_results: int = 100) -> list[dict[str, Any]]:
@@ -256,21 +253,21 @@ class RAGStackClient:
             - score: Relevance score
         """
         if not query:
-            raise ValueError("query is required")
+            raise ValueError('query is required')
 
         result = self._execute_graphql(
             self.SEARCH_QUERY,
-            {"query": query, "maxResults": max_results},
+            {'query': query, 'maxResults': max_results},
         )
 
-        search_data = result.get("searchKnowledgeBase", {})
-        results = search_data.get("results", [])
+        search_data = result.get('searchKnowledgeBase', {})
+        results = search_data.get('results', [])
 
         return [
             {
-                "content": r.get("content", ""),
-                "source": r.get("source", ""),
-                "score": r.get("score", 0.0),
+                'content': r.get('content', ''),
+                'source': r.get('source', ''),
+                'score': r.get('score', 0.0),
             }
             for r in results
         ]
@@ -289,16 +286,16 @@ class RAGStackClient:
             - error: Error message if status is "failed"
         """
         if not document_id:
-            raise ValueError("document_id is required")
+            raise ValueError('document_id is required')
 
         result = self._execute_graphql(
             self.GET_DOCUMENT_STATUS_QUERY,
-            {"documentId": document_id},
+            {'documentId': document_id},
         )
 
-        status_data = result.get("getDocumentStatus", {})
+        status_data = result.get('getDocumentStatus', {})
         return {
-            "status": status_data.get("status", "unknown"),
-            "documentId": status_data.get("documentId", document_id),
-            "error": status_data.get("error"),
+            'status': status_data.get('status', 'unknown'),
+            'documentId': status_data.get('documentId', document_id),
+            'error': status_data.get('error'),
         }

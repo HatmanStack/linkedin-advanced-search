@@ -83,67 +83,67 @@ class IngestionService:
             - error: Error message if status is "failed"
         """
         if not profile_id:
-            raise ValueError("profile_id is required")
+            raise ValueError('profile_id is required')
         if not markdown_content:
-            raise ValueError("markdown_content is required")
+            raise ValueError('markdown_content is required')
 
         # Use profile_id as filename for idempotent uploads
-        filename = f"{profile_id}.md"
+        filename = f'{profile_id}.md'
 
         try:
             # Get presigned upload URL
-            logger.info(f"Creating upload URL for profile {profile_id}")
+            logger.info(f'Creating upload URL for profile {profile_id}')
             upload_data = self.client.create_upload_url(filename)
 
-            upload_url = upload_data["uploadUrl"]
-            document_id = upload_data["documentId"]
-            fields = upload_data.get("fields", {})
+            upload_url = upload_data['uploadUrl']
+            document_id = upload_data['documentId']
+            fields = upload_data.get('fields', {})
 
             # Prepare content with metadata header if provided
             content_with_metadata = self._prepare_content(markdown_content, metadata, profile_id)
 
             # Upload to S3
-            logger.info(f"Uploading profile {profile_id} to S3")
+            logger.info(f'Uploading profile {profile_id} to S3')
             self._upload_to_s3(upload_url, fields, content_with_metadata)
 
             result = {
-                "status": "uploaded",
-                "documentId": document_id,
-                "profileId": profile_id,
-                "error": None,
+                'status': 'uploaded',
+                'documentId': document_id,
+                'profileId': profile_id,
+                'error': None,
             }
 
             # Optionally wait for indexing
             if wait_for_indexing:
                 result = self._wait_for_indexing(document_id, indexing_timeout)
-                result["profileId"] = profile_id
+                result['profileId'] = profile_id
 
-            logger.info(f"Profile {profile_id} ingestion complete: {result['status']}")
+            logger.info(f'Profile {profile_id} ingestion complete: {result["status"]}')
             return result
 
         except RAGStackError as e:
-            logger.error(f"RAGStack error during ingestion: {e}")
+            logger.error(f'RAGStack error during ingestion: {e}')
             return {
-                "status": "failed",
-                "documentId": None,
-                "profileId": profile_id,
-                "error": str(e),
+                'status': 'failed',
+                'documentId': None,
+                'profileId': profile_id,
+                'error': str(e),
             }
         except UploadError as e:
-            logger.error(f"Upload error during ingestion: {e}")
+            logger.error(f'Upload error during ingestion: {e}')
             return {
-                "status": "failed",
-                "documentId": None,
-                "profileId": profile_id,
-                "error": str(e),
+                'status': 'failed',
+                'documentId': None,
+                'profileId': profile_id,
+                'error': str(e),
             }
         except Exception as e:
-            logger.error(f"Unexpected error during ingestion: {e}")
+            logger.error(f'Unexpected error during ingestion: {e}')
             return {
-                "status": "failed",
-                "documentId": None,
-                "profileId": profile_id,
-                "error": str(e),
+                'status': 'failed',
+                'documentId': None,
+                'profileId': profile_id,
+                'error': str(e),
             }
 
     def _prepare_content(
@@ -168,20 +168,15 @@ class IngestionService:
 
         # Add standard metadata
         full_metadata = {
-            "profile_id": profile_id,
-            "ingested_at": datetime.now(UTC).isoformat(),
-            "source": "linkedin_profile",
+            'profile_id': profile_id,
+            'ingested_at': datetime.now(UTC).isoformat(),
+            'source': 'linkedin_profile',
             **metadata,
         }
 
         # Create YAML frontmatter using safe_dump to properly escape special characters
-        frontmatter = yaml.safe_dump(
-            full_metadata,
-            default_flow_style=False,
-            allow_unicode=True,
-            sort_keys=False
-        )
-        return f"---\n{frontmatter}---\n\n{markdown_content}"
+        frontmatter = yaml.safe_dump(full_metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
+        return f'---\n{frontmatter}---\n\n{markdown_content}'
 
     def _upload_to_s3(
         self,
@@ -208,7 +203,7 @@ class IngestionService:
                 if fields:
                     # Multipart form upload
                     files = {
-                        "file": ("document.md", content.encode("utf-8"), "text/markdown"),
+                        'file': ('document.md', content.encode('utf-8'), 'text/markdown'),
                     }
                     response = requests.post(
                         presigned_url,
@@ -220,38 +215,36 @@ class IngestionService:
                     # Simple PUT upload
                     response = requests.put(
                         presigned_url,
-                        data=content.encode("utf-8"),
-                        headers={"Content-Type": "text/markdown"},
+                        data=content.encode('utf-8'),
+                        headers={'Content-Type': 'text/markdown'},
                         timeout=30,
                     )
 
                 # Check for success (200, 201, or 204)
                 if response.status_code in (200, 201, 204):
-                    logger.info("S3 upload successful")
+                    logger.info('S3 upload successful')
                     return
 
                 # Non-success response
-                last_error = UploadError(
-                    f"S3 upload failed with status {response.status_code}: {response.text[:200]}"
-                )
-                logger.warning(f"Upload attempt {attempt + 1} failed: {last_error}")
+                last_error = UploadError(f'S3 upload failed with status {response.status_code}: {response.text[:200]}')
+                logger.warning(f'Upload attempt {attempt + 1} failed: {last_error}')
 
             except requests.exceptions.Timeout:
-                last_error = UploadError("S3 upload timeout")
-                logger.warning(f"Upload timeout on attempt {attempt + 1}")
+                last_error = UploadError('S3 upload timeout')
+                logger.warning(f'Upload timeout on attempt {attempt + 1}')
 
             except requests.exceptions.RequestException as e:
-                last_error = UploadError(f"S3 upload request failed: {e}")
-                logger.warning(f"Upload error on attempt {attempt + 1}: {e}")
+                last_error = UploadError(f'S3 upload request failed: {e}')
+                logger.warning(f'Upload error on attempt {attempt + 1}: {e}')
 
             # Exponential backoff before retry
             if attempt < self.max_upload_retries - 1:
                 delay = self.upload_retry_delay * (2**attempt)
-                logger.info(f"Retrying upload in {delay} seconds...")
+                logger.info(f'Retrying upload in {delay} seconds...')
                 time.sleep(delay)
 
         # All retries exhausted
-        raise last_error or UploadError("Upload failed after all retries")
+        raise last_error or UploadError('Upload failed after all retries')
 
     def _wait_for_indexing(
         self,
@@ -275,32 +268,32 @@ class IngestionService:
             try:
                 status = self.client.get_document_status(document_id)
 
-                if status["status"] == "indexed":
+                if status['status'] == 'indexed':
                     return {
-                        "status": "indexed",
-                        "documentId": document_id,
-                        "error": None,
+                        'status': 'indexed',
+                        'documentId': document_id,
+                        'error': None,
                     }
 
-                if status["status"] == "failed":
+                if status['status'] == 'failed':
                     return {
-                        "status": "failed",
-                        "documentId": document_id,
-                        "error": status.get("error", "Indexing failed"),
+                        'status': 'failed',
+                        'documentId': document_id,
+                        'error': status.get('error', 'Indexing failed'),
                     }
 
                 # Still pending, continue polling
-                logger.debug(f"Document {document_id} status: {status['status']}")
+                logger.debug(f'Document {document_id} status: {status["status"]}')
                 time.sleep(poll_interval)
 
             except RAGStackError as e:
-                logger.warning(f"Error checking document status: {e}")
+                logger.warning(f'Error checking document status: {e}')
                 time.sleep(poll_interval)
 
         # Timeout reached, return pending status
-        logger.warning(f"Indexing timeout for document {document_id}")
+        logger.warning(f'Indexing timeout for document {document_id}')
         return {
-            "status": "pending",
-            "documentId": document_id,
-            "error": None,
+            'status': 'pending',
+            'documentId': document_id,
+            'error': None,
         }

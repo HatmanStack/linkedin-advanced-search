@@ -21,13 +21,13 @@ export const logger = winston.createLogger({
   defaultMeta: { service: 'linkedin-search-backend' },
   transports: [
     // Write logs to file
-    new winston.transports.File({ 
-      filename: 'logs/error.log', 
+    new winston.transports.File({
+      filename: 'logs/error.log',
       level: 'error',
       maxsize: 5242880, // 5MB
       maxFiles: 5,
     }),
-    new winston.transports.File({ 
+    new winston.transports.File({
       filename: 'logs/combined.log',
       maxsize: 5242880, // 5MB
       maxFiles: 5,
@@ -37,9 +37,11 @@ export const logger = winston.createLogger({
 
 // Add console transport for development
 if (config.nodeEnv === 'development') {
-  logger.add(new winston.transports.Console({
-    format: consoleFormat
-  }));
+  logger.add(
+    new winston.transports.Console({
+      format: consoleFormat,
+    })
+  );
 }
 
 export default logger;

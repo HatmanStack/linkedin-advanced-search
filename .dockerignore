@@ -1,0 +1,10 @@
+node_modules
+dist
+.env
+.env.*
+!.env.docker
+.git
+coverage
+.aws-sam
+*.lock
+!package-lock.json

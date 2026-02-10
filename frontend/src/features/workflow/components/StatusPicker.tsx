@@ -1,7 +1,13 @@
 import React from 'react';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 import { Users, Clock, Send, UserCheck, Filter } from 'lucide-react';
 import type { StatusValue, StatusPickerProps } from '@/types';
 
@@ -15,17 +21,17 @@ interface StatusMapping {
 
 /**
  * StatusPicker Component
- * 
+ *
  * A filter component for connection management that allows users to filter connections
  * by status type. Maps database status values to user-friendly display labels and
  * shows connection counts for each status.
- * 
+ *
  * Features:
  * - Select dropdown interface for status selection
  * - Connection count badges for each status
  * - "All Statuses" option to show all connections
  * - Consistent styling with Dashboard components
- * 
+ *
  * Status Mapping:
  * - all → "All Statuses" (shows total count)
  * - incoming → "Pending" (shows incoming count)
@@ -41,30 +47,30 @@ export const STATUS_MAPPING: Record<StatusValue, StatusMapping> = {
   all: { label: 'All Statuses', icon: Filter },
   incoming: { label: 'Pending', icon: Clock },
   outgoing: { label: 'Sent', icon: Send },
-  ally: { label: 'Connections', icon: UserCheck }
+  ally: { label: 'Connections', icon: UserCheck },
 } as const;
 
 /**
  * StatusPicker Component
- * 
+ *
  * @param props - The component props
  * @param props.selectedStatus - Currently selected status filter
  * @param props.onStatusChange - Callback when status selection changes
  * @param props.connectionCounts - Connection counts for each status type
  * @param props.className - Additional CSS classes
- * 
+ *
  * @returns JSX element representing the status picker
  */
 const StatusPicker: React.FC<StatusPickerProps> = ({
   selectedStatus,
   onStatusChange,
   connectionCounts,
-  className = ''
+  className = '',
 }) => {
   /**
    * Gets the connection count for a specific status value
    * Only counts incoming, outgoing, and ally statuses (excludes possible)
-   * 
+   *
    * @param status - The status value to get count for
    * @returns The number of connections for the given status
    */
@@ -86,7 +92,7 @@ const StatusPicker: React.FC<StatusPickerProps> = ({
 
   /**
    * Renders the display content for the currently selected status
-   * 
+   *
    * @returns JSX element with icon, label, and count badge
    */
   const getSelectedStatusDisplay = () => {
@@ -110,7 +116,7 @@ const StatusPicker: React.FC<StatusPickerProps> = ({
 
   /**
    * Renders a select item for a specific status with icon, label, and count badge
-   * 
+   *
    * @param status - The status value to render
    * @returns JSX element representing the select item
    */
@@ -146,14 +152,16 @@ const StatusPicker: React.FC<StatusPickerProps> = ({
         <Label htmlFor="status-select" className="text-sm font-medium text-slate-300">
           Connection Status
         </Label>
-        <Select value={selectedStatus} onValueChange={(value) => onStatusChange(value as StatusValue)}>
+        <Select
+          value={selectedStatus}
+          onValueChange={(value) => onStatusChange(value as StatusValue)}
+        >
           <SelectTrigger
             id="status-select"
+            data-testid="status-filter"
             className="w-full bg-white/5 border-white/20 text-white hover:bg-white/10 focus:border-blue-400"
           >
-            <SelectValue>
-              {getSelectedStatusDisplay()}
-            </SelectValue>
+            <SelectValue>{getSelectedStatusDisplay()}</SelectValue>
           </SelectTrigger>
           <SelectContent className="bg-slate-800 border-white/20">
             {(Object.keys(STATUS_MAPPING) as StatusValue[]).map(renderSelectItem)}

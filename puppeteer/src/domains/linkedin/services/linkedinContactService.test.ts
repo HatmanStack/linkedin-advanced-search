@@ -97,10 +97,7 @@ describe('LinkedInContactService', () => {
       expect(result.profileId).toBe('john-doe');
       expect(result.message).toContain('successfully');
       expect(mockExtractLinkedInCookies).toHaveBeenCalled();
-      expect(mockStartScrape).toHaveBeenCalledWith(
-        'john-doe',
-        'li_at=token; JSESSIONID=ajax:123'
-      );
+      expect(mockStartScrape).toHaveBeenCalledWith('john-doe', 'li_at=token; JSESSIONID=ajax:123');
       expect(mockWaitForCompletion).toHaveBeenCalledWith(
         'job-123',
         expect.objectContaining({

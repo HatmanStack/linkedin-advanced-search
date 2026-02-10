@@ -1,6 +1,6 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { useEffect, useState } from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -12,11 +12,7 @@ interface ResearchResultsCardProps {
 
 const RESEARCH_STORAGE_KEY = 'ai_research_content';
 
-const ResearchResultsCard = ({
-  isResearching,
-  onClear,
-  
-}: ResearchResultsCardProps) => {
+const ResearchResultsCard = ({ isResearching, onClear }: ResearchResultsCardProps) => {
   const [localResearch, setLocalResearch] = useState<string | null>(null);
 
   // Local hydration from sessionStorage on mount and whenever research completes
@@ -48,7 +44,10 @@ const ResearchResultsCard = ({
               variant="ghost"
               size="sm"
               className="h-8 w-8 p-0 text-red-400 hover:text-red-300 hover:bg-red-500/20"
-              onClick={() => { setLocalResearch(null); onClear(); }}
+              onClick={() => {
+                setLocalResearch(null);
+                onClear();
+              }}
               title="Clear research"
             >
               <X className="h-4 w-4" />
@@ -59,9 +58,25 @@ const ResearchResultsCard = ({
       <CardContent className="space-y-4">
         {isResearching && (
           <div className="flex items-center text-slate-300 text-sm">
-            <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-blue-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+            <svg
+              className="animate-spin -ml-1 mr-2 h-4 w-4 text-blue-400"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                className="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                strokeWidth="4"
+              ></circle>
+              <path
+                className="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+              ></path>
             </svg>
             This may take several minutes.
           </div>
@@ -72,40 +87,27 @@ const ResearchResultsCard = ({
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 components={{
-                  p: (props) => (
-                    <p {...props} />
-                  ),
-                  h1: (props) => (
-                    <h1 {...props} className="text-center text-white -mb-2" />
-                  ),
-                  h2: (props) => (
-                    <h2 {...props} className="text-center text-white -mb-2" />
-                  ),
-                  h3: (props) => (
-                    <h3 {...props} className="text-white -mb-2" />
-                  ),
-                  h4: (props) => (
-                    <h4 {...props} className="text-white -mb-2" />
-                  ),
+                  p: (props) => <p {...props} />,
+                  h1: (props) => <h1 {...props} className="text-center text-white -mb-2" />,
+                  h2: (props) => <h2 {...props} className="text-center text-white -mb-2" />,
+                  h3: (props) => <h3 {...props} className="text-white -mb-2" />,
+                  h4: (props) => <h4 {...props} className="text-white -mb-2" />,
                   ul: (props) => (
                     <ul
                       {...props}
                       className="list-none pl-0 my-1 space-y-1"
-                      style={{ listStyleType: 'none'}}
+                      style={{ listStyleType: 'none' }}
                     />
                   ),
                   ol: (props) => (
                     <ol
                       {...props}
                       className="list-none pl-0 my-1 space-y-1"
-                      style={{ listStyleType: 'none'}}
+                      style={{ listStyleType: 'none' }}
                     />
                   ),
                   li: (props) => (
-                    <li
-                      {...props}
-                      className="pl-0 my-0.5 marker:text-transparent before:hidden"
-                    />
+                    <li {...props} className="pl-0 my-0.5 marker:text-transparent before:hidden" />
                   ),
                 }}
               >
@@ -117,8 +119,6 @@ const ResearchResultsCard = ({
       </CardContent>
     </Card>
   );
-}
+};
 
 export default ResearchResultsCard;
-
-

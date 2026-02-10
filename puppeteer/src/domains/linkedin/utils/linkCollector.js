@@ -14,16 +14,16 @@ export class LinkCollector {
 
     let allLinks = await this._loadExistingLinks();
     const { pageNumberStart, pageNumberEnd } = this.config.linkedin;
-    
+
     let emptyPageCount = 0;
     let pageNumber = this._calculateStartPage(state.resumeIndex, pageNumberStart);
 
     while (pageNumber <= pageNumberEnd) {
       try {
         const pageLinks = await this.linkedInService.getLinksFromPeoplePage(
-          pageNumber, 
-          extractedCompanyNumber, 
-          encodedRole, 
+          pageNumber,
+          extractedCompanyNumber,
+          encodedRole,
           extractedGeoNumber
         );
 
@@ -62,8 +62,6 @@ export class LinkCollector {
   }
 
   _calculateStartPage(resumeIndex, pageNumberStart) {
-    return resumeIndex !== 0 && resumeIndex > pageNumberStart
-      ? resumeIndex
-      : pageNumberStart;
+    return resumeIndex !== 0 && resumeIndex > pageNumberStart ? resumeIndex : pageNumberStart;
   }
 }

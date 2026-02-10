@@ -3,7 +3,7 @@ import fsSync from 'fs';
 
 // Mock dependencies
 vi.mock('#utils/logger.js', () => ({
-  logger: { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn() }
+  logger: { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn() },
 }));
 
 // Mock crypto to return predictable encrypted values
@@ -18,16 +18,16 @@ vi.mock('#utils/crypto.js', () => ({
       result.jwtToken = 'sealbox_x25519:b64:MTIzNDU2Nzg5MGFiY2RlZmdoaWprbG1u';
     }
     return result;
-  })
+  }),
 }));
 
 vi.mock('fs', () => ({
   default: { writeFileSync: vi.fn() },
-  writeFileSync: vi.fn()
+  writeFileSync: vi.fn(),
 }));
 
 vi.mock('child_process', () => ({
-  spawn: vi.fn(() => ({ unref: vi.fn() }))
+  spawn: vi.fn(() => ({ unref: vi.fn() })),
 }));
 
 import { HealingManager } from './healingManager.js';
@@ -58,10 +58,12 @@ describe('HealingManager', () => {
     });
 
     it('returns false for search healing params', () => {
-      expect(manager._isProfileInitHealing({
-        companyName: 'Acme',
-        companyRole: 'Engineer'
-      })).toBe(false);
+      expect(
+        manager._isProfileInitHealing({
+          companyName: 'Acme',
+          companyRole: 'Engineer',
+        })
+      ).toBe(false);
     });
 
     it('returns false for empty params', () => {
@@ -74,7 +76,7 @@ describe('HealingManager', () => {
       const result = await manager._createProfileInitStateFile({
         searchName: 'user',
         searchPassword: 'pass',
-        requestId: 'req-1'
+        requestId: 'req-1',
       });
       expect(result).toMatch(/^data\/profile-init-heal-\d+\.json$/);
     });
@@ -86,7 +88,7 @@ describe('HealingManager', () => {
         jwtToken: 'my.jwt.token',
         recursionCount: 2,
         healPhase: 'profile-init',
-        healReason: 'timeout'
+        healReason: 'timeout',
       });
 
       const writeCall = fsSync.writeFileSync.mock.calls[0];
@@ -135,7 +137,7 @@ describe('HealingManager', () => {
         companyRole: 'Engineer',
         searchPassword: 'secret123',
         jwtToken: 'token.here',
-        recursionCount: 1
+        recursionCount: 1,
       };
       await manager._createStateFile(stateData);
 
@@ -153,7 +155,7 @@ describe('HealingManager', () => {
       const plainToken = 'jwt.with.secrets';
       await manager._createStateFile({
         searchPassword: plainPassword,
-        jwtToken: plainToken
+        jwtToken: plainToken,
       });
 
       const writeCall = fsSync.writeFileSync.mock.calls[0];

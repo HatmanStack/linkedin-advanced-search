@@ -62,11 +62,11 @@ const ListItem: React.FC<ListItemProps> = ({ index, style, data }) => {
     selectedConnectionId,
     showCheckboxes,
     selectedConnections,
-    onCheckboxChange
+    onCheckboxChange,
   } = data;
 
   const connection = connections[index];
-  
+
   if (!connection) {
     return <div style={style} />;
   }
@@ -120,7 +120,7 @@ const VirtualConnectionList: React.FC<VirtualConnectionListProps> = ({
   sortOrder = 'asc',
   showCheckboxes = false,
   selectedConnections = [],
-  onCheckboxChange
+  onCheckboxChange,
 }) => {
   const [containerHeight, setContainerHeight] = useState(600); // Default height
   const [containerRef, setContainerRef] = useState<HTMLDivElement | null>(null);
@@ -132,7 +132,7 @@ const VirtualConnectionList: React.FC<VirtualConnectionListProps> = ({
     if (containerRef) {
       const rect = containerRef.getBoundingClientRect();
       const availableHeight = window.innerHeight - rect.top - 40; // Reduced margin for fuller viewport usage
-      
+
       // For both new and regular connections, use a generous viewport height similar to NewConnectionsTab
       const minHeight = Math.max(window.innerHeight * 0.9, 700);
       setContainerHeight(Math.max(minHeight, availableHeight));
@@ -165,43 +165,49 @@ const VirtualConnectionList: React.FC<VirtualConnectionListProps> = ({
   }, []);
 
   // Wrap onRemove to also update local removedIds so the list re-renders immediately
-  const handleRemoveInternal = useCallback((connectionId: string, newStatus: string) => {
-    setRemovedIds(prev => {
-      const next = new Set(prev);
-      next.add(connectionId);
-      return next;
-    });
-    if (onRemove) onRemove(connectionId, newStatus);
-  }, [onRemove]);
+  const handleRemoveInternal = useCallback(
+    (connectionId: string, newStatus: string) => {
+      setRemovedIds((prev) => {
+        const next = new Set(prev);
+        next.add(connectionId);
+        return next;
+      });
+      if (onRemove) onRemove(connectionId, newStatus);
+    },
+    [onRemove]
+  );
 
   // Memoize the data object to prevent unnecessary re-renders
-  const itemData = useMemo(() => ({
-    connections: processedConnections,
-    isNewConnection,
-    onSelect,
-    onNewConnectionClick,
-    onRemove: handleRemoveInternal,
-    onTagClick,
-    onMessageClick,
-    activeTags,
-    selectedConnectionId,
-    showCheckboxes,
-    selectedConnections,
-    onCheckboxChange
-  }), [
-    processedConnections,
-    isNewConnection,
-    onSelect,
-    onNewConnectionClick,
-    handleRemoveInternal,
-    onTagClick,
-    onMessageClick,
-    activeTags,
-    selectedConnectionId,
-    showCheckboxes,
-    selectedConnections,
-    onCheckboxChange
-  ]);
+  const itemData = useMemo(
+    () => ({
+      connections: processedConnections,
+      isNewConnection,
+      onSelect,
+      onNewConnectionClick,
+      onRemove: handleRemoveInternal,
+      onTagClick,
+      onMessageClick,
+      activeTags,
+      selectedConnectionId,
+      showCheckboxes,
+      selectedConnections,
+      onCheckboxChange,
+    }),
+    [
+      processedConnections,
+      isNewConnection,
+      onSelect,
+      onNewConnectionClick,
+      handleRemoveInternal,
+      onTagClick,
+      onMessageClick,
+      activeTags,
+      selectedConnectionId,
+      showCheckboxes,
+      selectedConnections,
+      onCheckboxChange,
+    ]
+  );
 
   return (
     <div className={`w-full space-y-4 ${className}`}>
@@ -220,34 +226,34 @@ const VirtualConnectionList: React.FC<VirtualConnectionListProps> = ({
       {showFilters && (
         <div className="flex items-center justify-between text-sm text-slate-400 px-1">
           <span>
-            Showing {processedConnections.length} of {connections.length} connection{connections.length !== 1 ? 's' : ''}
+            Showing {processedConnections.length} of {connections.length} connection
+            {connections.length !== 1 ? 's' : ''}
           </span>
           {Object.keys(filters).length > 0 && (
             <span className="text-blue-400">
-              {Object.keys(filters).length} filter{Object.keys(filters).length !== 1 ? 's' : ''} active
+              {Object.keys(filters).length} filter{Object.keys(filters).length !== 1 ? 's' : ''}{' '}
+              active
             </span>
           )}
         </div>
       )}
 
       {/* Connection List or Empty State */}
-      <div 
-        ref={setContainerRef}
-        style={{ height: containerHeight }}
-      >
+      <div ref={setContainerRef} style={{ height: containerHeight }}>
         {processedConnections.length === 0 ? (
           <div className="flex items-center justify-center h-64 text-slate-400">
             <div className="text-center">
               <p className="text-lg mb-2">
-                {connections.length === 0 ? 'No connections found' : 'No connections match your filters'}
+                {connections.length === 0
+                  ? 'No connections found'
+                  : 'No connections match your filters'}
               </p>
               <p className="text-sm">
-                {connections.length === 0 
-                  ? (isNewConnection 
-                      ? "No new connections available at the moment."
-                      : "Try checking back later or adding some connections.")
-                  : "Try adjusting your filters to see more results."
-                }
+                {connections.length === 0
+                  ? isNewConnection
+                    ? 'No new connections available at the moment.'
+                    : 'Try checking back later or adding some connections.'
+                  : 'Try adjusting your filters to see more results.'}
               </p>
             </div>
           </div>

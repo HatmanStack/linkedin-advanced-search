@@ -73,7 +73,11 @@ const NewPostTabInner = () => {
       toast({ title: 'Copied!', description: 'Post copied to clipboard.' });
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      toast({ title: 'Error', description: 'Failed to copy to clipboard.', variant: 'destructive' });
+      toast({
+        title: 'Error',
+        description: 'Failed to copy to clipboard.',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -85,7 +89,9 @@ const NewPostTabInner = () => {
           <Button
             onClick={handleSynthesize}
             disabled={isSynthesizing || isResearching || selectedIdeas.length === 0}
-            title={selectedIdeas.length === 0 ? 'Select at least one idea to synthesize' : undefined}
+            title={
+              selectedIdeas.length === 0 ? 'Select at least one idea to synthesize' : undefined
+            }
             className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white"
           >
             <Sparkles className="h-4 w-4 mr-2" />
@@ -111,17 +117,12 @@ const NewPostTabInner = () => {
                 </Button>
               </div>
             </div>
-            <div className="whitespace-pre-wrap text-sm leading-relaxed">
-              {synthesizedPost}
-            </div>
+            <div className="whitespace-pre-wrap text-sm leading-relaxed">{synthesizedPost}</div>
           </div>
         )}
 
         {/* Research Results */}
-        <ResearchResultsCard
-          isResearching={isResearching}
-          onClear={handleClearResearch}
-        />
+        <ResearchResultsCard isResearching={isResearching} onClear={handleClearResearch} />
       </div>
 
       <div className="space-y-6">

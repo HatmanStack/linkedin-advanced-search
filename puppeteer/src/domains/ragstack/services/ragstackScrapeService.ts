@@ -203,10 +203,7 @@ export class RagstackScrapeService {
   /**
    * Execute a GraphQL request
    */
-  private async executeGraphQL<T>(
-    query: string,
-    variables?: Record<string, unknown>
-  ): Promise<T> {
+  private async executeGraphQL<T>(query: string, variables?: Record<string, unknown>): Promise<T> {
     const response = await fetch(this.config.endpoint, {
       method: 'POST',
       headers: {

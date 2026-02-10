@@ -4,7 +4,13 @@
  * Utility functions for S3 operations on profile text files
  */
 
-import { S3Client, HeadObjectCommand, GetObjectCommand, DeleteObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
+import {
+  S3Client,
+  HeadObjectCommand,
+  GetObjectCommand,
+  DeleteObjectCommand,
+  ListObjectsV2Command,
+} from '@aws-sdk/client-s3';
 import { logger } from '#utils/logger.js';
 
 /**
@@ -49,7 +55,7 @@ export async function checkFileExists(bucket, key, region) {
     }
     logger.error(`Error checking file existence in S3: ${key}`, {
       error: error.message,
-      statusCode: error.$metadata?.httpStatusCode
+      statusCode: error.$metadata?.httpStatusCode,
     });
     throw error;
   }
@@ -72,13 +78,13 @@ export async function downloadProfileText(bucket, key, region) {
     const data = JSON.parse(bodyString);
     logger.info(`Downloaded profile text from S3: ${key}`, {
       fileSize: bodyString.length,
-      profileId: data.profile_id
+      profileId: data.profile_id,
     });
     return data;
   } catch (error) {
     logger.error(`Error downloading profile text from S3: ${key}`, {
       error: error.message,
-      statusCode: error.$metadata?.httpStatusCode
+      statusCode: error.$metadata?.httpStatusCode,
     });
     throw error;
   }
@@ -115,7 +121,7 @@ export async function deleteProfileText(bucket, key, region) {
   } catch (error) {
     logger.error(`Error deleting file from S3: ${key}`, {
       error: error.message,
-      statusCode: error.$metadata?.httpStatusCode
+      statusCode: error.$metadata?.httpStatusCode,
     });
     throw error;
   }
@@ -143,13 +149,13 @@ export async function listProfileTexts(bucket, prefix, region, maxKeys = 1000) {
     logger.info(`Listed ${contents.length} profile text files in S3`, {
       bucket,
       prefix,
-      truncated: response.IsTruncated
+      truncated: response.IsTruncated,
     });
     return contents;
   } catch (error) {
     logger.error(`Error listing files from S3: ${prefix}`, {
       error: error.message,
-      statusCode: error.$metadata?.httpStatusCode
+      statusCode: error.$metadata?.httpStatusCode,
     });
     throw error;
   }
@@ -176,7 +182,7 @@ export async function verifyUploads(bucket, keys, region) {
         }
       })
     );
-    const existingCount = results.filter(r => r.exists).length;
+    const existingCount = results.filter((r) => r.exists).length;
     logger.info(`Upload verification complete: ${existingCount}/${keys.length} files exist`);
     return results;
   } catch (error) {
@@ -203,7 +209,7 @@ export async function getFileMetadata(bucket, key, region) {
       contentLength: response.ContentLength,
       lastModified: response.LastModified,
       etag: response.ETag,
-      metadata: response.Metadata
+      metadata: response.Metadata,
     };
   } catch (error) {
     if (error.name === 'NotFound' || error.$metadata?.httpStatusCode === 404) {
@@ -212,7 +218,7 @@ export async function getFileMetadata(bucket, key, region) {
     }
     logger.error(`Error getting metadata from S3: ${key}`, {
       error: error.message,
-      statusCode: error.$metadata?.httpStatusCode
+      statusCode: error.$metadata?.httpStatusCode,
     });
     throw error;
   }
@@ -224,5 +230,5 @@ export default {
   deleteProfileText,
   listProfileTexts,
   verifyUploads,
-  getFileMetadata
+  getFileMetadata,
 };

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Skeleton } from "@/shared/components/ui/skeleton";
+import { Skeleton } from '@/shared/components/ui/skeleton';
 
 /**
  * ConnectionCardSkeleton Component
@@ -15,7 +15,7 @@ interface ConnectionCardSkeletonProps {
 
 const ConnectionCardSkeleton: React.FC<ConnectionCardSkeletonProps> = ({
   variant = 'existing',
-  className = ''
+  className = '',
 }) => {
   return (
     <div className={`p-4 rounded-lg border bg-white/5 border-white/10 ${className}`}>
@@ -98,7 +98,7 @@ interface ConnectionListSkeletonProps {
 export const ConnectionListSkeleton: React.FC<ConnectionListSkeletonProps> = ({
   variant = 'existing',
   count = 5,
-  className = ''
+  className = '',
 }) => {
   return (
     <div className={`space-y-4 ${className}`}>

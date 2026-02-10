@@ -10,23 +10,35 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/shared/components/ui/dialog';
-import { Send, MessageSquare, Loader2, AlertCircle, Sparkles, Check, SkipForward } from 'lucide-react';
+import {
+  Send,
+  MessageSquare,
+  Loader2,
+  AlertCircle,
+  Sparkles,
+  Check,
+  SkipForward,
+} from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
 import { useToast } from '@/shared/hooks';
 import { createLogger } from '@/shared/utils/logger';
 
 const logger = createLogger('MessageModal');
-import { transformErrorForUser, getToastVariant, ERROR_MESSAGES } from '@/shared/utils/errorHandling';
+import {
+  transformErrorForUser,
+  getToastVariant,
+  ERROR_MESSAGES,
+} from '@/shared/utils/errorHandling';
 import { NoMessagesState } from '@/shared/components/ui/empty-state';
 import LoadingOverlay from '@/shared/components/ui/loading-overlay';
 import type { MessageModalProps } from '@/types';
 
 /**
  * MessageModal Component
- * 
+ *
  * Modal component for displaying and managing message history with connections.
  * Provides scrollable message display, message input functionality, and error handling.
- * 
+ *
  * @param props - The component props
  * @param props.isOpen - Whether the modal is open
  * @param props.connection - Connection whose messages to display
@@ -36,7 +48,7 @@ import type { MessageModalProps } from '@/types';
  * @param props.messagesError - Error message if message loading failed
  * @param props.onRetryLoadMessages - Callback to retry loading messages
  * @param props.className - Additional CSS classes
- * 
+ *
  * @returns JSX element representing the message modal
  */
 export const MessageModal: React.FC<MessageModalProps> = ({
@@ -51,7 +63,7 @@ export const MessageModal: React.FC<MessageModalProps> = ({
   isGeneratedContent = false,
   showGenerationControls = false,
   onApproveAndNext,
-  onSkipConnection
+  onSkipConnection,
 }) => {
   const [messageInput, setMessageInput] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -69,7 +81,7 @@ export const MessageModal: React.FC<MessageModalProps> = ({
 
   /**
    * Formats a timestamp string for display in the message history
-   * 
+   *
    * @param timestamp - ISO timestamp string to format
    * @returns Formatted timestamp string for display
    */
@@ -94,7 +106,9 @@ export const MessageModal: React.FC<MessageModalProps> = ({
   // Scroll to bottom when messages change
   useEffect(() => {
     if (scrollAreaRef.current) {
-      const scrollElement = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
+      const scrollElement = scrollAreaRef.current.querySelector(
+        '[data-radix-scroll-area-viewport]'
+      );
       if (scrollElement) {
         scrollElement.scrollTop = scrollElement.scrollHeight;
       }
@@ -143,27 +157,27 @@ export const MessageModal: React.FC<MessageModalProps> = ({
     // Validate message input
     if (!trimmedMessage) {
       toast({
-        title: "Empty Message",
-        description: "Please enter a message before sending.",
-        variant: "default",
+        title: 'Empty Message',
+        description: 'Please enter a message before sending.',
+        variant: 'default',
       });
       return;
     }
 
     if (trimmedMessage.length > 1000) {
       toast({
-        title: "Message Too Long",
-        description: "Messages must be 1000 characters or less. Please shorten your message.",
-        variant: "destructive",
+        title: 'Message Too Long',
+        description: 'Messages must be 1000 characters or less. Please shorten your message.',
+        variant: 'destructive',
       });
       return;
     }
 
     if (!onSendMessage) {
       toast({
-        title: "Feature Not Available",
-        description: "Message sending functionality will be available in a future update.",
-        variant: "default",
+        title: 'Feature Not Available',
+        description: 'Message sending functionality will be available in a future update.',
+        variant: 'default',
       });
       return;
     }
@@ -174,28 +188,24 @@ export const MessageModal: React.FC<MessageModalProps> = ({
       setMessageInput(''); // Clear input on success
 
       toast({
-        title: "Message Sent",
-        description: "Your message has been sent successfully.",
-        variant: "default",
+        title: 'Message Sent',
+        description: 'Your message has been sent successfully.',
+        variant: 'default',
       });
     } catch (error) {
       logger.error('Error sending message', { error });
 
       // Transform error for user-friendly display
-      const errorInfo = transformErrorForUser(
-        error,
-        ERROR_MESSAGES.SEND_MESSAGE,
-        [
-          {
-            label: 'Try Again',
-            action: () => handleSendMessage(),
-            primary: true
-          }
-        ]
-      );
+      const errorInfo = transformErrorForUser(error, ERROR_MESSAGES.SEND_MESSAGE, [
+        {
+          label: 'Try Again',
+          action: () => handleSendMessage(),
+          primary: true,
+        },
+      ]);
 
       toast({
-        title: "Send Failed",
+        title: 'Send Failed',
         description: errorInfo.userMessage,
         variant: getToastVariant(errorInfo.severity),
       });
@@ -208,13 +218,13 @@ export const MessageModal: React.FC<MessageModalProps> = ({
    * Handles keyboard events in the message input field
    * Sends message on Enter key press (without Shift modifier) for normal mode
    * In generation mode, Enter approves and moves to next connection
-   * 
+   *
    * @param event - The keyboard event
    */
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
-      
+
       if (showGenerationControls && onApproveAndNext) {
         onApproveAndNext();
       } else {
@@ -224,19 +234,26 @@ export const MessageModal: React.FC<MessageModalProps> = ({
   };
 
   const messages = connection.message_history || [];
-  const connectionName = `${connection.first_name} ${connection.last_name}`.trim() || 'Unknown Contact';
+  const connectionName =
+    `${connection.first_name} ${connection.last_name}`.trim() || 'Unknown Contact';
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => {
-      if (!open) {
-        if (showGenerationControls && onSkipConnection) {
-          onSkipConnection();
-        } else {
-          onClose();
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) {
+          if (showGenerationControls && onSkipConnection) {
+            onSkipConnection();
+          } else {
+            onClose();
+          }
         }
-      }
-    }}>
-      <DialogContent className="sm:max-w-[600px] max-h-[80vh] flex flex-col">
+      }}
+    >
+      <DialogContent
+        data-testid="message-modal"
+        className="sm:max-w-[600px] max-h-[80vh] flex flex-col"
+      >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <MessageSquare className="h-5 w-5" />
@@ -251,11 +268,11 @@ export const MessageModal: React.FC<MessageModalProps> = ({
           <DialogDescription>
             {connection.position && connection.company
               ? `${connection.position} at ${connection.company}`
-              : connection.position || connection.company || 'LinkedIn Connection'
-            }
+              : connection.position || connection.company || 'LinkedIn Connection'}
             {isGeneratedContent && (
               <div className="mt-2 text-sm text-blue-600 dark:text-blue-400">
-                This message was generated by AI based on your conversation topic. You can edit it before sending.
+                This message was generated by AI based on your conversation topic. You can edit it
+                before sending.
               </div>
             )}
           </DialogDescription>
@@ -286,33 +303,26 @@ export const MessageModal: React.FC<MessageModalProps> = ({
                   )}
                 </div>
               ) : messages.length === 0 ? (
-                <NoMessagesState
-                  connectionName={connection.first_name}
-                  className="h-full"
-                />
+                <NoMessagesState connectionName={connection.first_name} className="h-full" />
               ) : (
                 <div className="space-y-4">
                   {messages.map((message, index) => (
                     <div
                       key={message.id || `msg-${index}`}
                       className={cn(
-                        "flex flex-col max-w-[80%]",
-                        message.sender === 'user'
-                          ? "ml-auto items-end"
-                          : "mr-auto items-start"
+                        'flex flex-col max-w-[80%]',
+                        message.sender === 'user' ? 'ml-auto items-end' : 'mr-auto items-start'
                       )}
                     >
                       <div
                         className={cn(
-                          "rounded-lg px-4 py-2 text-sm",
+                          'rounded-lg px-4 py-2 text-sm',
                           message.sender === 'user'
-                            ? "bg-primary text-primary-foreground"
-                            : "bg-muted text-muted-foreground"
+                            ? 'bg-primary text-primary-foreground'
+                            : 'bg-muted text-muted-foreground'
                         )}
                       >
-                        <p className="whitespace-pre-wrap break-words">
-                          {message.content}
-                        </p>
+                        <p className="whitespace-pre-wrap break-words">{message.content}</p>
                       </div>
                       <span className="text-xs text-muted-foreground mt-1">
                         {formatTimestamp(message.timestamp)}
@@ -334,25 +344,29 @@ export const MessageModal: React.FC<MessageModalProps> = ({
                 <span className="font-medium">AI-Generated Message</span>
               </div>
               <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                This message was created based on your conversation topic and connection profile. Feel free to edit it before sending.
+                This message was created based on your conversation topic and connection profile.
+                Feel free to edit it before sending.
               </p>
             </div>
           )}
-          
+
           <div className="flex w-full gap-2">
             <Input
-              placeholder={isGeneratedContent ? "Edit the AI-generated message..." : "Type your message..."}
+              placeholder={
+                isGeneratedContent ? 'Edit the AI-generated message...' : 'Type your message...'
+              }
               value={messageInput}
               onChange={(e) => setMessageInput(e.target.value)}
               onKeyDown={handleKeyDown}
               disabled={isSending}
               className={cn(
-                "flex-1",
-                isGeneratedContent && "border-blue-300 dark:border-blue-700 bg-blue-50/50 dark:bg-blue-950/20"
+                'flex-1',
+                isGeneratedContent &&
+                  'border-blue-300 dark:border-blue-700 bg-blue-50/50 dark:bg-blue-950/20'
               )}
               maxLength={1000}
             />
-            
+
             {showGenerationControls ? (
               <div className="flex gap-2">
                 <Button
@@ -399,13 +413,12 @@ export const MessageModal: React.FC<MessageModalProps> = ({
               </Button>
             )}
           </div>
-          
+
           <div className="flex justify-between w-full text-xs text-muted-foreground">
             <span>
-              {showGenerationControls 
-                ? "Enter to approve, Ctrl+S to skip, Esc to skip"
-                : "Press Enter to send, Shift+Enter for new line"
-              }
+              {showGenerationControls
+                ? 'Enter to approve, Ctrl+S to skip, Esc to skip'
+                : 'Press Enter to send, Shift+Enter for new line'}
             </span>
             <span>{messageInput.length}/1000</span>
           </div>
