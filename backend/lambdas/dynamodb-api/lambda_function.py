@@ -110,6 +110,10 @@ def lambda_handler(event: dict[str, Any], context) -> dict[str, Any]:
             result = service.get_user_settings(user_id)
             return create_response(200, result)
 
+        if not user_id:
+            logger.error('No user ID found in JWT token for POST operation')
+            return create_response(401, {'error': 'Authentication required'}, _get_origin_from_event(event))
+
         body = json.loads(event.get('body', '{}')) if event.get('body') else {}
         operation = body.get('operation')
 

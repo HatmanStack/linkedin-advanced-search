@@ -299,7 +299,8 @@ class LLMService(BaseService):
             user_data = ''
             if isinstance(user_profile, dict) and user_profile.get('name') != PROFILE_PLACEHOLDER_NAME:
                 for key, value in user_profile.items():
-                    user_data += f'{key}: {value}\n'
+                    if key != 'linkedin_credentials':
+                        user_data += f'{key}: {value}\n'
 
             research_text = self._normalize_content(research_content)
             post_text = self._normalize_content(post_content)
