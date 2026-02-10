@@ -77,7 +77,7 @@ jobs:
         run: uvx ruff format --check lambdas --exclude .aws-sam
       - name: Install test dependencies
         working-directory: ./tests/backend
-        run: uv pip install pytest pytest-mock boto3 moto requests-mock --system
+        run: uv pip install -r requirements-test.lock --system
       - name: Run pytest
         working-directory: ./tests/backend
         run: python -m pytest unit/ -v --tb=short
