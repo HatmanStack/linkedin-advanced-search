@@ -34,6 +34,8 @@ class EdgeService(BaseService):
         table,
         ragstack_endpoint: str = '',
         ragstack_api_key: str = '',
+        ragstack_client=None,
+        ingestion_service=None,
     ):
         """
         Initialize EdgeService with injected dependencies.
@@ -42,11 +44,15 @@ class EdgeService(BaseService):
             table: DynamoDB Table resource
             ragstack_endpoint: RAGStack GraphQL API endpoint URL
             ragstack_api_key: RAGStack API key for authentication
+            ragstack_client: Optional pre-built RAGStackClient instance
+            ingestion_service: Optional pre-built IngestionService instance
         """
         super().__init__()
         self.table = table
         self.ragstack_endpoint = ragstack_endpoint
         self.ragstack_api_key = ragstack_api_key
+        self.ragstack_client = ragstack_client
+        self.ingestion_service = ingestion_service
 
     def health_check(self) -> dict[str, Any]:
         """Check service health by verifying table access."""
@@ -393,6 +399,45 @@ class EdgeService(BaseService):
                 service='DynamoDB',
                 original_error=str(e)
             ) from e
+
+    # =========================================================================
+    # RAGStack proxy operations
+    # =========================================================================
+
+    def ragstack_search(self, query: str, max_results: int = 100) -> dict[str, Any]:
+        """Search RAGStack for matching profiles."""
+        if not self.ragstack_client:
+            raise ExternalServiceError(
+                message='RAGStack not configured',
+                service='RAGStack',
+            )
+        results = self.ragstack_client.search(query, max_results)
+        return {'results': results, 'totalResults': len(results)}
+
+    def ragstack_ingest(
+        self,
+        profile_id: str,
+        markdown_content: str,
+        metadata: dict[str, Any],
+        user_id: str,
+    ) -> dict[str, Any]:
+        """Ingest a profile document into RAGStack."""
+        if not self.ingestion_service:
+            raise ExternalServiceError(
+                message='RAGStack not configured',
+                service='RAGStack',
+            )
+        metadata['user_id'] = user_id
+        return self.ingestion_service.ingest_profile(profile_id, markdown_content, metadata)
+
+    def ragstack_status(self, document_id: str) -> dict[str, Any]:
+        """Get ingestion status for a document."""
+        if not self.ragstack_client:
+            raise ExternalServiceError(
+                message='RAGStack not configured',
+                service='RAGStack',
+            )
+        return self.ragstack_client.get_document_status(document_id)
 
     # =========================================================================
     # Private helper methods

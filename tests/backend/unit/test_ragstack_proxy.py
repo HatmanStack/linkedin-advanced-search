@@ -114,36 +114,47 @@ def edge_module():
     return module
 
 
+def _make_svc(ragstack_client=None, ingestion_service=None):
+    """Helper to create an EdgeService with mocked dependencies for RAGStack tests."""
+    from conftest import load_service_class
+    EdgeService = load_service_class('edge-processing', 'edge_service').EdgeService
+    return EdgeService(
+        table=MagicMock(),
+        ragstack_client=ragstack_client,
+        ingestion_service=ingestion_service,
+    )
+
+
 class TestSearchOperation:
     """Tests for search operation through edge-processing handler"""
 
     def test_search_requires_query(self, edge_module):
         mock_client = MagicMock()
-        with patch.object(edge_module, '_ragstack_client', mock_client):
-            result = edge_module._handle_ragstack({'operation': 'search'}, 'user-123')
-            assert result['statusCode'] == 400
+        svc = _make_svc(ragstack_client=mock_client)
+        result = edge_module._handle_ragstack({'operation': 'search'}, 'user-123', svc)
+        assert result['statusCode'] == 400
 
     def test_search_success(self, edge_module):
         mock_client = MagicMock()
         mock_client.search.return_value = [
             {'content': 'test', 'source': 'profile_1', 'score': 0.8}
         ]
-        with patch.object(edge_module, '_ragstack_client', mock_client):
-            result = edge_module._handle_ragstack(
-                {'operation': 'search', 'query': 'engineer', 'maxResults': 10},
-                'user-123'
-            )
-            assert result['statusCode'] == 200
-            body = json.loads(result['body'])
-            assert body['totalResults'] == 1
+        svc = _make_svc(ragstack_client=mock_client)
+        result = edge_module._handle_ragstack(
+            {'operation': 'search', 'query': 'engineer', 'maxResults': 10},
+            'user-123', svc
+        )
+        assert result['statusCode'] == 200
+        body = json.loads(result['body'])
+        assert body['totalResults'] == 1
 
     def test_search_ragstack_not_configured(self, edge_module):
-        with patch.object(edge_module, '_ragstack_client', None):
-            result = edge_module._handle_ragstack(
-                {'operation': 'search', 'query': 'test'},
-                'user-123'
-            )
-            assert result['statusCode'] == 503
+        svc = _make_svc()  # No ragstack_client
+        result = edge_module._handle_ragstack(
+            {'operation': 'search', 'query': 'test'},
+            'user-123', svc
+        )
+        assert result['statusCode'] == 503
 
 
 class TestIngestOperation:
@@ -151,60 +162,56 @@ class TestIngestOperation:
 
     def test_ingest_requires_profile_id(self, edge_module):
         mock_client = MagicMock()
-        mock_svc = MagicMock()
-        with patch.object(edge_module, '_ragstack_client', mock_client), \
-             patch.object(edge_module, '_ingestion_service', mock_svc):
-            result = edge_module._handle_ragstack(
-                {'operation': 'ingest', 'markdownContent': '# Profile'},
-                'user-123'
-            )
-            assert result['statusCode'] == 400
+        mock_ingestion = MagicMock()
+        svc = _make_svc(ragstack_client=mock_client, ingestion_service=mock_ingestion)
+        result = edge_module._handle_ragstack(
+            {'operation': 'ingest', 'markdownContent': '# Profile'},
+            'user-123', svc
+        )
+        assert result['statusCode'] == 400
 
     def test_ingest_requires_content(self, edge_module):
         mock_client = MagicMock()
-        mock_svc = MagicMock()
-        with patch.object(edge_module, '_ragstack_client', mock_client), \
-             patch.object(edge_module, '_ingestion_service', mock_svc):
-            result = edge_module._handle_ragstack(
-                {'operation': 'ingest', 'profileId': 'profile-123'},
-                'user-123'
-            )
-            assert result['statusCode'] == 400
+        mock_ingestion = MagicMock()
+        svc = _make_svc(ragstack_client=mock_client, ingestion_service=mock_ingestion)
+        result = edge_module._handle_ragstack(
+            {'operation': 'ingest', 'profileId': 'profile-123'},
+            'user-123', svc
+        )
+        assert result['statusCode'] == 400
 
     def test_ingest_success(self, edge_module):
         mock_client = MagicMock()
-        mock_svc = MagicMock()
-        mock_svc.ingest_profile.return_value = {
+        mock_ingestion = MagicMock()
+        mock_ingestion.ingest_profile.return_value = {
             'status': 'uploaded', 'documentId': 'doc-123',
             'profileId': 'profile-123', 'error': None
         }
-        with patch.object(edge_module, '_ragstack_client', mock_client), \
-             patch.object(edge_module, '_ingestion_service', mock_svc):
-            result = edge_module._handle_ragstack({
-                'operation': 'ingest',
-                'profileId': 'profile-123',
-                'markdownContent': '# John Doe\nSoftware Engineer',
-                'metadata': {'source': 'test'}
-            }, 'user-123')
-            assert result['statusCode'] == 200
-            body = json.loads(result['body'])
-            assert body['status'] == 'uploaded'
+        svc = _make_svc(ragstack_client=mock_client, ingestion_service=mock_ingestion)
+        result = edge_module._handle_ragstack({
+            'operation': 'ingest',
+            'profileId': 'profile-123',
+            'markdownContent': '# John Doe\nSoftware Engineer',
+            'metadata': {'source': 'test'}
+        }, 'user-123', svc)
+        assert result['statusCode'] == 200
+        body = json.loads(result['body'])
+        assert body['status'] == 'uploaded'
 
     def test_ingest_includes_user_id_in_metadata(self, edge_module):
-        """Verify user_id is added to metadata"""
+        """Verify user_id is added to metadata via service"""
         mock_client = MagicMock()
-        mock_svc = MagicMock()
-        mock_svc.ingest_profile.return_value = {'status': 'uploaded', 'documentId': 'doc-1', 'error': None}
-        with patch.object(edge_module, '_ragstack_client', mock_client), \
-             patch.object(edge_module, '_ingestion_service', mock_svc):
-            edge_module._handle_ragstack({
-                'operation': 'ingest',
-                'profileId': 'p-1',
-                'markdownContent': '# Test',
-            }, 'my-user-id')
-            # ingest_profile called with positional args: (profile_id, markdown_content, metadata)
-            call_args = mock_svc.ingest_profile.call_args[0]
-            assert call_args[2]['user_id'] == 'my-user-id'
+        mock_ingestion = MagicMock()
+        mock_ingestion.ingest_profile.return_value = {'status': 'uploaded', 'documentId': 'doc-1', 'error': None}
+        svc = _make_svc(ragstack_client=mock_client, ingestion_service=mock_ingestion)
+        edge_module._handle_ragstack({
+            'operation': 'ingest',
+            'profileId': 'p-1',
+            'markdownContent': '# Test',
+        }, 'my-user-id', svc)
+        # ingestion_service.ingest_profile called with (profile_id, markdown_content, metadata)
+        call_args = mock_ingestion.ingest_profile.call_args[0]
+        assert call_args[2]['user_id'] == 'my-user-id'
 
 
 class TestStatusOperation:
@@ -212,23 +219,23 @@ class TestStatusOperation:
 
     def test_status_requires_document_id(self, edge_module):
         mock_client = MagicMock()
-        with patch.object(edge_module, '_ragstack_client', mock_client):
-            result = edge_module._handle_ragstack({'operation': 'status'}, 'user-123')
-            assert result['statusCode'] == 400
+        svc = _make_svc(ragstack_client=mock_client)
+        result = edge_module._handle_ragstack({'operation': 'status'}, 'user-123', svc)
+        assert result['statusCode'] == 400
 
     def test_status_success(self, edge_module):
         mock_client = MagicMock()
         mock_client.get_document_status.return_value = {
             'status': 'indexed', 'documentId': 'doc-123', 'error': None
         }
-        with patch.object(edge_module, '_ragstack_client', mock_client):
-            result = edge_module._handle_ragstack(
-                {'operation': 'status', 'documentId': 'doc-123'},
-                'user-123'
-            )
-            assert result['statusCode'] == 200
-            body = json.loads(result['body'])
-            assert body['status'] == 'indexed'
+        svc = _make_svc(ragstack_client=mock_client)
+        result = edge_module._handle_ragstack(
+            {'operation': 'status', 'documentId': 'doc-123'},
+            'user-123', svc
+        )
+        assert result['statusCode'] == 200
+        body = json.loads(result['body'])
+        assert body['status'] == 'indexed'
 
 
 class TestDevMode:

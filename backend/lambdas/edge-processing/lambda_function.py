@@ -83,9 +83,9 @@ def _get_user_id(event):
     return None
 
 
-def _handle_ragstack(body, user_id, event=None):
-    """Handle /ragstack route - search and ingest operations."""
-    if not _ragstack_client:
+def _handle_ragstack(body, user_id, svc, event=None):
+    """Handle /ragstack route - thin dispatcher to EdgeService RAGStack methods."""
+    if not svc.ragstack_client:
         return _resp(503, {'error': 'RAGStack not configured'}, event)
 
     operation = body.get('operation')
@@ -98,8 +98,8 @@ def _handle_ragstack(body, user_id, event=None):
             max_results = min(int(body.get('maxResults', 100)), 200)
         except (TypeError, ValueError):
             return _resp(400, {'error': 'maxResults must be a number'}, event)
-        results = _ragstack_client.search(query, max_results)
-        return _resp(200, {'results': results, 'totalResults': len(results)}, event)
+        result = svc.ragstack_search(query, max_results)
+        return _resp(200, result, event)
 
     elif operation == 'ingest':
         profile_id = body.get('profileId')
@@ -111,16 +111,15 @@ def _handle_ragstack(body, user_id, event=None):
             return _resp(400, {'error': 'profileId is required'}, event)
         if not markdown_content:
             return _resp(400, {'error': 'markdownContent is required'}, event)
-        metadata['user_id'] = user_id
-        result = _ingestion_service.ingest_profile(profile_id, markdown_content, metadata)
+        result = svc.ragstack_ingest(profile_id, markdown_content, metadata, user_id)
         return _resp(200, result, event)
 
     elif operation == 'status':
         document_id = body.get('documentId')
         if not document_id:
             return _resp(400, {'error': 'documentId is required'}, event)
-        status = _ragstack_client.get_document_status(document_id)
-        return _resp(200, status, event)
+        result = svc.ragstack_status(document_id)
+        return _resp(200, result, event)
 
     else:
         return _resp(400, {'error': f'Unsupported ragstack operation: {operation}'}, event)
@@ -148,11 +147,18 @@ def lambda_handler(event, context):
 
         # Determine route
         raw_path = event.get('rawPath', '') or event.get('path', '')
-        if '/ragstack' in raw_path:
-            return _handle_ragstack(body, user_id, event)
 
         op, pid, updates = body.get('operation'), body.get('profileId'), body.get('updates', {})
-        svc = EdgeService(table=table, ragstack_endpoint=RAGSTACK_GRAPHQL_ENDPOINT, ragstack_api_key=RAGSTACK_API_KEY)
+        svc = EdgeService(
+            table=table,
+            ragstack_endpoint=RAGSTACK_GRAPHQL_ENDPOINT,
+            ragstack_api_key=RAGSTACK_API_KEY,
+            ragstack_client=_ragstack_client,
+            ingestion_service=_ingestion_service,
+        )
+
+        if '/ragstack' in raw_path:
+            return _handle_ragstack(body, user_id, svc, event)
 
         if op == 'get_connections_by_status':
             r = svc.get_connections_by_status(user_id, updates.get('status'))
