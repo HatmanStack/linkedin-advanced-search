@@ -127,7 +127,7 @@ describe('UserProfileContext', () => {
     it('should not fetch when no user', async () => {
       mockUser.value = null;
 
-      const { result } = renderHook(() => useUserProfile(), { wrapper: createWrapper() });
+      renderHook(() => useUserProfile(), { wrapper: createWrapper() });
 
       // Wait a tick
       await new Promise((resolve) => setTimeout(resolve, 10));

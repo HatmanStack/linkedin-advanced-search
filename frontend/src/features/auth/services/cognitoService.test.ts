@@ -158,7 +158,7 @@ describe('CognitoAuthService', () => {
       mockAuthenticateUser.mockImplementation((_details, callbacks) => {
         callbacks.onSuccess(mockSession);
       });
-      mockGetUserAttributes.mockImplementation((callback: Function) => {
+      mockGetUserAttributes.mockImplementation((callback: (...args: unknown[]) => void) => {
         callback(null, mockAttrs);
       });
 
@@ -194,7 +194,7 @@ describe('CognitoAuthService', () => {
       mockCompleteNewPasswordChallenge.mockImplementation((_password, _attrs, callbacks) => {
         callbacks.onSuccess(mockSession);
       });
-      mockGetUserAttributes.mockImplementation((callback: Function) => {
+      mockGetUserAttributes.mockImplementation((callback: (...args: unknown[]) => void) => {
         callback(null, mockAttrs);
       });
 
@@ -215,7 +215,7 @@ describe('CognitoAuthService', () => {
       mockAuthenticateUser.mockImplementation((_details, callbacks) => {
         callbacks.onSuccess(mockSession);
       });
-      mockGetUserAttributes.mockImplementation((callback: Function) => {
+      mockGetUserAttributes.mockImplementation((callback: (...args: unknown[]) => void) => {
         callback(new Error('Failed to get attributes'));
       });
 
@@ -267,10 +267,10 @@ describe('CognitoAuthService', () => {
         getUserAttributes: mockGetUserAttributes,
       };
       mockGetCurrentUser.mockReturnValue(mockUser);
-      mockGetSession.mockImplementation((callback: Function) => {
+      mockGetSession.mockImplementation((callback: (...args: unknown[]) => void) => {
         callback(null, mockSession);
       });
-      mockGetUserAttributes.mockImplementation((callback: Function) => {
+      mockGetUserAttributes.mockImplementation((callback: (...args: unknown[]) => void) => {
         callback(null, mockAttrs);
       });
 
@@ -293,7 +293,7 @@ describe('CognitoAuthService', () => {
     it('should return null on session error', async () => {
       const mockUser = { getSession: mockGetSession };
       mockGetCurrentUser.mockReturnValue(mockUser);
-      mockGetSession.mockImplementation((callback: Function) => {
+      mockGetSession.mockImplementation((callback: (...args: unknown[]) => void) => {
         callback(new Error('Session expired'));
       });
 
@@ -306,7 +306,7 @@ describe('CognitoAuthService', () => {
       const invalidSession = { isValid: () => false } as unknown as CognitoUserSession;
       const mockUser = { getSession: mockGetSession };
       mockGetCurrentUser.mockReturnValue(mockUser);
-      mockGetSession.mockImplementation((callback: Function) => {
+      mockGetSession.mockImplementation((callback: (...args: unknown[]) => void) => {
         callback(null, invalidSession);
       });
 
@@ -322,10 +322,10 @@ describe('CognitoAuthService', () => {
         getUserAttributes: mockGetUserAttributes,
       };
       mockGetCurrentUser.mockReturnValue(mockUser);
-      mockGetSession.mockImplementation((callback: Function) => {
+      mockGetSession.mockImplementation((callback: (...args: unknown[]) => void) => {
         callback(null, mockSession);
       });
-      mockGetUserAttributes.mockImplementation((callback: Function) => {
+      mockGetUserAttributes.mockImplementation((callback: (...args: unknown[]) => void) => {
         callback(new Error('Attributes error'));
       });
 
@@ -432,7 +432,7 @@ describe('CognitoAuthService', () => {
       const mockSession = createMockSession();
       const mockUser = { getSession: mockGetSession };
       mockGetCurrentUser.mockReturnValue(mockUser);
-      mockGetSession.mockImplementation((callback: Function) => {
+      mockGetSession.mockImplementation((callback: (...args: unknown[]) => void) => {
         callback(null, mockSession);
       });
 
@@ -452,7 +452,7 @@ describe('CognitoAuthService', () => {
     it('should return null on session error', async () => {
       const mockUser = { getSession: mockGetSession };
       mockGetCurrentUser.mockReturnValue(mockUser);
-      mockGetSession.mockImplementation((callback: Function) => {
+      mockGetSession.mockImplementation((callback: (...args: unknown[]) => void) => {
         callback(new Error('Session expired'));
       });
 
@@ -465,7 +465,7 @@ describe('CognitoAuthService', () => {
       const invalidSession = { isValid: () => false } as unknown as CognitoUserSession;
       const mockUser = { getSession: mockGetSession };
       mockGetCurrentUser.mockReturnValue(mockUser);
-      mockGetSession.mockImplementation((callback: Function) => {
+      mockGetSession.mockImplementation((callback: (...args: unknown[]) => void) => {
         callback(null, invalidSession);
       });
 
