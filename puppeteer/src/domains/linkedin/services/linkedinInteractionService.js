@@ -85,13 +85,12 @@ export class LinkedInInteractionService {
   }
 
   /**
-   * Execute operation with retry logic and error recovery
+   * Execute operation once with error categorization (no retry).
    * @param {Function} operation - The operation to execute
    * @param {Object} context - Context information for error handling
-   * @param {number} maxRetries - Maximum number of retries
    * @returns {Promise<any>} Operation result
    */
-  async executeWithRetry(operation, context = {}) {
+  async executeOnce(operation, context = {}) {
     // Disable retries for interactive flows; execute once
     try {
       context.attemptCount = 1;
