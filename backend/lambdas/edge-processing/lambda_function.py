@@ -20,8 +20,8 @@ _ragstack_client = None
 _ingestion_service = None
 
 if RAGSTACK_GRAPHQL_ENDPOINT and RAGSTACK_API_KEY:
-    from shared_services.ragstack_client import RAGStackClient
     from shared_services.ingestion_service import IngestionService
+    from shared_services.ragstack_client import RAGStackClient
     _ragstack_client = RAGStackClient(RAGSTACK_GRAPHQL_ENDPOINT, RAGSTACK_API_KEY)
     _ingestion_service = IngestionService(_ragstack_client)
 
