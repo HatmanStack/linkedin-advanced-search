@@ -232,7 +232,10 @@ const Dashboard = () => {
                 )}
 
                 {!connectionsLoading && !connectionsError && (
-                  <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-lg p-6">
+                  <div
+                    data-testid="connections-list"
+                    className="bg-white/5 backdrop-blur-md border border-white/10 rounded-lg p-6"
+                  >
                     <div className="flex items-center justify-between mb-4">
                       <h2 className="text-xl font-semibold text-white">Your Connections</h2>
                       <div className="flex items-center gap-4">

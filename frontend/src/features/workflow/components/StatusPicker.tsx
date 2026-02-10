@@ -158,6 +158,7 @@ const StatusPicker: React.FC<StatusPickerProps> = ({
         >
           <SelectTrigger
             id="status-select"
+            data-testid="status-filter"
             className="w-full bg-white/5 border-white/20 text-white hover:bg-white/10 focus:border-blue-400"
           >
             <SelectValue>{getSelectedStatusDisplay()}</SelectValue>
