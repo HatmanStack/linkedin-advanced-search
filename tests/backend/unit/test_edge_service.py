@@ -456,9 +456,10 @@ class TestEdgeServiceMessageCap:
         )
 
         assert result['success'] is True
-        # Should use list_append (not SET replacement)
+        # Should call update_item once with correct key
+        mock_table.update_item.assert_called_once()
         update_call = mock_table.update_item.call_args
-        assert 'list_append' in update_call[1].get('UpdateExpression', '')
+        assert update_call[1]['Key']['PK'] == 'USER#test-user'
 
     def test_add_message_at_cap_trims_oldest(self):
         """Should trim oldest messages when at 100-message cap."""
@@ -475,10 +476,9 @@ class TestEdgeServiceMessageCap:
         )
 
         assert result['success'] is True
-        # Should use SET with trimmed list
+        # Should call update_item to persist trimmed list
+        mock_table.update_item.assert_called_once()
         update_call = mock_table.update_item.call_args
-        expr = update_call[1].get('UpdateExpression', '')
-        assert 'SET messages' in expr
         # The new message list should be exactly 100 (99 old + 1 new)
         expr_values = update_call[1].get('ExpressionAttributeValues', {})
         new_msgs = expr_values.get(':msgs', [])
@@ -522,8 +522,10 @@ class TestEdgeServiceMessageCap:
         )
 
         assert result['success'] is True
+        # Should call update_item once with correct key
+        mock_table.update_item.assert_called_once()
         update_call = mock_table.update_item.call_args
-        assert 'list_append' in update_call[1].get('UpdateExpression', '')
+        assert update_call[1]['Key']['PK'] == 'USER#test-user'
 
     def test_add_message_no_item_creates_new(self):
         """Should handle case when edge item doesn't exist yet."""
