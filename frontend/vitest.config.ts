@@ -10,8 +10,15 @@ export default defineConfig({
     setupFiles: ['./src/setupTests.ts'],
     include: ['src/**/*.test.{ts,tsx}'],
     coverage: {
+      provider: 'v8',
       reporter: ['text', 'json', 'html'],
-      exclude: ['node_modules/', 'src/setupTests.ts'],
+      exclude: ['node_modules/', 'src/setupTests.ts', 'src/shared/components/ui/**'],
+      thresholds: {
+        lines: 28,
+        branches: 70,
+        functions: 46,
+        statements: 28,
+      },
     },
   },
   resolve: {
