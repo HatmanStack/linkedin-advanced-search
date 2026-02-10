@@ -41,8 +41,8 @@ def test_lambda_handler_with_auth(lambda_context, edge_processing_module):
 
     response = edge_processing_module.lambda_handler(event, lambda_context)
 
-    # Without mocked DynamoDB, expect a service error
-    assert response['statusCode'] in [500, 502]
+    # EdgeService wraps ClientError as ExternalServiceError → handler returns 502
+    assert response['statusCode'] == 502
     body = json.loads(response['body'])
     assert 'error' in body
 
