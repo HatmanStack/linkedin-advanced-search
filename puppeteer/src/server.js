@@ -88,8 +88,8 @@ app.use((req, res, next) => {
 });
 
 // Body parser middleware
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use(express.json({ limit: '5mb' }));
+app.use(express.urlencoded({ extended: true, limit: '5mb' }));
 
 // Request logging middleware
 app.use((req, res, next) => {
