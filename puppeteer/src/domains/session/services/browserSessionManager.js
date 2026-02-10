@@ -49,7 +49,7 @@ class BrowserSessionManager {
   static async getInstance(options = { reinitializeIfUnhealthy: false }) {
     try {
       // Check if existing instance is still valid
-      if (this.instance && (await this.isSessionHealthy())) {
+      if (this.instance && await this.isSessionHealthy()) {
         this.lastActivity = new Date();
         logger.debug('Reusing existing browser session');
         return this.instance;
@@ -57,9 +57,7 @@ class BrowserSessionManager {
 
       // If caller does NOT want automatic recovery, just return current instance (may be unhealthy)
       if (this.instance && options && options.reinitializeIfUnhealthy === false) {
-        logger.debug(
-          'Session reported unhealthy; skipping auto-recovery per options and returning existing instance'
-        );
+        logger.debug('Session reported unhealthy; skipping auto-recovery per options and returning existing instance');
         return this.instance;
       }
 
@@ -88,9 +86,7 @@ class BrowserSessionManager {
       // If we've hit max errors, cleanup and throw
       if (this.errorCount >= this.maxErrors) {
         await this.cleanup();
-        throw new Error(
-          `Browser session failed after ${this.maxErrors} attempts: ${error.message}`
-        );
+        throw new Error(`Browser session failed after ${this.maxErrors} attempts: ${error.message}`);
       }
 
       throw error;
@@ -132,10 +128,7 @@ class BrowserSessionManager {
       await page.evaluate(() => document.readyState);
 
       // Check session timeout
-      if (
-        this.sessionStartTime &&
-        Date.now() - this.sessionStartTime.getTime() > this.sessionTimeout
-      ) {
+      if (this.sessionStartTime && (Date.now() - this.sessionStartTime.getTime()) > this.sessionTimeout) {
         logger.debug('Session has timed out');
         return false;
       }
@@ -163,7 +156,7 @@ class BrowserSessionManager {
       sessionAge: this.sessionStartTime ? Date.now() - this.sessionStartTime.getTime() : 0,
       errorCount: this.errorCount,
       memoryUsage: process.memoryUsage(),
-      currentUrl: isHealthy && this.instance ? await this.getCurrentUrl() : null,
+      currentUrl: isHealthy && this.instance ? await this.getCurrentUrl() : null
     };
   }
 
@@ -173,7 +166,7 @@ class BrowserSessionManager {
    */
   static async getCurrentUrl() {
     try {
-      if (this.instance && (await this.isSessionHealthy())) {
+      if (this.instance && await this.isSessionHealthy()) {
         const page = this.instance.getPage();
         return await page.url();
       }
@@ -247,9 +240,7 @@ class BrowserSessionManager {
         return true;
       } catch (recoveryError) {
         logger.error('Session recovery failed:', recoveryError);
-        throw new Error(
-          `Session recovery failed after ${this.maxErrors} errors: ${recoveryError.message}`
-        );
+        throw new Error(`Session recovery failed after ${this.maxErrors} errors: ${recoveryError.message}`);
       }
     }
 

@@ -42,7 +42,7 @@ async function main() {
       currentBatch: state.currentBatch,
       currentIndex: state.currentIndex,
       recursionCount: state.recursionCount,
-      healPhase: state.healPhase,
+      healPhase: state.healPhase
     });
 
     // Decrypt credentials
@@ -82,16 +82,17 @@ async function main() {
     logger.error('Profile init healing worker: resumption logic not implemented', {
       currentBatch: state.currentBatch,
       currentIndex: state.currentIndex,
-      requestId: state.requestId,
+      requestId: state.requestId
     });
 
     // Cleanup state file since we can't actually resume
     await cleanupStateFile(stateFile);
     process.exit(1);
+
   } catch (err) {
     logger.error('Profile init healing worker failed', {
       error: err.message,
-      stack: err.stack,
+      stack: err.stack
     });
     // Cleanup state file before exit
     await cleanupStateFile(stateFile);

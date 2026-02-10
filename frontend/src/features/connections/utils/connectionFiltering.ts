@@ -12,18 +12,18 @@ const LIKELIHOOD_ORDINAL: Record<ConversionLikelihood, number> = {
 
 /**
  * Filters connections based on the provided filter criteria
- *
+ * 
  * @param connections - Array of connections to filter
  * @param filters - Filter criteria to apply
  * @returns Filtered array of connections
  */
 export function filterConnections(
-  connections: Connection[],
+  connections: Connection[], 
   filters: ConnectionFilters
 ): Connection[] {
   if (!connections.length) return connections;
 
-  return connections.filter((connection) => {
+  return connections.filter(connection => {
     // Status filter
     if (filters.status && filters.status !== 'all') {
       if (connection.status !== filters.status) {
@@ -41,10 +41,8 @@ export function filterConnections(
           connection.position,
           connection.company,
           connection.headline || '',
-          connection.location || '',
-        ]
-          .join(' ')
-          .toLowerCase();
+          connection.location || ''
+        ].join(' ').toLowerCase();
 
         if (!searchableText.includes(searchTerm)) {
           return false;
@@ -88,8 +86,10 @@ export function filterConnections(
     // Tags filter
     if (filters.tags && filters.tags.length > 0) {
       const connectionTags = connection.tags || [];
-      const hasMatchingTag = filters.tags.some((filterTag) => connectionTags.includes(filterTag));
-
+      const hasMatchingTag = filters.tags.some(filterTag => 
+        connectionTags.includes(filterTag)
+      );
+      
       if (!hasMatchingTag) {
         return false;
       }
@@ -101,7 +101,7 @@ export function filterConnections(
 
 /**
  * Sorts connections based on various criteria
- *
+ * 
  * @param connections - Array of connections to sort
  * @param sortBy - Field to sort by
  * @param sortOrder - Sort direction
@@ -121,23 +121,23 @@ export function sortConnections(
         aValue = `${a.first_name} ${a.last_name}`.toLowerCase();
         bValue = `${b.first_name} ${b.last_name}`.toLowerCase();
         break;
-
+      
       case 'company':
         aValue = a.company.toLowerCase();
         bValue = b.company.toLowerCase();
         break;
-
+      
       case 'date_added':
         aValue = new Date(a.date_added || '1970-01-01');
         bValue = new Date(b.date_added || '1970-01-01');
         break;
-
+      
       case 'conversion_likelihood':
         // Use ordinal values for enum-based sorting
         aValue = a.conversion_likelihood ? LIKELIHOOD_ORDINAL[a.conversion_likelihood] : 0;
         bValue = b.conversion_likelihood ? LIKELIHOOD_ORDINAL[b.conversion_likelihood] : 0;
         break;
-
+      
       default:
         aValue = `${a.first_name} ${a.last_name}`.toLowerCase();
         bValue = `${b.first_name} ${b.last_name}`.toLowerCase();
@@ -154,3 +154,4 @@ export function sortConnections(
 
   return sorted;
 }
+

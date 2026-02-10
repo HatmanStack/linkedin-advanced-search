@@ -4,8 +4,8 @@ import { verifyJwtSignature } from './jwksValidator.js';
 // Clock skew tolerance in seconds (allows for minor time sync differences)
 const CLOCK_SKEW_TOLERANCE_SECONDS = 30;
 
-// Signature verification enabled by default; opt out with JWT_VERIFY_SIGNATURE=false
-const VERIFY_SIGNATURE = process.env.JWT_VERIFY_SIGNATURE !== 'false';
+// Feature flag to enable signature verification (default: false for backwards compatibility)
+const VERIFY_SIGNATURE = process.env.JWT_VERIFY_SIGNATURE === 'true';
 
 /**
  * Validate a JWT token for structure, expiration, and required claims.
@@ -53,7 +53,7 @@ export function validateJwt(token) {
     logger.warn('JWT validation failed: Token expired', {
       exp: payload.exp,
       currentTime,
-      toleranceSeconds: CLOCK_SKEW_TOLERANCE_SECONDS,
+      toleranceSeconds: CLOCK_SKEW_TOLERANCE_SECONDS
     });
     return { valid: false, reason: 'Token expired' };
   }
@@ -63,7 +63,7 @@ export function validateJwt(token) {
 
   if (!rawUserId) {
     logger.warn('JWT validation failed: Missing user identifier', {
-      availableClaims: Object.keys(payload),
+      availableClaims: Object.keys(payload)
     });
     return { valid: false, reason: 'Missing user identifier' };
   }
@@ -73,13 +73,13 @@ export function validateJwt(token) {
 
   logger.debug('JWT validation successful', {
     userId: userId.substring(0, 8) + '...',
-    exp: payload.exp,
+    exp: payload.exp
   });
 
   return {
     valid: true,
     payload,
-    userId,
+    userId
   };
 }
 
@@ -94,7 +94,9 @@ function decodeJwtPayload(payloadB64) {
   try {
     // Convert base64url to standard base64
     // Replace URL-safe characters and add padding if needed
-    let base64 = payloadB64.replace(/-/g, '+').replace(/_/g, '/');
+    let base64 = payloadB64
+      .replace(/-/g, '+')
+      .replace(/_/g, '/');
 
     // Add padding if needed
     const padding = base64.length % 4;
@@ -127,9 +129,9 @@ function decodeJwtPayload(payloadB64) {
 /**
  * Validate a JWT token with optional signature verification.
  *
- * Performs full cryptographic signature verification using the Cognito
- * JWKS endpoint by default. Set JWT_VERIFY_SIGNATURE=false to disable
- * and only validate structure and expiration.
+ * When JWT_VERIFY_SIGNATURE=true is set, this performs full cryptographic
+ * signature verification using the Cognito JWKS endpoint. Otherwise, it
+ * only validates structure and expiration (backwards compatible mode).
  *
  * @param {string} token - The JWT token to validate
  * @returns {Promise<Object>} Validation result:
@@ -158,7 +160,7 @@ export async function validateJwtFull(token) {
 
 /**
  * Check if signature verification is enabled.
- * @returns {boolean} True unless JWT_VERIFY_SIGNATURE=false
+ * @returns {boolean} True if JWT_VERIFY_SIGNATURE=true
  */
 export function isSignatureVerificationEnabled() {
   return VERIFY_SIGNATURE;

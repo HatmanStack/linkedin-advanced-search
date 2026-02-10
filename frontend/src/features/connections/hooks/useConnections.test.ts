@@ -160,10 +160,7 @@ describe('useConnections', () => {
 
   describe('conversion_likelihood enum handling', () => {
     it('should correctly handle high conversion likelihood', async () => {
-      const connectionWithHighLikelihood = {
-        ...validConnection,
-        conversion_likelihood: 'high' as const,
-      };
+      const connectionWithHighLikelihood = { ...validConnection, conversion_likelihood: 'high' as const };
       const mockResponse: PuppeteerApiResponse<{ connections: Connection[] }> = {
         success: true,
         data: { connections: [connectionWithHighLikelihood] },
@@ -182,10 +179,7 @@ describe('useConnections', () => {
     });
 
     it('should correctly handle medium conversion likelihood', async () => {
-      const connectionWithMediumLikelihood = {
-        ...validConnection,
-        conversion_likelihood: 'medium' as const,
-      };
+      const connectionWithMediumLikelihood = { ...validConnection, conversion_likelihood: 'medium' as const };
       const mockResponse: PuppeteerApiResponse<{ connections: Connection[] }> = {
         success: true,
         data: { connections: [connectionWithMediumLikelihood] },
@@ -204,10 +198,7 @@ describe('useConnections', () => {
     });
 
     it('should correctly handle low conversion likelihood', async () => {
-      const connectionWithLowLikelihood = {
-        ...validConnection,
-        conversion_likelihood: 'low' as const,
-      };
+      const connectionWithLowLikelihood = { ...validConnection, conversion_likelihood: 'low' as const };
       const mockResponse: PuppeteerApiResponse<{ connections: Connection[] }> = {
         success: true,
         data: { connections: [connectionWithLowLikelihood] },

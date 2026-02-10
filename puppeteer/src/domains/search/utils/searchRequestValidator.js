@@ -3,15 +3,7 @@ import { validateLinkedInCredentials } from '../../../shared/utils/credentialVal
 
 export class SearchRequestValidator {
   static validateRequest(body, jwtToken) {
-    const {
-      companyName,
-      companyRole,
-      companyLocation,
-      searchName,
-      searchPassword,
-      linkedinCredentialsCiphertext,
-      linkedinCredentials,
-    } = body;
+    const { companyName, companyRole, companyLocation, searchName, searchPassword, linkedinCredentialsCiphertext, linkedinCredentials } = body;
 
     logger.info('Request body received:', {
       companyName,
@@ -19,7 +11,7 @@ export class SearchRequestValidator {
       companyLocation,
       searchName,
       hasPassword: !!searchPassword,
-      hasJwtToken: !!jwtToken,
+      hasJwtToken: !!jwtToken
     });
 
     return validateLinkedInCredentials({
@@ -28,7 +20,7 @@ export class SearchRequestValidator {
       linkedinCredentialsCiphertext,
       linkedinCredentials,
       jwtToken,
-      actionType: 'search',
+      actionType: 'search'
     });
   }
 }

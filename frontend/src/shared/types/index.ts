@@ -60,7 +60,7 @@ export type AsyncStatus<T> =
 
 /**
  * Represents a LinkedIn connection with all associated metadata
- *
+ * 
  * @interface Connection
  * @description Core interface for connection data retrieved from DynamoDB.
  * Contains profile information, relationship status, and interaction history.
@@ -126,7 +126,7 @@ export interface Connection {
 
 /**
  * Represents a message in the conversation history
- *
+ * 
  * @interface Message
  * @description Individual message within a connection's message history.
  * Contains content, metadata, and sender information.
@@ -147,7 +147,7 @@ export interface Message {
 
 /**
  * Filter criteria for connection queries
- *
+ * 
  * @interface ConnectionFilters
  * @description Used to filter connections by various criteria in queries and UI components.
  */
@@ -173,7 +173,7 @@ export interface ConnectionFilters {
 
 /**
  * User profile interface for the application
- *
+ * 
  * @interface UserProfile
  * @description Contains all user profile information including LinkedIn data and AI-generated content.
  */
@@ -251,21 +251,21 @@ export interface UserProfile {
 
 /**
  * Valid connection status values
- *
+ * 
  * @type ConnectionStatus
  * @description Represents the current relationship status between user and connection.
  * Maps to database status values and determines display behavior.
  */
 export type ConnectionStatus =
-  | 'possible' // Potential connection not yet contacted
-  | 'incoming' // Connection request received from them
-  | 'outgoing' // Connection request sent to them
-  | 'ally' // Established connection
+  | 'possible'   // Potential connection not yet contacted
+  | 'incoming'   // Connection request received from them
+  | 'outgoing'   // Connection request sent to them
+  | 'ally'       // Established connection
   | 'processed'; // Removed from possible connections
 
 /**
  * Message sender types
- *
+ * 
  * @type MessageSender
  * @description Identifies who sent a particular message in the conversation.
  */
@@ -273,7 +273,7 @@ export type MessageSender = 'user' | 'connection';
 
 /**
  * Status picker filter values
- *
+ * 
  * @type StatusValue
  * @description Valid values for the status picker component filter.
  * Includes 'all' for showing all connection types.
@@ -302,7 +302,7 @@ export type ErrorSeverity = 'low' | 'medium' | 'high' | 'critical';
 
 /**
  * Toast notification variants
- *
+ * 
  * @type ToastVariant
  * @description Valid variants for toast notifications matching UI component expectations.
  */
@@ -314,7 +314,7 @@ export type ToastVariant = 'default' | 'destructive' | 'success' | 'warning';
 
 /**
  * Validation result interface
- *
+ * 
  * @interface ValidationResult
  * @description Contains validation results with errors, warnings, and sanitized data
  */
@@ -334,7 +334,7 @@ export interface ValidationResult {
 
 /**
  * Transform options for validation and sanitization
- *
+ * 
  * @interface TransformOptions
  * @description Options for data transformation during validation
  */
@@ -348,7 +348,7 @@ export interface TransformOptions {
 
 /**
  * Error recovery action interface
- *
+ * 
  * @interface ErrorRecoveryAction
  * @description Defines an action that can be taken to recover from an error
  */
@@ -368,7 +368,7 @@ export interface ErrorRecoveryAction {
 
 /**
  * User-friendly error information
- *
+ * 
  * @interface UserErrorInfo
  * @description Contains user-friendly error information with recovery options
  */
@@ -394,7 +394,7 @@ export interface UserErrorInfo {
 
 /**
  * Error recovery options for workflow errors
- *
+ * 
  * @interface ErrorRecoveryOptions
  * @description Defines which recovery options are available for a specific error
  */
@@ -414,7 +414,7 @@ export interface ErrorRecoveryOptions {
 
 /**
  * Workflow error for message generation process
- *
+ * 
  * @interface WorkflowError
  * @description Contains error information specific to message generation workflow
  */
@@ -443,7 +443,7 @@ export interface WorkflowError {
 
 /**
  * Progress state for workflow operations
- *
+ * 
  * @interface ProgressState
  * @description Tracks progress of multi-step operations like message generation
  */
@@ -466,7 +466,7 @@ export interface ProgressState {
 
 /**
  * Loading state for UI components
- *
+ * 
  * @interface LoadingState
  * @description Manages loading indicators and progress displays
  */
@@ -490,7 +490,7 @@ export interface LoadingState {
 
 /**
  * Standard API response wrapper from Lambda functions
- *
+ * 
  * @interface ApiResponse
  * @template T The type of the response body data
  * @description Wraps all API responses with consistent status and body structure.
@@ -508,7 +508,7 @@ export interface ApiResponse<T = unknown> {
 
 /**
  * API response wrapper for puppeteer service operations
- *
+ * 
  * @interface PuppeteerApiResponse
  * @template T The type of the response data
  * @description Standard response format from the puppeteer backend service.
@@ -529,7 +529,7 @@ export interface PuppeteerApiResponse<T = unknown> {
 
 /**
  * Search response from LinkedIn search operations
- *
+ * 
  * @interface SearchResponse
  * @description Response format for LinkedIn search results.
  */
@@ -544,7 +544,7 @@ export interface SearchResponse {
 
 /**
  * Structured error information for API errors
- *
+ * 
  * @interface ApiErrorInfo
  * @description Contains all information needed to create an ApiError instance.
  */
@@ -565,7 +565,7 @@ export interface ApiErrorInfo {
 
 /**
  * Props for ConnectionCard component
- *
+ * 
  * @interface ConnectionCardProps
  * @description Type-safe props for the main connection card component.
  */
@@ -612,7 +612,7 @@ export interface ConnectionCardProps {
 
 /**
  * Props for NewConnectionCard component
- *
+ * 
  * @interface NewConnectionCardProps
  * @description Type-safe props for the simplified new connection card component.
  */
@@ -638,7 +638,7 @@ export interface NewConnectionCardProps {
 
 /**
  * Props for StatusPicker component
- *
+ * 
  * @interface StatusPickerProps
  * @description Type-safe props for the connection status filter component.
  */
@@ -658,7 +658,7 @@ export interface StatusPickerProps {
 
 /**
  * Props for MessageModal component
- *
+ * 
  * @interface MessageModalProps
  * @description Type-safe props for the message history modal component.
  */
@@ -709,7 +709,7 @@ export interface MessageModalProps {
 
 /**
  * Connection counts by status type
- *
+ * 
  * @interface ConnectionCounts
  * @description Aggregated counts of connections by their status for display in UI components.
  */

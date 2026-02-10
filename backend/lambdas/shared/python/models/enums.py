@@ -1,11 +1,10 @@
 """Enum definitions for the service layer."""
-
 from datetime import UTC, datetime
-from enum import StrEnum
+from enum import Enum
 from typing import Any
 
 
-class ConversionLikelihood(StrEnum):
+class ConversionLikelihood(str, Enum):
     """
     Conversion likelihood classification for connections.
 
@@ -18,7 +17,10 @@ class ConversionLikelihood(StrEnum):
     LOW = 'low'
 
 
-def classify_conversion_likelihood(profile: dict[str, Any] | None, edge: dict[str, Any] | None) -> ConversionLikelihood:
+def classify_conversion_likelihood(
+    profile: dict[str, Any] | None,
+    edge: dict[str, Any] | None
+) -> ConversionLikelihood:
     """
     Classify conversion likelihood based on profile completeness and edge data.
 

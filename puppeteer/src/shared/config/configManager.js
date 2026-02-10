@@ -7,6 +7,7 @@ import ConfigValidator from './configValidator.js';
  * Implements requirement 4.4 for configuration management
  */
 export class ConfigManager {
+  
   static instance = null;
   static configCache = new Map();
   static lastValidation = null;
@@ -32,13 +33,13 @@ export class ConfigManager {
    */
   initializeConfiguration() {
     logger.info('Initializing LinkedIn interaction configuration manager');
-
+    
     // Validate configuration on startup
     this.lastValidation = ConfigValidator.validateOnStartup();
-
+    
     // Cache frequently accessed configuration values
     this.cacheFrequentlyUsedConfig();
-
+    
     // Set up configuration monitoring
     this.setupConfigurationMonitoring();
   }
@@ -56,15 +57,15 @@ export class ConfigManager {
       'humanDelayMin',
       'humanDelayMax',
       'navigationTimeout',
-      'elementWaitTimeout',
+      'elementWaitTimeout'
     ];
 
-    frequentlyUsed.forEach((key) => {
+    frequentlyUsed.forEach(key => {
       ConfigManager.configCache.set(key, this.config[key]);
     });
 
     logger.debug('Cached frequently used configuration values', {
-      cachedKeys: frequentlyUsed,
+      cachedKeys: frequentlyUsed
     });
   }
 
@@ -117,7 +118,7 @@ export class ConfigManager {
       retryMaxDelay: this.get('retryMaxDelay'),
       humanDelayMin: this.get('humanDelayMin'),
       humanDelayMax: this.get('humanDelayMax'),
-      enableHumanBehavior: this.get('enableHumanBehavior'),
+      enableHumanBehavior: this.get('enableHumanBehavior')
     };
 
     switch (operationType) {
@@ -126,7 +127,7 @@ export class ConfigManager {
           ...baseConfig,
           enabled: this.get('enableMessageSending'),
           timeout: this.get('messageComposeTimeout'),
-          maxContentLength: this.get('maxMessageLength'),
+          maxContentLength: this.get('maxMessageLength')
         };
 
       case 'addConnection':
@@ -134,7 +135,7 @@ export class ConfigManager {
           ...baseConfig,
           enabled: this.get('enableConnectionRequests'),
           timeout: this.get('connectionRequestTimeout'),
-          maxMessageLength: this.get('maxConnectionMessageLength'),
+          maxMessageLength: this.get('maxConnectionMessageLength')
         };
 
       case 'createPost':
@@ -142,7 +143,7 @@ export class ConfigManager {
           ...baseConfig,
           enabled: this.get('enablePostCreation'),
           timeout: this.get('postCreationTimeout'),
-          maxContentLength: this.get('maxPostLength'),
+          maxContentLength: this.get('maxPostLength')
         };
 
       default:
@@ -161,7 +162,7 @@ export class ConfigManager {
       dailyLimit: this.get('dailyInteractionLimit'),
       hourlyLimit: this.get('hourlyInteractionLimit'),
       suspiciousActivityThreshold: this.get('suspiciousActivityThreshold'),
-      suspiciousActivityWindow: this.get('suspiciousActivityWindow'),
+      suspiciousActivityWindow: this.get('suspiciousActivityWindow')
     };
   }
 
@@ -184,7 +185,7 @@ export class ConfigManager {
       mouseMovementSteps: this.get('mouseMovementSteps'),
       mouseMovementDelay: this.get('mouseMovementDelay'),
       scrollStepSize: this.get('scrollStepSize'),
-      scrollDelay: this.get('scrollDelay'),
+      scrollDelay: this.get('scrollDelay')
     };
   }
 
@@ -199,7 +200,7 @@ export class ConfigManager {
       maxErrors: this.get('maxSessionErrors'),
       recoveryTimeout: this.get('sessionRecoveryTimeout'),
       maxConcurrentSessions: this.get('maxConcurrentSessions'),
-      browserIdleTimeout: this.get('browserIdleTimeout'),
+      browserIdleTimeout: this.get('browserIdleTimeout')
     };
   }
 
@@ -215,7 +216,7 @@ export class ConfigManager {
       postCreation: this.get('postCreationTimeout'),
       connectionRequest: this.get('connectionRequestTimeout'),
       browserLaunch: this.get('browserLaunchTimeout'),
-      pageLoad: this.get('pageLoadTimeout'),
+      pageLoad: this.get('pageLoadTimeout')
     };
   }
 
@@ -230,7 +231,7 @@ export class ConfigManager {
       retryAttempts: this.get('retryAttempts'),
       retryBaseDelay: this.get('retryBaseDelay'),
       retryMaxDelay: this.get('retryMaxDelay'),
-      retryJitterFactor: this.get('retryJitterFactor'),
+      retryJitterFactor: this.get('retryJitterFactor')
     };
   }
 
@@ -246,7 +247,7 @@ export class ConfigManager {
       debugMode: this.get('debugMode'),
       screenshotOnError: this.get('screenshotOnError'),
       savePageSourceOnError: this.get('savePageSourceOnError'),
-      verboseLogging: this.get('verboseLogging'),
+      verboseLogging: this.get('verboseLogging')
     };
   }
 
@@ -257,11 +258,11 @@ export class ConfigManager {
    */
   isFeatureEnabled(feature) {
     const featureMap = {
-      messageSending: 'enableMessageSending',
-      connectionRequests: 'enableConnectionRequests',
-      postCreation: 'enablePostCreation',
-      humanBehavior: 'enableHumanBehavior',
-      suspiciousActivityDetection: 'enableSuspiciousActivityDetection',
+      'messageSending': 'enableMessageSending',
+      'connectionRequests': 'enableConnectionRequests',
+      'postCreation': 'enablePostCreation',
+      'humanBehavior': 'enableHumanBehavior',
+      'suspiciousActivityDetection': 'enableSuspiciousActivityDetection'
     };
 
     const configKey = featureMap[feature];
@@ -282,25 +283,25 @@ export class ConfigManager {
       isDevelopment,
       adjustments: {
         // More conservative settings in production
-        maxConcurrentInteractions: isProduction
-          ? Math.min(this.get('maxConcurrentInteractions'), 3)
-          : this.get('maxConcurrentInteractions'),
-
+        maxConcurrentInteractions: isProduction ? 
+          Math.min(this.get('maxConcurrentInteractions'), 3) : 
+          this.get('maxConcurrentInteractions'),
+        
         // Longer delays in production for safety
-        humanDelayMin: isProduction
-          ? Math.max(this.get('humanDelayMin'), 2000)
-          : this.get('humanDelayMin'),
-
+        humanDelayMin: isProduction ? 
+          Math.max(this.get('humanDelayMin'), 2000) : 
+          this.get('humanDelayMin'),
+        
         // More retries in production for reliability
-        retryAttempts: isProduction
-          ? Math.max(this.get('retryAttempts'), 3)
-          : this.get('retryAttempts'),
-
+        retryAttempts: isProduction ? 
+          Math.max(this.get('retryAttempts'), 3) : 
+          this.get('retryAttempts'),
+        
         // Debug features only in development
         debugMode: isDevelopment && this.get('debugMode'),
         screenshotOnError: isDevelopment && this.get('screenshotOnError'),
-        verboseLogging: isDevelopment && this.get('verboseLogging'),
-      },
+        verboseLogging: isDevelopment && this.get('verboseLogging')
+      }
     };
   }
 
@@ -348,7 +349,7 @@ export class ConfigManager {
    * @param {any} data - Event data
    */
   notifyConfigWatchers(event, data) {
-    ConfigManager.configWatchers.forEach((callback) => {
+    ConfigManager.configWatchers.forEach(callback => {
       try {
         callback(event, data);
       } catch (error) {
@@ -363,7 +364,7 @@ export class ConfigManager {
    */
   getHealthStatus() {
     const validation = this.lastValidation || { isValid: false, errors: ['Not validated'] };
-
+    
     return {
       isValid: validation.isValid,
       lastValidated: validation.timestamp || new Date().toISOString(),
@@ -371,7 +372,7 @@ export class ConfigManager {
       warningCount: validation.warnings?.length || 0,
       cacheSize: ConfigManager.configCache.size,
       watcherCount: ConfigManager.configWatchers.size,
-      environment: config.nodeEnv,
+      environment: config.nodeEnv
     };
   }
 
@@ -397,11 +398,11 @@ export class ConfigManager {
         'enableConnectionRequests',
         'enablePostCreation',
         'enableHumanBehavior',
-        'enableSuspiciousActivityDetection',
-      ].filter((key) => this.get(key)).length,
+        'enableSuspiciousActivityDetection'
+      ].filter(key => this.get(key)).length,
       environment: config.nodeEnv,
       lastValidation: this.lastValidation?.timestamp,
-      validationStatus: this.lastValidation?.isValid ? 'valid' : 'invalid',
+      validationStatus: this.lastValidation?.isValid ? 'valid' : 'invalid'
     };
   }
 }

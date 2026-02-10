@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Mock logger
 vi.mock('#utils/logger.js', () => ({
-  logger: { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn() },
+  logger: { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn() }
 }));
 
 // Test helper to create JWT
@@ -83,7 +83,7 @@ describe('validateJwt', () => {
     it('accepts token with future exp', () => {
       const token = createTestJwt({
         sub: 'user-123',
-        exp: currentTime + 3600, // 1 hour in future
+        exp: currentTime + 3600 // 1 hour in future
       });
       const result = validateJwt(token);
       expect(result.valid).toBe(true);
@@ -93,7 +93,7 @@ describe('validateJwt', () => {
     it('rejects token with past exp', () => {
       const token = createTestJwt({
         sub: 'user-123',
-        exp: currentTime - 3600, // 1 hour ago
+        exp: currentTime - 3600 // 1 hour ago
       });
       const result = validateJwt(token);
       expect(result.valid).toBe(false);
@@ -103,7 +103,7 @@ describe('validateJwt', () => {
     it('accepts token within clock skew tolerance (30 seconds)', () => {
       const token = createTestJwt({
         sub: 'user-123',
-        exp: currentTime - 15, // 15 seconds ago (within 30s tolerance)
+        exp: currentTime - 15 // 15 seconds ago (within 30s tolerance)
       });
       const result = validateJwt(token);
       expect(result.valid).toBe(true);
@@ -112,7 +112,7 @@ describe('validateJwt', () => {
     it('rejects token just outside clock skew tolerance', () => {
       const token = createTestJwt({
         sub: 'user-123',
-        exp: currentTime - 31, // 31 seconds ago (outside 30s tolerance)
+        exp: currentTime - 31 // 31 seconds ago (outside 30s tolerance)
       });
       const result = validateJwt(token);
       expect(result.valid).toBe(false);
@@ -121,7 +121,7 @@ describe('validateJwt', () => {
 
     it('rejects token without exp claim', () => {
       const token = createTestJwt({
-        sub: 'user-123',
+        sub: 'user-123'
         // no exp
       });
       const result = validateJwt(token);
@@ -136,7 +136,7 @@ describe('validateJwt', () => {
     it('extracts sub claim as userId', () => {
       const token = createTestJwt({
         sub: 'user-from-sub',
-        exp: futureExp,
+        exp: futureExp
       });
       const result = validateJwt(token);
       expect(result.valid).toBe(true);
@@ -146,7 +146,7 @@ describe('validateJwt', () => {
     it('extracts user_id claim as userId when sub is missing', () => {
       const token = createTestJwt({
         user_id: 'user-from-user_id',
-        exp: futureExp,
+        exp: futureExp
       });
       const result = validateJwt(token);
       expect(result.valid).toBe(true);
@@ -156,7 +156,7 @@ describe('validateJwt', () => {
     it('extracts userId claim as userId', () => {
       const token = createTestJwt({
         userId: 'user-from-userId',
-        exp: futureExp,
+        exp: futureExp
       });
       const result = validateJwt(token);
       expect(result.valid).toBe(true);
@@ -168,7 +168,7 @@ describe('validateJwt', () => {
         sub: 'preferred-sub',
         user_id: 'fallback-user_id',
         userId: 'fallback-userId',
-        exp: futureExp,
+        exp: futureExp
       });
       const result = validateJwt(token);
       expect(result.valid).toBe(true);
@@ -178,7 +178,7 @@ describe('validateJwt', () => {
     it('rejects token without any user identifier', () => {
       const token = createTestJwt({
         exp: futureExp,
-        iss: 'some-issuer',
+        iss: 'some-issuer'
         // no sub, user_id, or userId
       });
       const result = validateJwt(token);
@@ -195,7 +195,7 @@ describe('validateJwt', () => {
       // Create a token where the payload has + and / when base64 encoded
       const token = createTestJwt({
         sub: 'user+with/special',
-        exp: futureExp,
+        exp: futureExp
       });
       const result = validateJwt(token);
       expect(result.valid).toBe(true);
@@ -205,7 +205,7 @@ describe('validateJwt', () => {
       // Create payload that results in base64 needing padding
       const token = createTestJwt({
         sub: 'a',
-        exp: futureExp,
+        exp: futureExp
       });
       const result = validateJwt(token);
       expect(result.valid).toBe(true);

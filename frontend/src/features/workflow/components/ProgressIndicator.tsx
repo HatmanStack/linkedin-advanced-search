@@ -21,7 +21,7 @@ const ProgressIndicator: React.FC<ProgressIndicatorProps> = ({
   progressState,
   loadingState,
   onCancel,
-  className = '',
+  className = ''
 }) => {
   const getProgressPercentage = () => {
     if (progressState.total === 0) return 0;
@@ -30,10 +30,10 @@ const ProgressIndicator: React.FC<ProgressIndicatorProps> = ({
 
   const getEstimatedTimeString = () => {
     if (!progressState.estimatedTimeRemaining) return null;
-
+    
     const minutes = Math.floor(progressState.estimatedTimeRemaining / 60);
     const seconds = progressState.estimatedTimeRemaining % 60;
-
+    
     if (minutes > 0) {
       return `${minutes}m ${seconds}s remaining`;
     } else {
@@ -63,7 +63,7 @@ const ProgressIndicator: React.FC<ProgressIndicatorProps> = ({
       case 'preparing':
         return 'Preparing message generation...';
       case 'generating':
-        return progressState.currentConnectionName
+        return progressState.currentConnectionName 
           ? `Generating message for ${progressState.currentConnectionName}...`
           : 'Generating messages...';
       case 'waiting_approval':
@@ -88,13 +88,18 @@ const ProgressIndicator: React.FC<ProgressIndicatorProps> = ({
           {/* Phase indicator */}
           <div className="flex items-center space-x-2">
             {getPhaseIcon()}
-            <span className="text-sm font-medium text-white">{getPhaseDescription()}</span>
+            <span className="text-sm font-medium text-white">
+              {getPhaseDescription()}
+            </span>
           </div>
 
           {/* Progress bar */}
           {progressState.total > 0 && (
             <div className="space-y-2">
-              <Progress value={getProgressPercentage()} className="h-2 bg-slate-700" />
+              <Progress 
+                value={getProgressPercentage()} 
+                className="h-2 bg-slate-700"
+              />
               <div className="flex justify-between text-xs text-slate-400">
                 <span>
                   {progressState.current} of {progressState.total} connections
@@ -106,7 +111,9 @@ const ProgressIndicator: React.FC<ProgressIndicatorProps> = ({
 
           {/* Loading message */}
           {loadingState.message && (
-            <div className="text-sm text-slate-300">{loadingState.message}</div>
+            <div className="text-sm text-slate-300">
+              {loadingState.message}
+            </div>
           )}
 
           {/* Estimated time */}

@@ -4,7 +4,12 @@ import { logError } from '@/shared/utils/errorHandling';
 import { createLogger } from '@/shared/utils/logger';
 
 const logger = createLogger('LambdaApiService');
-import type { Connection, Message, ConnectionStatus, ApiErrorInfo } from '../types';
+import type {
+  Connection,
+  Message,
+  ConnectionStatus,
+  ApiErrorInfo,
+} from '../types';
 import {
   validateConnection,
   validateMessage,
@@ -25,35 +30,32 @@ export class ApiError extends Error {
     this.status = status;
     this.code = code;
     this.timestamp = new Date().toISOString();
-
+    
     // Determine if error is retryable based on status code
     this.retryable = this.isRetryableError(status, code);
   }
 
   private isRetryableError(status?: number, code?: string): boolean {
     // Network errors are retryable
-    if (
-      !status &&
-      (code === 'NETWORK_ERROR' || code === 'ERR_NETWORK' || code === 'ECONNABORTED')
-    ) {
+    if (!status && (code === 'NETWORK_ERROR' || code === 'ERR_NETWORK' || code === 'ECONNABORTED')) {
       return true;
     }
-
+    
     // Server errors (5xx) are retryable
     if (status && status >= 500) {
       return true;
     }
-
+    
     // Rate limiting is retryable
     if (status === 429) {
       return true;
     }
-
+    
     // Timeout errors are retryable
     if (code === 'ECONNABORTED' || code === 'TIMEOUT') {
       return true;
     }
-
+    
     return false;
   }
 
@@ -65,7 +67,7 @@ export class ApiError extends Error {
       code: this.code,
       retryable: this.retryable,
       timestamp: this.timestamp,
-      stack: this.stack,
+      stack: this.stack
     };
   }
 }
@@ -77,7 +79,7 @@ export interface ApiResponse<T = unknown> {
 
 /**
  * Database Connector service for managing connections through API Gateway
- *
+ * 
  * Provides a comprehensive interface for connection management operations including:
  * - Fetching connections with status filtering
  * - Updating connection metadata and status
@@ -85,18 +87,18 @@ export interface ApiResponse<T = unknown> {
  * - Authentication token management
  * - Error handling with retry logic
  * - Data validation and sanitization
- *
+ * 
  * @class LambdaApiService
  * @example
  * ```typescript
  * // Fetch all possible connections
- * const connections = await lambdaApiService.getConnectionsByStatus('possible');
- *
+  * const connections = await lambdaApiService.getConnectionsByStatus('possible');
+ * 
  * // Update connection status
- * await lambdaApiService.updateConnectionStatus('connection-id', 'processed');
- *
+  * await lambdaApiService.updateConnectionStatus('connection-id', 'processed');
+ * 
  * // Get message history
- * const messages = await lambdaApiService.getMessageHistory('connection-id');
+  * const messages = await lambdaApiService.getMessageHistory('connection-id');
  * ```
  */
 class LambdaApiService {
@@ -106,7 +108,8 @@ class LambdaApiService {
 
   constructor() {
     // Initialize axios client with API Gateway base URL
-    const apiBaseUrl = import.meta.env.VITE_API_GATEWAY_URL || '';
+    const apiBaseUrl =
+      import.meta.env.VITE_API_GATEWAY_URL || '';
 
     if (!apiBaseUrl) {
       logger.warn(
@@ -116,9 +119,7 @@ class LambdaApiService {
 
     // Normalize base URL to ensure trailing slash so relative endpoints join correctly (e.g., .../prod/llm)
     const normalizedBaseUrl = apiBaseUrl
-      ? apiBaseUrl.endsWith('/')
-        ? apiBaseUrl
-        : `${apiBaseUrl}/`
+      ? (apiBaseUrl.endsWith('/') ? apiBaseUrl : `${apiBaseUrl}/`)
       : undefined;
 
     this.apiClient = axios.create({
@@ -157,7 +158,7 @@ class LambdaApiService {
 
   /**
    * Get JWT token from Cognito service for API authentication
-   *
+   * 
    * @returns Promise resolving to JWT token string or null if unavailable
    * @private
    */
@@ -175,7 +176,7 @@ class LambdaApiService {
   /**
    * Transform axios errors into consistent ApiError format
    * Handles different error types (response, request, other) and creates structured error objects
-   *
+   * 
    * @param error - The axios error to transform
    * @returns Structured ApiError instance
    * @private
@@ -185,11 +186,10 @@ class LambdaApiService {
       // Server responded with error status
       const status = error.response.status;
       const responseData = error.response.data as Record<string, unknown> | null;
-      const message =
-        (responseData?.message as string) ||
-        (responseData?.error as string) ||
-        `HTTP ${status} error`;
-
+      const message = (responseData?.message as string) ||
+                     (responseData?.error as string) ||
+                     `HTTP ${status} error`;
+      
       return new ApiError({
         message,
         status,
@@ -213,19 +213,19 @@ class LambdaApiService {
   /**
    * Sleep for a specified number of milliseconds
    * Used for implementing retry delays with exponential backoff
-   *
+   * 
    * @param ms - Number of milliseconds to sleep
    * @returns Promise that resolves after the specified delay
    * @private
    */
   private sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 
   /**
    * Calculate exponential backoff delay for retry attempts
    * Implements exponential backoff with jitter to prevent thundering herd
-   *
+   * 
    * @param attempt - The current attempt number (1-based)
    * @returns Delay in milliseconds for the next retry
    * @private
@@ -265,49 +265,43 @@ class LambdaApiService {
       }
 
       try {
-        const response = await this.apiClient.post<ApiResponse<T>>(
-          endpoint,
-          {
-            operation,
-            ...params,
-          },
-          {
-            signal: options.signal,
-          }
-        );
+        const response = await this.apiClient.post<ApiResponse<T>>(endpoint, {
+          operation,
+          ...params,
+        }, {
+          signal: options.signal,
+        });
 
         // Handle both direct API Gateway responses and Lambda proxy responses
         const responseData = response.data;
-
+        
         // Check if this is a Lambda proxy response format
         if (responseData && typeof responseData === 'object' && 'statusCode' in responseData) {
           // Lambda proxy response format
           const lambdaResponse = responseData;
-
+          
           if (lambdaResponse.statusCode !== 200) {
-            const errorBody =
-              typeof lambdaResponse.body === 'string'
-                ? JSON.parse(lambdaResponse.body)
-                : lambdaResponse.body;
+            const errorBody = typeof lambdaResponse.body === 'string' 
+              ? JSON.parse(lambdaResponse.body) 
+              : lambdaResponse.body;
             const error = new ApiError({
               message: errorBody?.error || `Lambda returned status ${lambdaResponse.statusCode}`,
               status: lambdaResponse.statusCode,
             });
-
+            
             // Don't retry client errors (4xx)
             if (lambdaResponse.statusCode >= 400 && lambdaResponse.statusCode < 500) {
               throw error;
             }
-
+            
             throw error;
           }
 
           // Parse JSON body if it's a string
-          const parsedBody =
-            typeof lambdaResponse.body === 'string'
-              ? JSON.parse(lambdaResponse.body)
-              : lambdaResponse.body;
-
+          const parsedBody = typeof lambdaResponse.body === 'string' 
+            ? JSON.parse(lambdaResponse.body) 
+            : lambdaResponse.body;
+          
           return parsedBody;
         } else {
           // Direct API Gateway response (not Lambda proxy)
@@ -322,34 +316,29 @@ class LambdaApiService {
           });
         }
 
-        lastError =
-          error instanceof Error ? error : new Error('Unknown error occurred during API request');
+        lastError = error instanceof Error ? error : new Error('Unknown error occurred during API request');
 
         // Check if error is retryable
-        const apiError =
-          error instanceof ApiError ? error : this.transformError(error as AxiosError);
+        const apiError = error instanceof ApiError ? error : this.transformError(error as AxiosError);
 
         if (!apiError.retryable || attempt === this.maxRetries) {
           logger.error(`API request failed after ${attempt} attempts`, {
             endpoint,
             operation,
             error: apiError.toJSON(),
-            params: Object.keys(params),
+            params: Object.keys(params)
           });
           throw apiError;
         }
 
         // Calculate delay for next retry
         const delay = this.calculateBackoffDelay(attempt);
-        logger.warn(
-          `API request failed (attempt ${attempt}/${this.maxRetries}), retrying in ${delay}ms`,
-          {
-            endpoint,
-            operation,
-            error: apiError.message,
-            nextRetryIn: delay,
-          }
-        );
+        logger.warn(`API request failed (attempt ${attempt}/${this.maxRetries}), retrying in ${delay}ms`, {
+          endpoint,
+          operation,
+          error: apiError.message,
+          nextRetryIn: delay
+        });
 
         await this.sleep(delay);
       }
@@ -364,8 +353,9 @@ class LambdaApiService {
    * @returns Promise<Connection[]> Array of connections matching the filter
    */
   async getConnectionsByStatus(status?: ConnectionStatus): Promise<Connection[]> {
+    
     const context = `fetch connections${status ? ` with status ${status}` : ''}`;
-
+    
     try {
       const response = await this.makeRequest<{
         connections: Connection[];
@@ -374,21 +364,19 @@ class LambdaApiService {
 
       // Transform and validate the response
       const connections = this.formatConnectionsResponse(response.connections || []);
-
+      
       // Log successful operation
-      logger.info(
-        `Successfully fetched ${connections.length} connections${status ? ` with status ${status}` : ''}`
-      );
-
+      logger.info(`Successfully fetched ${connections.length} connections${status ? ` with status ${status}` : ''}`);
+      
       return connections;
     } catch (error) {
       logError(error, context, { status, operation: 'get_connections_by_status' });
-
+      
       // Re-throw as ApiError if not already one
       if (error instanceof ApiError) {
         throw error;
       }
-
+      
       throw new ApiError({
         message: error instanceof Error ? error.message : 'Failed to fetch connections',
         status: 500,
@@ -408,7 +396,7 @@ class LambdaApiService {
     options?: { profileId?: string }
   ): Promise<void> {
     const context = `update connection status to ${newStatus}`;
-
+    
     try {
       // Validate input parameters
       if (!connectionId || typeof connectionId !== 'string') {
@@ -433,32 +421,28 @@ class LambdaApiService {
         });
       }
 
-      await this.makeRequest<{ success: boolean; updated: Record<string, unknown> }>(
-        'edges',
-        'update_metadata',
-        {
-          // Edge Lambda expects 'profileId' in the request body; we always send profileId
-          profileId: options?.profileId ?? connectionId,
-          updates: {
-            status: newStatus,
-            updatedAt: new Date().toISOString(),
-          },
-        }
-      );
+      await this.makeRequest<{ success: boolean; updated: Record<string, unknown> }>('edges', 'update_metadata', {
+        // Edge Lambda expects 'profileId' in the request body; we always send profileId
+        profileId: options?.profileId ?? connectionId,
+        updates: {
+          status: newStatus,
+          updatedAt: new Date().toISOString(),
+        },
+      });
 
       logger.info(`Successfully updated connection ${connectionId} status to ${newStatus}`);
     } catch (error) {
-      logError(error, context, {
-        connectionId,
-        newStatus,
-        operation: 'update_metadata',
+      logError(error, context, { 
+        connectionId, 
+        newStatus, 
+        operation: 'update_metadata' 
       });
-
+      
       // Re-throw as ApiError if not already one
       if (error instanceof ApiError) {
         throw error;
       }
-
+      
       throw new ApiError({
         message: error instanceof Error ? error.message : 'Failed to update connection status',
         status: 500,
@@ -473,7 +457,7 @@ class LambdaApiService {
    */
   async getMessageHistory(connectionId: string): Promise<Message[]> {
     const context = 'fetch message history';
-
+    
     try {
       // Validate input parameters
       if (!connectionId || typeof connectionId !== 'string') {
@@ -492,23 +476,21 @@ class LambdaApiService {
 
       // Transform and validate the response
       const messages = this.formatMessagesResponse(response.messages || []);
-
-      logger.info(
-        `Successfully fetched ${messages.length} messages for connection ${connectionId}`
-      );
-
+      
+      logger.info(`Successfully fetched ${messages.length} messages for connection ${connectionId}`);
+      
       return messages;
     } catch (error) {
-      logError(error, context, {
-        connectionId,
-        operation: 'get_messages',
+      logError(error, context, { 
+        connectionId, 
+        operation: 'get_messages' 
       });
-
+      
       // Re-throw as ApiError if not already one
       if (error instanceof ApiError) {
         throw error;
       }
-
+      
       throw new ApiError({
         message: error instanceof Error ? error.message : 'Failed to fetch message history',
         status: 500,
@@ -532,7 +514,7 @@ class LambdaApiService {
         try {
           // First try to validate the connection as-is
           const validationResult = validateConnection(conn, { sanitize: false });
-
+          
           if (validationResult.isValid && isConnection(conn)) {
             return conn as Connection;
           }
@@ -548,13 +530,13 @@ class LambdaApiService {
           return null;
         } catch (error) {
           logError(error, 'format connection data', { connection: conn, index });
-
+          
           // Try one more time with sanitization
           const fallback = sanitizeConnectionData(conn);
           if (fallback && isConnection(fallback)) {
             return fallback;
           }
-
+          
           // Return null to filter out completely invalid data
           return null;
         }
@@ -578,17 +560,15 @@ class LambdaApiService {
         try {
           // First try to validate the message as-is
           const validationResult = validateMessage(msg, { sanitize: false });
-
+          
           if (validationResult.isValid && isMessage(msg)) {
             return msg as Message;
           }
 
           // If validation failed, try to sanitize the data
-          logger.warn(`Invalid message data at index ${index}`, {
-            errors: validationResult.errors,
-          });
+          logger.warn(`Invalid message data at index ${index}`, { errors: validationResult.errors });
           const sanitized = sanitizeMessageData(msg);
-
+          
           if (sanitized && isMessage(sanitized)) {
             logger.debug(`Successfully sanitized message data at index ${index}`);
             return sanitized;
@@ -599,13 +579,13 @@ class LambdaApiService {
           return null;
         } catch (error) {
           logger.warn('Error formatting message', { error, msg });
-
+          
           // Try one more time with sanitization
           const fallback = sanitizeMessageData(msg);
           if (fallback && isMessage(fallback)) {
             return fallback;
           }
-
+          
           // Return null to filter out completely invalid data
           return null;
         }
@@ -619,10 +599,7 @@ class LambdaApiService {
    * @param params Additional parameters for the operation
    * @returns Promise resolving to the operation response
    */
-  private async makeLLMRequest<T>(
-    operation: string,
-    params: Record<string, unknown> = {}
-  ): Promise<T> {
+  private async makeLLMRequest<T>(operation: string, params: Record<string, unknown> = {}): Promise<T> {
     return this.makeRequest<T>('llm', operation, params);
   }
 
@@ -632,21 +609,18 @@ class LambdaApiService {
    * @param params Additional parameters for the operation
    * @returns Promise resolving to the LLM operation response
    */
-  async sendLLMRequest(
-    operation: string,
-    params: Record<string, unknown> = {}
-  ): Promise<{ success: boolean; data?: unknown; error?: string }> {
+  async sendLLMRequest(operation: string, params: Record<string, unknown> = {}): Promise<{ success: boolean; data?: unknown; error?: string }> {
     try {
       const response = await this.makeLLMRequest<unknown>(operation, params);
       logger.debug('LLM response received', { hasResponse: response !== undefined });
       return { success: true, data: response };
     } catch (error) {
       logger.error('LLM request failed', { error });
-
+      
       if (error instanceof ApiError) {
         return { success: false, error: error.message };
       }
-
+      
       return { success: false, error: 'Failed to execute LLM operation' };
     }
   }
@@ -682,21 +656,18 @@ class ExtendedLambdaApiService extends LambdaApiService {
     try {
       logger.debug('Fetching user profile (GET /profiles)');
       const response = await this.apiClient.get('profiles');
-
+      
       const data = (response.data?.data ?? response.data) as UserProfile;
-
+     
       return { success: true, data };
     } catch (error) {
       const err = error as AxiosError<Record<string, unknown>>;
-      const message =
-        (err.response?.data?.error as string) || err.message || 'Failed to fetch profile';
+      const message = (err.response?.data?.error as string) || err.message || 'Failed to fetch profile';
       return { success: false, error: message };
     }
   }
 
-  async updateUserProfile(
-    profile: Partial<UserProfile>
-  ): Promise<{ success: boolean; data?: UserProfile; error?: string }> {
+  async updateUserProfile(profile: Partial<UserProfile>): Promise<{ success: boolean; data?: UserProfile; error?: string }> {
     try {
       // API requires operation-based POST body; fields must be at top-level
       logger.debug('Updating profile (POST /profiles)', { profileKeys: Object.keys(profile) });
@@ -709,15 +680,12 @@ class ExtendedLambdaApiService extends LambdaApiService {
       return { success: true, data };
     } catch (error) {
       const err = error as AxiosError<Record<string, unknown>>;
-      const message =
-        (err.response?.data?.error as string) || err.message || 'Failed to update profile';
+      const message = (err.response?.data?.error as string) || err.message || 'Failed to update profile';
       return { success: false, error: message };
     }
   }
 
-  async createUserProfile(
-    profile: Omit<UserProfile, 'user_id' | 'created_at' | 'updated_at'>
-  ): Promise<{ success: boolean; data?: UserProfile; error?: string }> {
+  async createUserProfile(profile: Omit<UserProfile, 'user_id' | 'created_at' | 'updated_at'>): Promise<{ success: boolean; data?: UserProfile; error?: string }> {
     try {
       // Reuse update operation for upsert semantics; body fields must be top-level
       const response = await this.apiClient.post('profiles', {
@@ -728,8 +696,7 @@ class ExtendedLambdaApiService extends LambdaApiService {
       return { success: true, data };
     } catch (error) {
       const err = error as AxiosError<Record<string, unknown>>;
-      const message =
-        (err.response?.data?.error as string) || err.message || 'Failed to create profile';
+      const message = (err.response?.data?.error as string) || err.message || 'Failed to create profile';
       return { success: false, error: message };
     }
   }
@@ -738,18 +705,12 @@ class ExtendedLambdaApiService extends LambdaApiService {
    * Generic helper to call operation-based POSTs against the llm backend.
    * This does not implement any polling; it simply forwards the operation and params.
    */
-  async callProfilesOperation<T = unknown>(
-    operation: string,
-    params: Record<string, unknown> = {}
-  ): Promise<{ success?: boolean; data?: T } & Record<string, unknown>> {
+  async callProfilesOperation<T = unknown>(operation: string, params: Record<string, unknown> = {}): Promise<{ success?: boolean; data?: T } & Record<string, unknown>> {
     const response = await this.apiClient.post('llm', {
       operation,
       ...params,
     });
-    const data = (response.data?.data ?? response.data) as { success?: boolean; data?: T } & Record<
-      string,
-      unknown
-    >;
+    const data = (response.data?.data ?? response.data) as { success?: boolean; data?: T } & Record<string, unknown>;
     return data;
   }
 
@@ -770,43 +731,28 @@ class ExtendedLambdaApiService extends LambdaApiService {
 
       // Handle Lambda proxy response format
       const responseData = response.data;
-      let parsedBody: {
-        results: Array<{ source: string; score: number; content: string }>;
-        totalResults: number;
-      };
+      let parsedBody: { results: Array<{ source: string; score: number; content: string }>; totalResults: number };
 
       if (responseData && typeof responseData === 'object' && 'statusCode' in responseData) {
         if ((responseData as { statusCode: number }).statusCode !== 200) {
-          const errorBody =
-            typeof responseData.body === 'string'
-              ? JSON.parse(responseData.body as string)
-              : responseData.body;
+          const errorBody = typeof responseData.body === 'string'
+            ? JSON.parse(responseData.body as string)
+            : responseData.body;
           throw new ApiError({
-            message:
-              errorBody?.error ||
-              `Search failed with status ${(responseData as { statusCode: number }).statusCode}`,
+            message: errorBody?.error || `Search failed with status ${(responseData as { statusCode: number }).statusCode}`,
             status: (responseData as { statusCode: number }).statusCode,
           });
         }
-        parsedBody =
-          typeof responseData.body === 'string'
-            ? JSON.parse(responseData.body as string)
-            : (responseData.body as {
-                results: Array<{ source: string; score: number; content: string }>;
-                totalResults: number;
-              });
+        parsedBody = typeof responseData.body === 'string'
+          ? JSON.parse(responseData.body as string)
+          : responseData.body as { results: Array<{ source: string; score: number; content: string }>; totalResults: number };
       } else {
-        parsedBody = responseData as {
-          results: Array<{ source: string; score: number; content: string }>;
-          totalResults: number;
-        };
+        parsedBody = responseData as { results: Array<{ source: string; score: number; content: string }>; totalResults: number };
       }
 
       // Transform results to extract profile IDs
       const results = (parsedBody.results || []).map((result) => ({
-        profileId: result.source.startsWith('profile_')
-          ? result.source.substring(8)
-          : result.source,
+        profileId: result.source.startsWith('profile_') ? result.source.substring(8) : result.source,
         score: result.score,
         snippet: result.content || '',
       }));
@@ -826,6 +772,7 @@ class ExtendedLambdaApiService extends LambdaApiService {
       });
     }
   }
+
 }
 
 // Export singleton instance

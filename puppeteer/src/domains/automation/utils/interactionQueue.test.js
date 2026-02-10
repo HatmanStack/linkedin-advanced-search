@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Mock logger
 vi.mock('#utils/logger.js', () => ({
-  logger: { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn() },
+  logger: { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn() }
 }));
 
 import InteractionQueue from './interactionQueue.js';
@@ -51,33 +51,25 @@ describe('InteractionQueue', () => {
 
     it('resolves async tasks', async () => {
       const result = await queue.enqueue(async () => {
-        await new Promise((r) => setTimeout(r, 10));
+        await new Promise(r => setTimeout(r, 10));
         return 42;
       });
       expect(result).toBe(42);
     });
 
     it('rejects when task throws', async () => {
-      await expect(
-        queue.enqueue(() => {
-          throw new Error('fail');
-        })
-      ).rejects.toThrow('fail');
+      await expect(queue.enqueue(() => { throw new Error('fail'); })).rejects.toThrow('fail');
     });
 
     it('rejects when async task rejects', async () => {
-      await expect(
-        queue.enqueue(async () => {
-          throw new Error('async fail');
-        })
-      ).rejects.toThrow('async fail');
+      await expect(queue.enqueue(async () => { throw new Error('async fail'); })).rejects.toThrow('async fail');
     });
 
     it('serializes tasks with concurrency=1', async () => {
       const order = [];
       const task1 = queue.enqueue(async () => {
         order.push('start-1');
-        await new Promise((r) => setTimeout(r, 20));
+        await new Promise(r => setTimeout(r, 20));
         order.push('end-1');
       });
       const task2 = queue.enqueue(async () => {
@@ -93,7 +85,7 @@ describe('InteractionQueue', () => {
       const order = [];
       const task1 = q.enqueue(async () => {
         order.push('start-1');
-        await new Promise((r) => setTimeout(r, 30));
+        await new Promise(r => setTimeout(r, 30));
         order.push('end-1');
       });
       const task2 = q.enqueue(async () => {
@@ -108,13 +100,7 @@ describe('InteractionQueue', () => {
 
     it('tracks job status through lifecycle', async () => {
       let resolveTask;
-      const task = queue.enqueue(
-        () =>
-          new Promise((r) => {
-            resolveTask = r;
-          }),
-        { type: 'test' }
-      );
+      const task = queue.enqueue(() => new Promise(r => { resolveTask = r; }), { type: 'test' });
 
       // Job should be running
       const jobs = [...queue.jobs.values()];
@@ -132,9 +118,7 @@ describe('InteractionQueue', () => {
 
     it('records error on failed job', async () => {
       try {
-        await queue.enqueue(() => {
-          throw new Error('oops');
-        });
+        await queue.enqueue(() => { throw new Error('oops'); });
       } catch {
         // Expected: enqueue rejects with the task error. We verify the job record below.
       }

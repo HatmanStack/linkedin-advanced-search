@@ -1,17 +1,28 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from "@/components/ui/select";
+import { 
+  Popover, 
+  PopoverContent, 
+  PopoverTrigger 
+} from "@/components/ui/popover";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Filter, X, MapPin, Building, TrendingUp, RotateCcw } from 'lucide-react';
+  Filter,
+  X,
+  MapPin,
+  Building,
+  TrendingUp,
+  RotateCcw
+} from 'lucide-react';
 import type { Connection, ConnectionFilters, ConversionLikelihood } from '@/types';
 
 interface ConnectionFiltersProps {
@@ -33,7 +44,7 @@ const ConnectionFiltersComponent: React.FC<ConnectionFiltersProps> = ({
   filters,
   onFiltersChange,
   isNewConnection = false,
-  className = '',
+  className = ''
 }) => {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -43,7 +54,7 @@ const ConnectionFiltersComponent: React.FC<ConnectionFiltersProps> = ({
     const companyCounts = new Map<string, number>();
     let hasConversionData = false;
 
-    connections.forEach((connection) => {
+    connections.forEach(connection => {
       // Count locations
       if (connection.location) {
         const location = connection.location.trim();
@@ -71,32 +82,26 @@ const ConnectionFiltersComponent: React.FC<ConnectionFiltersProps> = ({
         .map(([value, count]) => ({ value, count }))
         .sort((a, b) => b.count - a.count)
         .slice(0, 20), // Limit to top 20 companies
-      hasConversionData,
+      hasConversionData
     };
   }, [connections]);
 
   // Handle filter updates
-  const updateFilter = useCallback(
-    (key: keyof ConnectionFilters, value: unknown) => {
-      onFiltersChange({
-        ...filters,
-        [key]: value,
-      });
-    },
-    [filters, onFiltersChange]
-  );
+  const updateFilter = useCallback((key: keyof ConnectionFilters, value: unknown) => {
+    onFiltersChange({
+      ...filters,
+      [key]: value
+    });
+  }, [filters, onFiltersChange]);
 
   // Handle conversion likelihood filter change
-  const handleConversionChange = useCallback(
-    (value: string) => {
-      if (value === 'all') {
-        updateFilter('conversionLikelihood', undefined);
-      } else {
-        updateFilter('conversionLikelihood', value as ConversionLikelihood);
-      }
-    },
-    [updateFilter]
-  );
+  const handleConversionChange = useCallback((value: string) => {
+    if (value === 'all') {
+      updateFilter('conversionLikelihood', undefined);
+    } else {
+      updateFilter('conversionLikelihood', value as ConversionLikelihood);
+    }
+  }, [updateFilter]);
 
   // Clear all filters
   const clearAllFilters = useCallback(() => {
@@ -104,14 +109,11 @@ const ConnectionFiltersComponent: React.FC<ConnectionFiltersProps> = ({
   }, [onFiltersChange]);
 
   // Clear individual filter
-  const clearFilter = useCallback(
-    (key: keyof ConnectionFilters) => {
-      const newFilters = { ...filters };
-      delete newFilters[key];
-      onFiltersChange(newFilters);
-    },
-    [filters, onFiltersChange]
-  );
+  const clearFilter = useCallback((key: keyof ConnectionFilters) => {
+    const newFilters = { ...filters };
+    delete newFilters[key];
+    onFiltersChange(newFilters);
+  }, [filters, onFiltersChange]);
 
   // Count active filters
   const activeFilterCount = useMemo(() => {
@@ -127,7 +129,10 @@ const ConnectionFiltersComponent: React.FC<ConnectionFiltersProps> = ({
     <div className={`flex items-center space-x-2 ${className}`}>
       {/* Active filter badges */}
       {filters.location && (
-        <Badge variant="secondary" className="bg-blue-500/20 text-blue-300 border-blue-500/30">
+        <Badge 
+          variant="secondary" 
+          className="bg-blue-500/20 text-blue-300 border-blue-500/30"
+        >
           <MapPin className="h-3 w-3 mr-1" />
           {filters.location}
           <Button
@@ -142,7 +147,10 @@ const ConnectionFiltersComponent: React.FC<ConnectionFiltersProps> = ({
       )}
 
       {filters.company && (
-        <Badge variant="secondary" className="bg-green-500/20 text-green-300 border-green-500/30">
+        <Badge 
+          variant="secondary" 
+          className="bg-green-500/20 text-green-300 border-green-500/30"
+        >
           <Building className="h-3 w-3 mr-1" />
           {filters.company}
           <Button
@@ -156,27 +164,25 @@ const ConnectionFiltersComponent: React.FC<ConnectionFiltersProps> = ({
         </Badge>
       )}
 
-      {filters.conversionLikelihood &&
-        filters.conversionLikelihood !== 'all' &&
-        isNewConnection && (
-          <Badge
-            variant="secondary"
-            className="bg-purple-500/20 text-purple-300 border-purple-500/30"
+      {filters.conversionLikelihood && filters.conversionLikelihood !== 'all' && isNewConnection && (
+        <Badge
+          variant="secondary"
+          className="bg-purple-500/20 text-purple-300 border-purple-500/30"
+        >
+          <TrendingUp className="h-3 w-3 mr-1" />
+          {Array.isArray(filters.conversionLikelihood)
+            ? filters.conversionLikelihood.join(', ')
+            : filters.conversionLikelihood}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-4 w-4 p-0 ml-1 hover:bg-purple-500/30"
+            onClick={() => clearFilter('conversionLikelihood')}
           >
-            <TrendingUp className="h-3 w-3 mr-1" />
-            {Array.isArray(filters.conversionLikelihood)
-              ? filters.conversionLikelihood.join(', ')
-              : filters.conversionLikelihood}
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-4 w-4 p-0 ml-1 hover:bg-purple-500/30"
-              onClick={() => clearFilter('conversionLikelihood')}
-            >
-              <X className="h-3 w-3" />
-            </Button>
-          </Badge>
-        )}
+            <X className="h-3 w-3" />
+          </Button>
+        </Badge>
+      )}
 
       {/* Filter popover */}
       <Popover open={isOpen} onOpenChange={setIsOpen}>
@@ -189,8 +195,8 @@ const ConnectionFiltersComponent: React.FC<ConnectionFiltersProps> = ({
             <Filter className="h-4 w-4 mr-2" />
             Filters
             {activeFilterCount > 0 && (
-              <Badge
-                variant="secondary"
+              <Badge 
+                variant="secondary" 
                 className="ml-2 h-5 w-5 p-0 bg-blue-500 text-white text-xs flex items-center justify-center"
               >
                 {activeFilterCount}
@@ -198,7 +204,10 @@ const ConnectionFiltersComponent: React.FC<ConnectionFiltersProps> = ({
             )}
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-80 bg-slate-800 border-slate-700 text-white" align="start">
+        <PopoverContent 
+          className="w-80 bg-slate-800 border-slate-700 text-white" 
+          align="start"
+        >
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h4 className="font-medium">Filter Connections</h4>
@@ -237,17 +246,13 @@ const ConnectionFiltersComponent: React.FC<ConnectionFiltersProps> = ({
               </Label>
               <Select
                 value={filters.location || 'all-locations'}
-                onValueChange={(value) =>
-                  updateFilter('location', value === 'all-locations' ? undefined : value)
-                }
+                onValueChange={(value) => updateFilter('location', value === 'all-locations' ? undefined : value)}
               >
                 <SelectTrigger className="bg-slate-700 border-slate-600 text-white">
                   <SelectValue placeholder="Select location..." />
                 </SelectTrigger>
                 <SelectContent className="bg-slate-800 border-slate-700">
-                  <SelectItem value="all-locations" className="text-white">
-                    All Locations
-                  </SelectItem>
+                  <SelectItem value="all-locations" className="text-white">All Locations</SelectItem>
                   {filterStats.locations.map(({ value, count }) => (
                     <SelectItem key={value} value={value} className="text-white">
                       {value} ({count})
@@ -265,17 +270,13 @@ const ConnectionFiltersComponent: React.FC<ConnectionFiltersProps> = ({
               </Label>
               <Select
                 value={filters.company || 'all-companies'}
-                onValueChange={(value) =>
-                  updateFilter('company', value === 'all-companies' ? undefined : value)
-                }
+                onValueChange={(value) => updateFilter('company', value === 'all-companies' ? undefined : value)}
               >
                 <SelectTrigger className="bg-slate-700 border-slate-600 text-white">
                   <SelectValue placeholder="Select company..." />
                 </SelectTrigger>
                 <SelectContent className="bg-slate-800 border-slate-700">
-                  <SelectItem value="all-companies" className="text-white">
-                    All Companies
-                  </SelectItem>
+                  <SelectItem value="all-companies" className="text-white">All Companies</SelectItem>
                   {filterStats.companies.map(({ value, count }) => (
                     <SelectItem key={value} value={value} className="text-white">
                       {value} ({count})
@@ -295,9 +296,9 @@ const ConnectionFiltersComponent: React.FC<ConnectionFiltersProps> = ({
                 <Select
                   value={
                     filters.conversionLikelihood
-                      ? Array.isArray(filters.conversionLikelihood)
-                        ? filters.conversionLikelihood[0]
-                        : filters.conversionLikelihood
+                      ? (Array.isArray(filters.conversionLikelihood)
+                          ? filters.conversionLikelihood[0]
+                          : filters.conversionLikelihood)
                       : 'all'
                   }
                   onValueChange={handleConversionChange}
@@ -306,18 +307,10 @@ const ConnectionFiltersComponent: React.FC<ConnectionFiltersProps> = ({
                     <SelectValue placeholder="Select likelihood..." />
                   </SelectTrigger>
                   <SelectContent className="bg-slate-800 border-slate-700">
-                    <SelectItem value="all" className="text-white">
-                      All Likelihoods
-                    </SelectItem>
-                    <SelectItem value="high" className="text-white">
-                      High
-                    </SelectItem>
-                    <SelectItem value="medium" className="text-white">
-                      Medium
-                    </SelectItem>
-                    <SelectItem value="low" className="text-white">
-                      Low
-                    </SelectItem>
+                    <SelectItem value="all" className="text-white">All Likelihoods</SelectItem>
+                    <SelectItem value="high" className="text-white">High</SelectItem>
+                    <SelectItem value="medium" className="text-white">Medium</SelectItem>
+                    <SelectItem value="low" className="text-white">Low</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

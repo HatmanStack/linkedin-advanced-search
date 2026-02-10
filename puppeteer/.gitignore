@@ -21,7 +21,6 @@ screenshots/
 *.json
 !package*.json
 !nodemon.json
-!tsconfig.json
 
 # OS generated files
 .DS_Store

@@ -7,7 +7,7 @@ describe('validateLinkedInCredentials', () => {
       const result = validateLinkedInCredentials({
         searchName: 'user@example.com',
         searchPassword: 'pass123',
-        jwtToken: 'token-abc',
+        jwtToken: 'token-abc'
       });
       expect(result.isValid).toBe(true);
     });
@@ -15,7 +15,7 @@ describe('validateLinkedInCredentials', () => {
     it('accepts ciphertext credentials with JWT', () => {
       const result = validateLinkedInCredentials({
         linkedinCredentialsCiphertext: 'sealbox_x25519:b64:encrypteddata==',
-        jwtToken: 'token-abc',
+        jwtToken: 'token-abc'
       });
       expect(result.isValid).toBe(true);
     });
@@ -23,7 +23,7 @@ describe('validateLinkedInCredentials', () => {
     it('accepts structured credentials with JWT', () => {
       const result = validateLinkedInCredentials({
         linkedinCredentials: { email: 'user@example.com', password: 'pass123' },
-        jwtToken: 'token-abc',
+        jwtToken: 'token-abc'
       });
       expect(result.isValid).toBe(true);
     });
@@ -33,7 +33,7 @@ describe('validateLinkedInCredentials', () => {
         searchName: 'user@example.com',
         searchPassword: 'pass123',
         linkedinCredentialsCiphertext: 'sealbox_x25519:b64:data==',
-        jwtToken: 'token-abc',
+        jwtToken: 'token-abc'
       });
       expect(result.isValid).toBe(true);
     });
@@ -50,7 +50,7 @@ describe('validateLinkedInCredentials', () => {
     it('rejects partial plaintext (name only)', () => {
       const result = validateLinkedInCredentials({
         searchName: 'user@example.com',
-        jwtToken: 'token-abc',
+        jwtToken: 'token-abc'
       });
       expect(result.isValid).toBe(false);
       expect(result.statusCode).toBe(400);
@@ -59,7 +59,7 @@ describe('validateLinkedInCredentials', () => {
     it('rejects partial plaintext (password only)', () => {
       const result = validateLinkedInCredentials({
         searchPassword: 'pass123',
-        jwtToken: 'token-abc',
+        jwtToken: 'token-abc'
       });
       expect(result.isValid).toBe(false);
     });
@@ -67,7 +67,7 @@ describe('validateLinkedInCredentials', () => {
     it('rejects ciphertext without sealbox prefix', () => {
       const result = validateLinkedInCredentials({
         linkedinCredentialsCiphertext: 'invalid-prefix:data',
-        jwtToken: 'token-abc',
+        jwtToken: 'token-abc'
       });
       expect(result.isValid).toBe(false);
     });
@@ -75,7 +75,7 @@ describe('validateLinkedInCredentials', () => {
     it('rejects non-string ciphertext', () => {
       const result = validateLinkedInCredentials({
         linkedinCredentialsCiphertext: 12345,
-        jwtToken: 'token-abc',
+        jwtToken: 'token-abc'
       });
       expect(result.isValid).toBe(false);
     });
@@ -83,7 +83,7 @@ describe('validateLinkedInCredentials', () => {
     it('rejects structured credentials without email', () => {
       const result = validateLinkedInCredentials({
         linkedinCredentials: { password: 'pass123' },
-        jwtToken: 'token-abc',
+        jwtToken: 'token-abc'
       });
       expect(result.isValid).toBe(false);
     });
@@ -91,7 +91,7 @@ describe('validateLinkedInCredentials', () => {
     it('rejects structured credentials without password', () => {
       const result = validateLinkedInCredentials({
         linkedinCredentials: { email: 'user@example.com' },
-        jwtToken: 'token-abc',
+        jwtToken: 'token-abc'
       });
       expect(result.isValid).toBe(false);
     });
@@ -101,7 +101,7 @@ describe('validateLinkedInCredentials', () => {
     it('rejects when JWT is missing', () => {
       const result = validateLinkedInCredentials({
         searchName: 'user@example.com',
-        searchPassword: 'pass123',
+        searchPassword: 'pass123'
       });
       expect(result.isValid).toBe(false);
       expect(result.statusCode).toBe(401);
@@ -112,7 +112,7 @@ describe('validateLinkedInCredentials', () => {
       const result = validateLinkedInCredentials({
         searchName: 'user@example.com',
         searchPassword: 'pass123',
-        actionType: 'search',
+        actionType: 'search'
       });
       expect(result.message).toContain('search');
     });
@@ -120,7 +120,7 @@ describe('validateLinkedInCredentials', () => {
     it('defaults actionType to request', () => {
       const result = validateLinkedInCredentials({
         searchName: 'user@example.com',
-        searchPassword: 'pass123',
+        searchPassword: 'pass123'
       });
       expect(result.message).toContain('request');
     });

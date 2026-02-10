@@ -2,19 +2,19 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Mock all subpath imports that linkedinService.js and its dependencies use
 vi.mock('#utils/logger.js', () => ({
-  logger: { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn() },
+  logger: { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn() }
 }));
 
 vi.mock('#utils/randomHelpers.js', () => ({
   default: {
     randomDelay: vi.fn(() => Promise.resolve()),
-    getRandomInt: vi.fn(() => 1000),
-  },
+    getRandomInt: vi.fn(() => 1000)
+  }
 }));
 
 vi.mock('#utils/crypto.js', () => ({
   decryptSealboxB64Tag: vi.fn(() => Promise.resolve(null)),
-  extractLinkedInCredentials: vi.fn(() => Promise.resolve(null)),
+  extractLinkedInCredentials: vi.fn(() => Promise.resolve(null))
 }));
 
 vi.mock('#shared-config/index.js', () => ({
@@ -41,30 +41,24 @@ vi.mock('#shared-config/index.js', () => ({
     },
     port: 3001,
     nodeEnv: 'test',
-  },
+  }
 }));
 
 // Mock DynamoDBService (relative path import)
 vi.mock('../../storage/services/dynamoDBService.js', () => ({
   default: class MockDynamoDBService {
     constructor() {}
-    updateContactStatus() {
-      return Promise.resolve();
-    }
-    getProfiles() {
-      return Promise.resolve([]);
-    }
-  },
+    updateContactStatus() { return Promise.resolve(); }
+    getProfiles() { return Promise.resolve([]); }
+  }
 }));
 
 // Mock LinkedInContactService (relative path import)
 vi.mock('./linkedinContactService.js', () => ({
   default: class MockLinkedInContactService {
     constructor() {}
-    processContact() {
-      return Promise.resolve();
-    }
-  },
+    processContact() { return Promise.resolve(); }
+  }
 }));
 
 // Create mock PuppeteerService (wrapper around puppeteer page)
@@ -149,16 +143,12 @@ describe('LinkedInService', () => {
 
     it('throws when safeType fails for username', async () => {
       mockPuppeteer.safeType.mockResolvedValueOnce(false);
-      await expect(service.login('user@test.com', 'pass123')).rejects.toThrow(
-        'Failed to enter username'
-      );
+      await expect(service.login('user@test.com', 'pass123')).rejects.toThrow('Failed to enter username');
     });
 
     it('attempts decryption when credentials ciphertext provided', async () => {
       const { decryptSealboxB64Tag } = await import('#utils/crypto.js');
-      decryptSealboxB64Tag.mockResolvedValue(
-        JSON.stringify({ email: 'decrypted@test.com', password: 'decryptedpass' })
-      );
+      decryptSealboxB64Tag.mockResolvedValue(JSON.stringify({ email: 'decrypted@test.com', password: 'decryptedpass' }));
 
       await service.login(null, null, false, 'sealbox_x25519:b64:encrypted');
       expect(decryptSealboxB64Tag).toHaveBeenCalledWith('sealbox_x25519:b64:encrypted');
@@ -178,9 +168,7 @@ describe('LinkedInService', () => {
     it('navigates to people search page', async () => {
       const page = mockPuppeteer.getPage();
       page.waitForFunction.mockResolvedValue();
-      page.url.mockReturnValue(
-        'https://www.linkedin.com/search/results/people/?currentCompany=["12345"]'
-      );
+      page.url.mockReturnValue('https://www.linkedin.com/search/results/people/?currentCompany=["12345"]');
 
       await service.searchCompany('TestCorp');
       expect(mockPuppeteer.goto).toHaveBeenCalledWith(
@@ -191,9 +179,7 @@ describe('LinkedInService', () => {
     it('returns company number from URL', async () => {
       const page = mockPuppeteer.getPage();
       page.waitForFunction.mockResolvedValue();
-      page.url.mockReturnValue(
-        'https://www.linkedin.com/search/results/people/?currentCompany=["12345"]'
-      );
+      page.url.mockReturnValue('https://www.linkedin.com/search/results/people/?currentCompany=["12345"]');
 
       const result = await service.searchCompany('TestCorp');
       expect(result).toBe('12345');
@@ -248,7 +234,9 @@ describe('LinkedInService', () => {
 
       await service.getLinksFromPeoplePage(1, '12345');
 
-      expect(mockPuppeteer.goto).toHaveBeenCalledWith(expect.stringContaining('12345'));
+      expect(mockPuppeteer.goto).toHaveBeenCalledWith(
+        expect.stringContaining('12345')
+      );
     });
 
     it('includes geo filter in URL when provided', async () => {
@@ -328,9 +316,8 @@ describe('LinkedInService', () => {
     });
 
     it('throws for unknown connection type', async () => {
-      await expect(service.getConnections({ connectionType: 'unknown' })).rejects.toThrow(
-        'Unknown connection type'
-      );
+      await expect(service.getConnections({ connectionType: 'unknown' }))
+        .rejects.toThrow('Unknown connection type');
     });
   });
 });

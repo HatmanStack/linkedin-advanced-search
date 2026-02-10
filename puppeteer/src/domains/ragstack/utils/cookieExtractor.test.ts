@@ -47,7 +47,9 @@ describe('cookieExtractor', () => {
     });
 
     it('should throw if no LinkedIn cookies found', async () => {
-      const mockPage = createMockPage([{ name: 'other', value: 'value', domain: '.google.com' }]);
+      const mockPage = createMockPage([
+        { name: 'other', value: 'value', domain: '.google.com' },
+      ]);
 
       await expect(extractLinkedInCookies(mockPage as any)).rejects.toThrow(
         /no linkedin cookies found/i
@@ -133,7 +135,9 @@ describe('cookieExtractor', () => {
 
   describe('hasValidLinkedInSession', () => {
     it('should return true when li_at cookie present', async () => {
-      const mockPage = createMockPage([{ name: 'li_at', value: 'token', domain: '.linkedin.com' }]);
+      const mockPage = createMockPage([
+        { name: 'li_at', value: 'token', domain: '.linkedin.com' },
+      ]);
 
       expect(await hasValidLinkedInSession(mockPage as any)).toBe(true);
     });
@@ -147,7 +151,9 @@ describe('cookieExtractor', () => {
     });
 
     it('should return true when liap present', async () => {
-      const mockPage = createMockPage([{ name: 'liap', value: 'true', domain: '.linkedin.com' }]);
+      const mockPage = createMockPage([
+        { name: 'liap', value: 'true', domain: '.linkedin.com' },
+      ]);
 
       expect(await hasValidLinkedInSession(mockPage as any)).toBe(true);
     });

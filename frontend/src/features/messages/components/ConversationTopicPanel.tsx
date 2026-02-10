@@ -1,6 +1,6 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { Sparkles, Send, Square } from 'lucide-react';
 
 interface ConversationTopicPanelProps {
@@ -13,17 +13,17 @@ interface ConversationTopicPanelProps {
   currentConnectionName?: string;
 }
 
-const ConversationTopicPanel = ({
-  topic,
-  onTopicChange,
-  onGenerateMessages,
+const ConversationTopicPanel = ({ 
+  topic, 
+  onTopicChange, 
+  onGenerateMessages, 
   selectedConnectionsCount,
   isGenerating = false,
   onStopGeneration,
-  currentConnectionName,
+  currentConnectionName
 }: ConversationTopicPanelProps) => {
   const isGenerateDisabled = selectedConnectionsCount === 0 || !topic.trim();
-
+  
   const handleButtonClick = () => {
     if (isGenerating && onStopGeneration) {
       onStopGeneration();
@@ -40,9 +40,10 @@ const ConversationTopicPanel = ({
           Conversation Topic
         </CardTitle>
         <CardDescription className="text-slate-300">
-          {isGenerating && currentConnectionName
+          {isGenerating && currentConnectionName 
             ? `Generating message for ${currentConnectionName}...`
-            : 'What would you like to discuss with your selected connections?'}
+            : "What would you like to discuss with your selected connections?"
+          }
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -57,9 +58,9 @@ const ConversationTopicPanel = ({
           onClick={handleButtonClick}
           disabled={!isGenerating && isGenerateDisabled}
           className={`w-full text-white ${
-            isGenerating
-              ? 'bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800'
-              : 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700'
+            isGenerating 
+              ? "bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800" 
+              : "bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
           }`}
         >
           {isGenerating ? (

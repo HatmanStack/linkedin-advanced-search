@@ -4,7 +4,11 @@ import { useAuth } from '@/features/auth';
 import { queryKeys } from '@/shared/lib/queryKeys';
 import type { Connection } from '@/shared/types';
 
-export const useConnections = (filters?: { status?: string; tags?: string[]; limit?: number }) => {
+export const useConnections = (filters?: {
+  status?: string;
+  tags?: string[];
+  limit?: number;
+}) => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
@@ -31,13 +35,14 @@ export const useConnections = (filters?: { status?: string; tags?: string[]; lim
 
   // Mutation for creating connection
   const createMutation = useMutation({
-    mutationFn: (data: Partial<Connection>) => puppeteerApiService.createConnection(data),
+    mutationFn: (data: Partial<Connection>) =>
+      puppeteerApiService.createConnection(data),
     onSuccess: (response) => {
       if (response.success && response.data) {
-        queryClient.setQueryData(fullQueryKey, (old: Connection[] = []) => [
-          ...old,
-          response.data as Connection,
-        ]);
+        queryClient.setQueryData(
+          fullQueryKey,
+          (old: Connection[] = []) => [...old, response.data as Connection]
+        );
       }
     },
   });
@@ -49,12 +54,15 @@ export const useConnections = (filters?: { status?: string; tags?: string[]; lim
     onSuccess: (response, { id, updates }) => {
       if (response.success) {
         // Safely merge response.data if it's a valid object with connection fields
-        const responseData =
-          response.data && typeof response.data === 'object'
-            ? (response.data as Partial<Connection>)
-            : {};
-        queryClient.setQueryData(fullQueryKey, (old: Connection[] = []) =>
-          old.map((conn) => (conn.id === id ? { ...conn, ...updates, ...responseData } : conn))
+        const responseData = response.data && typeof response.data === 'object'
+          ? response.data as Partial<Connection>
+          : {};
+        queryClient.setQueryData(
+          fullQueryKey,
+          (old: Connection[] = []) =>
+            old.map((conn) =>
+              conn.id === id ? { ...conn, ...updates, ...responseData } : conn
+            )
         );
       }
     },

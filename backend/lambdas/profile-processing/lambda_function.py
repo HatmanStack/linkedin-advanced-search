@@ -1,5 +1,4 @@
 """LinkedIn Profile Processing Lambda - Processes profile screenshots from S3."""
-
 import json
 import logging
 import os
@@ -15,15 +14,12 @@ logger.setLevel(logging.INFO)
 region = os.environ.get('AWS_REGION', 'us-west-2')
 s3 = boto3.client('s3', region_name=region)
 bedrock = boto3.client('bedrock-runtime', region_name=region)
-table = boto3.resource('dynamodb', region_name=region).Table(
-    os.environ.get('DYNAMODB_TABLE_NAME', 'linkedin-advanced-search')
-)
+table = boto3.resource('dynamodb', region_name=region).Table(os.environ.get('DYNAMODB_TABLE_NAME', 'linkedin-advanced-search'))
 
 
 def lambda_handler(event, context):
     """Process profile screenshots from S3 via SQS trigger."""
     from shared_services.observability import setup_correlation_context
-
     setup_correlation_context(event, context)
 
     try:
@@ -61,7 +57,7 @@ def lambda_handler(event, context):
     except ServiceError as e:
         return {'statusCode': 500, 'body': json.dumps({'error': e.message})}
     except Exception as e:
-        logger.error(f'Error: {e}')
+        logger.error(f"Error: {e}")
         return {'statusCode': 500, 'body': json.dumps({'error': 'Internal server error'})}
 
 
@@ -70,11 +66,8 @@ def _find_profile(bucket, directory):
     try:
         prefix = directory if directory.endswith('/') else directory + '/'
         resp = s3.list_objects_v2(Bucket=bucket, Prefix=prefix)
-        files = [
-            {'key': o['Key'], 'ts': o['LastModified']}
-            for o in resp.get('Contents', [])
-            if 'Profile' in o['Key'].split('/')[-1] and o['Key'].lower().endswith(('.png', '.jpg', '.jpeg'))
-        ]
+        files = [{'key': o['Key'], 'ts': o['LastModified']} for o in resp.get('Contents', [])
+                 if 'Profile' in o['Key'].split('/')[-1] and o['Key'].lower().endswith(('.png', '.jpg', '.jpeg'))]
         return max(files, key=lambda x: x['ts'])['key'] if files else None
     except Exception:
         return None

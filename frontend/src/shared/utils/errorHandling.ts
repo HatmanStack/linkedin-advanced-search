@@ -38,7 +38,7 @@ export function transformErrorForUser(
   if (error instanceof ApiError) {
     message = error.message;
     retryable = error.retryable || false;
-
+    
     // Map API errors to user-friendly messages
     if (error.status === 401 || error.status === 403) {
       userMessage = 'You need to sign in again to continue.';
@@ -46,12 +46,10 @@ export function transformErrorForUser(
       recoveryActions = [
         {
           label: 'Sign In',
-          action: () => {
-            window.location.href = '/auth';
-          },
-          primary: true,
+          action: () => { window.location.href = '/auth'; },
+          primary: true
         },
-        ...recoveryActions,
+        ...recoveryActions
       ];
     } else if (error.status === 404) {
       userMessage = 'The requested information could not be found.';
@@ -75,7 +73,7 @@ export function transformErrorForUser(
   } else if (error instanceof Error) {
     message = error.message;
     userMessage = `Failed to ${context}. ${error.message}`;
-
+    
     // Check for specific error patterns
     if (error.message.includes('timeout') || error.message.includes('TIMEOUT')) {
       userMessage = 'The request took too long. Please try again.';
@@ -96,7 +94,7 @@ export function transformErrorForUser(
     userMessage,
     recoveryActions,
     severity,
-    retryable,
+    retryable
   };
 }
 
@@ -119,8 +117,9 @@ export const ERROR_MESSAGES = {
   AUTHENTICATION: 'authenticate your request',
   NETWORK: 'connect to our servers',
   VALIDATION: 'validate the information',
-  UNKNOWN: 'complete the operation',
+  UNKNOWN: 'complete the operation'
 } as const;
+
 
 /**
  * Log errors with context for debugging
@@ -129,21 +128,18 @@ export function logError(error: unknown, context: string, additionalData?: unkno
   const errorInfo = {
     timestamp: new Date().toISOString(),
     context,
-    error:
-      error instanceof Error
-        ? {
-            name: error.name,
-            message: error.message,
-            stack: error.stack,
-          }
-        : error,
+    error: error instanceof Error ? {
+      name: error.name,
+      message: error.message,
+      stack: error.stack
+    } : error,
     additionalData,
     userAgent: navigator.userAgent,
-    url: window.location.href,
+    url: window.location.href
   };
-
+  
   logger.error(`[${context}] Error occurred`, { errorInfo });
-
+  
   // In production, you might want to send this to an error tracking service
   // Example: Sentry.captureException(error, { extra: errorInfo });
 }

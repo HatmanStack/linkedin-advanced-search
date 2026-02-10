@@ -15,7 +15,7 @@ const logger = createLogger('MessageGenerationService');
 export interface MessageGenerationRequest {
   /** ID of the connection to generate message for */
   connectionId: string;
-
+  
   /** Connection profile data for personalization */
   connectionProfile: {
     firstName: string;
@@ -25,13 +25,13 @@ export interface MessageGenerationRequest {
     headline?: string;
     tags?: string[];
   };
-
+  
   /** Conversation topic entered by user */
   conversationTopic: string;
-
+  
   /** Previous message history with this connection */
   messageHistory?: Message[];
-
+  
   /** User's profile information for context */
   userProfile?: UserProfile;
 }
@@ -42,10 +42,10 @@ export interface MessageGenerationRequest {
 export interface MessageGenerationResponse {
   /** AI-generated message content */
   generatedMessage: string;
-
+  
   /** Confidence score for the generated message (0-1) */
   confidence: number;
-
+  
   /** Optional reasoning or explanation for the message */
   reasoning?: string;
 }
@@ -57,7 +57,15 @@ export class MessageGenerationError extends Error {
   status?: number;
   code?: string;
 
-  constructor({ message, status, code }: { message: string; status?: number; code?: string }) {
+  constructor({ 
+    message, 
+    status, 
+    code 
+  }: { 
+    message: string; 
+    status?: number; 
+    code?: string; 
+  }) {
     super(message);
     this.name = 'MessageGenerationError';
     this.status = status;
@@ -82,7 +90,7 @@ const MESSAGE_GENERATION_CONFIG = {
 
 /**
  * Service for handling AI-powered message generation
- *
+ * 
  * This service integrates with the backend Lambda function to generate
  * personalized messages based on connection data and conversation topics.
  */
@@ -116,17 +124,20 @@ class MessageGenerationService {
   /**
    * Make authenticated HTTP request to the API
    */
-  private async makeRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  private async makeRequest<T>(
+    endpoint: string,
+    options: RequestInit = {}
+  ): Promise<T> {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), this.timeout);
 
     try {
       // Get JWT token for authentication
       const token = await this.getAuthToken();
-
+      
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
-        ...(options.headers as Record<string, string>),
+        ...options.headers as Record<string, string>,
       };
 
       // Add Authorization header if token is available
@@ -182,7 +193,7 @@ class MessageGenerationService {
 
   /**
    * Generate a personalized message for a specific connection
-   *
+   * 
    * @param request - Message generation request parameters
    * @returns Promise resolving to generated message content
    * @throws MessageGenerationError for API or network errors
@@ -234,11 +245,13 @@ class MessageGenerationService {
 
   /**
    * Generate messages for multiple connections in batch
-   *
+   * 
    * @param requests - Array of message generation requests
    * @returns Promise resolving to Map of connectionId -> generated message
    */
-  async generateBatchMessages(requests: MessageGenerationRequest[]): Promise<Map<string, string>> {
+  async generateBatchMessages(
+    requests: MessageGenerationRequest[]
+  ): Promise<Map<string, string>> {
     const results = new Map<string, string>();
     const errors = new Map<string, MessageGenerationError>();
 
@@ -248,14 +261,13 @@ class MessageGenerationService {
         const message = await this.generateMessage(request);
         results.set(request.connectionId, message);
       } catch (error) {
-        const generationError =
-          error instanceof MessageGenerationError
-            ? error
-            : new MessageGenerationError({
-                message: error instanceof Error ? error.message : 'Unknown error',
-                code: 'BATCH_GENERATION_FAILED',
-              });
-
+        const generationError = error instanceof MessageGenerationError 
+          ? error 
+          : new MessageGenerationError({
+              message: error instanceof Error ? error.message : 'Unknown error',
+              code: 'BATCH_GENERATION_FAILED',
+            });
+        
         errors.set(request.connectionId, generationError);
       }
     }
@@ -277,7 +289,7 @@ class MessageGenerationService {
    */
   private async generateMockResponse(request: MessageGenerationRequest): Promise<string> {
     // Simulate API delay
-    await new Promise((resolve) => setTimeout(resolve, 1000 + Math.random() * 2000));
+    await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
 
     const { connectionProfile, conversationTopic } = request;
     const { firstName, position, company } = connectionProfile;
@@ -294,8 +306,7 @@ class MessageGenerationService {
     const selectedMessage = mockMessages[Math.floor(Math.random() * mockMessages.length)];
 
     // Occasionally simulate an error for testing
-    if (Math.random() < 0.1) {
-      // 10% chance of error
+    if (Math.random() < 0.1) { // 10% chance of error
       throw new MessageGenerationError({
         message: 'Mock API error for testing',
         status: 500,
@@ -356,17 +367,15 @@ class MessageGenerationService {
       },
       conversationTopic: request.conversationTopic.trim(),
       messageHistory: request.messageHistory || [],
-      userProfile: request.userProfile
-        ? {
-            firstName: request.userProfile.first_name,
-            lastName: request.userProfile.last_name,
-            headline: request.userProfile.headline,
-            company: request.userProfile.company,
-            position: request.userProfile.current_position,
-            industry: request.userProfile.industry,
-            interests: request.userProfile.interests || [],
-          }
-        : undefined,
+      userProfile: request.userProfile ? {
+        firstName: request.userProfile.first_name,
+        lastName: request.userProfile.last_name,
+        headline: request.userProfile.headline,
+        company: request.userProfile.company,
+        position: request.userProfile.current_position,
+        industry: request.userProfile.industry,
+        interests: request.userProfile.interests || [],
+      } : undefined,
     };
   }
 

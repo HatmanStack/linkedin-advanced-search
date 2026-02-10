@@ -63,7 +63,9 @@ describe('ragstackSearchService', () => {
     it('should handle direct API response format', async () => {
       mockPost.mockResolvedValue({
         data: {
-          results: [{ source: 'profile_xyz789', score: 0.9, content: 'Test content' }],
+          results: [
+            { source: 'profile_xyz789', score: 0.90, content: 'Test content' },
+          ],
           totalResults: 1,
         },
       });
@@ -71,7 +73,7 @@ describe('ragstackSearchService', () => {
       const response = await searchProfiles('test query');
 
       expect(response.results[0].profileId).toBe('xyz789');
-      expect(response.results[0].score).toBe(0.9);
+      expect(response.results[0].score).toBe(0.90);
       expect(response.totalResults).toBe(1);
     });
 
@@ -143,7 +145,9 @@ describe('ragstackSearchService', () => {
     it('should extract snippet from content', async () => {
       mockPost.mockResolvedValue({
         data: {
-          results: [{ source: 'profile_abc', score: 0.9, content: 'This is a test snippet' }],
+          results: [
+            { source: 'profile_abc', score: 0.9, content: 'This is a test snippet' },
+          ],
           totalResults: 1,
         },
       });
@@ -156,7 +160,9 @@ describe('ragstackSearchService', () => {
     it('should handle malformed source field gracefully', async () => {
       mockPost.mockResolvedValue({
         data: {
-          results: [{ source: 'malformed', score: 0.9, content: 'Content' }],
+          results: [
+            { source: 'malformed', score: 0.9, content: 'Content' },
+          ],
           totalResults: 1,
         },
       });

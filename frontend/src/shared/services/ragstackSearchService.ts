@@ -82,9 +82,7 @@ class RAGStackSearchService {
 
     // Normalize base URL to ensure trailing slash
     const normalizedBaseUrl = apiBaseUrl
-      ? apiBaseUrl.endsWith('/')
-        ? apiBaseUrl
-        : `${apiBaseUrl}/`
+      ? (apiBaseUrl.endsWith('/') ? apiBaseUrl : `${apiBaseUrl}/`)
       : undefined;
 
     this.apiClient = axios.create({
@@ -173,18 +171,18 @@ class RAGStackSearchService {
       if (responseData && typeof responseData === 'object' && 'statusCode' in responseData) {
         // Lambda proxy response format
         if (responseData.statusCode !== 200) {
-          const errorBody =
-            typeof responseData.body === 'string'
-              ? JSON.parse(responseData.body)
-              : responseData.body;
+          const errorBody = typeof responseData.body === 'string'
+            ? JSON.parse(responseData.body)
+            : responseData.body;
           throw new SearchError(
             errorBody?.error || `Search failed with status ${responseData.statusCode}`,
             { status: responseData.statusCode }
           );
         }
 
-        parsedBody =
-          typeof responseData.body === 'string' ? JSON.parse(responseData.body) : responseData.body;
+        parsedBody = typeof responseData.body === 'string'
+          ? JSON.parse(responseData.body)
+          : responseData.body;
       } else {
         // Direct API Gateway response
         parsedBody = responseData;

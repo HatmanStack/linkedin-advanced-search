@@ -39,17 +39,11 @@ export function useConnectionsManager() {
   // Calculate connection counts (derived state)
   const connectionCounts = useMemo((): ConnectionCounts => {
     const counts = { incoming: 0, outgoing: 0, ally: 0, total: 0 };
-    connections.forEach((connection) => {
+    connections.forEach(connection => {
       switch (connection.status) {
-        case 'incoming':
-          counts.incoming++;
-          break;
-        case 'outgoing':
-          counts.outgoing++;
-          break;
-        case 'ally':
-          counts.ally++;
-          break;
+        case 'incoming': counts.incoming++; break;
+        case 'outgoing': counts.outgoing++; break;
+        case 'ally': counts.ally++; break;
       }
     });
     counts.total = counts.incoming + counts.outgoing + counts.ally;
@@ -59,17 +53,11 @@ export function useConnectionsManager() {
   // Exported for backwards compatibility
   const calculateConnectionCounts = useCallback((conns: Connection[]): ConnectionCounts => {
     const counts = { incoming: 0, outgoing: 0, ally: 0, total: 0 };
-    conns.forEach((connection) => {
+    conns.forEach(connection => {
       switch (connection.status) {
-        case 'incoming':
-          counts.incoming++;
-          break;
-        case 'outgoing':
-          counts.outgoing++;
-          break;
-        case 'ally':
-          counts.ally++;
-          break;
+        case 'incoming': counts.incoming++; break;
+        case 'outgoing': counts.outgoing++; break;
+        case 'ally': counts.ally++; break;
       }
     });
     counts.total = counts.incoming + counts.outgoing + counts.ally;
@@ -78,20 +66,15 @@ export function useConnectionsManager() {
 
   // Filter connections by status and tags
   const filteredConnections = useMemo(() => {
-    let list = connections.filter((connection) => {
-      if (selectedStatus === 'all')
-        return ['incoming', 'outgoing', 'ally'].includes(connection.status);
+    let list = connections.filter(connection => {
+      if (selectedStatus === 'all') return ['incoming', 'outgoing', 'ally'].includes(connection.status);
       return connection.status === selectedStatus;
     });
 
     if (activeTags.length > 0) {
       list = [...list].sort((a, b) => {
-        const aTagsMatch = (a.tags || a.common_interests || []).filter((t: string) =>
-          activeTags.includes(t)
-        ).length;
-        const bTagsMatch = (b.tags || b.common_interests || []).filter((t: string) =>
-          activeTags.includes(t)
-        ).length;
+        const aTagsMatch = (a.tags || a.common_interests || []).filter((t: string) => activeTags.includes(t)).length;
+        const bTagsMatch = (b.tags || b.common_interests || []).filter((t: string) => activeTags.includes(t)).length;
         if (aTagsMatch !== bTagsMatch) return bTagsMatch - aTagsMatch;
         return `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`);
       });
@@ -101,7 +84,7 @@ export function useConnectionsManager() {
 
   // Get "possible" connections (new connections)
   const newConnections = useMemo(() => {
-    return connections.filter((connection) => connection.status === 'possible');
+    return connections.filter(connection => connection.status === 'possible');
   }, [connections]);
 
   // Selection count
@@ -109,35 +92,30 @@ export function useConnectionsManager() {
 
   // Actions
   const handleTagClick = useCallback((tag: string) => {
-    setActiveTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]));
+    setActiveTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
   }, []);
 
   const toggleConnectionSelection = useCallback((connectionId: string) => {
-    setSelectedConnections((prev) =>
-      prev.includes(connectionId)
-        ? prev.filter((id) => id !== connectionId)
-        : [...prev, connectionId]
+    setSelectedConnections(prev =>
+      prev.includes(connectionId) ? prev.filter(id => id !== connectionId) : [...prev, connectionId]
     );
   }, []);
 
   const handleConnectionCheckboxChange = useCallback((connectionId: string, checked: boolean) => {
-    setSelectedConnections((prev) => {
+    setSelectedConnections(prev => {
       if (checked) return prev.includes(connectionId) ? prev : [...prev, connectionId];
-      return prev.filter((id) => id !== connectionId);
+      return prev.filter(id => id !== connectionId);
     });
   }, []);
 
-  const updateConnectionStatus = useCallback(
-    (connectionId: string, newStatus: ConnectionStatus) => {
-      // Optimistic update via React Query cache
-      queryClient.setQueryData(
-        queryKeys.connections.byUser(user?.id ?? ''),
-        (old: Connection[] = []) =>
-          old.map((c) => (c.id === connectionId ? { ...c, status: newStatus } : c))
-      );
-    },
-    [queryClient, user?.id]
-  );
+  const updateConnectionStatus = useCallback((connectionId: string, newStatus: ConnectionStatus) => {
+    // Optimistic update via React Query cache
+    queryClient.setQueryData(
+      queryKeys.connections.byUser(user?.id ?? ''),
+      (old: Connection[] = []) =>
+        old.map(c => c.id === connectionId ? { ...c, status: newStatus } : c)
+    );
+  }, [queryClient, user?.id]);
 
   // Wrapper to handle refetch with error handling (matches original API)
   const fetchConnectionsWithErrorHandling = useCallback(async () => {
@@ -149,23 +127,14 @@ export function useConnectionsManager() {
     } catch (err: unknown) {
       logger.error('Error fetching connections', { error: err });
       const errorMessage = err instanceof ApiError ? err.message : 'Failed to fetch connections';
-      toast({
-        title: 'Failed to Load Connections',
-        description: errorMessage,
-        variant: 'destructive',
-      });
+      toast({ title: "Failed to Load Connections", description: errorMessage, variant: "destructive" });
     }
   }, [fetchConnections, toast]);
 
   return {
     connections,
     connectionsLoading,
-    connectionsError:
-      connectionsError instanceof Error
-        ? connectionsError.message
-        : connectionsError
-          ? String(connectionsError)
-          : null,
+    connectionsError: connectionsError instanceof Error ? connectionsError.message : connectionsError ? String(connectionsError) : null,
     selectedStatus,
     setSelectedStatus,
     activeTags,

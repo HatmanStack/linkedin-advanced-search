@@ -4,7 +4,7 @@ import { cn } from '@/shared/lib/utils';
 
 /**
  * LoadingOverlay Component
- *
+ * 
  * Provides a loading overlay with spinner and optional message
  * Can be used as a full-screen overlay or within a specific container
  */
@@ -24,18 +24,20 @@ const LoadingOverlay: React.FC<LoadingOverlayProps> = ({
   className = '',
   size = 'md',
   variant = 'overlay',
-  children,
+  children
 }) => {
   const sizeClasses = {
     sm: 'h-4 w-4',
     md: 'h-8 w-8',
-    lg: 'h-12 w-12',
+    lg: 'h-12 w-12'
   };
 
   const LoadingContent = () => (
     <div className="flex flex-col items-center justify-center space-y-4">
       <Loader2 className={cn('animate-spin text-blue-400', sizeClasses[size])} />
-      {message && <p className="text-slate-300 text-sm font-medium">{message}</p>}
+      {message && (
+        <p className="text-slate-300 text-sm font-medium">{message}</p>
+      )}
     </div>
   );
 
@@ -63,7 +65,7 @@ const LoadingOverlay: React.FC<LoadingOverlayProps> = ({
 
 /**
  * InlineLoader Component
- *
+ * 
  * Simple inline loading spinner for buttons and small components
  */
 interface InlineLoaderProps {
@@ -71,19 +73,24 @@ interface InlineLoaderProps {
   className?: string;
 }
 
-export const InlineLoader: React.FC<InlineLoaderProps> = ({ size = 'sm', className = '' }) => {
+export const InlineLoader: React.FC<InlineLoaderProps> = ({
+  size = 'sm',
+  className = ''
+}) => {
   const sizeClasses = {
     sm: 'h-4 w-4',
     md: 'h-6 w-6',
-    lg: 'h-8 w-8',
+    lg: 'h-8 w-8'
   };
 
-  return <Loader2 className={cn('animate-spin', sizeClasses[size], className)} />;
+  return (
+    <Loader2 className={cn('animate-spin', sizeClasses[size], className)} />
+  );
 };
 
 /**
  * LoadingButton Component
- *
+ * 
  * Button with integrated loading state
  */
 interface LoadingButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {

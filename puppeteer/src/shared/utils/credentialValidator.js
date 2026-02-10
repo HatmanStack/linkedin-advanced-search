@@ -32,25 +32,21 @@ export function validateLinkedInCredentials({
   linkedinCredentialsCiphertext,
   linkedinCredentials,
   jwtToken,
-  actionType = 'request',
+  actionType = 'request'
 }) {
   // Check for at least one valid credential format
   const hasPlaintext = !!(searchName && searchPassword);
-  const hasCiphertext =
-    typeof linkedinCredentialsCiphertext === 'string' &&
-    linkedinCredentialsCiphertext.startsWith('sealbox_x25519:b64:');
-  const hasStructured = !!(
-    linkedinCredentials &&
-    linkedinCredentials.email &&
-    linkedinCredentials.password
-  );
+  const hasCiphertext = typeof linkedinCredentialsCiphertext === 'string' &&
+                        linkedinCredentialsCiphertext.startsWith('sealbox_x25519:b64:');
+  const hasStructured = !!(linkedinCredentials &&
+                          linkedinCredentials.email &&
+                          linkedinCredentials.password);
 
   if (!hasPlaintext && !hasCiphertext && !hasStructured) {
     return {
       isValid: false,
       statusCode: 400,
-      error:
-        'Missing credentials: provide searchName/searchPassword or linkedinCredentialsCiphertext',
+      error: 'Missing credentials: provide searchName/searchPassword or linkedinCredentialsCiphertext'
     };
   }
 
@@ -60,7 +56,7 @@ export function validateLinkedInCredentials({
       isValid: false,
       statusCode: 401,
       error: 'Authentication required',
-      message: `User ID is required to perform ${actionType}s`,
+      message: `User ID is required to perform ${actionType}s`
     };
   }
 

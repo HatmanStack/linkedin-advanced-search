@@ -28,7 +28,7 @@ export async function initializeLinkedInServices() {
     puppeteerService,
     linkedInService: new LinkedInService(puppeteerService),
     linkedInContactService: new LinkedInContactService(puppeteerService),
-    dynamoDBService: new DynamoDBService(),
+    dynamoDBService: new DynamoDBService()
   };
 }
 

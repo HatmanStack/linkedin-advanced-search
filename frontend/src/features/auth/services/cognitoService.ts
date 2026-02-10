@@ -18,11 +18,7 @@ const userPool = new CognitoUserPool({
 });
 
 // Helper function to extract user data from Cognito attributes
-function extractUserData(
-  session: CognitoUserSession,
-  attributes: CognitoAttributeList,
-  email: string
-): CognitoUserData {
+function extractUserData(session: CognitoUserSession, attributes: CognitoAttributeList, email: string): CognitoUserData {
   const userAttributes: { [key: string]: string } = {};
   attributes?.forEach((attr) => {
     userAttributes[attr.getName()] = attr.getValue();
@@ -36,6 +32,8 @@ function extractUserData(
     emailVerified: userAttributes.email_verified === 'true',
   };
 }
+
+
 
 export interface CognitoUserData {
   id: string;
@@ -52,16 +50,7 @@ export class CognitoAuthService {
     password: string,
     firstName?: string,
     lastName?: string
-  ): Promise<{
-    error: AuthError | null;
-    user?: {
-      id: string;
-      email: string;
-      firstName?: string;
-      lastName?: string;
-      needsVerification: boolean;
-    };
-  }> {
+  ): Promise<{ error: AuthError | null; user?: { id: string; email: string; firstName?: string; lastName?: string; needsVerification: boolean } }> {
     return new Promise((resolve) => {
       const attributeList = [
         new CognitoUserAttribute({
@@ -109,10 +98,7 @@ export class CognitoAuthService {
   }
 
   // Sign in an existing user
-  static async signIn(
-    email: string,
-    password: string
-  ): Promise<{ error: AuthError | null; user?: CognitoUserData }> {
+  static async signIn(email: string, password: string): Promise<{ error: AuthError | null; user?: CognitoUserData }> {
     return new Promise((resolve) => {
       const authenticationDetails = new AuthenticationDetails({
         Username: email,
@@ -213,6 +199,7 @@ export class CognitoAuthService {
             userAttributes[attr.getName()] = attr.getValue();
           });
 
+          
           const user: CognitoUserData = {
             id: session.getIdToken().payload.sub,
             email: userAttributes.email,

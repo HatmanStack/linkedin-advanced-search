@@ -53,9 +53,7 @@ export const postsService = {
       }
 
       const data = response.data as Record<string, unknown> | undefined;
-      const ideas =
-        (data?.ideas as string[]) ||
-        ((response as unknown as Record<string, unknown>).ideas as string[] | undefined);
+      const ideas = (data?.ideas as string[]) || (response as unknown as Record<string, unknown>).ideas as string[] | undefined;
       if (Array.isArray(ideas) && ideas.length > 0) {
         return ideas;
       }
@@ -79,24 +77,20 @@ export const postsService = {
         throw new Error(response.error || 'Failed to research topics');
       }
       const responseData = response.data as Record<string, unknown> | undefined;
-      const jobId: string | undefined =
-        (responseData?.job_id as string) || (responseData?.jobId as string);
+      const jobId: string | undefined = (responseData?.job_id as string) || (responseData?.jobId as string);
       if (!jobId) {
         throw new Error('No job_id returned for research request');
       }
 
       // Poll for deep research results (backend checks OpenAI response status)
-      const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+      const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
       const intervalMs = 15_000;
       const maxChecks = 60;
 
       await sleep(intervalMs);
       for (let i = 0; i < maxChecks; i++) {
         try {
-          const poll = await lambdaApiService.callProfilesOperation<{
-            content?: string;
-            status?: string;
-          }>('get_research_result', {
+          const poll = await lambdaApiService.callProfilesOperation<{ content?: string; status?: string }>('get_research_result', {
             job_id: jobId,
             kind: 'RESEARCH',
           });
@@ -131,10 +125,7 @@ export const postsService = {
       const response = await lambdaApiService.sendLLMRequest('synthesize_research', {
         existing_content: payload.existing_content,
         research_content: payload.research_content ?? null,
-        selected_ideas:
-          Array.isArray(payload.selected_ideas) && payload.selected_ideas.length > 0
-            ? payload.selected_ideas
-            : [],
+        selected_ideas: Array.isArray(payload.selected_ideas) && payload.selected_ideas.length > 0 ? payload.selected_ideas : [],
         user_profile: profileToSend,
         job_id: jobId,
       });

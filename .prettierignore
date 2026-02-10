@@ -1,6 +1,0 @@
-dist/
-node_modules/
-coverage/
-.aws-sam/
-*.lock
-package-lock.json

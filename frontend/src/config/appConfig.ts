@@ -13,9 +13,7 @@ export const cognitoConfig = {
 
 const validateCognitoConfig = () => {
   const requiredFields = ['userPoolId', 'userPoolWebClientId'];
-  const missing = requiredFields.filter(
-    (field) => !cognitoConfig[field as keyof typeof cognitoConfig]
-  );
+  const missing = requiredFields.filter((field) => !cognitoConfig[field as keyof typeof cognitoConfig]);
   if (missing.length > 0) {
     logger.warn('Missing Cognito configuration fields', { missing });
     logger.warn('Using mock authentication. Please configure AWS Cognito environment variables');
@@ -28,9 +26,7 @@ export const isCognitoConfigured = validateCognitoConfig();
 
 export const API_CONFIG = {
   // Production AWS API Gateway URL (fallback)
-  BASE_URL:
-    import.meta.env.VITE_API_GATEWAY_URL ||
-    'https://2c6mr2rri0.execute-api.us-west-2.amazonaws.com/prod',
+  BASE_URL: import.meta.env.VITE_API_GATEWAY_URL || 'https://2c6mr2rri0.execute-api.us-west-2.amazonaws.com/prod',
   ENDPOINTS: {
     SEARCH: '/',
     MESSAGE_GENERATION: '/ai/generate-message',

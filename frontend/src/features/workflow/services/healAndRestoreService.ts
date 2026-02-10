@@ -24,6 +24,7 @@ class HealAndRestoreService {
   private pollAttempts = 0;
   private readonly maxPollAttempts = 720; // 1 hour at 5-second intervals
 
+
   // Check if auto-approve is enabled for this session
   isAutoApproveEnabled(): boolean {
     return sessionStorage.getItem('autoApproveHealRestore') === 'true';
@@ -74,9 +75,9 @@ class HealAndRestoreService {
 
   // Stop listening for notifications
   stopListening(): void {
-    if (this.eventSource) {
-      this.eventSource.close();
-      this.eventSource = null;
+  if (this.eventSource) {
+    this.eventSource.close();
+    this.eventSource = null;
     }
     this.isListening = false;
     this.isPolling = false;
@@ -89,12 +90,12 @@ class HealAndRestoreService {
 
   // Remove listener
   removeListener(callback: (notification: HealAndRestoreNotification) => void): void {
-    this.listeners = this.listeners.filter((listener) => listener !== callback);
+    this.listeners = this.listeners.filter(listener => listener !== callback);
   }
 
   // Notify all listeners
   private notifyListeners(notification: HealAndRestoreNotification): void {
-    this.listeners.forEach((listener) => listener(notification));
+    this.listeners.forEach(listener => listener(notification));
   }
 
   // Poll for heal and restore status when SSE/WebSocket is unavailable

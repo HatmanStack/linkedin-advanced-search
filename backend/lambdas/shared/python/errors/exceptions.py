@@ -11,7 +11,12 @@ class ServiceError(Exception):
         details: Optional additional error details
     """
 
-    def __init__(self, message: str, code: str = 'SERVICE_ERROR', details: dict | None = None):
+    def __init__(
+        self,
+        message: str,
+        code: str = 'SERVICE_ERROR',
+        details: dict | None = None
+    ):
         super().__init__(message)
         self.message = message
         self.code = code
@@ -42,7 +47,12 @@ class ValidationError(ServiceError):
 class NotFoundError(ServiceError):
     """Raised when a requested resource is not found."""
 
-    def __init__(self, message: str, resource_type: str | None = None, resource_id: str | None = None):
+    def __init__(
+        self,
+        message: str,
+        resource_type: str | None = None,
+        resource_id: str | None = None
+    ):
         code = 'NOT_FOUND'
         details = {}
         if resource_type:
@@ -62,7 +72,12 @@ class AuthorizationError(ServiceError):
 class ExternalServiceError(ServiceError):
     """Raised when an external service (AWS, OpenAI, etc.) fails."""
 
-    def __init__(self, message: str, service: str, original_error: str | None = None):
+    def __init__(
+        self,
+        message: str,
+        service: str,
+        original_error: str | None = None
+    ):
         details = {'service': service}
         if original_error:
             details['original_error'] = original_error

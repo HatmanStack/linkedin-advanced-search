@@ -22,7 +22,10 @@ function useSearchResults(): UseSearchResultsReturn {
   const queryClient = useQueryClient();
 
   // Local storage for persistence (stays in localStorage - not server state)
-  const [results, setResults] = useLocalStorage<string[]>(STORAGE_KEYS.SEARCH_RESULTS, []);
+  const [results, setResults] = useLocalStorage<string[]>(
+    STORAGE_KEYS.SEARCH_RESULTS,
+    []
+  );
 
   const [visitedLinks, setVisitedLinks] = useLocalStorage<Record<string, boolean>>(
     STORAGE_KEYS.VISITED_LINKS,
@@ -65,7 +68,7 @@ function useSearchResults(): UseSearchResultsReturn {
   // Mark a profile as visited
   const markAsVisited = useCallback(
     (profileId: string) => {
-      setVisitedLinks((prev) => ({
+      setVisitedLinks(prev => ({
         ...prev,
         [profileId]: true,
       }));

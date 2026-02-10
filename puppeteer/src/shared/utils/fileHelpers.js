@@ -20,7 +20,7 @@ export class FileHelpers {
     try {
       const dir = path.dirname(filePath);
       await this.ensureDirectoryExists(dir);
-
+      
       await fs.writeFile(filePath, JSON.stringify(data, null, 2));
       logger.debug(`Written JSON to: ${filePath}`);
     } catch (error) {
@@ -47,7 +47,7 @@ export class FileHelpers {
     try {
       const dir = path.dirname(filePath);
       await this.ensureDirectoryExists(dir);
-
+      
       await fs.appendFile(filePath, data);
       logger.debug(`Appended to file: ${filePath}`);
     } catch (error) {
@@ -62,7 +62,7 @@ export class FileHelpers {
       return {
         inlineData: {
           data: Buffer.from(data).toString('base64'),
-          mimeType,
+          mimeType
         },
       };
     } catch (error) {

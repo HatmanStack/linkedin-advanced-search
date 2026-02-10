@@ -39,34 +39,30 @@
   // Find elements by text content (more robust than just labels)
   function findElementByText(selector, text) {
     const elements = document.querySelectorAll(selector);
-    return Array.from(elements).find((el) =>
+    return Array.from(elements).find(el =>
       el.textContent.trim().toLowerCase().includes(text.toLowerCase())
     );
   }
 
   // Handle "Current companies" filter click via aria selector
   // The Puppeteer code uses ::-p-aria(Current companies) which matches aria-label
-  document.addEventListener(
-    'click',
-    (e) => {
-      const target = e.target.closest('label, button, [role="button"]');
-      if (!target) return;
+  document.addEventListener('click', (e) => {
+    const target = e.target.closest('label, button, [role="button"]');
+    if (!target) return;
 
-      const text = target.textContent.trim().toLowerCase();
-      const ariaLabel = (target.getAttribute('aria-label') || '').toLowerCase();
+    const text = target.textContent.trim().toLowerCase();
+    const ariaLabel = (target.getAttribute('aria-label') || '').toLowerCase();
 
-      if (text.includes('current compan') || ariaLabel.includes('current compan')) {
-        e.preventDefault();
-        e.stopPropagation();
-        toggleFilterPanel('company');
-      } else if (text.includes('location') || ariaLabel.includes('location')) {
-        e.preventDefault();
-        e.stopPropagation();
-        toggleFilterPanel('location');
-      }
-    },
-    true
-  );
+    if (text.includes('current compan') || ariaLabel.includes('current compan')) {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleFilterPanel('company');
+    } else if (text.includes('location') || ariaLabel.includes('location')) {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleFilterPanel('location');
+    }
+  }, true);
 
   function toggleFilterPanel(type) {
     if (type === 'company') {
@@ -94,9 +90,7 @@
 
   // Update the EXISTING listbox in the captured DOM with filtered suggestions
   function updateExistingListbox(query) {
-    const listbox = document.querySelector(
-      '[role="listbox"][data-testid="typeahead-results-container"]'
-    );
+    const listbox = document.querySelector('[role="listbox"][data-testid="typeahead-results-container"]');
     if (!listbox) {
       console.log('[MOCK] No existing listbox found, injecting company panel');
       if (!companyPanelInjected) {
@@ -108,7 +102,7 @@
 
     // Filter companies based on query
     const filtered = query
-      ? MOCK_COMPANIES.filter((c) => c.name.toLowerCase().includes(query.toLowerCase()))
+      ? MOCK_COMPANIES.filter(c => c.name.toLowerCase().includes(query.toLowerCase()))
       : MOCK_COMPANIES;
 
     if (filtered.length === 0) {
@@ -125,8 +119,7 @@
     // Insert new options matching the captured HTML structure
     filtered.forEach((company, index) => {
       const option = document.createElement('div');
-      option.className =
-        'fbc343bb cf1d1960 f65bc5fd df120c7b _7ef84488 d232cbde d3f8d8fe e9f81ce6 _046a1ca7 _74161f8c';
+      option.className = 'fbc343bb cf1d1960 f65bc5fd df120c7b _7ef84488 d232cbde d3f8d8fe e9f81ce6 _046a1ca7 _74161f8c';
       option.setAttribute('role', 'option');
       option.id = `:mock-option-${index}:`;
       option.setAttribute('aria-selected', 'false');
@@ -161,11 +154,7 @@
     const popover = listbox.closest('[popover]');
     if (popover) {
       popover.style.display = '';
-      try {
-        popover.showPopover?.();
-      } catch (e) {
-        /* ignore */
-      }
+      try { popover.showPopover?.(); } catch (e) { /* ignore */ }
     }
 
     console.log(`[MOCK] Updated listbox with ${filtered.length} companies for query: ${query}`);
@@ -175,16 +164,14 @@
 
   function injectCompanyPanel() {
     // Find where to insert (after the filter bar)
-    const filterBar =
-      document.querySelector('[role="toolbar"]') ||
+    const filterBar = document.querySelector('[role="toolbar"]') ||
       document.querySelector('[data-testid="primary-nav"]')?.parentElement ||
       document.body;
 
     const panel = document.createElement('div');
     panel.id = 'mock-company-panel';
     panel.className = 'basic-typeahead__triggered-content';
-    panel.style.cssText =
-      'position:fixed; left:400px; top:156px; z-index:9999; background:white; border:1px solid #ccc; border-radius:8px; padding:8px; box-shadow:0 4px 12px rgba(0,0,0,0.15); min-width:300px;';
+    panel.style.cssText = 'position:fixed; left:400px; top:156px; z-index:9999; background:white; border:1px solid #ccc; border-radius:8px; padding:8px; box-shadow:0 4px 12px rgba(0,0,0,0.15); min-width:300px;';
     panel.innerHTML = `
       <fieldset style="border:none; padding:0; margin:0;">
         <input type="text" id="mock-company-input"
@@ -211,7 +198,9 @@
     // Filter on input
     input.addEventListener('input', () => {
       const query = input.value.toLowerCase();
-      const filtered = MOCK_COMPANIES.filter((c) => c.name.toLowerCase().includes(query));
+      const filtered = MOCK_COMPANIES.filter(c =>
+        c.name.toLowerCase().includes(query)
+      );
       renderCompanySuggestions(filtered, listbox);
     });
 
@@ -224,9 +213,7 @@
   }
 
   function renderCompanySuggestions(companies, listbox) {
-    listbox.innerHTML = companies
-      .map(
-        (company) => `
+    listbox.innerHTML = companies.map(company => `
       <div role="option" aria-selected="false"
         data-company-id="${company.id}"
         style="padding:8px; cursor:pointer; border-radius:4px; display:flex; align-items:center;"
@@ -237,12 +224,10 @@
           <span>${company.name}</span>
         </label>
       </div>
-    `
-      )
-      .join('');
+    `).join('');
 
     // Attach click handlers
-    listbox.querySelectorAll('[role="option"]').forEach((option) => {
+    listbox.querySelectorAll('[role="option"]').forEach(option => {
       option.addEventListener('click', () => {
         const companyId = option.dataset.companyId;
         applyCompanyFilter(companyId);
@@ -282,15 +267,13 @@
 
   function injectLocationPanel() {
     // Find where to insert (after the company filter area)
-    const filterBar =
-      document.querySelector('[role="toolbar"]') ||
+    const filterBar = document.querySelector('[role="toolbar"]') ||
       document.querySelector('[data-testid="primary-nav"]')?.parentElement ||
       document.body;
 
     const panel = document.createElement('div');
     panel.id = 'mock-location-panel';
-    panel.style.cssText =
-      'position:fixed; left:400px; top:156px; z-index:9999; background:white; border:1px solid #ccc; border-radius:8px; padding:8px; box-shadow:0 4px 12px rgba(0,0,0,0.15); min-width:300px;';
+    panel.style.cssText = 'position:fixed; left:400px; top:156px; z-index:9999; background:white; border:1px solid #ccc; border-radius:8px; padding:8px; box-shadow:0 4px 12px rgba(0,0,0,0.15); min-width:300px;';
     panel.innerHTML = `
       <input type="text" id="mock-location-input"
         placeholder="Add a location"
@@ -313,15 +296,15 @@
     // Filter on input
     input.addEventListener('input', () => {
       const query = input.value.toLowerCase();
-      const filtered = MOCK_LOCATIONS.filter((l) => l.name.toLowerCase().includes(query));
+      const filtered = MOCK_LOCATIONS.filter(l =>
+        l.name.toLowerCase().includes(query)
+      );
       renderLocationSuggestions(filtered, listbox);
     });
   }
 
   function renderLocationSuggestions(locations, listbox) {
-    listbox.innerHTML = locations
-      .map(
-        (loc) => `
+    listbox.innerHTML = locations.map(loc => `
       <div role="option" aria-selected="false"
         data-geo-id="${loc.id}"
         style="padding:8px; cursor:pointer; border-radius:4px; display:flex; align-items:center;"
@@ -329,12 +312,10 @@
         onmouseout="this.style.background=''">
         <span>${loc.name}</span>
       </div>
-    `
-      )
-      .join('');
+    `).join('');
 
     // Attach click handlers
-    listbox.querySelectorAll('[role="option"]').forEach((option) => {
+    listbox.querySelectorAll('[role="option"]').forEach(option => {
       option.addEventListener('click', () => {
         const geoId = option.dataset.geoId;
         applyLocationFilter(geoId);
@@ -357,50 +338,46 @@
 
   // Intercept typing in any filter input field on the page
   // This handles cases where the captured DOM has its own input fields
-  document.addEventListener(
-    'input',
-    (e) => {
-      const input = e.target;
-      if (!input.matches('input')) return;
+  document.addEventListener('input', (e) => {
+    const input = e.target;
+    if (!input.matches('input')) return;
 
-      const placeholder = (input.getAttribute('placeholder') || '').toLowerCase();
-      const ariaLabel = (input.getAttribute('aria-label') || '').toLowerCase();
+    const placeholder = (input.getAttribute('placeholder') || '').toLowerCase();
+    const ariaLabel = (input.getAttribute('aria-label') || '').toLowerCase();
 
-      // Check if this is a company or location filter input
-      if (placeholder.includes('add a') || ariaLabel.includes('add a')) {
-        if (placeholder.includes('compan') || ariaLabel.includes('compan')) {
-          // Company filter input - update the existing listbox with filtered suggestions
-          const query = input.value;
-          console.log(`[MOCK] Company input changed: "${query}"`);
+    // Check if this is a company or location filter input
+    if (placeholder.includes('add a') || ariaLabel.includes('add a')) {
+      if (placeholder.includes('compan') || ariaLabel.includes('compan')) {
+        // Company filter input - update the existing listbox with filtered suggestions
+        const query = input.value;
+        console.log(`[MOCK] Company input changed: "${query}"`);
 
-          // First try to update the existing listbox in the captured DOM
-          updateExistingListbox(query);
+        // First try to update the existing listbox in the captured DOM
+        updateExistingListbox(query);
 
-          // Also sync with injected panel if it exists
-          const mockInput = document.getElementById('mock-company-input');
-          if (mockInput && mockInput !== input) {
-            mockInput.value = query;
-          }
-          const mockListbox = document.getElementById('mock-company-listbox');
-          if (mockListbox) {
-            const filtered = MOCK_COMPANIES.filter((c) =>
-              c.name.toLowerCase().includes(query.toLowerCase())
-            );
-            renderCompanySuggestions(filtered, mockListbox);
-          }
-        } else if (placeholder.includes('location') || ariaLabel.includes('location')) {
-          // Location filter input
-          if (!locationPanelInjected) {
-            injectLocationPanel();
-            locationPanelInjected = true;
-          }
-          const panel = document.getElementById('mock-location-panel');
-          if (panel) panel.style.display = '';
+        // Also sync with injected panel if it exists
+        const mockInput = document.getElementById('mock-company-input');
+        if (mockInput && mockInput !== input) {
+          mockInput.value = query;
         }
+        const mockListbox = document.getElementById('mock-company-listbox');
+        if (mockListbox) {
+          const filtered = MOCK_COMPANIES.filter(c =>
+            c.name.toLowerCase().includes(query.toLowerCase())
+          );
+          renderCompanySuggestions(filtered, mockListbox);
+        }
+      } else if (placeholder.includes('location') || ariaLabel.includes('location')) {
+        // Location filter input
+        if (!locationPanelInjected) {
+          injectLocationPanel();
+          locationPanelInjected = true;
+        }
+        const panel = document.getElementById('mock-location-panel');
+        if (panel) panel.style.display = '';
       }
-    },
-    true
-  );
+    }
+  }, true);
 
   // --- Search Results Population ---
 
@@ -419,10 +396,9 @@
       if (companyParam) {
         // Company filter is active - in real LinkedIn this would filter
         // For mock, show all Amazon employees since that's our test data
-        filteredPeople = connections.filter(
-          (p) =>
-            p.company?.toLowerCase().includes('amazon') ||
-            p.headline?.toLowerCase().includes('amazon')
+        filteredPeople = connections.filter(p =>
+          p.company?.toLowerCase().includes('amazon') ||
+          p.headline?.toLowerCase().includes('amazon')
         );
       }
 
@@ -432,8 +408,7 @@
       }
 
       // Find or create the search results container
-      let resultsContainer =
-        document.querySelector('.reusable-search__entity-result-list') ||
+      let resultsContainer = document.querySelector('.reusable-search__entity-result-list') ||
         document.querySelector('[data-testid="lazy-column"]') ||
         document.querySelector('[data-component-type="LazyColumn"]');
 
@@ -450,11 +425,10 @@
       resultsContainer.innerHTML = '';
 
       // Populate with mock people
-      filteredPeople.forEach((person) => {
+      filteredPeople.forEach(person => {
         const li = document.createElement('li');
         li.className = 'reusable-search__result-container';
-        li.style.cssText =
-          'padding:12px; margin-bottom:8px; background:white; border-radius:8px; border:1px solid #e0e0e0;';
+        li.style.cssText = 'padding:12px; margin-bottom:8px; background:white; border-radius:8px; border:1px solid #e0e0e0;';
         li.innerHTML = `
           <div class="entity-result" style="display:flex; align-items:flex-start; gap:12px;">
             <div style="width:72px; height:72px; background:#e7e2dc; border-radius:50%; flex-shrink:0;"></div>

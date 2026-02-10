@@ -28,9 +28,7 @@ vi.mock('@/hooks/useLocalStorage', () => ({
 
 import { puppeteerApiService } from '@/shared/services';
 
-const mockPerformLinkedInSearch = puppeteerApiService.performLinkedInSearch as ReturnType<
-  typeof vi.fn
->;
+const mockPerformLinkedInSearch = puppeteerApiService.performLinkedInSearch as ReturnType<typeof vi.fn>;
 
 describe('useSearchResults', () => {
   beforeEach(() => {
@@ -55,10 +53,7 @@ describe('useSearchResults', () => {
     it('sets loading to true during search', async () => {
       let resolveSearch: () => void;
       mockPerformLinkedInSearch.mockImplementation(
-        () =>
-          new Promise((resolve) => {
-            resolveSearch = () => resolve({ message: 'Done' });
-          })
+        () => new Promise((resolve) => { resolveSearch = () => resolve({ message: 'Done' }); })
       );
 
       const { result } = renderHook(() => useSearchResults(), {

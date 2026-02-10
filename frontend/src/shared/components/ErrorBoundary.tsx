@@ -33,10 +33,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   render() {
     if (this.state.hasError) {
       return (
-        <div
-          data-testid="error-boundary-fallback"
-          className="bg-red-500/10 border border-red-500/20 rounded-lg p-6"
-        >
+        <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-6">
           <div className="flex items-center space-x-3">
             <AlertCircle className="h-5 w-5 text-red-400 flex-shrink-0" />
             <div>

@@ -34,7 +34,9 @@ export async function extractLinkedInCookies(page: Page): Promise<string> {
   const linkedInCookies = cookies.filter((cookie) => {
     const domain = cookie.domain.toLowerCase();
     return (
-      domain === 'linkedin.com' || domain === '.linkedin.com' || domain.endsWith('.linkedin.com')
+      domain === 'linkedin.com' ||
+      domain === '.linkedin.com' ||
+      domain.endsWith('.linkedin.com')
     );
   });
 
@@ -44,7 +46,9 @@ export async function extractLinkedInCookies(page: Page): Promise<string> {
 
   // Check for essential auth cookies
   const cookieNames = new Set(linkedInCookies.map((c) => c.name));
-  const hasAuthCookie = ESSENTIAL_LINKEDIN_COOKIES.some((name) => cookieNames.has(name));
+  const hasAuthCookie = ESSENTIAL_LINKEDIN_COOKIES.some((name) =>
+    cookieNames.has(name)
+  );
 
   if (!hasAuthCookie) {
     logger.warn(
@@ -86,7 +90,9 @@ export async function hasValidLinkedInSession(page: Page): Promise<boolean> {
     const linkedInCookies = cookies.filter((c) => {
       const domain = c.domain.toLowerCase();
       return (
-        domain === 'linkedin.com' || domain === '.linkedin.com' || domain.endsWith('.linkedin.com')
+        domain === 'linkedin.com' ||
+        domain === '.linkedin.com' ||
+        domain.endsWith('.linkedin.com')
       );
     });
     const cookieNames = new Set(linkedInCookies.map((c) => c.name));

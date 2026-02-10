@@ -4,42 +4,33 @@ This guide provides instructions for setting up your development environment and
 
 ## Prerequisites
 
--   **Node.js**: v24 LTS (managed via nvm)
--   **Python**: 3.13+ (for backend Lambdas)
--   **Docker**: For docker-compose local development and LocalStack
--   **Chrome/Chromium**: For puppeteer automation
--   **jq**: For JSON processing in scripts (optional)
--   **libsodium-dev**: For Sealbox encryption in puppeteer
--   **AWS CLI**: Configured with appropriate credentials (for deployment)
--   **AWS SAM CLI**: For Lambda deployment
+-   **Node.js**: version 20 or higher (v24 LTS recommended)
+-   **Python**: version 3.13 or higher (for backend Lambdas)
+-   **AWS CLI**: Configured with appropriate credentials
+-   **AWS SAM CLI**: Installed for local testing and deployment
+-   **Docker**: Required for local Lambda testing with SAM
 -   **OpenAI API Key**: For content generation features
 
 ## Initial Setup
 
-The fastest way to set up is with the automated script:
-
-```bash
-git clone <repository-url>
-cd linkedin-advanced-search
-bash scripts/setup.sh
-```
-
-This will install all Node.js and Python dependencies, create a Python venv, and copy `.env.example` to `.env`.
-
-### Manual Setup
-
-If you prefer to set up manually:
-
-1.  **Install Dependencies**:
+1.  **Clone the Repository**:
     ```bash
-    npm install
-    cd frontend && npm install && cd ..
-    cd puppeteer && npm install && cd ..
-    cd mock-linkedin && npm install && cd ..
+    git clone <repository-url>
+    cd linkedin-advanced-search
     ```
 
-2.  **Python Test Environment**:
+2.  **Install Dependencies**:
     ```bash
+    # Install root dependencies
+    npm install
+
+    # Install frontend dependencies
+    cd frontend && npm install && cd ..
+
+    # Install Puppeteer backend dependencies
+    cd puppeteer && npm install && cd ..
+
+    # Setup Python environment for backend tests
     cd tests/backend
     python -m venv .venv
     source .venv/bin/activate
@@ -59,35 +50,6 @@ If you prefer to set up manually:
     ```bash
     node scripts/dev-tools/generate-device-keypair.js
     ```
-
-## Docker Compose
-
-The easiest way to run the full stack locally:
-
-```bash
-docker compose up --build
-```
-
-This starts:
-- **LocalStack** (port 4566) — DynamoDB, S3, SQS, Cognito
-- **localstack-init** — Provisions all AWS resources on startup
-- **mock-linkedin** (port 3333) — Simulated LinkedIn pages
-- **puppeteer-backend** (port 3001) — Automation backend
-- **frontend** (port 5173) — Vite dev server
-
-### LocalStack
-
-LocalStack provides local AWS services. The init script (`scripts/localstack/init-aws.sh`) creates:
-- DynamoDB table with PK/SK + GSI1 (matching SAM template)
-- S3 bucket for screenshots
-- SQS queues with DLQ redrive policy
-- Cognito user pool with test user (`testuser@example.com` / `TestPass123!`)
-
-Run integration tests against LocalStack:
-```bash
-docker compose up localstack -d
-cd tests/backend && . .venv/bin/activate && pytest integration/ -v -m integration
-```
 
 ## Testing Environments
 

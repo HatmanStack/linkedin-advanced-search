@@ -72,7 +72,6 @@ export const ConnectionSearchBar: React.FC<ConnectionSearchBarProps> = ({
       {/* Search Input */}
       <Input
         type="text"
-        data-testid="search-input"
         value={value}
         onChange={handleChange}
         onKeyDown={handleKeyDown}

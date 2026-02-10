@@ -5,10 +5,7 @@ export { default as MessageModal } from './components/MessageModal';
 export { default as ConversationTopicPanel } from './components/ConversationTopicPanel';
 
 // Services
-export {
-  messageGenerationService,
-  MessageGenerationError,
-} from './services/messageGenerationService';
+export { messageGenerationService, MessageGenerationError } from './services/messageGenerationService';
 
 // Hooks
 export { useMessageGeneration } from './hooks/useMessageGeneration';

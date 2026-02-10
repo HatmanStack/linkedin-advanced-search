@@ -32,28 +32,30 @@ LinkedIn networking tool with automation and cloud infrastructure. Built for eff
 
 ## 🚀 Quick Start
 
-### Option A: Docker (Recommended)
+### Prerequisites
+
+-   Node.js 20+ (24 LTS recommended)
+-   AWS CLI configured
+-   OpenAI API key
+
+### Install & Run
 
 ```bash
+# Clone and install
 git clone <your-repo-url>
 cd linkedin-advanced-search
-bash scripts/setup.sh
-docker compose up
+npm install
+
+# Setup env
+cp .env.example .env
+
+# Generate keys
+cd puppeteer && node scripts/generate-device-keypair.js && cd ..
+
+# Start Development
+npm run dev           # Frontend: http://localhost:5173
+npm run dev:puppeteer # Backend: http://localhost:3001
 ```
-
-Frontend at http://localhost:5173, puppeteer backend at http://localhost:3001, mock LinkedIn at http://localhost:3333.
-
-### Option B: Manual Setup
-
-**Prerequisites:** Node.js 24 LTS, Python 3.13, Chrome/Chromium
-
-```bash
-bash scripts/setup.sh       # Install all dependencies + create .env
-npm run dev                  # Frontend: http://localhost:5173
-npm run dev:puppeteer        # Backend: http://localhost:3001
-```
-
-See [Development Guide](docs/DEVELOPMENT.md) for detailed instructions.
 
 ## 🛠️ Tech Stack
 

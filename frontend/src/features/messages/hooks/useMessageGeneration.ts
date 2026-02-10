@@ -63,10 +63,7 @@ export function useMessageGeneration({
       const cleanedTopic = connectionDataContextService.prepareConversationTopic(conversationTopic);
       const connectionWithHistory = { ...connection, message_history: [] } as Connection;
       const context = connectionDataContextService.prepareMessageGenerationContext(
-        connectionWithHistory,
-        cleanedTopic,
-        userProfile || undefined,
-        { includeMessageHistory: false }
+        connectionWithHistory, cleanedTopic, userProfile || undefined, { includeMessageHistory: false }
       );
       const request = connectionDataContextService.createMessageGenerationRequest(context);
       return messageGenerationService.generateMessage(request);
@@ -101,71 +98,46 @@ export function useMessageGeneration({
     errorHandler.showInfoFeedback('Message generation has been stopped.', 'Generation Stopped');
   }, [workflow, modal, progressTracker, errorHandler]);
 
-  const handleMessageClick = useCallback(
-    async (connection: Connection) => {
-      modal.openModal(connection);
-      try {
-        await history.fetchHistory(connection.id);
-      } catch (err: unknown) {
-        logger.error('Error fetching message history', { error: err });
-        toast({
-          title: 'Failed to Load Messages',
-          description: 'Could not load message history.',
-          variant: 'destructive',
-        });
-      }
-    },
-    [modal, history, toast]
-  );
+  const handleMessageClick = useCallback(async (connection: Connection) => {
+    modal.openModal(connection);
+    try {
+      await history.fetchHistory(connection.id);
+    } catch (err: unknown) {
+      logger.error('Error fetching message history', { error: err });
+      toast({ title: "Failed to Load Messages", description: "Could not load message history.", variant: "destructive" });
+    }
+  }, [modal, history, toast]);
 
   const handleCloseMessageModal = useCallback(() => {
     modal.closeModal();
     history.clearHistory();
   }, [modal, history]);
 
-  const handleSendMessage = useCallback(
-    async (message: string): Promise<void> => {
-      logger.info('Sending message', { message, connectionId: modal.selectedConnection?.id });
-      toast({
-        title: 'Message Sending Not Implemented',
-        description: 'Message sending functionality will be available in a future update.',
-        variant: 'default',
-      });
-      if (modal.selectedConnection) {
-        const newMessage: Message = {
-          id: `msg-${Date.now()}`,
-          content: message,
-          timestamp: new Date().toISOString(),
-          sender: 'user',
-        };
-        history.addMessage(newMessage);
-      }
-    },
-    [modal.selectedConnection, toast, history]
-  );
+  const handleSendMessage = useCallback(async (message: string): Promise<void> => {
+    logger.info('Sending message', { message, connectionId: modal.selectedConnection?.id });
+    toast({ title: "Message Sending Not Implemented", description: "Message sending functionality will be available in a future update.", variant: "default" });
+    if (modal.selectedConnection) {
+      const newMessage: Message = { id: `msg-${Date.now()}`, content: message, timestamp: new Date().toISOString(), sender: 'user' };
+      history.addMessage(newMessage);
+    }
+  }, [modal.selectedConnection, toast, history]);
 
   // Main generation orchestrator using callbacks instead of polling
   const handleGenerateMessages = useCallback(async () => {
     if (selectedConnections.length === 0 || !conversationTopic.trim()) {
-      toast({
-        title: 'Missing Requirements',
-        description: 'Please select connections and enter a conversation topic.',
-        variant: 'destructive',
-      });
+      toast({ title: "Missing Requirements", description: "Please select connections and enter a conversation topic.", variant: "destructive" });
       return;
     }
 
-    logger.info('Starting message generation workflow', {
-      connectionCount: selectedConnections.length,
-    });
+    logger.info('Starting message generation workflow', { connectionCount: selectedConnections.length });
     progressTracker.initializeProgress(selectedConnections.length);
     progressTracker.setLoadingMessage('Preparing message generation...', 0, true);
 
     workflow.startGenerating();
     errorHandler.clearError();
 
-    const selectedConnectionsData = connections.filter(
-      (conn) => selectedConnections.includes(conn.id) && conn.status === 'ally'
+    const selectedConnectionsData = connections.filter(conn =>
+      selectedConnections.includes(conn.id) && conn.status === 'ally'
     );
 
     let wasStopped = false;
@@ -182,11 +154,8 @@ export function useMessageGeneration({
       const connectionName = `${connection.first_name} ${connection.last_name}`;
 
       progressTracker.updateProgress(i, connectionName, 'generating');
-      progressTracker.setLoadingMessage(
-        `Generating message for ${connectionName}...`,
-        Math.round((i / selectedConnectionsData.length) * 100),
-        true
-      );
+      progressTracker.setLoadingMessage(`Generating message for ${connectionName}...`,
+        Math.round((i / selectedConnectionsData.length) * 100), true);
 
       let retryCount = 0;
       let shouldContinue = true;
@@ -201,7 +170,7 @@ export function useMessageGeneration({
 
         try {
           const generatedMessage = await generateMessageForConnection(connection);
-          setGeneratedMessages((prev) => new Map(prev).set(connection.id, generatedMessage));
+          setGeneratedMessages(prev => new Map(prev).set(connection.id, generatedMessage));
 
           progressTracker.updateProgress(i, connectionName, 'waiting_approval');
           workflow.awaitApproval();
@@ -215,27 +184,16 @@ export function useMessageGeneration({
           break;
         } catch (error) {
           logger.error('Error generating message', { connectionId: connection.id, error });
-          const recoveryAction = await errorHandler.handleError(
-            error,
-            connection.id,
-            connectionName,
-            retryCount
-          );
+          const recoveryAction = await errorHandler.handleError(error, connection.id, connectionName, retryCount);
 
           switch (recoveryAction) {
             case 'retry':
               retryCount++;
-              progressTracker.setLoadingMessage(
-                `Retrying for ${connectionName}... (Attempt ${retryCount + 1})`,
-                Math.round((i / selectedConnectionsData.length) * 100),
-                true
-              );
+              progressTracker.setLoadingMessage(`Retrying for ${connectionName}... (Attempt ${retryCount + 1})`,
+                Math.round((i / selectedConnectionsData.length) * 100), true);
               continue;
             case 'skip':
-              errorHandler.showInfoFeedback(
-                `Skipped ${connectionName} due to error.`,
-                'Connection Skipped'
-              );
+              errorHandler.showInfoFeedback(`Skipped ${connectionName} due to error.`, 'Connection Skipped');
               shouldContinue = false;
               break;
             case 'stop':
@@ -254,10 +212,7 @@ export function useMessageGeneration({
     if (!wasStopped && !workflow.isStopping) {
       logger.info('Message generation workflow completed');
       progressTracker.updateProgress(selectedConnectionsData.length, undefined, 'completed');
-      errorHandler.showSuccessFeedback(
-        `Successfully generated messages for ${selectedConnectionsData.length} connections.`,
-        'Generation Complete'
-      );
+      errorHandler.showSuccessFeedback(`Successfully generated messages for ${selectedConnectionsData.length} connections.`, 'Generation Complete');
       workflow.complete();
 
       setTimeout(() => {
@@ -282,10 +237,9 @@ export function useMessageGeneration({
 
   // Compute current connection name
   const currentConnectionName = useMemo(() => {
-    if (workflow.state === 'idle' || workflow.currentIndex >= selectedConnections.length)
-      return undefined;
+    if (workflow.state === 'idle' || workflow.currentIndex >= selectedConnections.length) return undefined;
     const currentConnectionId = selectedConnections[workflow.currentIndex];
-    const connection = connections.find((conn) => conn.id === currentConnectionId);
+    const connection = connections.find(conn => conn.id === currentConnectionId);
     return connection ? `${connection.first_name} ${connection.last_name}` : undefined;
   }, [workflow.state, workflow.currentIndex, selectedConnections, connections]);
 

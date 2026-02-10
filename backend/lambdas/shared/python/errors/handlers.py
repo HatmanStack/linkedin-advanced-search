@@ -1,5 +1,4 @@
 """Error handling utilities for Lambda handlers."""
-
 import json
 import logging
 from typing import Any
@@ -22,7 +21,10 @@ STATUS_CODE_MAP = {
 }
 
 
-def build_error_response(exception: ServiceError, headers: dict | None = None) -> dict[str, Any]:
+def build_error_response(
+    exception: ServiceError,
+    headers: dict | None = None
+) -> dict[str, Any]:
     """
     Convert a ServiceError to an HTTP response dict.
 
@@ -41,7 +43,9 @@ def build_error_response(exception: ServiceError, headers: dict | None = None) -
             break
 
     # Build response body
-    body = {'error': exception.to_dict()}
+    body = {
+        'error': exception.to_dict()
+    }
 
     # Default headers
     response_headers = {
@@ -57,7 +61,11 @@ def build_error_response(exception: ServiceError, headers: dict | None = None) -
     }
 
 
-def handle_service_error(exception: Exception, operation: str, cors_headers: dict | None = None) -> dict[str, Any]:
+def handle_service_error(
+    exception: Exception,
+    operation: str,
+    cors_headers: dict | None = None
+) -> dict[str, Any]:
     """
     Handle any exception and convert to HTTP response.
 
@@ -74,14 +82,17 @@ def handle_service_error(exception: Exception, operation: str, cors_headers: dic
     """
     if isinstance(exception, ServiceError):
         logger.warning(
-            f'Service error in {operation}: {exception.code} - {exception.message}',
-            extra={'error_details': exception.details},
+            f"Service error in {operation}: {exception.code} - {exception.message}",
+            extra={'error_details': exception.details}
         )
         return build_error_response(exception, cors_headers)
 
     # Unexpected error - log full traceback
-    logger.exception(f'Unexpected error in {operation}: {exception}')
+    logger.exception(f"Unexpected error in {operation}: {exception}")
 
     # Return generic error to client
-    generic_error = ServiceError(message='An internal error occurred', code='INTERNAL_ERROR')
+    generic_error = ServiceError(
+        message='An internal error occurred',
+        code='INTERNAL_ERROR'
+    )
     return build_error_response(generic_error, cors_headers)

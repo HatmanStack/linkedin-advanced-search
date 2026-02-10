@@ -11,32 +11,32 @@ export class ProfileInitMonitor {
         total: 0,
         successful: 0,
         failed: 0,
-        healing: 0,
+        healing: 0
       },
       connections: {
         processed: 0,
         skipped: 0,
-        errors: 0,
+        errors: 0
       },
       performance: {
         averageRequestDuration: 0,
         averageConnectionProcessingTime: 0,
-        totalProcessingTime: 0,
+        totalProcessingTime: 0
       },
       errors: {
         byType: {},
         byCategory: {},
         recoverableCount: 0,
-        nonRecoverableCount: 0,
+        nonRecoverableCount: 0
       },
       healing: {
         totalHealingAttempts: 0,
         successfulHealings: 0,
         failedHealings: 0,
-        averageRecursionCount: 0,
-      },
+        averageRecursionCount: 0
+      }
     };
-
+    
     this.activeRequests = new Map();
     this.errorPatterns = new Map();
   }
@@ -54,10 +54,10 @@ export class ProfileInitMonitor {
       connections: {
         processed: 0,
         skipped: 0,
-        errors: 0,
+        errors: 0
       },
       errors: [],
-      healingAttempts: 0,
+      healingAttempts: 0
     };
 
     this.activeRequests.set(requestId, requestData);
@@ -67,7 +67,7 @@ export class ProfileInitMonitor {
       requestId,
       totalRequests: this.metrics.requests.total,
       activeRequests: this.activeRequests.size,
-      context,
+      context
     });
   }
 
@@ -85,7 +85,7 @@ export class ProfileInitMonitor {
 
     const duration = Date.now() - requestData.startTime;
     this.metrics.requests.successful++;
-
+    
     // Update connection metrics
     if (result.data) {
       this.metrics.connections.processed += result.data.processed || 0;
@@ -103,7 +103,7 @@ export class ProfileInitMonitor {
       skipped: result.data?.skipped || 0,
       errors: result.data?.errors || 0,
       successRate: this._calculateSuccessRate(),
-      averageDuration: this.metrics.performance.averageRequestDuration,
+      averageDuration: this.metrics.performance.averageRequestDuration
     });
 
     this.activeRequests.delete(requestId);
@@ -131,11 +131,10 @@ export class ProfileInitMonitor {
     // Update error metrics
     const errorType = errorDetails.type || 'UnknownError';
     const errorCategory = errorDetails.category || 'unknown';
-
+    
     this.metrics.errors.byType[errorType] = (this.metrics.errors.byType[errorType] || 0) + 1;
-    this.metrics.errors.byCategory[errorCategory] =
-      (this.metrics.errors.byCategory[errorCategory] || 0) + 1;
-
+    this.metrics.errors.byCategory[errorCategory] = (this.metrics.errors.byCategory[errorCategory] || 0) + 1;
+    
     if (errorDetails.isRecoverable) {
       this.metrics.errors.recoverableCount++;
     } else {
@@ -151,7 +150,7 @@ export class ProfileInitMonitor {
       message: error.message,
       totalFailures: this.metrics.requests.failed,
       failureRate: this._calculateFailureRate(),
-      errorPatterns: this._getTopErrorPatterns(),
+      errorPatterns: this._getTopErrorPatterns()
     });
 
     this.activeRequests.delete(requestId);
@@ -180,7 +179,7 @@ export class ProfileInitMonitor {
       healPhase: healingContext.healPhase,
       healReason: healingContext.healReason,
       totalHealingAttempts: this.metrics.healing.totalHealingAttempts,
-      averageRecursionCount: this.metrics.healing.averageRecursionCount,
+      averageRecursionCount: this.metrics.healing.averageRecursionCount
     });
   }
 
@@ -214,7 +213,7 @@ export class ProfileInitMonitor {
       totalProcessed: this.metrics.connections.processed,
       totalSkipped: this.metrics.connections.skipped,
       totalErrors: this.metrics.connections.errors,
-      details,
+      details
     });
   }
 
@@ -230,7 +229,7 @@ export class ProfileInitMonitor {
       failureRate: this._calculateFailureRate(),
       healingSuccessRate: this._calculateHealingSuccessRate(),
       topErrorPatterns: this._getTopErrorPatterns(),
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     };
   }
 
@@ -239,26 +238,26 @@ export class ProfileInitMonitor {
    */
   logSummary() {
     const metrics = this.getMetrics();
-
+    
     logger.info('Profile init monitoring summary', {
       requests: metrics.requests,
       connections: metrics.connections,
       performance: {
         averageRequestDuration: metrics.performance.averageRequestDuration,
-        averageConnectionProcessingTime: metrics.performance.averageConnectionProcessingTime,
+        averageConnectionProcessingTime: metrics.performance.averageConnectionProcessingTime
       },
       errorSummary: {
         totalErrors: metrics.errors.recoverableCount + metrics.errors.nonRecoverableCount,
         recoverableErrors: metrics.errors.recoverableCount,
         nonRecoverableErrors: metrics.errors.nonRecoverableCount,
         topErrorTypes: Object.entries(metrics.errors.byType)
-          .sort(([, a], [, b]) => b - a)
-          .slice(0, 5),
+          .sort(([,a], [,b]) => b - a)
+          .slice(0, 5)
       },
       healing: metrics.healing,
       successRate: metrics.successRate,
       failureRate: metrics.failureRate,
-      activeRequests: metrics.activeRequests,
+      activeRequests: metrics.activeRequests
     });
   }
 
@@ -289,10 +288,8 @@ export class ProfileInitMonitor {
    */
   _updateConnectionProcessingTime(duration) {
     const totalProcessed = this.metrics.connections.processed;
-    const currentTotal =
-      this.metrics.performance.averageConnectionProcessingTime * (totalProcessed - 1);
-    this.metrics.performance.averageConnectionProcessingTime =
-      (currentTotal + duration) / totalProcessed;
+    const currentTotal = this.metrics.performance.averageConnectionProcessingTime * (totalProcessed - 1);
+    this.metrics.performance.averageConnectionProcessingTime = (currentTotal + duration) / totalProcessed;
   }
 
   /**
@@ -338,7 +335,7 @@ export class ProfileInitMonitor {
    */
   _getTopErrorPatterns() {
     return Array.from(this.errorPatterns.entries())
-      .sort(([, a], [, b]) => b - a)
+      .sort(([,a], [,b]) => b - a)
       .slice(0, 5)
       .map(([pattern, count]) => ({ pattern, count }));
   }
@@ -356,12 +353,9 @@ let summaryIntervalId = null;
  */
 export function startMonitoring() {
   if (!summaryIntervalId) {
-    summaryIntervalId = setInterval(
-      () => {
-        profileInitMonitor.logSummary();
-      },
-      5 * 60 * 1000
-    );
+    summaryIntervalId = setInterval(() => {
+      profileInitMonitor.logSummary();
+    }, 5 * 60 * 1000);
     logger.info('Profile init monitoring started');
   }
 }

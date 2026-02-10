@@ -106,9 +106,7 @@ describe('ConnectionSearchBar', () => {
   });
 
   it('should accept custom className', () => {
-    const { container } = render(
-      <ConnectionSearchBar {...defaultProps} className="custom-class" />
-    );
+    const { container } = render(<ConnectionSearchBar {...defaultProps} className="custom-class" />);
 
     expect(container.firstChild).toHaveClass('custom-class');
   });

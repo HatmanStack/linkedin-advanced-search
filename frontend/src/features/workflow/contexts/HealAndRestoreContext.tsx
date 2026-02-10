@@ -28,9 +28,7 @@ interface HealAndRestoreProviderProps {
 
 export const HealAndRestoreProvider: React.FC<HealAndRestoreProviderProps> = ({ children }) => {
   const [isListening, setIsListening] = useState(false);
-  const [currentNotification, setCurrentNotification] = useState<HealAndRestoreNotification | null>(
-    null
-  );
+  const [currentNotification, setCurrentNotification] = useState<HealAndRestoreNotification | null>(null);
   const [showModal, setShowModal] = useState(false);
 
   useEffect(() => {

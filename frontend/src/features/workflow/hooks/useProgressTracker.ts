@@ -10,11 +10,11 @@ export const useProgressTracker = () => {
   const [progressState, setProgressState] = useState<ProgressState>({
     current: 0,
     total: 0,
-    phase: 'preparing',
+    phase: 'preparing'
   });
 
   const [loadingState, setLoadingState] = useState<LoadingState>({
-    isLoading: false,
+    isLoading: false
   });
 
   const [startTime, setStartTime] = useState<number | null>(null);
@@ -23,50 +23,48 @@ export const useProgressTracker = () => {
     setProgressState({
       current: 0,
       total,
-      phase: 'preparing',
+      phase: 'preparing'
     });
     setStartTime(Date.now());
   }, []);
 
-  const updateProgress = useCallback(
-    (current: number, connectionName?: string, phase: ProgressState['phase'] = 'generating') => {
-      setProgressState((prev) => {
-        const newState = {
-          ...prev,
-          current,
-          currentConnectionName: connectionName,
-          phase,
-        };
+  const updateProgress = useCallback((
+    current: number,
+    connectionName?: string,
+    phase: ProgressState['phase'] = 'generating'
+  ) => {
+    setProgressState(prev => {
+      const newState = {
+        ...prev,
+        current,
+        currentConnectionName: connectionName,
+        phase
+      };
 
-        // Calculate estimated time remaining
-        if (startTime && current > 0) {
-          const elapsed = Date.now() - startTime;
-          const avgTimePerConnection = elapsed / current;
-          const remaining = prev.total - current;
-          newState.estimatedTimeRemaining = Math.round((avgTimePerConnection * remaining) / 1000);
-        }
+      // Calculate estimated time remaining
+      if (startTime && current > 0) {
+        const elapsed = Date.now() - startTime;
+        const avgTimePerConnection = elapsed / current;
+        const remaining = prev.total - current;
+        newState.estimatedTimeRemaining = Math.round((avgTimePerConnection * remaining) / 1000);
+      }
 
-        return newState;
-      });
-    },
-    [startTime]
-  );
+      return newState;
+    });
+  }, [startTime]);
 
-  const setLoadingMessage = useCallback(
-    (message: string, progress?: number, canCancel: boolean = true) => {
-      setLoadingState({
-        isLoading: true,
-        message,
-        progress,
-        canCancel,
-      });
-    },
-    []
-  );
+  const setLoadingMessage = useCallback((message: string, progress?: number, canCancel: boolean = true) => {
+    setLoadingState({
+      isLoading: true,
+      message,
+      progress,
+      canCancel
+    });
+  }, []);
 
   const clearLoading = useCallback(() => {
     setLoadingState({
-      isLoading: false,
+      isLoading: false
     });
   }, []);
 
@@ -74,7 +72,7 @@ export const useProgressTracker = () => {
     setProgressState({
       current: 0,
       total: 0,
-      phase: 'preparing',
+      phase: 'preparing'
     });
     setStartTime(null);
     clearLoading();
@@ -127,6 +125,6 @@ export const useProgressTracker = () => {
     resetProgress,
     getProgressPercentage,
     getEstimatedTimeString,
-    getPhaseDescription,
+    getPhaseDescription
   };
 };

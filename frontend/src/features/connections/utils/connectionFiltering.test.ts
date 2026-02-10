@@ -34,7 +34,7 @@ describe('connectionFiltering', () => {
         ];
         const result = filterConnections(connections, { status: 'ally' });
         expect(result).toHaveLength(2);
-        expect(result.every((c) => c.status === 'ally')).toBe(true);
+        expect(result.every(c => c.status === 'ally')).toBe(true);
       });
 
       it('should return all when status is "all"', () => {
@@ -120,7 +120,7 @@ describe('connectionFiltering', () => {
         ];
         const result = filterConnections(connections, { conversionLikelihood: 'high' });
         expect(result).toHaveLength(2);
-        expect(result.every((c) => c.conversion_likelihood === 'high')).toBe(true);
+        expect(result.every(c => c.conversion_likelihood === 'high')).toBe(true);
       });
 
       it('should filter by multiple conversion likelihoods', () => {

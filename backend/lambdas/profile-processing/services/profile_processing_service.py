@@ -1,5 +1,4 @@
 """ProfileProcessingService - Business logic for profile screenshot processing."""
-
 import base64
 import json
 import logging
@@ -29,7 +28,13 @@ class ProfileProcessingService(BaseService):
     and DynamoDB storage with injected AWS clients for testability.
     """
 
-    def __init__(self, s3_client, bedrock_client, table, ai_model_id: str = 'us.meta.llama3-2-90b-instruct-v1:0'):
+    def __init__(
+        self,
+        s3_client,
+        bedrock_client,
+        table,
+        ai_model_id: str = 'us.meta.llama3-2-90b-instruct-v1:0'
+    ):
         """
         Initialize ProfileProcessingService with injected dependencies.
 
@@ -50,15 +55,17 @@ class ProfileProcessingService(BaseService):
         try:
             # Verify clients are available (don't make actual calls to avoid hardcoded bucket names)
             clients_configured = (
-                self.s3_client is not None and self.bedrock_client is not None and self.table is not None
+                self.s3_client is not None and
+                self.bedrock_client is not None and
+                self.table is not None
             )
             return {
                 'healthy': clients_configured,
                 'details': {
                     's3_client': self.s3_client is not None,
                     'bedrock_client': self.bedrock_client is not None,
-                    'table': self.table is not None,
-                },
+                    'table': self.table is not None
+                }
             }
         except Exception as e:
             return {'healthy': False, 'details': {'error': str(e)}}
@@ -78,7 +85,7 @@ class ProfileProcessingService(BaseService):
             ExternalServiceError: On AWS service failures
         """
         try:
-            logger.info(f'Processing profile: s3://{bucket}/{key}')
+            logger.info(f"Processing profile: s3://{bucket}/{key}")
 
             # Step 1: Download image
             image_data = self.download_image(bucket, key)
@@ -109,18 +116,24 @@ class ProfileProcessingService(BaseService):
                 'success': True,
                 'profile_id': profile_id,
                 'status': 'processed',
-                'ragstack_ingested': ragstack_result.get('success', False),
+                'ragstack_ingested': ragstack_result.get('success', False)
             }
 
         except (NotFoundError, ValidationError):
             raise
         except ClientError as e:
-            logger.error(f'AWS error processing profile: {e}')
-            raise ExternalServiceError(message='Failed to process profile', service='AWS', original_error=str(e)) from e
-        except Exception as e:
-            logger.error(f'Error processing profile: {e}')
+            logger.error(f"AWS error processing profile: {e}")
             raise ExternalServiceError(
-                message='Profile processing failed', service='ProfileProcessing', original_error=str(e)
+                message='Failed to process profile',
+                service='AWS',
+                original_error=str(e)
+            ) from e
+        except Exception as e:
+            logger.error(f"Error processing profile: {e}")
+            raise ExternalServiceError(
+                message='Profile processing failed',
+                service='ProfileProcessing',
+                original_error=str(e)
             ) from e
 
     def download_image(self, bucket: str, key: str) -> bytes:
@@ -144,7 +157,8 @@ class ProfileProcessingService(BaseService):
             content_length = head.get('ContentLength', 0)
             if content_length > MAX_IMAGE_SIZE:
                 raise ValidationError(
-                    message=f'Image too large: {content_length} bytes (max {MAX_IMAGE_SIZE})', field='image_size'
+                    message=f'Image too large: {content_length} bytes (max {MAX_IMAGE_SIZE})',
+                    field='image_size'
                 )
             response = self.s3_client.get_object(Bucket=bucket, Key=key)
             return response['Body'].read()
@@ -153,8 +167,16 @@ class ProfileProcessingService(BaseService):
         except ClientError as e:
             error_code = e.response.get('Error', {}).get('Code', '')
             if error_code in ('NoSuchKey', '404', 'NotFound'):
-                raise NotFoundError(message=f'Image not found: {key}', resource_type='S3Object', resource_id=key) from e
-            raise ExternalServiceError(message='Failed to download image', service='S3', original_error=str(e)) from e
+                raise NotFoundError(
+                    message=f'Image not found: {key}',
+                    resource_type='S3Object',
+                    resource_id=key
+                ) from e
+            raise ExternalServiceError(
+                message='Failed to download image',
+                service='S3',
+                original_error=str(e)
+            ) from e
 
     def get_s3_metadata(self, bucket: str, key: str) -> dict:
         """Get metadata from S3 object."""
@@ -166,10 +188,10 @@ class ProfileProcessingService(BaseService):
             return {
                 'date_added': response['LastModified'].strftime('%Y-%m-%d'),
                 'linkedin_url': linkedin_url,
-                'original_key': key,
+                'original_key': key
             }
         except Exception as e:
-            logger.warning(f'Failed to get S3 metadata: {e}')
+            logger.warning(f"Failed to get S3 metadata: {e}")
             return {'linkedin_url': 'unknown', 'date_added': datetime.now(UTC).strftime('%Y-%m-%d')}
 
     def extract_text(self, image_data: bytes, media_type: str = 'image/png') -> dict:
@@ -193,34 +215,41 @@ class ProfileProcessingService(BaseService):
         try:
             conversation = [
                 {
-                    'role': 'user',
-                    'content': [
+                    "role": "user",
+                    "content": [
+                        {"text": "Extract all text from this LinkedIn profile screenshot. Return only the text content, preserving line breaks and structure."},
                         {
-                            'text': 'Extract all text from this LinkedIn profile screenshot. Return only the text content, preserving line breaks and structure.'
-                        },
-                        {
-                            'image': {
-                                'format': 'jpeg' if 'jpeg' in media_type else 'png',
-                                'source': {'bytes': image_data},
+                            "image": {
+                                "format": "jpeg" if 'jpeg' in media_type else "png",
+                                "source": {"bytes": image_data}
                             }
-                        },
-                    ],
+                        }
+                    ]
                 }
             ]
 
             response = self.bedrock_client.converse(
-                modelId=self.ai_model_id, messages=conversation, inferenceConfig={'maxTokens': 2000, 'temperature': 0.1}
+                modelId=self.ai_model_id,
+                messages=conversation,
+                inferenceConfig={"maxTokens": 2000, "temperature": 0.1}
             )
 
-            extracted_text = response['output']['message']['content'][0]['text']
+            extracted_text = response["output"]["message"]["content"][0]["text"]
             text_lines = [line.strip() for line in extracted_text.split('\n') if line.strip()]
 
-            return {'Blocks': [{'BlockType': 'LINE', 'Text': line} for line in text_lines]}
+            return {
+                'Blocks': [
+                    {'BlockType': 'LINE', 'Text': line}
+                    for line in text_lines
+                ]
+            }
 
         except Exception as e:
-            logger.error(f'Text extraction failed: {e}')
+            logger.error(f"Text extraction failed: {e}")
             raise ExternalServiceError(
-                message='Failed to extract text from image', service='Bedrock', original_error=str(e)
+                message='Failed to extract text from image',
+                service='Bedrock',
+                original_error=str(e)
             ) from e
 
     def parse_profile(self, ocr_text: str, s3_metadata: dict) -> dict:
@@ -237,12 +266,14 @@ class ProfileProcessingService(BaseService):
         prompt = self._build_parse_prompt(ocr_text)
 
         try:
-            conversation = [{'role': 'user', 'content': [{'text': prompt}]}]
+            conversation = [{"role": "user", "content": [{"text": prompt}]}]
             response = self.bedrock_client.converse(
-                modelId=self.ai_model_id, messages=conversation, inferenceConfig={'maxTokens': 3000, 'temperature': 0.1}
+                modelId=self.ai_model_id,
+                messages=conversation,
+                inferenceConfig={"maxTokens": 3000, "temperature": 0.1}
             )
 
-            response_text = response['output']['message']['content'][0]['text']
+            response_text = response["output"]["message"]["content"][0]["text"]
             parsed_data = self._parse_json_response(response_text)
 
             # Clean up skills field
@@ -252,8 +283,12 @@ class ProfileProcessingService(BaseService):
             return parsed_data
 
         except Exception as e:
-            logger.error(f'Profile parsing failed: {e}')
-            return {'name': 'Unknown', 'headline': 'Not specified', 'summary': 'Not specified'}
+            logger.error(f"Profile parsing failed: {e}")
+            return {
+                'name': 'Unknown',
+                'headline': 'Not specified',
+                'summary': 'Not specified'
+            }
 
     def store_profile(self, profile_data: dict, s3_metadata: dict) -> str:
         """
@@ -268,7 +303,7 @@ class ProfileProcessingService(BaseService):
         """
         linkedin_url = s3_metadata.get('linkedin_url', 'unknown')
         profile_id_b64 = base64.b64encode(linkedin_url.encode()).decode()
-        profile_id = f'PROFILE#{profile_id_b64}'
+        profile_id = f"PROFILE#{profile_id_b64}"
 
         current_time = datetime.now(UTC).isoformat() + 'Z'
 
@@ -278,7 +313,7 @@ class ProfileProcessingService(BaseService):
             profile_data.get('headline', ''),
             profile_data.get('summary', ''),
             profile_data.get('currentCompany', ''),
-            ' '.join(profile_data.get('skills', [])),
+            ' '.join(profile_data.get('skills', []))
         ]
         fulltext = ' '.join(filter(None, fulltext_parts))
 
@@ -298,11 +333,11 @@ class ProfileProcessingService(BaseService):
             'skills': profile_data.get('skills', []),
             'createdAt': current_time,
             'updatedAt': current_time,
-            'fulltext': fulltext,
+            'fulltext': fulltext
         }
 
         self.table.put_item(Item=item)
-        logger.info(f'Profile stored: {profile_id}')
+        logger.info(f"Profile stored: {profile_id}")
 
         return profile_id
 
@@ -325,7 +360,7 @@ class ProfileProcessingService(BaseService):
 ## Work Experience
 """
         for exp in profile_data.get('workExperience', []):
-            markdown += f'- **{exp.get("title", "Unknown")}** at {exp.get("company", "Unknown")}\n'
+            markdown += f"- **{exp.get('title', 'Unknown')}** at {exp.get('company', 'Unknown')}\n"
 
         markdown += f"""
 ## Skills
@@ -344,15 +379,20 @@ class ProfileProcessingService(BaseService):
             filename = original_key.split('/')[-1]
             md_filename = filename.rsplit('.', 1)[0] + '.md' if '.' in filename else filename + '.md'
             profile_name = original_key.split('/')[-2] if '/' in original_key else 'unknown'
-            s3_key = f'processed-markdown/{profile_name}/{md_filename}'
+            s3_key = f"processed-markdown/{profile_name}/{md_filename}"
 
-            self.s3_client.put_object(Bucket=bucket, Key=s3_key, Body=content, ContentType='text/markdown')
+            self.s3_client.put_object(
+                Bucket=bucket,
+                Key=s3_key,
+                Body=content,
+                ContentType='text/markdown'
+            )
 
-            logger.info(f'Markdown saved: s3://{bucket}/{s3_key}')
+            logger.info(f"Markdown saved: s3://{bucket}/{s3_key}")
             return s3_key
 
         except Exception as e:
-            logger.warning(f'Failed to save markdown: {e}')
+            logger.warning(f"Failed to save markdown: {e}")
             return ''
 
     def _ingest_to_ragstack(self, profile_id: str, markdown: str) -> dict:
@@ -362,7 +402,7 @@ class ProfileProcessingService(BaseService):
             ragstack_api_key = os.environ.get('RAGSTACK_API_KEY', '')
 
             if not ragstack_endpoint or not ragstack_api_key:
-                logger.debug('RAGStack not configured, skipping ingestion')
+                logger.debug("RAGStack not configured, skipping ingestion")
                 return {'success': False, 'reason': 'not_configured'}
 
             from shared_services.ingestion_service import IngestionService
@@ -374,18 +414,20 @@ class ProfileProcessingService(BaseService):
             client = RAGStackClient(ragstack_endpoint, ragstack_api_key)
             svc = IngestionService(client)
             result = svc.ingest_profile(
-                profile_id=doc_id, markdown_content=markdown, metadata={'source': 'profile_processing'}
+                profile_id=doc_id,
+                markdown_content=markdown,
+                metadata={'source': 'profile_processing'}
             )
 
             if result.get('status') in ('uploaded', 'indexed'):
-                logger.info(f'RAGStack ingestion successful for {doc_id}')
+                logger.info(f"RAGStack ingestion successful for {doc_id}")
                 return {'success': True, 'documentId': result.get('documentId')}
             else:
-                logger.warning(f'RAGStack ingestion failed for {doc_id}: {result.get("error")}')
+                logger.warning(f"RAGStack ingestion failed for {doc_id}: {result.get('error')}")
                 return {'success': False, 'error': result.get('error')}
 
         except Exception as e:
-            logger.warning(f'RAGStack ingestion error (non-fatal): {e}')
+            logger.warning(f"RAGStack ingestion error (non-fatal): {e}")
             return {'success': False, 'error': str(e)}
 
     # Private helpers
@@ -424,7 +466,11 @@ Return ONLY the JSON object, no additional text.
             pass
 
         # Try extracting JSON block
-        patterns = [r'```json\s*(\{.*?\})\s*```', r'```\s*(\{.*?\})\s*```', r'(\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\})']
+        patterns = [
+            r'```json\s*(\{.*?\})\s*```',
+            r'```\s*(\{.*?\})\s*```',
+            r'(\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\})'
+        ]
 
         for pattern in patterns:
             match = re.search(pattern, response_text, re.DOTALL)
@@ -434,7 +480,7 @@ Return ONLY the JSON object, no additional text.
                 except json.JSONDecodeError:
                     continue
 
-        logger.warning('Could not parse JSON from AI response')
+        logger.warning("Could not parse JSON from AI response")
         return {}
 
     def _normalize_skills(self, skills) -> list:
