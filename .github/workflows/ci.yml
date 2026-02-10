@@ -54,7 +54,10 @@ jobs:
         run: npm run lint
       - name: TypeScript check
         working-directory: ./puppeteer
-        run: npx tsc --noEmit
+        run: |
+          ls -la tsconfig.json
+          pwd
+          npm run build
       - name: Run tests
         working-directory: ./puppeteer
         run: npm run test
