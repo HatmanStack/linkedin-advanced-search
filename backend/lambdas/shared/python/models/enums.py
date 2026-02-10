@@ -1,10 +1,10 @@
 """Enum definitions for the service layer."""
 from datetime import UTC, datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 
-class ConversionLikelihood(str, Enum):
+class ConversionLikelihood(StrEnum):
     """
     Conversion likelihood classification for connections.
 
