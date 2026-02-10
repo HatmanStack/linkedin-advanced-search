@@ -44,15 +44,14 @@ export interface ContextPreparationOptions {
 
 /**
  * Service for preparing connection data context for message generation
- * 
+ *
  * This service extracts and formats relevant connection data, message history,
  * user profile information, and conversation context for AI message generation.
  */
 export class ConnectionDataContextService {
-  
   /**
    * Prepare complete context data for message generation
-   * 
+   *
    * @param connection - Connection to generate message for
    * @param conversationTopic - Topic for the conversation
    * @param userProfile - User's profile information
@@ -69,25 +68,26 @@ export class ConnectionDataContextService {
       includeMessageHistory = true,
       maxMessageHistory = 10,
       includeUserProfile = true,
-      previousMessages = []
+      previousMessages = [],
     } = options;
 
     return {
       connection,
       topic: this.prepareConversationTopic(conversationTopic),
-      messageHistory: includeMessageHistory 
+      messageHistory: includeMessageHistory
         ? this.prepareMessageHistory(connection, maxMessageHistory)
         : [],
-      userProfile: includeUserProfile && userProfile 
-        ? this.prepareUserProfileData(userProfile)
-        : {} as UserProfile,
+      userProfile:
+        includeUserProfile && userProfile
+          ? this.prepareUserProfileData(userProfile)
+          : ({} as UserProfile),
       previousMessages: [...previousMessages],
     };
   }
 
   /**
    * Extract relevant connection profile data for API calls
-   * 
+   *
    * @param connection - Connection object
    * @returns Formatted connection profile data
    */
@@ -111,7 +111,7 @@ export class ConnectionDataContextService {
 
   /**
    * Prepare and format message history for API requests
-   * 
+   *
    * @param connection - Connection with message history
    * @param maxMessages - Maximum number of messages to include
    * @returns Formatted message history
@@ -128,13 +128,13 @@ export class ConnectionDataContextService {
 
     // Validate and clean message data
     return sortedMessages
-      .filter(message => this.isValidMessage(message))
-      .map(message => this.sanitizeMessage(message));
+      .filter((message) => this.isValidMessage(message))
+      .map((message) => this.sanitizeMessage(message));
   }
 
   /**
    * Prepare user profile data for API inclusion
-   * 
+   *
    * @param userProfile - Raw user profile data
    * @returns Formatted user profile for API
    */
@@ -158,7 +158,7 @@ export class ConnectionDataContextService {
 
   /**
    * Prepare conversation topic and context
-   * 
+   *
    * @param topic - Raw conversation topic
    * @returns Cleaned and formatted topic
    */
@@ -169,7 +169,7 @@ export class ConnectionDataContextService {
 
     // Clean and normalize the topic
     const cleanedTopic = topic.trim().replace(/\s+/g, ' ');
-    
+
     if (cleanedTopic.length === 0) {
       throw new Error('Conversation topic is required and must be a string');
     }
@@ -179,7 +179,7 @@ export class ConnectionDataContextService {
 
   /**
    * Prepare connection tags and common interests
-   * 
+   *
    * @param connection - Connection object
    * @returns Array of relevant tags and interests
    */
@@ -197,12 +197,12 @@ export class ConnectionDataContextService {
     }
 
     // Remove duplicates and empty values
-    return [...new Set(tags.filter(tag => tag && tag.trim().length > 0))];
+    return [...new Set(tags.filter((tag) => tag && tag.trim().length > 0))];
   }
 
   /**
    * Create a complete MessageGenerationRequest from context data
-   * 
+   *
    * @param context - Prepared message generation context
    * @returns Complete API request object
    */
@@ -218,23 +218,17 @@ export class ConnectionDataContextService {
 
   /**
    * Validate message data
-   * 
+   *
    * @param message - Message to validate
    * @returns True if message is valid
    */
   private isValidMessage(message: Message): boolean {
-    return !!(
-      message &&
-      message.id &&
-      message.content &&
-      message.timestamp &&
-      message.sender
-    );
+    return !!(message && message.id && message.content && message.timestamp && message.sender);
   }
 
   /**
    * Sanitize message content for API consumption
-   * 
+   *
    * @param message - Message to sanitize
    * @returns Sanitized message
    */
@@ -249,7 +243,7 @@ export class ConnectionDataContextService {
 
   /**
    * Get common interests between user and connection
-   * 
+   *
    * @param userProfile - User's profile
    * @param connection - Connection profile
    * @returns Array of common interests
@@ -259,17 +253,17 @@ export class ConnectionDataContextService {
       return [];
     }
 
-    const userInterests = userProfile.interests.map(interest => interest.toLowerCase());
-    const connectionInterests = connection.common_interests.map(interest => interest.toLowerCase());
-
-    return userInterests.filter(interest => 
-      connectionInterests.includes(interest)
+    const userInterests = userProfile.interests.map((interest) => interest.toLowerCase());
+    const connectionInterests = connection.common_interests.map((interest) =>
+      interest.toLowerCase()
     );
+
+    return userInterests.filter((interest) => connectionInterests.includes(interest));
   }
 
   /**
    * Calculate context relevance score
-   * 
+   *
    * @param context - Message generation context
    * @returns Relevance score (0-1)
    */

@@ -140,7 +140,7 @@ class InteractionQueue {
         heapUsedMB,
         heapTotalMB,
         heapUsedPercent,
-        threshold: this.memoryThresholdPercent
+        threshold: this.memoryThresholdPercent,
       });
       // Aggressive eviction when under pressure
       this._aggressiveEviction();
@@ -151,7 +151,7 @@ class InteractionQueue {
       heapTotalMB,
       heapUsedPercent,
       isUnderPressure,
-      threshold: this.memoryThresholdPercent
+      threshold: this.memoryThresholdPercent,
     };
   }
 
@@ -165,7 +165,7 @@ class InteractionQueue {
       queuedJobs: this.queue.length,
       totalJobsTracked: this.jobs.size,
       concurrency: this.concurrency,
-      memoryPressure: this.checkMemoryPressure()
+      memoryPressure: this.checkMemoryPressure(),
     };
   }
 
@@ -193,7 +193,7 @@ class InteractionQueue {
     if (toRemove.length > 0) {
       logger.info('InteractionQueue: Aggressive eviction completed', {
         evicted: toRemove.length,
-        remaining: this.jobs.size
+        remaining: this.jobs.size,
       });
     }
   }
@@ -227,20 +227,31 @@ class InteractionQueue {
       const run = async (): Promise<void> => {
         jobRecord.status = 'running';
         jobRecord.startedAt = Date.now();
-        logger.info('InteractionQueue: job started', { jobId, meta, activeCount: this.activeCount });
+        logger.info('InteractionQueue: job started', {
+          jobId,
+          meta,
+          activeCount: this.activeCount,
+        });
         try {
           const result = await taskFn();
           jobRecord.status = 'succeeded';
           jobRecord.finishedAt = Date.now();
           jobRecord.result = result;
-          logger.info('InteractionQueue: job completed', { jobId, durationMs: jobRecord.finishedAt - jobRecord.startedAt });
+          logger.info('InteractionQueue: job completed', {
+            jobId,
+            durationMs: jobRecord.finishedAt - jobRecord.startedAt,
+          });
           resolve(result);
         } catch (err) {
           jobRecord.status = 'failed';
           jobRecord.finishedAt = Date.now();
           const error = err as Error;
           jobRecord.error = { message: error?.message || String(err) };
-          logger.error('InteractionQueue: job failed', { jobId, error: error?.message, stack: error?.stack });
+          logger.error('InteractionQueue: job failed', {
+            jobId,
+            error: error?.message,
+            stack: error?.stack,
+          });
           reject(err);
         } finally {
           this.activeCount = Math.max(0, this.activeCount - 1);
@@ -286,7 +297,10 @@ class InteractionQueue {
         next.run();
       } catch (err) {
         const error = err as Error;
-        logger.error('InteractionQueue: unexpected error starting job', { jobId: next.jobId, error: error?.message });
+        logger.error('InteractionQueue: unexpected error starting job', {
+          jobId: next.jobId,
+          error: error?.message,
+        });
         this.activeCount = Math.max(0, this.activeCount - 1);
       }
     }
@@ -339,7 +353,7 @@ class InteractionQueue {
       logger.debug('InteractionQueue: TTL eviction completed', {
         evicted: evictedCount,
         remaining: this.jobs.size,
-        ttlMs: this.jobTtlMs
+        ttlMs: this.jobTtlMs,
       });
     }
   }

@@ -1,5 +1,8 @@
 import { logger } from '#utils/logger.js';
-import { initializeLinkedInServices, cleanupLinkedInServices } from '../../../shared/utils/serviceFactory.js';
+import {
+  initializeLinkedInServices,
+  cleanupLinkedInServices,
+} from '../../../shared/utils/serviceFactory.js';
 import { validateLinkedInCredentials } from '../../../shared/utils/credentialValidator.js';
 import ProfileInitService from '../services/profileInitService.js';
 import { HealingManager } from '../../automation/utils/healingManager.js';
@@ -20,7 +23,7 @@ export class ProfileInitController {
         logger.warn('Profile initialization request rejected: Missing JWT token', { requestId });
         return res.status(401).json({
           error: 'Missing or invalid Authorization header',
-          requestId
+          requestId,
         });
       }
 
@@ -29,12 +32,12 @@ export class ProfileInitController {
         logger.warn('Profile initialization request validation failed', {
           requestId,
           error: validationResult.error,
-          statusCode: validationResult.statusCode
+          statusCode: validationResult.statusCode,
         });
         return res.status(validationResult.statusCode).json({
           error: validationResult.error,
           message: validationResult.message,
-          requestId
+          requestId,
         });
       }
 
@@ -48,7 +51,7 @@ export class ProfileInitController {
         username: searchName ? '[REDACTED]' : 'not provided',
         hasPassword: !!searchPassword,
         recursionCount: opts.recursionCount || 0,
-        healPhase: opts.healPhase || null
+        healPhase: opts.healPhase || null,
       });
 
       const state = ProfileInitStateManager.buildInitialState({
@@ -57,7 +60,7 @@ export class ProfileInitController {
         credentialsCiphertext,
         jwtToken,
         requestId,
-        ...opts
+        ...opts,
       });
 
       // Start monitoring this request
@@ -65,7 +68,7 @@ export class ProfileInitController {
         username: searchName ? '[REDACTED]' : 'not provided',
         recursionCount: opts.recursionCount || 0,
         healPhase: opts.healPhase,
-        isResuming: ProfileInitStateManager.isResumingState(state)
+        isResuming: ProfileInitStateManager.isResumingState(state),
       });
 
       const result = await this.performProfileInitFromState(state);
@@ -75,14 +78,14 @@ export class ProfileInitController {
         logger.info('Profile initialization triggered healing process', {
           requestId,
           healingDuration,
-          recursionCount: state.recursionCount
+          recursionCount: state.recursionCount,
         });
 
         // Record healing in monitoring
         profileInitMonitor.recordHealing(requestId, {
           recursionCount: state.recursionCount,
           healPhase: state.healPhase,
-          healReason: state.healReason
+          healReason: state.healReason,
         });
 
         return res.status(202).json({
@@ -92,8 +95,8 @@ export class ProfileInitController {
           healingInfo: {
             phase: state.healPhase,
             reason: state.healReason,
-            recursionCount: state.recursionCount
-          }
+            recursionCount: state.recursionCount,
+          },
         });
       }
 
@@ -103,14 +106,13 @@ export class ProfileInitController {
         totalDuration,
         processedConnections: result.data?.processed || 0,
         skippedConnections: result.data?.skipped || 0,
-        errorCount: result.data?.errors || 0
+        errorCount: result.data?.errors || 0,
       });
 
       // Record success in monitoring
       profileInitMonitor.recordSuccess(requestId, result);
 
       res.json(this._buildSuccessResponse(result, requestId));
-
     } catch (error) {
       const totalDuration = Date.now() - startTime;
       const errorDetails = this._categorizeError(error);
@@ -122,14 +124,14 @@ export class ProfileInitController {
         errorCategory: errorDetails.category,
         message: error.message,
         stack: error.stack,
-        isRecoverable: errorDetails.isRecoverable
+        isRecoverable: errorDetails.isRecoverable,
       });
 
       // Log additional context for debugging
       if (error.context) {
         logger.error('Error context details', {
           requestId,
-          context: error.context
+          context: error.context,
         });
       }
 
@@ -144,14 +146,11 @@ export class ProfileInitController {
     const services = await this._initializeServices();
 
     try {
-      
-
       // Note: Authentication is now handled within ProfileInitService
       // to maintain consistency with the service's state management
       const profileData = await this._processUserProfile(services, state);
 
       return this._buildProfileInitResult(profileData);
-
     } catch (error) {
       logger.error('Profile initialization failed:', error);
       throw error;
@@ -163,8 +162,6 @@ export class ProfileInitController {
   async _initializeServices() {
     return await initializeLinkedInServices();
   }
-
-
 
   async _processUserProfile(services, state) {
     logger.info('Processing user profile initialization...');
@@ -186,7 +183,6 @@ export class ProfileInitController {
 
       logger.info('Profile initialization processing completed successfully');
       return result;
-
     } catch (error) {
       logger.error('Profile initialization processing failed:', error);
 
@@ -216,17 +212,20 @@ export class ProfileInitController {
             connectionType: healingState.listCreationState?.connectionType,
             expansionAttempt: healingState.listCreationState?.expansionAttempt,
             currentFileIndex: healingState.listCreationState?.currentFileIndex,
-            recursionCount: healingState.recursionCount
+            recursionCount: healingState.recursionCount,
           });
 
           await this._initiateHealing(healingState);
           return;
         }
       } catch (parseError) {
-        logger.warn('Failed to parse list creation healing data, falling back to standard healing', {
-          requestId,
-          parseError: parseError.message
-        });
+        logger.warn(
+          'Failed to parse list creation healing data, falling back to standard healing',
+          {
+            requestId,
+            parseError: parseError.message,
+          }
+        );
       }
     }
 
@@ -238,13 +237,13 @@ export class ProfileInitController {
         processingList: state.currentProcessingList,
         batch: state.currentBatch,
         index: state.currentIndex,
-        masterIndexFile: state.masterIndexFile
-      }
+        masterIndexFile: state.masterIndexFile,
+      },
     });
 
     logger.info('Restarting with fresh Puppeteer instance...', {
       requestId,
-      recursionCount
+      recursionCount,
     });
 
     // Create healing state using ProfileInitStateManager
@@ -254,7 +253,7 @@ export class ProfileInitController {
       errorMessage,
       {
         recursionCount,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       }
     );
 
@@ -268,8 +267,8 @@ export class ProfileInitController {
         currentProcessingList: healingState.currentProcessingList,
         currentBatch: healingState.currentBatch,
         currentIndex: healingState.currentIndex,
-        masterIndexFile: healingState.masterIndexFile
-      }
+        masterIndexFile: healingState.masterIndexFile,
+      },
     });
 
     await this._initiateHealing(healingState);
@@ -294,7 +293,7 @@ export class ProfileInitController {
       /linkedin.*error/i,
       /puppeteer.*error/i,
       /navigation.*failed/i,
-      /LIST_CREATION_HEALING_NEEDED/i
+      /LIST_CREATION_HEALING_NEEDED/i,
     ];
 
     const errorMessage = error.message || error.toString();
@@ -306,7 +305,7 @@ export class ProfileInitController {
     }
 
     // Check if error matches any recoverable pattern
-    const isRecoverable = recoverableErrors.some(pattern => pattern.test(errorMessage));
+    const isRecoverable = recoverableErrors.some((pattern) => pattern.test(errorMessage));
 
     if (isRecoverable) {
       logger.info(`Error is recoverable, will trigger healing: ${errorMessage}`);
@@ -334,7 +333,7 @@ export class ProfileInitController {
     logger.info('Profile init request body received:', {
       searchName,
       hasPassword: !!searchPassword,
-      hasJwtToken: !!jwtToken
+      hasJwtToken: !!jwtToken,
     });
 
     return validateLinkedInCredentials({
@@ -343,13 +342,9 @@ export class ProfileInitController {
       linkedinCredentialsCiphertext,
       linkedinCredentials,
       jwtToken,
-      actionType: 'profile initialization'
+      actionType: 'profile initialization',
     });
   }
-
- 
-
-
 
   _logRequestDetails(req, requestId) {
     logger.info('Profile init request details:', {
@@ -360,7 +355,7 @@ export class ProfileInitController {
       contentType: req.headers['content-type'],
       bodyType: typeof req.body,
       bodyKeys: req.body ? Object.keys(req.body) : 'no body',
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 
@@ -381,24 +376,28 @@ export class ProfileInitController {
     const errorMessage = error.message || error.toString();
 
     // Authentication errors
-    if (/login.*failed|authentication.*failed|invalid.*credentials|unauthorized/i.test(errorMessage)) {
+    if (
+      /login.*failed|authentication.*failed|invalid.*credentials|unauthorized/i.test(errorMessage)
+    ) {
       return {
         type: 'AuthenticationError',
         category: 'authentication',
         isRecoverable: true,
         severity: 'high',
-        userMessage: 'LinkedIn authentication failed. Please check your credentials.'
+        userMessage: 'LinkedIn authentication failed. Please check your credentials.',
       };
     }
 
     // Network errors
-    if (/network.*error|connection.*reset|timeout|ECONNRESET|ENOTFOUND|ETIMEDOUT/i.test(errorMessage)) {
+    if (
+      /network.*error|connection.*reset|timeout|ECONNRESET|ENOTFOUND|ETIMEDOUT/i.test(errorMessage)
+    ) {
       return {
         type: 'NetworkError',
         category: 'network',
         isRecoverable: true,
         severity: 'medium',
-        userMessage: 'Network connection issue. The system will retry automatically.'
+        userMessage: 'Network connection issue. The system will retry automatically.',
       };
     }
 
@@ -409,18 +408,22 @@ export class ProfileInitController {
         category: 'linkedin',
         isRecoverable: true,
         severity: 'high',
-        userMessage: 'LinkedIn has imposed restrictions. The system will retry with delays.'
+        userMessage: 'LinkedIn has imposed restrictions. The system will retry with delays.',
       };
     }
 
     // Database errors
-    if (/dynamodb|database|aws.*error|ValidationException|ResourceNotFoundException/i.test(errorMessage)) {
+    if (
+      /dynamodb|database|aws.*error|ValidationException|ResourceNotFoundException/i.test(
+        errorMessage
+      )
+    ) {
       return {
         type: 'DatabaseError',
         category: 'database',
         isRecoverable: false,
         severity: 'high',
-        userMessage: 'Database operation failed. Please try again later.'
+        userMessage: 'Database operation failed. Please try again later.',
       };
     }
 
@@ -431,7 +434,7 @@ export class ProfileInitController {
         category: 'browser',
         isRecoverable: true,
         severity: 'medium',
-        userMessage: 'Browser automation issue. The system will restart and retry.'
+        userMessage: 'Browser automation issue. The system will restart and retry.',
       };
     }
 
@@ -442,7 +445,7 @@ export class ProfileInitController {
         category: 'validation',
         isRecoverable: false,
         severity: 'low',
-        userMessage: 'Invalid input provided. Please check your request data.'
+        userMessage: 'Invalid input provided. Please check your request data.',
       };
     }
 
@@ -453,7 +456,7 @@ export class ProfileInitController {
         category: 'filesystem',
         isRecoverable: false,
         severity: 'medium',
-        userMessage: 'File system error occurred. Please contact support.'
+        userMessage: 'File system error occurred. Please contact support.',
       };
     }
 
@@ -463,15 +466,13 @@ export class ProfileInitController {
       category: 'unknown',
       isRecoverable: false,
       severity: 'high',
-      userMessage: 'An unexpected error occurred. Please try again later.'
+      userMessage: 'An unexpected error occurred. Please try again later.',
     };
   }
 
   _extractJwtToken(req) {
     const authHeader = req.headers.authorization;
-    return authHeader && authHeader.startsWith('Bearer ')
-      ? authHeader.substring(7)
-      : null;
+    return authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
   }
 
   _buildSuccessResponse(result, requestId) {
@@ -479,7 +480,7 @@ export class ProfileInitController {
       status: 'success',
       data: result,
       requestId,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
   }
 
@@ -489,7 +490,7 @@ export class ProfileInitController {
       message: errorDetails?.userMessage || error.message,
       requestId,
       errorType: errorDetails?.type || 'UnknownError',
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
 
     // Include technical details in development mode
@@ -499,7 +500,7 @@ export class ProfileInitController {
         stack: error.stack,
         category: errorDetails?.category,
         severity: errorDetails?.severity,
-        isRecoverable: errorDetails?.isRecoverable
+        isRecoverable: errorDetails?.isRecoverable,
       };
     }
 
@@ -510,8 +511,8 @@ export class ProfileInitController {
     return {
       profileData,
       stats: {
-        initializationTime: new Date().toISOString()
-      }
+        initializationTime: new Date().toISOString(),
+      },
     };
   }
 }

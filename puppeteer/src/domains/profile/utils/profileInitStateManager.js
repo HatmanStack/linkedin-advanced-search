@@ -41,7 +41,7 @@ export class ProfileInitStateManager {
       userProfileId,
       sessionId,
       timestamp: new Date().toISOString(),
-      ...opts
+      ...opts,
     };
   }
 
@@ -57,12 +57,13 @@ export class ProfileInitStateManager {
       recursionCount: (existingState.recursionCount || 0) + 1,
       healPhase: healingParams.healPhase || 'profile-init',
       healReason: healingParams.healReason || 'Unknown error',
-      currentProcessingList: healingParams.currentProcessingList || existingState.currentProcessingList,
+      currentProcessingList:
+        healingParams.currentProcessingList || existingState.currentProcessingList,
       currentBatch: healingParams.currentBatch || existingState.currentBatch,
       currentIndex: healingParams.currentIndex || existingState.currentIndex,
       completedBatches: healingParams.completedBatches || existingState.completedBatches,
       masterIndexFile: healingParams.masterIndexFile || existingState.masterIndexFile,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
   }
 
@@ -76,11 +77,13 @@ export class ProfileInitStateManager {
     return {
       ...state,
       currentProcessingList: progress.currentProcessingList || state.currentProcessingList,
-      currentBatch: progress.currentBatch !== undefined ? progress.currentBatch : state.currentBatch,
-      currentIndex: progress.currentIndex !== undefined ? progress.currentIndex : state.currentIndex,
+      currentBatch:
+        progress.currentBatch !== undefined ? progress.currentBatch : state.currentBatch,
+      currentIndex:
+        progress.currentIndex !== undefined ? progress.currentIndex : state.currentIndex,
       completedBatches: progress.completedBatches || state.completedBatches,
       totalConnections: progress.totalConnections || state.totalConnections,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
   }
 
@@ -91,9 +94,13 @@ export class ProfileInitStateManager {
    */
   static validateState(state) {
     const hasPlain = !!(state.searchName && state.searchPassword);
-    const hasCipher = typeof state.credentialsCiphertext === 'string' && state.credentialsCiphertext.startsWith('sealbox_x25519:b64:');
+    const hasCipher =
+      typeof state.credentialsCiphertext === 'string' &&
+      state.credentialsCiphertext.startsWith('sealbox_x25519:b64:');
     if (!hasPlain && !hasCipher) {
-      throw new Error('Missing required credentials: provide searchName/searchPassword or credentialsCiphertext');
+      throw new Error(
+        'Missing required credentials: provide searchName/searchPassword or credentialsCiphertext'
+      );
     }
     if (!state.jwtToken) {
       throw new Error('Missing required state field: jwtToken');
@@ -120,7 +127,9 @@ export class ProfileInitStateManager {
       state.currentProcessingList !== '' &&
       !validConnectionTypes.includes(state.currentProcessingList)
     ) {
-      throw new Error(`Invalid currentProcessingList: ${state.currentProcessingList}. Must be one of: ${validConnectionTypes.join(', ')}`);
+      throw new Error(
+        `Invalid currentProcessingList: ${state.currentProcessingList}. Must be one of: ${validConnectionTypes.join(', ')}`
+      );
     }
   }
 
@@ -140,9 +149,9 @@ export class ProfileInitStateManager {
    */
   static isResumingState(state) {
     return !!(
-      state.masterIndexFile || 
-      state.currentBatch > 0 || 
-      state.currentIndex > 0 || 
+      state.masterIndexFile ||
+      state.currentBatch > 0 ||
+      state.currentIndex > 0 ||
       (state.completedBatches && state.completedBatches.length > 0)
     );
   }
@@ -153,17 +162,21 @@ export class ProfileInitStateManager {
    * @returns {Object} Progress summary
    */
   static getProgressSummary(state) {
-    const totalExpectedConnections = Object.values(state.totalConnections || {}).reduce((sum, count) => sum + count, 0);
+    const totalExpectedConnections = Object.values(state.totalConnections || {}).reduce(
+      (sum, count) => sum + count,
+      0
+    );
     const completedBatches = state.completedBatches ? state.completedBatches.length : 0;
     const currentBatch = state.currentBatch || 0;
     const currentIndex = state.currentIndex || 0;
     const batchSize = state.batchSize || 100;
 
     // Estimate progress based on completed batches and current position
-    const estimatedProcessed = (completedBatches * batchSize) + currentIndex;
-    const progressPercentage = totalExpectedConnections > 0 
-      ? Math.min(100, (estimatedProcessed / totalExpectedConnections) * 100)
-      : 0;
+    const estimatedProcessed = completedBatches * batchSize + currentIndex;
+    const progressPercentage =
+      totalExpectedConnections > 0
+        ? Math.min(100, (estimatedProcessed / totalExpectedConnections) * 100)
+        : 0;
 
     return {
       currentProcessingList: state.currentProcessingList || 'all',
@@ -175,7 +188,7 @@ export class ProfileInitStateManager {
       progressPercentage: Math.round(progressPercentage * 100) / 100,
       isHealing: this.isHealingState(state),
       isResuming: this.isResumingState(state),
-      recursionCount: state.recursionCount || 0
+      recursionCount: state.recursionCount || 0,
     };
   }
 
@@ -191,7 +204,7 @@ export class ProfileInitStateManager {
     return this.buildHealingState(baseState, {
       healPhase,
       healReason,
-      ...additionalParams
+      ...additionalParams,
     });
   }
 
@@ -205,7 +218,14 @@ export class ProfileInitStateManager {
    * @param {string} healReason - Reason for healing
    * @returns {Object} List creation healing state
    */
-  static createListCreationHealingState(baseState, connectionType, expansionAttempt, currentFileIndex, masterIndex, healReason) {
+  static createListCreationHealingState(
+    baseState,
+    connectionType,
+    expansionAttempt,
+    currentFileIndex,
+    masterIndex,
+    healReason
+  ) {
     return {
       ...baseState,
       recursionCount: (baseState.recursionCount || 0) + 1,
@@ -218,9 +238,9 @@ export class ProfileInitStateManager {
         currentFileIndex: currentFileIndex,
         masterIndexFile: baseState.masterIndexFile,
         lastSavedFile: masterIndex?.files?.[`${connectionType}Connections`]?.slice(-1)?.[0] || null,
-        resumeFromExpansion: true
+        resumeFromExpansion: true,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
   }
 
@@ -236,12 +256,19 @@ export class ProfileInitStateManager {
       currentProcessingList: progress.connectionType || state.currentProcessingList,
       listCreationState: {
         ...state.listCreationState,
-        expansionAttempt: progress.expansionAttempt !== undefined ? progress.expansionAttempt : state.listCreationState?.expansionAttempt,
-        currentFileIndex: progress.currentFileIndex !== undefined ? progress.currentFileIndex : state.listCreationState?.currentFileIndex,
+        expansionAttempt:
+          progress.expansionAttempt !== undefined
+            ? progress.expansionAttempt
+            : state.listCreationState?.expansionAttempt,
+        currentFileIndex:
+          progress.currentFileIndex !== undefined
+            ? progress.currentFileIndex
+            : state.listCreationState?.currentFileIndex,
         lastSavedFile: progress.lastSavedFile || state.listCreationState?.lastSavedFile,
-        totalLinksCollected: progress.totalLinksCollected || state.listCreationState?.totalLinksCollected
+        totalLinksCollected:
+          progress.totalLinksCollected || state.listCreationState?.totalLinksCollected,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
   }
 
@@ -271,7 +298,7 @@ export class ProfileInitStateManager {
       masterIndexFile: state.listCreationState.masterIndexFile,
       lastSavedFile: state.listCreationState.lastSavedFile,
       resumeFromExpansion: state.listCreationState.resumeFromExpansion || false,
-      totalLinksCollected: state.listCreationState.totalLinksCollected || 0
+      totalLinksCollected: state.listCreationState.totalLinksCollected || 0,
     };
   }
 
@@ -291,7 +318,7 @@ export class ProfileInitStateManager {
       healPhase: null,
       healReason: null,
       listCreationState: null,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
   }
 }

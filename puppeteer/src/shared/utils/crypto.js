@@ -60,7 +60,7 @@ export async function decryptSealboxB64Tag(ciphertextTag) {
   } catch (err) {
     logger.error('Failed to decrypt sealed-box ciphertext', {
       error: err.message,
-      stack: err.stack
+      stack: err.stack,
     });
     return null;
   }
@@ -102,7 +102,7 @@ export async function encryptToSealboxB64Tag(plaintext) {
   } catch (err) {
     logger.error('Failed to encrypt with sealed-box', {
       error: err.message,
-      stack: err.stack
+      stack: err.stack,
     });
     return null;
   }
@@ -174,7 +174,9 @@ export async function extractLinkedInCredentials(body = {}) {
         logger.error('Decryption failed');
       }
     } else {
-      logger.error('No encrypted credentials provided - plaintext fallbacks have been removed for security');
+      logger.error(
+        'No encrypted credentials provided - plaintext fallbacks have been removed for security'
+      );
     }
     return null;
   } catch (err) {
@@ -182,4 +184,3 @@ export async function extractLinkedInCredentials(body = {}) {
     return null;
   }
 }
-

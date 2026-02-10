@@ -2,7 +2,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import type { ReactNode } from 'react';
 
-const { mockAddListener, mockRemoveListener, mockStartListening, mockStopListening, mockAuthorize, mockCancel } = vi.hoisted(() => ({
+const {
+  mockAddListener,
+  mockRemoveListener,
+  mockStartListening,
+  mockStopListening,
+  mockAuthorize,
+  mockCancel,
+} = vi.hoisted(() => ({
   mockAddListener: vi.fn(),
   mockRemoveListener: vi.fn(),
   mockStartListening: vi.fn(),
@@ -48,7 +55,7 @@ describe('HealAndRestoreContext', () => {
   it('should throw when used outside provider', () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
     expect(() => renderHook(() => useHealAndRestore())).toThrow(
-      'useHealAndRestore must be used within a HealAndRestoreProvider',
+      'useHealAndRestore must be used within a HealAndRestoreProvider'
     );
     spy.mockRestore();
   });

@@ -1,4 +1,13 @@
-import puppeteer, { Browser, Page, HTTPResponse, ElementHandle, ScreenshotOptions, WaitForSelectorOptions, GoToOptions, ClickOptions } from 'puppeteer';
+import puppeteer, {
+  Browser,
+  Page,
+  HTTPResponse,
+  ElementHandle,
+  ScreenshotOptions,
+  WaitForSelectorOptions,
+  GoToOptions,
+  ClickOptions,
+} from 'puppeteer';
 import config from '#shared-config/index.js';
 import { logger } from '#utils/logger.js';
 import RandomHelpers from '#utils/randomHelpers.js';
@@ -48,15 +57,18 @@ export class PuppeteerService {
       // Non-headless UI niceties
       if (!resolvedHeadless) {
         launchArgs.push('--start-maximized', '--window-size=1400,900');
-        if ((process.platform === 'linux') && sessionType.toLowerCase() === 'wayland') {
+        if (process.platform === 'linux' && sessionType.toLowerCase() === 'wayland') {
           launchArgs.push('--ozone-platform=wayland', '--enable-features=UseOzonePlatform');
         }
       }
 
       // If user asked for UI but no DISPLAY is available, warn and keep headless to avoid crash
-      const effectiveHeadless: boolean | 'shell' = !resolvedHeadless && !displayEnv ? 'shell' : (resolvedHeadless ? 'shell' : false);
+      const effectiveHeadless: boolean | 'shell' =
+        !resolvedHeadless && !displayEnv ? 'shell' : resolvedHeadless ? 'shell' : false;
       if (!resolvedHeadless && !displayEnv) {
-        logger.warn('HEADLESS=false requested but DISPLAY is not set. Browser UI cannot be shown in this environment. Running headless instead.');
+        logger.warn(
+          'HEADLESS=false requested but DISPLAY is not set. Browser UI cannot be shown in this environment. Running headless instead.'
+        );
       }
 
       this.browser = await puppeteer.launch({
@@ -73,7 +85,7 @@ export class PuppeteerService {
         width: config.puppeteer.viewport.width,
         height: config.puppeteer.viewport.height,
         deviceScaleFactor: 1,
-        isMobile: false
+        isMobile: false,
       });
 
       // Set user agent
@@ -100,7 +112,7 @@ export class PuppeteerService {
       const response = await this.page.goto(url, {
         waitUntil: 'domcontentloaded',
         timeout: config.timeouts.navigation,
-        ...options
+        ...options,
       });
 
       // Add random delay to mimic human behavior
@@ -113,7 +125,10 @@ export class PuppeteerService {
     }
   }
 
-  async waitForSelector(selector: string, options: WaitForSelectorOptions = {}): Promise<ElementHandle | null> {
+  async waitForSelector(
+    selector: string,
+    options: WaitForSelectorOptions = {}
+  ): Promise<ElementHandle | null> {
     if (!this.page) {
       throw new Error('Browser not initialized. Call initialize() first.');
     }
@@ -121,7 +136,7 @@ export class PuppeteerService {
     try {
       return await this.page.waitForSelector(selector, {
         timeout: 5000,
-        ...options
+        ...options,
       });
     } catch {
       logger.warn(`Selector not found: ${selector}`);
@@ -148,7 +163,11 @@ export class PuppeteerService {
     }
   }
 
-  async safeType(selector: string, text: unknown, options: { delay?: number } = {}): Promise<boolean> {
+  async safeType(
+    selector: string,
+    text: unknown,
+    options: { delay?: number } = {}
+  ): Promise<boolean> {
     if (!this.page) {
       throw new Error('Browser not initialized. Call initialize() first.');
     }
@@ -176,7 +195,7 @@ export class PuppeteerService {
       if (element) {
         await element.type(inputText, {
           delay: RandomHelpers.randomInRange(50, 150),
-          ...options
+          ...options,
         });
         return true;
       }
@@ -196,7 +215,7 @@ export class PuppeteerService {
       await this.page.screenshot({
         path,
         fullPage: true,
-        ...options
+        ...options,
       });
       logger.debug(`Screenshot saved: ${path}`);
     } catch (error) {
@@ -205,16 +224,24 @@ export class PuppeteerService {
     }
   }
 
-  async scrollPage(direction: 'up' | 'down' = 'down', distance: number | null = null): Promise<void> {
+  async scrollPage(
+    direction: 'up' | 'down' = 'down',
+    distance: number | null = null
+  ): Promise<void> {
     if (!this.page) {
       throw new Error('Browser not initialized. Call initialize() first.');
     }
 
     try {
-      await this.page.evaluate((dist: number | null, dir: 'up' | 'down') => {
-        const scrollDistance = dist !== null ? dist : (dir === 'down' ? window.innerHeight : -window.innerHeight);
-        window.scrollBy(0, scrollDistance);
-      }, distance, direction);
+      await this.page.evaluate(
+        (dist: number | null, dir: 'up' | 'down') => {
+          const scrollDistance =
+            dist !== null ? dist : dir === 'down' ? window.innerHeight : -window.innerHeight;
+          window.scrollBy(0, scrollDistance);
+        },
+        distance,
+        direction
+      );
 
       await RandomHelpers.randomDelay(1000, 2000);
     } catch (error) {
@@ -223,7 +250,10 @@ export class PuppeteerService {
     }
   }
 
-  async extractLinks(selector: string | null = null, options: ExtractLinksOptions = {}): Promise<string[]> {
+  async extractLinks(
+    selector: string | null = null,
+    options: ExtractLinksOptions = {}
+  ): Promise<string[]> {
     if (!this.page) {
       throw new Error('Browser not initialized. Call initialize() first.');
     }
@@ -239,7 +269,7 @@ export class PuppeteerService {
       const defaultSelectors = [
         'a[href*="/in/"]',
         'a[href^="/in/"]',
-        '.reusable-search__result-container a[href]'
+        '.reusable-search__result-container a[href]',
       ];
 
       const timeoutMs = Math.max(3000, Number(options.timeoutMs) || 10000);
@@ -260,7 +290,7 @@ export class PuppeteerService {
       if (!anyFound) {
         // As a last resort, give the DOM a brief moment and proceed
         logger.debug('extractLinks: No selectors found, waiting 1s...');
-        await new Promise(res => setTimeout(res, 1000));
+        await new Promise((res) => setTimeout(res, 1000));
       } else {
         logger.debug('extractLinks: Found matching selector');
       }
@@ -271,7 +301,9 @@ export class PuppeteerService {
         const stableLimit = Math.max(1, Math.min(5, Number(options.stableLimit) || 2));
         let stableCount = 0;
         let lastHeight = await this.page.evaluate(() => document.body.scrollHeight || 0);
-        let lastLinkCount = await this.page.evaluate(() => Array.from(document.querySelectorAll('a[href]')).length);
+        let lastLinkCount = await this.page.evaluate(
+          () => Array.from(document.querySelectorAll('a[href]')).length
+        );
 
         for (let i = 0; i < maxIterations; i++) {
           try {
@@ -280,7 +312,13 @@ export class PuppeteerService {
                 if (!el) return false;
                 const style = window.getComputedStyle(el);
                 const rect = el.getBoundingClientRect();
-                return style && style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+                return (
+                  style &&
+                  style.display !== 'none' &&
+                  style.visibility !== 'hidden' &&
+                  rect.width > 0 &&
+                  rect.height > 0
+                );
               }
 
               // Try common variants of the load-more button that LinkedIn uses

@@ -1,7 +1,7 @@
 import { useState, type ChangeEvent, type KeyboardEvent, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Sparkles, Search, X } from 'lucide-react';
 import { createLogger } from '@/shared/utils/logger';
 import { usePostComposer } from '../contexts/PostComposerContext';
@@ -24,7 +24,7 @@ const PostAIAssistant = ({
   isGeneratingIdeas,
   isResearching,
   ideas,
-  onIdeasUpdate
+  onIdeasUpdate,
 }: PostAIAssistantProps) => {
   const { selectedIdeas: contextSelectedIdeas, updateSelectedIdeas } = usePostComposer();
   const [showResearchInput, setShowResearchInput] = useState(false);
@@ -74,7 +74,9 @@ const PostAIAssistant = ({
 
   // Sync selected ideas to context whenever selection or list changes
   useEffect(() => {
-    const selectedTexts = Array.from(selectedIndices).map(idx => localIdeas[idx]).filter(Boolean);
+    const selectedTexts = Array.from(selectedIndices)
+      .map((idx) => localIdeas[idx])
+      .filter(Boolean);
     updateSelectedIdeas(selectedTexts);
   }, [selectedIndices, localIdeas, updateSelectedIdeas]);
 
@@ -93,19 +95,19 @@ const PostAIAssistant = ({
   const handleDeleteIdea = async (index: number) => {
     const newIdeas = localIdeas.filter((_, i) => i !== index);
     setLocalIdeas(newIdeas);
-    
+
     // Update session storage
     try {
       sessionStorage.setItem(IDEAS_STORAGE_KEY, JSON.stringify(newIdeas));
     } catch (error) {
       logger.error('Failed to update ideas in session storage', { error });
     }
-    
+
     // Clear selection if deleted idea was selected and shift indices
     const newSelected = new Set(selectedIndices);
     newSelected.delete(index);
     const adjustedSelected = new Set<number>();
-    newSelected.forEach(selectedIndex => {
+    newSelected.forEach((selectedIndex) => {
       if (selectedIndex > index) {
         adjustedSelected.add(selectedIndex - 1);
       } else {
@@ -113,7 +115,7 @@ const PostAIAssistant = ({
       }
     });
     setSelectedIndices(adjustedSelected);
-    
+
     // Notify parent if callback exists
     if (onIdeasUpdate) {
       await onIdeasUpdate(newIdeas);
@@ -143,7 +145,7 @@ const PostAIAssistant = ({
 
     // If we have selected ideas, research those
     if (hasSelected) {
-      const selectedIdeasList = Array.from(selectedIndices).map(index => localIdeas[index]);
+      const selectedIdeasList = Array.from(selectedIndices).map((index) => localIdeas[index]);
       onResearchTopics(selectedIdeasList);
       return;
     }
@@ -159,7 +161,10 @@ const PostAIAssistant = ({
       </div>
       <div className="space-y-2">
         {localIdeas?.map((idea, index) => (
-          <div key={index} className="flex items-start space-x-3 p-3 bg-white/5 rounded-md border border-white/10">
+          <div
+            key={index}
+            className="flex items-start space-x-3 p-3 bg-white/5 rounded-md border border-white/10"
+          >
             <input
               type="checkbox"
               id={`idea-${index}`}
@@ -167,7 +172,10 @@ const PostAIAssistant = ({
               onChange={() => handleIdeaToggle(index)}
               className="mt-1 h-4 w-4 text-purple-600 bg-white/10 border-white/20 rounded focus:ring-purple-500/40 focus:ring-2"
             />
-            <label htmlFor={`idea-${index}`} className="text-slate-300 text-sm leading-relaxed cursor-pointer flex-1">
+            <label
+              htmlFor={`idea-${index}`}
+              className="text-slate-300 text-sm leading-relaxed cursor-pointer flex-1"
+            >
               {idea}
             </label>
             <Button
@@ -206,9 +214,9 @@ const PostAIAssistant = ({
         </CardHeader>
         <CardContent className="space-y-4">
           {localIdeas && localIdeas.length > 0 ? renderIdeasList() : renderTextarea()}
-          
+
           {!localIdeas || localIdeas.length === 0 ? (
-            <Button 
+            <Button
               className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white"
               onClick={handleGenerateIdeas}
               disabled={isGeneratingIdeas}
@@ -217,25 +225,34 @@ const PostAIAssistant = ({
               {isGeneratingIdeas ? 'Generating...' : 'Generate Ideas'}
             </Button>
           ) : null}
-          
+
           {(() => {
             const hasCustomTopic = Boolean(ideaPrompt.trim());
-            const hasSelected = Boolean(localIdeas && localIdeas.length > 0 && selectedIndices.size > 0);
+            const hasSelected = Boolean(
+              localIdeas && localIdeas.length > 0 && selectedIndices.size > 0
+            );
             const canResearch = hasCustomTopic || hasSelected;
             return (
-              <Button 
+              <Button
                 className="w-full bg-slate-700 hover:bg-slate-600 text-white border-slate-600 hover:border-slate-500"
                 onClick={handleResearchTopicsClick}
                 disabled={isResearching || !canResearch}
-                title={!canResearch ? 'Enter a topic above or select at least one idea to research' : undefined}
+                title={
+                  !canResearch
+                    ? 'Enter a topic above or select at least one idea to research'
+                    : undefined
+                }
               >
                 <Search className="h-4 w-4 mr-2" />
-                {hasCustomTopic ? 'Research Custom Topic' : 
-                 hasSelected ? 'Research Selected Ideas' : 'Research Topics'}
+                {hasCustomTopic
+                  ? 'Research Custom Topic'
+                  : hasSelected
+                    ? 'Research Selected Ideas'
+                    : 'Research Topics'}
               </Button>
             );
           })()}
-          
+
           {showResearchInput && (
             <div className="space-y-2">
               <Input
@@ -243,7 +260,9 @@ const PostAIAssistant = ({
                 value={researchQuery}
                 onChange={(e: ChangeEvent<HTMLInputElement>) => setResearchQuery(e.target.value)}
                 className="bg-white/5 border-white/20 text-white placeholder-slate-400"
-                onKeyPress={(e: KeyboardEvent<HTMLInputElement>) => e.key === 'Enter' && handleResearchSubmit()}
+                onKeyPress={(e: KeyboardEvent<HTMLInputElement>) =>
+                  e.key === 'Enter' && handleResearchSubmit()
+                }
               />
               <Button
                 onClick={handleResearchSubmit}

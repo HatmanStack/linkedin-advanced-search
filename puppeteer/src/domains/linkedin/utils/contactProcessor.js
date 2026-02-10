@@ -18,14 +18,20 @@ export class ContactProcessor {
 
     while (i < uniqueLinks.length) {
       const link = uniqueLinks[i];
-      
+
       if (this._shouldSkipProfile(link)) {
         i++;
         continue;
       }
 
       try {
-        const result = await this._processContact(link, state.jwtToken, goodContacts, i, uniqueLinks.length);
+        const result = await this._processContact(
+          link,
+          state.jwtToken,
+          goodContacts,
+          i,
+          uniqueLinks.length
+        );
         if (result.processed) {
           errorQueue = [];
         }
@@ -34,13 +40,18 @@ export class ContactProcessor {
         logger.error(`Error collecting contact: ${link}`);
         errorQueue.push(link);
         i++;
-        
+
         if (errorQueue.length >= 3) {
           const shouldHeal = await this._handleErrorQueue(errorQueue, state.jwtToken, goodContacts);
           errorQueue = [];
-          
+
           if (shouldHeal) {
-            const restartParams = await this._prepareHealingRestart(uniqueLinks, i, errorQueue, state);
+            const restartParams = await this._prepareHealingRestart(
+              uniqueLinks,
+              i,
+              errorQueue,
+              state
+            );
             await onHealingNeeded(restartParams);
             return;
           }
@@ -58,10 +69,10 @@ export class ContactProcessor {
     if (result.isGoodContact) {
       goodContacts.push(link);
       logger.info(`Found good contact: ${link} (${goodContacts.length})`);
-      
+
       // During Search, scrape profile to RAGStack and mark edges as "possible"
       await this.linkedInContactService.scrapeProfile(link, 'possible');
-    
+
       await FileHelpers.writeJSON(this.config.paths.goodConnectionsFile, goodContacts);
     }
 
@@ -71,9 +82,9 @@ export class ContactProcessor {
   async _handleErrorQueue(errorQueue, jwtToken, goodContacts) {
     logger.warn(`3 errors in a row, pausing 5min and retrying...`);
     const linksToRetry = [...errorQueue];
-    
-    await new Promise(resolve => setTimeout(resolve, 300000));
-    
+
+    await new Promise((resolve) => setTimeout(resolve, 300000));
+
     let allRetriesFailed = true;
     for (let retry of linksToRetry) {
       try {
@@ -94,17 +105,17 @@ export class ContactProcessor {
   async _prepareHealingRestart(uniqueLinks, currentIndex, errorQueue, state) {
     let restartIndex = currentIndex - errorQueue.length;
     if (restartIndex < 0) restartIndex = 0;
-    
+
     let remainingLinks = uniqueLinks.slice(restartIndex);
     if (remainingLinks[0] !== errorQueue[0]) {
       remainingLinks.unshift(errorQueue[0]);
     }
 
     const newPartialLinksFile = path.join(
-      path.dirname(this.config.paths.linksFile), 
+      path.dirname(this.config.paths.linksFile),
       `possible-links-partial-${Date.now()}.json`
     );
-    
+
     await fs.writeFile(newPartialLinksFile, JSON.stringify(remainingLinks, null, 2));
     logger.info(`Written partial links file: ${newPartialLinksFile}`);
 
@@ -112,7 +123,7 @@ export class ContactProcessor {
       ...state,
       resumeIndex: 0,
       recursionCount: state.recursionCount + 1,
-      lastPartialLinksFile: newPartialLinksFile
+      lastPartialLinksFile: newPartialLinksFile,
     };
   }
 

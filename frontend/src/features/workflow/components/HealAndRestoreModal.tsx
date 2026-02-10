@@ -20,7 +20,7 @@ interface HealAndRestoreModalProps {
 export const HealAndRestoreModal: React.FC<HealAndRestoreModalProps> = ({
   isOpen,
   onAuthorize,
-  onCancel
+  onCancel,
 }) => {
   const [autoApprove, setAutoApprove] = useState(false);
 
@@ -38,11 +38,12 @@ export const HealAndRestoreModal: React.FC<HealAndRestoreModalProps> = ({
         <DialogHeader>
           <DialogTitle>Heal & Restore Authorization Required</DialogTitle>
           <DialogDescription>
-            The system has reached a heal and restore checkpoint and requires your authorization to continue.
-            This process will attempt to recover and restore any corrupted or missing data.
+            The system has reached a heal and restore checkpoint and requires your authorization to
+            continue. This process will attempt to recover and restore any corrupted or missing
+            data.
           </DialogDescription>
         </DialogHeader>
-        
+
         <div className="py-4">
           <div className="flex items-center space-x-2">
             <Checkbox
@@ -63,9 +64,7 @@ export const HealAndRestoreModal: React.FC<HealAndRestoreModalProps> = ({
           <Button variant="outline" onClick={onCancel}>
             Cancel
           </Button>
-          <Button onClick={handleAuthorize}>
-            Authorize Heal & Restore
-          </Button>
+          <Button onClick={handleAuthorize}>Authorize Heal & Restore</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

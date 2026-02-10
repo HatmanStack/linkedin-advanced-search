@@ -31,7 +31,7 @@ export class SearchStateManager {
       extractedGeoNumber,
       healPhase,
       healReason,
-      ...opts
+      ...opts,
     };
   }
 }

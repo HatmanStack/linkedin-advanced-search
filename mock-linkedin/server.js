@@ -36,7 +36,7 @@ const state = {
   messages: [],
   posts: [],
   pendingInvitations: [],
-  sentInvitations: []
+  sentInvitations: [],
 };
 
 // Load mock data
@@ -80,7 +80,10 @@ function servePage(pageName, res, replacements = {}) {
   html = html.replace(/https?:\/\/(www\.)?linkedin\.com/g, `http://localhost:${PORT}`);
 
   // Inject a visible header for post-login detection (LinkedIn's real headers need JS to render visibly)
-  html = html.replace('</body>', '<header data-view-name="navigation-homepage" style="display:block;width:100%;height:2px;"></header><script src="/public/mock-interactions.js"></script></body>');
+  html = html.replace(
+    '</body>',
+    '<header data-view-name="navigation-homepage" style="display:block;width:100%;height:2px;"></header><script src="/public/mock-interactions.js"></script></body>'
+  );
 
   res.send(html);
 }
@@ -131,7 +134,7 @@ function generatePlaceholderPage(pageName, data = {}) {
       </div>
     </div>
     <div class="feed-posts">
-      ${(data.posts || []).map(p => `<article class="feed-post">${p.content}</article>`).join('')}
+      ${(data.posts || []).map((p) => `<article class="feed-post">${p.content}</article>`).join('')}
     </div>
   </main>
 </body>
@@ -152,13 +155,19 @@ function generatePlaceholderPage(pageName, data = {}) {
       <span class="distance-badge"><span class="dist-value">${data.connectionDegree || '2nd'}</span></span>
 
       <div class="pvs-profile-actions pv-s-profile-actions">
-        ${data.isConnected ? `
+        ${
+          data.isConnected
+            ? `
           <button aria-label="Message ${data.name}" data-test-id="message-button">Message</button>
-        ` : data.isPending ? `
+        `
+            : data.isPending
+              ? `
           <button aria-label="Pending" data-test-id="pending-button">Pending</button>
-        ` : `
+        `
+              : `
           <button aria-label="Connect with ${data.name}" data-test-id="connect-button" class="artdeco-button">Connect</button>
-        `}
+        `
+        }
         <button aria-label="More actions" class="artdeco-dropdown__trigger">More</button>
       </div>
 
@@ -251,7 +260,9 @@ function generatePlaceholderPage(pageName, data = {}) {
 
     <div class="search-results-container">
       <ul class="reusable-search__entity-result-list">
-        ${(data.results || state.connections.slice(0, 10)).map(person => `
+        ${(data.results || state.connections.slice(0, 10))
+          .map(
+            (person) => `
           <li class="reusable-search__result-container">
             <div class="entity-result">
               <a href="/in/${person.profileId}/" class="entity-result__title-text">
@@ -261,7 +272,9 @@ function generatePlaceholderPage(pageName, data = {}) {
               <button aria-label="Connect with ${person.name}">Connect</button>
             </div>
           </li>
-        `).join('')}
+        `
+          )
+          .join('')}
       </ul>
       <button class="artdeco-pagination__button--next" aria-label="Next">Next</button>
     </div>
@@ -332,14 +345,18 @@ function generatePlaceholderPage(pageName, data = {}) {
   <main class="scaffold-layout">
     <div class="mn-connections">
       <ul class="mn-connections__list">
-        ${(data.connections || state.connections).map(conn => `
+        ${(data.connections || state.connections)
+          .map(
+            (conn) => `
           <li class="mn-connection-card">
             <a href="/in/${conn.profileId}/" data-test-id="connection-card">
               <span class="mn-connection-card__name">${conn.name}</span>
             </a>
             <button aria-label="Send message to ${conn.name}">Message</button>
           </li>
-        `).join('')}
+        `
+          )
+          .join('')}
       </ul>
     </div>
   </main>
@@ -355,7 +372,9 @@ function generatePlaceholderPage(pageName, data = {}) {
   <main class="scaffold-layout">
     <div class="invitation-manager">
       <ul class="invitation-card__list">
-        ${(data.invitations || state.pendingInvitations).map(inv => `
+        ${(data.invitations || state.pendingInvitations)
+          .map(
+            (inv) => `
           <li class="invitation-card">
             <a href="/in/${inv.profileId}/">
               <span>${inv.name}</span>
@@ -363,7 +382,9 @@ function generatePlaceholderPage(pageName, data = {}) {
             <button aria-label="Accept">Accept</button>
             <button aria-label="Ignore">Ignore</button>
           </li>
-        `).join('')}
+        `
+          )
+          .join('')}
       </ul>
     </div>
   </main>
@@ -379,7 +400,9 @@ function generatePlaceholderPage(pageName, data = {}) {
   <main class="scaffold-layout">
     <div class="invitation-manager">
       <ul class="invitation-card__list">
-        ${(data.invitations || state.sentInvitations).map(inv => `
+        ${(data.invitations || state.sentInvitations)
+          .map(
+            (inv) => `
           <li class="invitation-card">
             <a href="/in/${inv.profileId}/">
               <span>${inv.name}</span>
@@ -387,7 +410,9 @@ function generatePlaceholderPage(pageName, data = {}) {
             <span>Pending</span>
             <button aria-label="Withdraw">Withdraw</button>
           </li>
-        `).join('')}
+        `
+          )
+          .join('')}
       </ul>
     </div>
   </main>
@@ -402,19 +427,25 @@ function generatePlaceholderPage(pageName, data = {}) {
   <header class="global-nav" id="global-nav"></header>
   <main class="scaffold-layout">
     <div class="pv-recent-activity">
-      ${(data.activities || []).map(act => `
+      ${(data.activities || [])
+        .map(
+          (act) => `
         <article class="feed-shared-update-v2">
           <p>${act.content}</p>
           <span>${act.timestamp}</span>
         </article>
-      `).join('')}
+      `
+        )
+        .join('')}
     </div>
   </main>
 </body>
-</html>`
+</html>`,
   };
 
-  return templates[pageName] || `
+  return (
+    templates[pageName] ||
+    `
 <!DOCTYPE html>
 <html>
 <head><title>${pageName} | Mock LinkedIn</title></head>
@@ -426,7 +457,8 @@ function generatePlaceholderPage(pageName, data = {}) {
     <pre>${JSON.stringify(data, null, 2)}</pre>
   </main>
 </body>
-</html>`;
+</html>`
+  );
 }
 
 // ============ ROUTES ============
@@ -458,13 +490,13 @@ app.get('/feed/', (req, res) => {
 // Profile pages
 app.get('/in/:profileId/', (req, res) => {
   const { profileId } = req.params;
-  const person = state.connections.find(c => c.profileId === profileId) || {
+  const person = state.connections.find((c) => c.profileId === profileId) || {
     profileId,
-    name: profileId.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+    name: profileId.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
     headline: 'Mock Profile',
     about: 'This is a mock profile for testing.',
     isConnected: false,
-    isPending: state.sentInvitations.some(i => i.profileId === profileId)
+    isPending: state.sentInvitations.some((i) => i.profileId === profileId),
   };
   servePage('profile', res, person);
 });
@@ -493,32 +525,38 @@ app.get('/in/:profileId/recent-activity/:type/', (req, res) => {
 // Redirect to profile page for backwards compatibility
 app.get('/in/:profileId/overlay/about-this-profile/', (req, res) => {
   const { profileId } = req.params;
-  console.log(`[MOCK] Overlay URL deprecated - redirecting to profile. LinkedIn now opens modal via profile name click.`);
+  console.log(
+    `[MOCK] Overlay URL deprecated - redirecting to profile. LinkedIn now opens modal via profile name click.`
+  );
   res.redirect(`/in/${profileId}/`);
 });
 
 // Search results
 app.get('/search/results/people/', (req, res) => {
   const { keywords, currentCompany, page } = req.query;
-  console.log(`[MOCK] Search request: currentCompany=${currentCompany}, page=${page}, connections=${state.connections.length}`);
+  console.log(
+    `[MOCK] Search request: currentCompany=${currentCompany}, page=${page}, connections=${state.connections.length}`
+  );
 
   // Filter mock connections based on search params
   let results = [...state.connections];
 
   // If currentCompany filter is applied, show Amazon employees
   if (currentCompany) {
-    results = results.filter(c =>
-      c.company?.toLowerCase().includes('amazon') ||
-      c.headline?.toLowerCase().includes('amazon') ||
-      c.headline?.toLowerCase().includes('aws')
+    results = results.filter(
+      (c) =>
+        c.company?.toLowerCase().includes('amazon') ||
+        c.headline?.toLowerCase().includes('amazon') ||
+        c.headline?.toLowerCase().includes('aws')
     );
     console.log(`[MOCK] Company filter applied, returning ${results.length} Amazon results`);
   }
 
   if (keywords) {
-    results = results.filter(c =>
-      c.name?.toLowerCase().includes(keywords.toLowerCase()) ||
-      c.headline?.toLowerCase().includes(keywords.toLowerCase())
+    results = results.filter(
+      (c) =>
+        c.name?.toLowerCase().includes(keywords.toLowerCase()) ||
+        c.headline?.toLowerCase().includes(keywords.toLowerCase())
     );
   }
 
@@ -535,7 +573,9 @@ app.get('/search/results/people/', (req, res) => {
 function generateSearchResultsHtml(people) {
   // Use linkedin.com URLs - Puppeteer filters for this domain
   // The browser will navigate to these, but our mock intercepts them
-  const peopleHtml = people.map(person => `
+  const peopleHtml = people
+    .map(
+      (person) => `
     <li class="reusable-search__result-container" style="padding:12px; margin-bottom:8px; background:white; border-radius:8px; list-style:none;">
       <div class="entity-result" style="display:flex; align-items:flex-start; gap:12px;">
         <div style="width:72px; height:72px; background:#e7e2dc; border-radius:50%; flex-shrink:0;"></div>
@@ -549,7 +589,9 @@ function generateSearchResultsHtml(people) {
         </div>
       </div>
     </li>
-  `).join('');
+  `
+    )
+    .join('');
 
   return `
 <!DOCTYPE html>
@@ -616,7 +658,7 @@ app.post('/api/connect', (req, res) => {
     profileId,
     name: profileId,
     message,
-    sentAt: new Date().toISOString()
+    sentAt: new Date().toISOString(),
   });
   console.log(`[MOCK] Connection request sent to ${profileId}`);
   res.json({ success: true });
@@ -628,7 +670,7 @@ app.post('/api/message', (req, res) => {
   state.messages.push({
     recipientId,
     content,
-    sentAt: new Date().toISOString()
+    sentAt: new Date().toISOString(),
   });
   const preview = (content || '').substring(0, 50);
   console.log(`[MOCK] Message sent to ${recipientId}: ${preview}...`);
@@ -642,7 +684,7 @@ app.post('/api/post', (req, res) => {
     id: `post-${Date.now()}`,
     content,
     mediaUrl,
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
   };
   state.posts.unshift(post);
   const preview = (content || '').substring(0, 50);
@@ -671,7 +713,7 @@ app.post('/edge', (req, res) => {
     state.edges[profileId] = {
       profileId,
       ...updates,
-      createdAt: state.edges[profileId]?.createdAt || new Date().toISOString()
+      createdAt: state.edges[profileId]?.createdAt || new Date().toISOString(),
     };
     console.log(`✅ Upserted edge for "${profileId}":`);
     console.log('   Status:', updates?.status);
@@ -722,7 +764,7 @@ app.post('/profiles', (req, res) => {
     state.profiles[profileId] = {
       profileId,
       ...updates,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
     };
     console.log(`✅ Created profile "${profileId}":`);
     console.log('   Updates:', JSON.stringify(updates, null, 2));

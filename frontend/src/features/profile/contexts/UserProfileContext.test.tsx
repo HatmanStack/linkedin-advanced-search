@@ -5,7 +5,9 @@ import type { ReactNode } from 'react';
 const { mockGetUserProfile, mockUpdateUserProfile, mockUser } = vi.hoisted(() => ({
   mockGetUserProfile: vi.fn(),
   mockUpdateUserProfile: vi.fn(),
-  mockUser: { value: { id: 'user-1', email: 'test@example.com' } as Record<string, unknown> | null },
+  mockUser: {
+    value: { id: 'user-1', email: 'test@example.com' } as Record<string, unknown> | null,
+  },
 }));
 
 vi.mock('@/shared/services', () => ({
@@ -46,7 +48,9 @@ describe('UserProfileContext', () => {
 
   it('should throw when used outside provider', () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    expect(() => renderHook(() => useUserProfile())).toThrow('useUserProfile must be used within a UserProfileProvider');
+    expect(() => renderHook(() => useUserProfile())).toThrow(
+      'useUserProfile must be used within a UserProfileProvider'
+    );
     spy.mockRestore();
   });
 
@@ -172,7 +176,7 @@ describe('UserProfileContext', () => {
       await expect(
         act(async () => {
           await result.current.updateUserProfile({ firstName: '' });
-        }),
+        })
       ).rejects.toThrow('Validation error');
     });
   });
@@ -192,7 +196,9 @@ describe('UserProfileContext', () => {
       });
 
       expect(result.current.ciphertext).toBe('sealbox_x25519:b64:new_creds');
-      expect(sessionStorage.getItem('li_credentials_ciphertext')).toBe('sealbox_x25519:b64:new_creds');
+      expect(sessionStorage.getItem('li_credentials_ciphertext')).toBe(
+        'sealbox_x25519:b64:new_creds'
+      );
     });
 
     it('should remove from sessionStorage when set to null', async () => {

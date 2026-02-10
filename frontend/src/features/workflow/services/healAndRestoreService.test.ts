@@ -108,10 +108,12 @@ describe('HealAndRestoreService', () => {
       await vi.advanceTimersByTimeAsync(0);
       vi.useRealTimers();
 
-      expect(listener).toHaveBeenCalledWith(expect.objectContaining({
-        sessionId: 'sess-1',
-        message: 'Heal and restore authorization required',
-      }));
+      expect(listener).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sessionId: 'sess-1',
+          message: 'Heal and restore authorization required',
+        })
+      );
 
       healAndRestoreService.removeListener(listener);
       healAndRestoreService.stopListening();

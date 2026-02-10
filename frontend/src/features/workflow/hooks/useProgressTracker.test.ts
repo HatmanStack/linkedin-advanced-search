@@ -116,9 +116,7 @@ describe('useProgressTracker', () => {
     });
 
     it('should format minutes and seconds', () => {
-      vi.spyOn(Date, 'now')
-        .mockReturnValueOnce(1000)
-        .mockReturnValueOnce(61000); // elapsed = 60s
+      vi.spyOn(Date, 'now').mockReturnValueOnce(1000).mockReturnValueOnce(61000); // elapsed = 60s
 
       const { result } = renderHook(() => useProgressTracker());
 

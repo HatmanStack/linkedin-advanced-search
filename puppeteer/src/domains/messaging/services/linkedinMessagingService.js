@@ -43,7 +43,7 @@ export class LinkedInMessagingService {
       userId,
       deliveryStatus: 'pending',
       sentAt: new Date().toISOString(),
-      messageLength: messageContent?.length || 0
+      messageLength: messageContent?.length || 0,
     };
 
     try {
@@ -70,7 +70,7 @@ export class LinkedInMessagingService {
             userId,
             targetProfileId: recipientProfileId,
             edgeType: 'message',
-            metadata: { messageId: result.messageId }
+            metadata: { messageId: result.messageId },
           });
         } catch (error) {
           logger.warn('Failed to record message edge', { error: error.message });
@@ -79,7 +79,6 @@ export class LinkedInMessagingService {
 
       logger.info('Message sent successfully', { result });
       return result;
-
     } catch (error) {
       logger.error('Failed to send message', { error: error.message, recipientProfileId });
       result.deliveryStatus = 'failed';
@@ -100,7 +99,7 @@ export class LinkedInMessagingService {
       '[data-view-name="message-button"]',
       'button[aria-label*="Message"]',
       'button:has-text("Message")',
-      '[data-test-id="message-button"]'
+      '[data-test-id="message-button"]',
     ];
 
     for (const selector of messageButtonSelectors) {
@@ -131,7 +130,7 @@ export class LinkedInMessagingService {
       '[data-test-id="message-input"]',
       '[role="textbox"][aria-label*="message"]',
       '.msg-form__contenteditable',
-      'div[contenteditable="true"]'
+      'div[contenteditable="true"]',
     ];
 
     for (const selector of inputSelectors) {
@@ -160,7 +159,7 @@ export class LinkedInMessagingService {
       '[data-test-id="message-input"]',
       '[role="textbox"][aria-label*="message"]',
       '.msg-form__contenteditable',
-      'div[contenteditable="true"]'
+      'div[contenteditable="true"]',
     ];
 
     let inputElement = null;
@@ -186,7 +185,7 @@ export class LinkedInMessagingService {
       '[data-test-id="send-button"]',
       'button[type="submit"]',
       'button:has-text("Send")',
-      '[aria-label*="Send"]'
+      '[aria-label*="Send"]',
     ];
 
     for (const selector of sendButtonSelectors) {
@@ -214,12 +213,12 @@ export class LinkedInMessagingService {
       const page = session.getPage();
 
       // Wait for sent indicator or input to clear
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise((resolve) => setTimeout(resolve, 2000));
 
       // Check if message appears in conversation
       const sentIndicators = [
         '.msg-s-message-list__event--last-event',
-        '[data-test-id="message-sent"]'
+        '[data-test-id="message-sent"]',
       ];
 
       for (const selector of sentIndicators) {

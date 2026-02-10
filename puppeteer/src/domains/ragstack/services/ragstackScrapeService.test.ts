@@ -40,13 +40,11 @@ describe('RagstackScrapeService', () => {
 
   describe('constructor', () => {
     it('should throw if endpoint is missing', () => {
-      expect(() => new RagstackScrapeService({ ...testConfig, endpoint: '' }))
-        .toThrow(/endpoint/i);
+      expect(() => new RagstackScrapeService({ ...testConfig, endpoint: '' })).toThrow(/endpoint/i);
     });
 
     it('should throw if apiKey is missing', () => {
-      expect(() => new RagstackScrapeService({ ...testConfig, apiKey: '' }))
-        .toThrow(/apiKey/i);
+      expect(() => new RagstackScrapeService({ ...testConfig, apiKey: '' })).toThrow(/apiKey/i);
     });
   });
 
@@ -92,8 +90,9 @@ describe('RagstackScrapeService', () => {
         text: async () => 'Unauthorized',
       });
 
-      await expect(service.startScrape('john-doe', 'bad-cookie'))
-        .rejects.toThrow(RagstackHttpError);
+      await expect(service.startScrape('john-doe', 'bad-cookie')).rejects.toThrow(
+        RagstackHttpError
+      );
     });
 
     it('should throw RagstackHttpError on 400', async () => {
@@ -103,8 +102,7 @@ describe('RagstackScrapeService', () => {
         text: async () => 'Bad Request',
       });
 
-      await expect(service.startScrape('john-doe', 'cookie'))
-        .rejects.toThrow(RagstackHttpError);
+      await expect(service.startScrape('john-doe', 'cookie')).rejects.toThrow(RagstackHttpError);
 
       expect(mockFetch).toHaveBeenCalledTimes(1); // No retries on 4xx
     });
@@ -117,8 +115,7 @@ describe('RagstackScrapeService', () => {
         }),
       });
 
-      await expect(service.startScrape('john-doe', 'cookie'))
-        .rejects.toThrow(RagstackGraphQLError);
+      await expect(service.startScrape('john-doe', 'cookie')).rejects.toThrow(RagstackGraphQLError);
     });
 
     it('should retry on 5xx errors', async () => {
@@ -174,8 +171,7 @@ describe('RagstackScrapeService', () => {
         text: async () => 'Bad Request',
       });
 
-      await expect(service.startScrape('john-doe', 'cookie'))
-        .rejects.toThrow(RagstackHttpError);
+      await expect(service.startScrape('john-doe', 'cookie')).rejects.toThrow(RagstackHttpError);
 
       expect(mockFetch).toHaveBeenCalledTimes(1); // No retries
     });
@@ -184,27 +180,24 @@ describe('RagstackScrapeService', () => {
       // All calls fail with 500
       mockFetch.mockResolvedValue({ ok: false, status: 500, text: async () => 'Error' });
 
-      await expect(service.startScrape('john-doe', 'cookie'))
-        .rejects.toThrow(RagstackHttpError);
+      await expect(service.startScrape('john-doe', 'cookie')).rejects.toThrow(RagstackHttpError);
 
       expect(mockFetch).toHaveBeenCalledTimes(3); // maxAttempts
     });
 
     it('should retry on network errors', async () => {
-      mockFetch
-        .mockRejectedValueOnce(new Error('Network error'))
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            data: {
-              startScrape: {
-                jobId: 'job-123',
-                baseUrl: 'https://www.linkedin.com/in/john-doe/',
-                status: 'PENDING',
-              },
+      mockFetch.mockRejectedValueOnce(new Error('Network error')).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: {
+            startScrape: {
+              jobId: 'job-123',
+              baseUrl: 'https://www.linkedin.com/in/john-doe/',
+              status: 'PENDING',
             },
-          }),
-        });
+          },
+        }),
+      });
 
       const result = await service.startScrape('john-doe', 'cookie');
 
@@ -279,7 +272,9 @@ describe('RagstackScrapeService', () => {
         .mockResolvedValueOnce({
           ok: true,
           json: async () => ({
-            data: { getScrapeJob: { job: { jobId: 'job-123', status: 'COMPLETED', processedCount: 5 } } },
+            data: {
+              getScrapeJob: { job: { jobId: 'job-123', status: 'COMPLETED', processedCount: 5 } },
+            },
           }),
         });
 

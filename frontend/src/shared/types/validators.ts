@@ -83,24 +83,48 @@ const conversionLikelihoodSchema = z.enum(['high', 'medium', 'low']);
 
 const messageSchema = z.object({
   id: z.string().min(1, 'Message ID is required and must be a non-empty string'),
-  content: z.string()
-    .min(MIN_TEXT_LENGTH.MESSAGE_CONTENT, 'Message content is required and must be at least 1 character')
-    .max(MAX_TEXT_LENGTH.MESSAGE_CONTENT, `Message content is too long (max ${MAX_TEXT_LENGTH.MESSAGE_CONTENT} characters)`),
+  content: z
+    .string()
+    .min(
+      MIN_TEXT_LENGTH.MESSAGE_CONTENT,
+      'Message content is required and must be at least 1 character'
+    )
+    .max(
+      MAX_TEXT_LENGTH.MESSAGE_CONTENT,
+      `Message content is too long (max ${MAX_TEXT_LENGTH.MESSAGE_CONTENT} characters)`
+    ),
   timestamp: z.string().refine(isValidISODate, 'Message timestamp must be a valid ISO date string'),
   sender: messageSenderSchema,
 });
 
 const connectionSchema = z.object({
-  id: z.string().min(1, 'Connection ID is required and must be a non-empty string')
-    .max(MAX_TEXT_LENGTH.NAME * 2, `Connection ID is too long (max ${MAX_TEXT_LENGTH.NAME * 2} characters)`),
-  first_name: z.string()
+  id: z
+    .string()
+    .min(1, 'Connection ID is required and must be a non-empty string')
+    .max(
+      MAX_TEXT_LENGTH.NAME * 2,
+      `Connection ID is too long (max ${MAX_TEXT_LENGTH.NAME * 2} characters)`
+    ),
+  first_name: z
+    .string()
     .min(MIN_TEXT_LENGTH.NAME, 'First name is required and must be at least 1 character')
     .max(MAX_TEXT_LENGTH.NAME, `First name is too long (max ${MAX_TEXT_LENGTH.NAME} characters)`),
-  last_name: z.string()
+  last_name: z
+    .string()
     .min(MIN_TEXT_LENGTH.NAME, 'Last name is required and must be at least 1 character')
     .max(MAX_TEXT_LENGTH.NAME, `Last name is too long (max ${MAX_TEXT_LENGTH.NAME} characters)`),
-  position: z.string().max(MAX_TEXT_LENGTH.POSITION, `Position is too long (max ${MAX_TEXT_LENGTH.POSITION} characters)`),
-  company: z.string().max(MAX_TEXT_LENGTH.COMPANY, `Company is too long (max ${MAX_TEXT_LENGTH.COMPANY} characters)`),
+  position: z
+    .string()
+    .max(
+      MAX_TEXT_LENGTH.POSITION,
+      `Position is too long (max ${MAX_TEXT_LENGTH.POSITION} characters)`
+    ),
+  company: z
+    .string()
+    .max(
+      MAX_TEXT_LENGTH.COMPANY,
+      `Company is too long (max ${MAX_TEXT_LENGTH.COMPANY} characters)`
+    ),
   status: connectionStatusSchema,
   location: z.string().max(MAX_TEXT_LENGTH.LOCATION).optional(),
   headline: z.string().max(MAX_TEXT_LENGTH.HEADLINE).optional(),
@@ -111,10 +135,11 @@ const connectionSchema = z.object({
   conversion_likelihood: conversionLikelihoodSchema.optional(),
   date_added: z.string().refine(isValidISODate).optional(),
   linkedin_url: z.string().refine(isValidUrl).optional(),
-  common_interests: z.array(z.string().min(1).max(MAX_TEXT_LENGTH.TAG))
-    .max(MAX_ARRAY_LENGTH.COMMON_INTERESTS).optional(),
-  tags: z.array(z.string().min(1).max(MAX_TEXT_LENGTH.TAG))
-    .max(MAX_ARRAY_LENGTH.TAGS).optional(),
+  common_interests: z
+    .array(z.string().min(1).max(MAX_TEXT_LENGTH.TAG))
+    .max(MAX_ARRAY_LENGTH.COMMON_INTERESTS)
+    .optional(),
+  tags: z.array(z.string().min(1).max(MAX_TEXT_LENGTH.TAG)).max(MAX_ARRAY_LENGTH.TAGS).optional(),
   message_history: z.array(messageSchema).max(MAX_ARRAY_LENGTH.MESSAGES).optional(),
   isFakeData: z.boolean().optional(),
 });
@@ -133,12 +158,23 @@ function sanitizeConnectionStatus(value: unknown): ConnectionStatus | null {
   if (typeof value === 'string') {
     const n = value.toLowerCase().trim();
     switch (n) {
-      case 'new': case 'potential': return 'possible';
-      case 'pending': case 'received': return 'incoming';
-      case 'sent': case 'requested': return 'outgoing';
-      case 'connected': case 'accepted': return 'ally';
-      case 'removed': case 'ignored': return 'processed';
-      default: return null;
+      case 'new':
+      case 'potential':
+        return 'possible';
+      case 'pending':
+      case 'received':
+        return 'incoming';
+      case 'sent':
+      case 'requested':
+        return 'outgoing';
+      case 'connected':
+      case 'accepted':
+        return 'ally';
+      case 'removed':
+      case 'ignored':
+        return 'processed';
+      default:
+        return null;
     }
   }
   return null;
@@ -158,10 +194,19 @@ function sanitizeTimestamp(value: unknown): string | null {
   if (typeof value === 'string' && isValidISODate(value)) return value;
   if (value instanceof Date) return value.toISOString();
   if (typeof value === 'number' && isFinite(value)) {
-    try { return new Date(value).toISOString(); } catch { return null; }
+    try {
+      return new Date(value).toISOString();
+    } catch {
+      return null;
+    }
   }
   if (typeof value === 'string') {
-    try { const d = new Date(value); if (!isNaN(d.getTime())) return d.toISOString(); } catch { /* fall through */ }
+    try {
+      const d = new Date(value);
+      if (!isNaN(d.getTime())) return d.toISOString();
+    } catch {
+      /* fall through */
+    }
   }
   return null;
 }
@@ -201,7 +246,14 @@ export function validateConnection(
       const msg = issue.message;
       // Treat optional field length warnings as warnings, not errors
       const path0 = String(issue.path[0] ?? '');
-      const isOptionalField = ['location', 'headline', 'recent_activity', 'last_action_summary', 'date_added', 'linkedin_url'].includes(path0);
+      const isOptionalField = [
+        'location',
+        'headline',
+        'recent_activity',
+        'last_action_summary',
+        'date_added',
+        'linkedin_url',
+      ].includes(path0);
       if (isOptionalField && issue.code === 'too_big') {
         warnings.push(msg);
       } else {
@@ -212,16 +264,20 @@ export function validateConnection(
 
   // Additional warnings for optional fields that are valid but notable
   if (conn.location && conn.location.length > MAX_TEXT_LENGTH.LOCATION) {
-    if (!warnings.some(w => w.includes('Location'))) warnings.push(`Location is too long (max ${MAX_TEXT_LENGTH.LOCATION} characters)`);
+    if (!warnings.some((w) => w.includes('Location')))
+      warnings.push(`Location is too long (max ${MAX_TEXT_LENGTH.LOCATION} characters)`);
   }
   if (conn.headline && conn.headline.length > MAX_TEXT_LENGTH.HEADLINE) {
-    if (!warnings.some(w => w.includes('Headline'))) warnings.push(`Headline is too long (max ${MAX_TEXT_LENGTH.HEADLINE} characters)`);
+    if (!warnings.some((w) => w.includes('Headline')))
+      warnings.push(`Headline is too long (max ${MAX_TEXT_LENGTH.HEADLINE} characters)`);
   }
   if (conn.recent_activity && conn.recent_activity.length > MAX_TEXT_LENGTH.SUMMARY) {
-    if (!warnings.some(w => w.includes('Recent activity'))) warnings.push(`Recent activity is too long (max ${MAX_TEXT_LENGTH.SUMMARY} characters)`);
+    if (!warnings.some((w) => w.includes('Recent activity')))
+      warnings.push(`Recent activity is too long (max ${MAX_TEXT_LENGTH.SUMMARY} characters)`);
   }
   if (conn.last_action_summary && conn.last_action_summary.length > MAX_TEXT_LENGTH.SUMMARY) {
-    if (!warnings.some(w => w.includes('Last action summary'))) warnings.push(`Last action summary is too long (max ${MAX_TEXT_LENGTH.SUMMARY} characters)`);
+    if (!warnings.some((w) => w.includes('Last action summary')))
+      warnings.push(`Last action summary is too long (max ${MAX_TEXT_LENGTH.SUMMARY} characters)`);
   }
 
   if (conn.message_history) {
@@ -297,10 +353,13 @@ export function validateConnectionFilters(filters: unknown): ValidationResult {
   }
 
   if (f.tags !== undefined) {
-    if (f.tags.length > MAX_ARRAY_LENGTH.TAGS) warnings.push(`Too many tag filters (max ${MAX_ARRAY_LENGTH.TAGS})`);
+    if (f.tags.length > MAX_ARRAY_LENGTH.TAGS)
+      warnings.push(`Too many tag filters (max ${MAX_ARRAY_LENGTH.TAGS})`);
     f.tags.forEach((tag, index) => {
-      if (!isNonEmptyString(tag)) errors.push(`Tag filter at index ${index} must be a non-empty string`);
-      else if (tag.length > MAX_TEXT_LENGTH.TAG) warnings.push(`Tag filter "${tag}" is too long (max ${MAX_TEXT_LENGTH.TAG} characters)`);
+      if (!isNonEmptyString(tag))
+        errors.push(`Tag filter at index ${index} must be a non-empty string`);
+      else if (tag.length > MAX_TEXT_LENGTH.TAG)
+        warnings.push(`Tag filter "${tag}" is too long (max ${MAX_TEXT_LENGTH.TAG} characters)`);
     });
   }
 
@@ -347,9 +406,15 @@ export function sanitizeConnectionData(data: unknown): Connection | null {
     if (obj.recent_activity && typeof obj.recent_activity === 'string')
       connection.recent_activity = obj.recent_activity.substring(0, MAX_TEXT_LENGTH.SUMMARY);
     if (obj.last_action_summary && typeof obj.last_action_summary === 'string')
-      connection.last_action_summary = obj.last_action_summary.substring(0, MAX_TEXT_LENGTH.SUMMARY);
+      connection.last_action_summary = obj.last_action_summary.substring(
+        0,
+        MAX_TEXT_LENGTH.SUMMARY
+      );
     if (obj.last_activity_summary && typeof obj.last_activity_summary === 'string')
-      connection.last_activity_summary = obj.last_activity_summary.substring(0, MAX_TEXT_LENGTH.SUMMARY);
+      connection.last_activity_summary = obj.last_activity_summary.substring(
+        0,
+        MAX_TEXT_LENGTH.SUMMARY
+      );
     if (isValidNumber(obj.messages) && (obj.messages as number) >= 0)
       connection.messages = Math.floor(obj.messages as number);
     if (isConversionLikelihood(obj.conversion_likelihood))
@@ -358,18 +423,17 @@ export function sanitizeConnectionData(data: unknown): Connection | null {
       connection.date_added = obj.date_added;
     if (typeof obj.linkedin_url === 'string' && isValidUrl(obj.linkedin_url))
       connection.linkedin_url = obj.linkedin_url;
-    if (typeof obj.isFakeData === 'boolean')
-      connection.isFakeData = obj.isFakeData;
+    if (typeof obj.isFakeData === 'boolean') connection.isFakeData = obj.isFakeData;
     if (Array.isArray(obj.common_interests)) {
       connection.common_interests = obj.common_interests
-        .filter(item => typeof item === 'string' && item.length > 0)
-        .map(item => (item as string).substring(0, MAX_TEXT_LENGTH.TAG))
+        .filter((item) => typeof item === 'string' && item.length > 0)
+        .map((item) => (item as string).substring(0, MAX_TEXT_LENGTH.TAG))
         .slice(0, MAX_ARRAY_LENGTH.COMMON_INTERESTS);
     }
     if (Array.isArray(obj.tags)) {
       connection.tags = obj.tags
-        .filter(item => typeof item === 'string' && item.length > 0)
-        .map(item => (item as string).substring(0, MAX_TEXT_LENGTH.TAG))
+        .filter((item) => typeof item === 'string' && item.length > 0)
+        .map((item) => (item as string).substring(0, MAX_TEXT_LENGTH.TAG))
         .slice(0, MAX_ARRAY_LENGTH.TAGS);
     }
     if (Array.isArray(obj.message_history)) {
@@ -432,7 +496,7 @@ export function validateConnections(
       errors.push({ index, errors: result.errors });
     }
     if (result.warnings && result.warnings.length > 0) {
-      result.warnings.forEach(w => warnings.push(`Connection ${index}: ${w}`));
+      result.warnings.forEach((w) => warnings.push(`Connection ${index}: ${w}`));
     }
   });
 
@@ -446,7 +510,7 @@ export function validateMessages(
   return messages.map((message, index) => {
     const result = validateMessage(message, options);
     if (!result.isValid) {
-      result.errors = result.errors.map(error => `Message ${index}: ${error}`);
+      result.errors = result.errors.map((error) => `Message ${index}: ${error}`);
     }
     return result;
   });
@@ -477,7 +541,10 @@ export function validateConnectionQueryParams(params: unknown): ValidationResult
     warnings.push('Limit is very high, consider using pagination');
   if (p.offset !== undefined && !(typeof p.offset === 'string' || isValidNumber(p.offset)))
     errors.push('Offset must be a string or number');
-  if (p.sortBy !== undefined && !['date_added', 'name', 'company', 'status'].includes(p.sortBy as string))
+  if (
+    p.sortBy !== undefined &&
+    !['date_added', 'name', 'company', 'status'].includes(p.sortBy as string)
+  )
     errors.push('Sort by must be one of: date_added, name, company, status');
   if (p.sortOrder !== undefined && !['asc', 'desc'].includes(p.sortOrder as string))
     errors.push('Sort order must be either "asc" or "desc"');
@@ -508,11 +575,18 @@ export function validateUpdateConnectionParams(params: unknown): ValidationResul
       errors.push('Status update must be a valid connection status');
     if (updates.tags !== undefined) {
       if (!Array.isArray(updates.tags)) errors.push('Tags must be an array');
-      else if (!updates.tags.every(tag => typeof tag === 'string')) errors.push('All tags must be strings');
+      else if (!updates.tags.every((tag) => typeof tag === 'string'))
+        errors.push('All tags must be strings');
     }
-    if (updates.last_action_summary !== undefined && typeof updates.last_action_summary !== 'string')
+    if (
+      updates.last_action_summary !== undefined &&
+      typeof updates.last_action_summary !== 'string'
+    )
       errors.push('Last action summary must be a string');
-    if (updates.conversion_likelihood !== undefined && !isConversionLikelihood(updates.conversion_likelihood))
+    if (
+      updates.conversion_likelihood !== undefined &&
+      !isConversionLikelihood(updates.conversion_likelihood)
+    )
       errors.push('Conversion likelihood must be one of: high, medium, low');
   }
 

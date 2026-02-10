@@ -1,7 +1,11 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { CognitoAuthService, type CognitoUserData } from '../services/cognitoService';
 import { isCognitoConfigured } from '@/config/appConfig';
-import { generateUniqueUserId, validateUserForDatabase, securityUtils } from '@/shared/utils/userUtils';
+import {
+  generateUniqueUserId,
+  validateUserForDatabase,
+  securityUtils,
+} from '@/shared/utils/userUtils';
 import { createLogger } from '@/shared/utils/logger';
 import type { AuthError } from '../types';
 
@@ -20,12 +24,21 @@ interface AuthContextType {
   loading: boolean;
   getToken: () => Promise<string | null>;
   signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
-  signUp: (email: string, password: string, firstName?: string, lastName?: string) => Promise<{ error: AuthError | null }>;
+  signUp: (
+    email: string,
+    password: string,
+    firstName?: string,
+    lastName?: string
+  ) => Promise<{ error: AuthError | null }>;
   signOut: () => Promise<void>;
   confirmSignUp?: (email: string, code: string) => Promise<{ error: AuthError | null }>;
   resendConfirmationCode?: (email: string) => Promise<{ error: AuthError | null }>;
   forgotPassword?: (email: string) => Promise<{ error: AuthError | null }>;
-  confirmPassword?: (email: string, code: string, newPassword: string) => Promise<{ error: AuthError | null }>;
+  confirmPassword?: (
+    email: string,
+    code: string,
+    newPassword: string
+  ) => Promise<{ error: AuthError | null }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -66,7 +79,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           // Validate user data before setting
           if (validateUserForDatabase(userData)) {
             setUser(userData);
-            logger.info('Cognito user authenticated', { user: securityUtils.maskUserForLogging(userData) });
+            logger.info('Cognito user authenticated', {
+              user: securityUtils.maskUserForLogging(userData),
+            });
           } else {
             logger.error('Invalid user data from Cognito');
           }
@@ -82,7 +97,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const parsedUser = JSON.parse(storedUser);
           if (validateUserForDatabase(parsedUser)) {
             setUser(parsedUser);
-            logger.info('Mock user authenticated', { user: securityUtils.maskUserForLogging(parsedUser) });
+            logger.info('Mock user authenticated', {
+              user: securityUtils.maskUserForLogging(parsedUser),
+            });
           } else {
             localStorage.removeItem(LOCAL_STORAGE_KEY);
           }
@@ -185,7 +202,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return {
           error: null,
           message: 'Registration successful! Please check your email for verification code.',
-          needsVerification: true
+          needsVerification: true,
         };
       } catch {
         return { error: { message: 'Registration failed' } };
@@ -218,9 +235,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     // Clear JWT token from session storage
-          // Note: clearAuthToken functionality moved to puppeteerApiService
-      // For now, we'll clear session storage directly
-      sessionStorage.removeItem('jwt_token');
+    // Note: clearAuthToken functionality moved to puppeteerApiService
+    // For now, we'll clear session storage directly
+    sessionStorage.removeItem('jwt_token');
 
     if (isCognitoConfigured) {
       // Use AWS Cognito
@@ -239,46 +256,46 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Cognito-specific methods (only available when Cognito is configured)
   const confirmSignUp = isCognitoConfigured
     ? async (email: string, code: string) => {
-      try {
-        const result = await CognitoAuthService.confirmSignUp(email, code);
-        if (!result.error) {
-          logger.info('User email verified', { email });
+        try {
+          const result = await CognitoAuthService.confirmSignUp(email, code);
+          if (!result.error) {
+            logger.info('User email verified', { email });
+          }
+          return result;
+        } catch {
+          return { error: { message: 'Verification failed' } };
         }
-        return result;
-      } catch {
-        return { error: { message: 'Verification failed' } };
       }
-    }
     : undefined;
 
   const resendConfirmationCode = isCognitoConfigured
     ? async (email: string) => {
-      try {
-        return await CognitoAuthService.resendConfirmationCode(email);
-      } catch {
-        return { error: { message: 'Failed to resend code' } };
+        try {
+          return await CognitoAuthService.resendConfirmationCode(email);
+        } catch {
+          return { error: { message: 'Failed to resend code' } };
+        }
       }
-    }
     : undefined;
 
   const forgotPassword = isCognitoConfigured
     ? async (email: string) => {
-      try {
-        return await CognitoAuthService.forgotPassword(email);
-      } catch {
-        return { error: { message: 'Failed to initiate password reset' } };
+        try {
+          return await CognitoAuthService.forgotPassword(email);
+        } catch {
+          return { error: { message: 'Failed to initiate password reset' } };
+        }
       }
-    }
     : undefined;
 
   const confirmPassword = isCognitoConfigured
     ? async (email: string, code: string, newPassword: string) => {
-      try {
-        return await CognitoAuthService.confirmPassword(email, code, newPassword);
-      } catch {
-        return { error: { message: 'Failed to reset password' } };
+        try {
+          return await CognitoAuthService.confirmPassword(email, code, newPassword);
+        } catch {
+          return { error: { message: 'Failed to reset password' } };
+        }
       }
-    }
     : undefined;
 
   const value = {

@@ -1,14 +1,26 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { MessageSquare, ArrowLeft, User, Building, MapPin, Save, Plus, X, Key, Eye, EyeOff } from 'lucide-react';
-import { useToast } from "@/hooks/use-toast";
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import {
+  MessageSquare,
+  ArrowLeft,
+  User,
+  Building,
+  MapPin,
+  Save,
+  Plus,
+  X,
+  Key,
+  Eye,
+  EyeOff,
+} from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 import { useUserProfile } from '@/features/profile';
 import { encryptWithSealboxB64 } from '@/shared/utils/crypto';
 import { createLogger } from '@/shared/utils/logger';
@@ -27,12 +39,12 @@ const Profile = () => {
     location: 'San Francisco, CA',
     bio: 'Passionate about building scalable web applications and exploring AI/ML technologies. Always eager to connect with fellow developers and discuss emerging tech trends.',
     interests: ['React', 'TypeScript', 'AI/ML', 'Startups', 'Open Source'],
-    linkedinUrl: 'https://linkedin.com/in/tdah'
+    linkedinUrl: 'https://linkedin.com/in/tdah',
   });
 
   const [linkedinCredentials, setLinkedinCredentials] = useState({
     email: '',
-    password: ''
+    password: '',
   });
 
   const [showPassword, setShowPassword] = useState(false);
@@ -41,7 +53,7 @@ const Profile = () => {
   const [isSaving, setIsSaving] = useState(false);
 
   const handleInputChange = (field: string, value: string) => {
-    setProfile(prev => ({ ...prev, [field]: value }));
+    setProfile((prev) => ({ ...prev, [field]: value }));
   };
 
   useEffect(() => {
@@ -60,14 +72,14 @@ const Profile = () => {
         const firstName = ((data.first_name as string) || '').trim();
         const lastName = ((data.last_name as string) || '').trim();
         const derivedName = [firstName, lastName].filter(Boolean).join(' ').trim();
-        setProfile(prev => ({
+        setProfile((prev) => ({
           ...prev,
           name: derivedName || prev.name,
           title: (data.headline as string) || (data.current_position as string) || prev.title || '',
           company: (data.company as string) || prev.company || '',
           location: (data.location as string) || prev.location || '',
           bio: (data.summary as string) || prev.bio || '',
-          interests: Array.isArray(data.interests) ? data.interests as string[] : prev.interests,
+          interests: Array.isArray(data.interests) ? (data.interests as string[]) : prev.interests,
           linkedinUrl: (data.profile_url as string) || prev.linkedinUrl || '',
         }));
 
@@ -81,23 +93,23 @@ const Profile = () => {
   }, [userProfile]);
 
   const handleLinkedinCredentialsChange = (field: string, value: string) => {
-    setLinkedinCredentials(prev => ({ ...prev, [field]: value }));
+    setLinkedinCredentials((prev) => ({ ...prev, [field]: value }));
   };
 
   const addInterest = () => {
     if (newInterest.trim() && !profile.interests.includes(newInterest.trim())) {
-      setProfile(prev => ({
+      setProfile((prev) => ({
         ...prev,
-        interests: [...prev.interests, newInterest.trim()]
+        interests: [...prev.interests, newInterest.trim()],
       }));
       setNewInterest('');
     }
   };
 
   const removeInterest = (interest: string) => {
-    setProfile(prev => ({
+    setProfile((prev) => ({
       ...prev,
-      interests: prev.interests.filter(i => i !== interest)
+      interests: prev.interests.filter((i) => i !== interest),
     }));
   };
 
@@ -113,12 +125,14 @@ const Profile = () => {
         const payload: { linkedin_credentials: string } = { linkedin_credentials: '' };
 
         // Optional client-side encryption if sealbox public key is provided.
-        const sealboxPubB64 = import.meta.env.VITE_CRED_SEALBOX_PUBLIC_KEY_B64 as string | undefined;
+        const sealboxPubB64 = import.meta.env.VITE_CRED_SEALBOX_PUBLIC_KEY_B64 as
+          | string
+          | undefined;
         logger.debug('Save credentials - public key check', {
           hasPublicKey: !!sealboxPubB64,
           keyType: typeof sealboxPubB64,
           keyLength: sealboxPubB64 ? sealboxPubB64.length : 0,
-          keyPreview: sealboxPubB64 ? sealboxPubB64.substring(0, 20) + '...' : 'undefined'
+          keyPreview: sealboxPubB64 ? sealboxPubB64.substring(0, 20) + '...' : 'undefined',
         });
 
         if (sealboxPubB64 && typeof sealboxPubB64 === 'string') {
@@ -133,7 +147,9 @@ const Profile = () => {
           logger.debug('Encryption complete', { ciphertextLength: ciphertextB64.length });
 
           payload.linkedin_credentials = `sealbox_x25519:b64:${ciphertextB64}`;
-          logger.debug('Full credentials prepared', { credentialsLength: payload.linkedin_credentials.length });
+          logger.debug('Full credentials prepared', {
+            credentialsLength: payload.linkedin_credentials.length,
+          });
 
           // Update context with ciphertext for app-wide usage
           setCiphertext(payload.linkedin_credentials);
@@ -151,7 +167,7 @@ const Profile = () => {
         setHasStoredCredentials(true);
 
         // Clear password from local component state after saving to reduce exposure in memory
-        setLinkedinCredentials(prev => ({ ...prev, password: '' }));
+        setLinkedinCredentials((prev) => ({ ...prev, password: '' }));
 
         combinedPayload.linkedin_credentials = payload.linkedin_credentials;
       }
@@ -175,14 +191,15 @@ const Profile = () => {
       await updateUserProfile(combinedPayload);
 
       toast({
-        title: "Profile updated!",
-        description: "Your profile information and credentials status have been saved securely.",
+        title: 'Profile updated!',
+        description: 'Your profile information and credentials status have been saved securely.',
       });
       navigate('/dashboard', { replace: true });
     } catch (error) {
       toast({
         title: 'Save failed',
-        description: error instanceof Error ? error.message : 'Unable to save your profile at this time.',
+        description:
+          error instanceof Error ? error.message : 'Unable to save your profile at this time.',
         variant: 'destructive',
       });
     } finally {
@@ -218,7 +235,9 @@ const Profile = () => {
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-white mb-2">Your Profile</h1>
-          <p className="text-slate-300">Update your profile information and LinkedIn credentials.</p>
+          <p className="text-slate-300">
+            Update your profile information and LinkedIn credentials.
+          </p>
         </div>
 
         <div className="grid lg:grid-cols-3 gap-8">
@@ -237,7 +256,9 @@ const Profile = () => {
               <CardContent className="space-y-4">
                 <div className="grid md:grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="name" className="text-white">Full Name</Label>
+                    <Label htmlFor="name" className="text-white">
+                      Full Name
+                    </Label>
                     <Input
                       id="name"
                       value={profile.name}
@@ -246,7 +267,9 @@ const Profile = () => {
                     />
                   </div>
                   <div>
-                    <Label htmlFor="title" className="text-white">Job Title</Label>
+                    <Label htmlFor="title" className="text-white">
+                      Job Title
+                    </Label>
                     <Input
                       id="title"
                       value={profile.title}
@@ -258,7 +281,9 @@ const Profile = () => {
 
                 <div className="grid md:grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="company" className="text-white">Company</Label>
+                    <Label htmlFor="company" className="text-white">
+                      Company
+                    </Label>
                     <Input
                       id="company"
                       value={profile.company}
@@ -267,7 +292,9 @@ const Profile = () => {
                     />
                   </div>
                   <div>
-                    <Label htmlFor="location" className="text-white">Location</Label>
+                    <Label htmlFor="location" className="text-white">
+                      Location
+                    </Label>
                     <Input
                       id="location"
                       value={profile.location}
@@ -278,7 +305,9 @@ const Profile = () => {
                 </div>
 
                 <div>
-                  <Label htmlFor="linkedinUrl" className="text-white">LinkedIn Profile URL</Label>
+                  <Label htmlFor="linkedinUrl" className="text-white">
+                    LinkedIn Profile URL
+                  </Label>
                   <Input
                     id="linkedinUrl"
                     value={profile.linkedinUrl}
@@ -289,7 +318,9 @@ const Profile = () => {
                 </div>
 
                 <div>
-                  <Label htmlFor="bio" className="text-white">Professional Bio</Label>
+                  <Label htmlFor="bio" className="text-white">
+                    Professional Bio
+                  </Label>
                   <Textarea
                     id="bio"
                     value={profile.bio}
@@ -317,7 +348,11 @@ const Profile = () => {
                     className="bg-white/5 border-white/20 text-white placeholder-slate-400"
                     onKeyPress={(e) => e.key === 'Enter' && addInterest()}
                   />
-                  <Button onClick={addInterest} variant="outline" className="bg-slate-700 border-white/20 text-white hover:bg-white/10">
+                  <Button
+                    onClick={addInterest}
+                    variant="outline"
+                    className="bg-slate-700 border-white/20 text-white hover:bg-white/10"
+                  >
                     <Plus className="h-4 w-4" />
                   </Button>
                 </div>
@@ -349,7 +384,8 @@ const Profile = () => {
                   LinkedIn Login Credentials
                 </CardTitle>
                 <CardDescription className="text-slate-300">
-                  Store your LinkedIn credentials for automated connection imports and post publishing.
+                  Store your LinkedIn credentials for automated connection imports and post
+                  publishing.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -361,7 +397,9 @@ const Profile = () => {
                   </div>
                 )}
                 <div>
-                  <Label htmlFor="linkedinEmail" className="text-white">LinkedIn Email</Label>
+                  <Label htmlFor="linkedinEmail" className="text-white">
+                    LinkedIn Email
+                  </Label>
                   <Input
                     id="linkedinEmail"
                     type="email"
@@ -372,11 +410,13 @@ const Profile = () => {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="linkedinPassword" className="text-white">LinkedIn Password</Label>
+                  <Label htmlFor="linkedinPassword" className="text-white">
+                    LinkedIn Password
+                  </Label>
                   <div className="relative">
                     <Input
                       id="linkedinPassword"
-                      type={showPassword ? "text" : "password"}
+                      type={showPassword ? 'text' : 'password'}
                       value={linkedinCredentials.password}
                       onChange={(e) => handleLinkedinCredentialsChange('password', e.target.value)}
                       className="bg-white/5 border-white/20 text-white placeholder-slate-400 pr-10"
@@ -399,13 +439,19 @@ const Profile = () => {
                 </div>
                 <div className="bg-yellow-600/20 border border-yellow-600/30 rounded-lg p-3">
                   <p className="text-yellow-200 text-sm">
-                    <strong>Security Note:</strong> Credentials are transmitted over HTTPS and encrypted at rest in DynamoDB (via AWS KMS). Plaintext credentials are never stored.
+                    <strong>Security Note:</strong> Credentials are transmitted over HTTPS and
+                    encrypted at rest in DynamoDB (via AWS KMS). Plaintext credentials are never
+                    stored.
                   </p>
                 </div>
               </CardContent>
             </Card>
 
-            <Button onClick={handleSave} disabled={isSaving} className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white">
+            <Button
+              onClick={handleSave}
+              disabled={isSaving}
+              className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
+            >
               <Save className="h-4 w-4 mr-2" />
               {isSaving ? 'Saving…' : 'Save Profile'}
             </Button>
@@ -423,7 +469,10 @@ const Profile = () => {
               <CardContent className="space-y-4">
                 <div className="text-center">
                   <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white font-bold text-xl mx-auto mb-3">
-                    {profile.name.split(' ').map(n => n[0]).join('')}
+                    {profile.name
+                      .split(' ')
+                      .map((n) => n[0])
+                      .join('')}
                   </div>
                   <h3 className="text-white font-semibold text-lg">{profile.name}</h3>
                   <div className="flex items-center justify-center text-slate-300 text-sm mt-1">
@@ -451,7 +500,11 @@ const Profile = () => {
                   <h4 className="text-white font-medium mb-2">Interests</h4>
                   <div className="flex flex-wrap gap-1">
                     {profile.interests.map((interest, index) => (
-                      <Badge key={index} variant="outline" className="border-blue-400/30 text-blue-300 text-xs">
+                      <Badge
+                        key={index}
+                        variant="outline"
+                        className="border-blue-400/30 text-blue-300 text-xs"
+                      >
                         {interest}
                       </Badge>
                     ))}
@@ -463,9 +516,14 @@ const Profile = () => {
                 <div>
                   <h4 className="text-white font-medium mb-2">LinkedIn Status</h4>
                   <div className="flex items-center space-x-2">
-                    <div className={`w-2 h-2 rounded-full ${(hasStoredCredentials || (linkedinCredentials.email && linkedinCredentials.password)) ? 'bg-green-500' : 'bg-red-500'}`} />
+                    <div
+                      className={`w-2 h-2 rounded-full ${hasStoredCredentials || (linkedinCredentials.email && linkedinCredentials.password) ? 'bg-green-500' : 'bg-red-500'}`}
+                    />
                     <span className="text-slate-300 text-sm">
-                      {(hasStoredCredentials || (linkedinCredentials.email && linkedinCredentials.password)) ? 'Connected' : 'Not Connected'}
+                      {hasStoredCredentials ||
+                      (linkedinCredentials.email && linkedinCredentials.password)
+                        ? 'Connected'
+                        : 'Not Connected'}
                     </span>
                   </div>
                 </div>
@@ -476,7 +534,8 @@ const Profile = () => {
               <CardContent className="p-4">
                 <h4 className="text-white font-semibold mb-2">✨ Pro Tip</h4>
                 <p className="text-slate-300 text-sm">
-                  Complete your LinkedIn credentials to enable automated connection imports and post publishing features.
+                  Complete your LinkedIn credentials to enable automated connection imports and post
+                  publishing features.
                 </p>
               </CardContent>
             </Card>

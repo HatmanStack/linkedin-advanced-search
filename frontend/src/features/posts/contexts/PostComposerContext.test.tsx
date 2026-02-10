@@ -2,12 +2,21 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 
-const { mockGenerateIdeas, mockResearchTopics, mockSynthesizeResearch, mockUpdateUserProfile, mockUser, mockUserProfile } = vi.hoisted(() => ({
+const {
+  mockGenerateIdeas,
+  mockResearchTopics,
+  mockSynthesizeResearch,
+  mockUpdateUserProfile,
+  mockUser,
+  mockUserProfile,
+} = vi.hoisted(() => ({
   mockGenerateIdeas: vi.fn(),
   mockResearchTopics: vi.fn(),
   mockSynthesizeResearch: vi.fn(),
   mockUpdateUserProfile: vi.fn(),
-  mockUser: { value: { id: 'user-1', email: 'test@example.com' } as Record<string, unknown> | null },
+  mockUser: {
+    value: { id: 'user-1', email: 'test@example.com' } as Record<string, unknown> | null,
+  },
   mockUserProfile: { value: { firstName: 'John' } as Record<string, unknown> | null },
 }));
 
@@ -60,7 +69,9 @@ describe('PostComposerContext', () => {
 
   it('should throw when used outside provider', () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    expect(() => renderHook(() => usePostComposer())).toThrow('usePostComposer must be used within PostComposerProvider');
+    expect(() => renderHook(() => usePostComposer())).toThrow(
+      'usePostComposer must be used within PostComposerProvider'
+    );
     spy.mockRestore();
   });
 
@@ -116,7 +127,9 @@ describe('PostComposerContext', () => {
       sessionStorage.setItem('ai_research_content', 'research');
       sessionStorage.setItem('ai_synthesized_post', 'post');
 
-      const { result, rerender } = renderHook(() => usePostComposer(), { wrapper: createWrapper() });
+      const { result, rerender } = renderHook(() => usePostComposer(), {
+        wrapper: createWrapper(),
+      });
 
       expect(result.current.ideas).toEqual(['Idea']);
 
@@ -146,12 +159,18 @@ describe('PostComposerContext', () => {
       expect(ideas!).toEqual(['New Idea 1', 'New Idea 2']);
       expect(result.current.ideas).toEqual(['New Idea 1', 'New Idea 2']);
       expect(result.current.isGeneratingIdeas).toBe(false);
-      expect(sessionStorage.getItem('ai_generated_ideas')).toBe(JSON.stringify(['New Idea 1', 'New Idea 2']));
+      expect(sessionStorage.getItem('ai_generated_ideas')).toBe(
+        JSON.stringify(['New Idea 1', 'New Idea 2'])
+      );
     });
 
     it('should set loading state during generation', async () => {
       let resolveGenerate: (v: string[]) => void;
-      mockGenerateIdeas.mockReturnValue(new Promise<string[]>((resolve) => { resolveGenerate = resolve; }));
+      mockGenerateIdeas.mockReturnValue(
+        new Promise<string[]>((resolve) => {
+          resolveGenerate = resolve;
+        })
+      );
 
       const { result } = renderHook(() => usePostComposer(), { wrapper: createWrapper() });
 
@@ -205,7 +224,7 @@ describe('PostComposerContext', () => {
       expect(result.current.synthesizedPost).toBe('Synthesized post');
       expect(mockSynthesizeResearch).toHaveBeenCalledWith(
         expect.objectContaining({ selected_ideas: ['idea1', 'idea2'] }),
-        expect.anything(),
+        expect.anything()
       );
     });
 
@@ -220,7 +239,7 @@ describe('PostComposerContext', () => {
 
       expect(mockSynthesizeResearch).toHaveBeenCalledWith(
         expect.objectContaining({ selected_ideas: undefined }),
-        expect.anything(),
+        expect.anything()
       );
     });
   });

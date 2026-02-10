@@ -43,7 +43,7 @@ export class LinkedInConnectionService {
       profileId,
       status: 'unknown',
       sentAt: new Date().toISOString(),
-      hasPersonalizedMessage: !!connectionMessage
+      hasPersonalizedMessage: !!connectionMessage,
     };
 
     try {
@@ -84,7 +84,7 @@ export class LinkedInConnectionService {
             userId: options.userId,
             targetProfileId: profileId,
             edgeType: 'connection_request',
-            status: result.status
+            status: result.status,
           });
         } catch (error) {
           logger.warn('Failed to record connection edge', { error: error.message });
@@ -93,7 +93,6 @@ export class LinkedInConnectionService {
 
       logger.info('Connection request completed', { result });
       return result;
-
     } catch (error) {
       logger.error('Failed to send connection request', { error: error.message, profileId });
       result.status = 'failed';
@@ -118,7 +117,7 @@ export class LinkedInConnectionService {
       const firstDegreeSelectors = [
         '[data-test-id="distance-badge"] ::-p-text(1st)',
         '.distance-badge ::-p-text(1st)',
-        '::-p-aria([name*="1st degree"])'
+        '::-p-aria([name*="1st degree"])',
       ];
 
       for (const selector of firstDegreeSelectors) {
@@ -131,10 +130,7 @@ export class LinkedInConnectionService {
       }
 
       // Check for pending request (outgoing)
-      const pendingSelectors = [
-        'button ::-p-text(Pending)',
-        '::-p-aria([name*="Pending"])'
-      ];
+      const pendingSelectors = ['button ::-p-text(Pending)', '::-p-aria([name*="Pending"])'];
 
       for (const selector of pendingSelectors) {
         try {
@@ -150,7 +146,7 @@ export class LinkedInConnectionService {
         'button ::-p-text(Accept)',
         '::-p-aria([name*="Accept"])',
         'button ::-p-text(Respond)',
-        '::-p-aria([name*="invitation"])'
+        '::-p-aria([name*="invitation"])',
       ];
 
       for (const selector of incomingSelectors) {
@@ -183,7 +179,7 @@ export class LinkedInConnectionService {
       '[data-view-name="profile-actions-connect"]',
       'button[aria-label*="Connect"]',
       'button:has-text("Connect")',
-      '[data-test-id="connect-button"]'
+      '[data-test-id="connect-button"]',
     ];
 
     let connectButton = null;
@@ -199,10 +195,12 @@ export class LinkedInConnectionService {
     // Check "More" dropdown if direct connect not found
     if (!connectButton) {
       try {
-        const moreButton = await page.waitForSelector('button[aria-label*="More"]', { timeout: 2000 });
+        const moreButton = await page.waitForSelector('button[aria-label*="More"]', {
+          timeout: 2000,
+        });
         if (moreButton) {
           await moreButton.click();
-          await new Promise(resolve => setTimeout(resolve, 500));
+          await new Promise((resolve) => setTimeout(resolve, 500));
 
           for (const selector of connectButtonSelectors) {
             try {
@@ -223,15 +221,17 @@ export class LinkedInConnectionService {
     }
 
     await connectButton.click();
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await new Promise((resolve) => setTimeout(resolve, 1000));
 
     // Handle connection modal
     if (message) {
       try {
-        const addNoteButton = await page.waitForSelector('button:has-text("Add a note")', { timeout: 3000 });
+        const addNoteButton = await page.waitForSelector('button:has-text("Add a note")', {
+          timeout: 3000,
+        });
         if (addNoteButton) {
           await addNoteButton.click();
-          await new Promise(resolve => setTimeout(resolve, 500));
+          await new Promise((resolve) => setTimeout(resolve, 500));
 
           const noteInput = await page.waitForSelector('textarea', { timeout: 2000 });
           if (noteInput) {
@@ -247,7 +247,7 @@ export class LinkedInConnectionService {
     const sendSelectors = [
       'button[aria-label*="Send"]',
       'button:has-text("Send")',
-      '[data-test-id="send-invitation"]'
+      '[data-test-id="send-invitation"]',
     ];
 
     for (const selector of sendSelectors) {
@@ -255,7 +255,7 @@ export class LinkedInConnectionService {
         const sendButton = await page.waitForSelector(selector, { timeout: 3000 });
         if (sendButton) {
           await sendButton.click();
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          await new Promise((resolve) => setTimeout(resolve, 1000));
           return true;
         }
       } catch {

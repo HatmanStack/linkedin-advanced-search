@@ -15,10 +15,7 @@ declare module 'libsodium-wrappers-sumo' {
     URLSAFE_NO_PADDING: number;
   };
 
-  export function crypto_box_seal(
-    message: Uint8Array,
-    publicKey: Uint8Array
-  ): Uint8Array;
+  export function crypto_box_seal(message: Uint8Array, publicKey: Uint8Array): Uint8Array;
 
   export function crypto_box_seal_open(
     ciphertext: Uint8Array,
@@ -28,13 +25,7 @@ declare module 'libsodium-wrappers-sumo' {
 
   export function crypto_scalarmult_base(secretKey: Uint8Array): Uint8Array;
 
-  export function from_base64(
-    input: string,
-    variant: number
-  ): Uint8Array;
+  export function from_base64(input: string, variant: number): Uint8Array;
 
-  export function to_base64(
-    input: Uint8Array,
-    variant: number
-  ): string;
+  export function to_base64(input: Uint8Array, variant: number): string;
 }

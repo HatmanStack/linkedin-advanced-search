@@ -8,7 +8,6 @@ import { v4 as uuidv4 } from 'uuid';
 import { linkedInInteractionQueue } from '../../automation/utils/interactionQueue.js';
 
 export class LinkedInInteractionController {
-
   /**
    * Send a direct message to a LinkedIn connection
    * POST /linkedin-interactions/send-message
@@ -20,7 +19,7 @@ export class LinkedInInteractionController {
     logger.info('LinkedIn send message request received', {
       requestId,
       hasToken: !!req.jwtToken,
-      bodyKeys: req.body ? Object.keys(req.body) : 'no body'
+      bodyKeys: req.body ? Object.keys(req.body) : 'no body',
     });
 
     try {
@@ -36,7 +35,7 @@ export class LinkedInInteractionController {
         messageContent,
         messageLength: messageContent?.length,
         userId,
-        recipientName
+        recipientName,
       };
 
       // Log interaction attempt
@@ -44,7 +43,9 @@ export class LinkedInInteractionController {
 
       // Validate required parameters
       if (!recipientProfileId || !messageContent) {
-        const error = new Error('Missing required parameters: recipientProfileId and messageContent are required');
+        const error = new Error(
+          'Missing required parameters: recipientProfileId and messageContent are required'
+        );
         const { response, httpStatus } = LinkedInErrorHandler.createErrorResponse(
           error,
           { ...context, validation: 'required_fields' },
@@ -89,7 +90,11 @@ export class LinkedInInteractionController {
           requestId
         );
 
-        LinkedInAuditLogger.logAuthenticationEvent('failure', { userId, jwtValid: false }, requestId);
+        LinkedInAuditLogger.logAuthenticationEvent(
+          'failure',
+          { userId, jwtValid: false },
+          requestId
+        );
         LinkedInAuditLogger.logInteractionFailure('sendMessage', error, context, requestId);
         return res.status(httpStatus).json(response);
       }
@@ -116,8 +121,13 @@ export class LinkedInInteractionController {
             );
           }
         } catch (loginErr) {
-          logger.error('LinkedIn login failed during message send', { error: loginErr.message, stack: loginErr.stack });
-          throw new Error(`Login required but failed to authenticate to LinkedIn: ${loginErr.message}`);
+          logger.error('LinkedIn login failed during message send', {
+            error: loginErr.message,
+            stack: loginErr.stack,
+          });
+          throw new Error(
+            `Login required but failed to authenticate to LinkedIn: ${loginErr.message}`
+          );
         }
 
         // Send message via service layer
@@ -126,14 +136,10 @@ export class LinkedInInteractionController {
           recipientProfileId,
           messageLength: messageContent.length,
           userId,
-          recipientName
+          recipientName,
         });
 
-        return await linkedinService.sendMessage(
-          recipientProfileId,
-          messageContent,
-          userId
-        );
+        return await linkedinService.sendMessage(recipientProfileId, messageContent, userId);
       }, meta);
 
       const duration = Date.now() - startTime;
@@ -142,7 +148,12 @@ export class LinkedInInteractionController {
       LinkedInAuditLogger.logPerformanceMetrics('sendMessage', duration, context, requestId);
 
       // Log successful interaction
-      LinkedInAuditLogger.logInteractionSuccess('sendMessage', result, { ...context, duration }, requestId);
+      LinkedInAuditLogger.logInteractionSuccess(
+        'sendMessage',
+        result,
+        { ...context, duration },
+        requestId
+      );
 
       // Return success response
       res.json({
@@ -151,21 +162,29 @@ export class LinkedInInteractionController {
           messageId: result.messageId,
           deliveryStatus: result.deliveryStatus || 'sent',
           recipientProfileId,
-          sentAt: new Date().toISOString()
+          sentAt: new Date().toISOString(),
         },
         timestamp: new Date().toISOString(),
         userId,
-        requestId
+        requestId,
       });
-
     } catch (error) {
       const duration = Date.now() - startTime;
       const userId = this._extractUserIdFromToken(req.jwtToken);
 
-      logger.error('Send message controller error:', { requestId, error: error.message, stack: error.stack });
+      logger.error('Send message controller error:', {
+        requestId,
+        error: error.message,
+        stack: error.stack,
+      });
 
       // Log performance metrics even for failures
-      LinkedInAuditLogger.logPerformanceMetrics('sendMessage', duration, { operation: 'sendMessage' }, requestId);
+      LinkedInAuditLogger.logPerformanceMetrics(
+        'sendMessage',
+        duration,
+        { operation: 'sendMessage' },
+        requestId
+      );
 
       const { response, httpStatus } = LinkedInErrorHandler.createErrorResponse(
         error,
@@ -174,12 +193,17 @@ export class LinkedInInteractionController {
       );
 
       // Log interaction failure
-      LinkedInAuditLogger.logInteractionFailure('sendMessage', error, {
-        operation: 'sendMessage',
-        userId,
-        duration,
-        errorCategory: LinkedInErrorHandler.categorizeError(error).category
-      }, requestId);
+      LinkedInAuditLogger.logInteractionFailure(
+        'sendMessage',
+        error,
+        {
+          operation: 'sendMessage',
+          userId,
+          duration,
+          errorCategory: LinkedInErrorHandler.categorizeError(error).category,
+        },
+        requestId
+      );
 
       return res.status(httpStatus).json(response);
     }
@@ -196,7 +220,7 @@ export class LinkedInInteractionController {
     logger.info('LinkedIn add connection request received', {
       requestId,
       hasToken: !!req.jwtToken,
-      bodyKeys: req.body ? Object.keys(req.body) : 'no body'
+      bodyKeys: req.body ? Object.keys(req.body) : 'no body',
     });
 
     try {
@@ -264,13 +288,24 @@ export class LinkedInInteractionController {
             );
           }
         } catch (loginErr) {
-          logger.error('LinkedIn login failed during connection request', { error: loginErr.message, stack: loginErr.stack });
-          throw new Error(`Login required but failed to authenticate to LinkedIn: ${loginErr.message}`);
+          logger.error('LinkedIn login failed during connection request', {
+            error: loginErr.message,
+            stack: loginErr.stack,
+          });
+          throw new Error(
+            `Login required but failed to authenticate to LinkedIn: ${loginErr.message}`
+          );
         }
 
         // Send connection request via service layer (single workflow)
-        logger.info('Attempting to send LinkedIn connection request', { requestId, profileId, userId });
-        return await linkedinService.executeConnectionWorkflow(profileId, '', { jwtToken: req.jwtToken });
+        logger.info('Attempting to send LinkedIn connection request', {
+          requestId,
+          profileId,
+          userId,
+        });
+        return await linkedinService.executeConnectionWorkflow(profileId, '', {
+          jwtToken: req.jwtToken,
+        });
       }, meta);
 
       // Return success response
@@ -281,15 +316,18 @@ export class LinkedInInteractionController {
           status: result.status || 'sent',
           profileId,
           sentAt: new Date().toISOString(),
-          hasMessage: false
+          hasMessage: false,
         },
         timestamp: new Date().toISOString(),
         userId,
-        requestId
+        requestId,
       });
-
     } catch (error) {
-      logger.error('Add connection controller error:', { requestId, error: error.message, stack: error.stack });
+      logger.error('Add connection controller error:', {
+        requestId,
+        error: error.message,
+        stack: error.stack,
+      });
 
       const { response, httpStatus } = LinkedInErrorHandler.createErrorResponse(
         error,
@@ -311,7 +349,7 @@ export class LinkedInInteractionController {
     logger.info('LinkedIn create post request received', {
       requestId,
       hasToken: !!req.jwtToken,
-      bodyKeys: req.body ? Object.keys(req.body) : 'no body'
+      bodyKeys: req.body ? Object.keys(req.body) : 'no body',
     });
 
     try {
@@ -367,7 +405,9 @@ export class LinkedInInteractionController {
         for (let i = 0; i < mediaAttachments.length; i++) {
           const attachment = mediaAttachments[i];
           if (!attachment.type || !attachment.url || !attachment.filename) {
-            const error = new Error(`Invalid media attachment format: attachment ${i + 1} must have type, url, and filename properties`);
+            const error = new Error(
+              `Invalid media attachment format: attachment ${i + 1} must have type, url, and filename properties`
+            );
             const { response, httpStatus } = LinkedInErrorHandler.createErrorResponse(
               error,
               { operation: 'createPost', validation: 'media_attachment_fields' },
@@ -377,7 +417,9 @@ export class LinkedInInteractionController {
           }
 
           if (!['image', 'video', 'document'].includes(attachment.type)) {
-            const error = new Error(`Invalid media attachment type: attachment ${i + 1} type must be 'image', 'video', or 'document'`);
+            const error = new Error(
+              `Invalid media attachment type: attachment ${i + 1} type must be 'image', 'video', or 'document'`
+            );
             const { response, httpStatus } = LinkedInErrorHandler.createErrorResponse(
               error,
               { operation: 'createPost', validation: 'media_attachment_type' },
@@ -410,14 +452,10 @@ export class LinkedInInteractionController {
           contentLength: content.length,
           hasMediaAttachments: !!mediaAttachments && mediaAttachments.length > 0,
           mediaCount: mediaAttachments ? mediaAttachments.length : 0,
-          userId
+          userId,
         });
 
-        return await linkedinService.createPost(
-          content,
-          mediaAttachments || [],
-          userId
-        );
+        return await linkedinService.createPost(content, mediaAttachments || [], userId);
       }, meta);
 
       // Return success response
@@ -429,15 +467,18 @@ export class LinkedInInteractionController {
           publishStatus: result.publishStatus || 'published',
           publishedAt: result.publishedAt,
           contentLength: content.length,
-          mediaCount: mediaAttachments ? mediaAttachments.length : 0
+          mediaCount: mediaAttachments ? mediaAttachments.length : 0,
         },
         timestamp: new Date().toISOString(),
         userId,
-        requestId
+        requestId,
       });
-
     } catch (error) {
-      logger.error('Create post controller error:', { requestId, error: error.message, stack: error.stack });
+      logger.error('Create post controller error:', {
+        requestId,
+        error: error.message,
+        stack: error.stack,
+      });
 
       const { response, httpStatus } = LinkedInErrorHandler.createErrorResponse(
         error,
@@ -459,7 +500,7 @@ export class LinkedInInteractionController {
     logger.info('LinkedIn generate personalized message request received', {
       requestId,
       hasToken: !!req.jwtToken,
-      bodyKeys: req.body ? Object.keys(req.body) : 'no body'
+      bodyKeys: req.body ? Object.keys(req.body) : 'no body',
     });
 
     try {
@@ -468,8 +509,10 @@ export class LinkedInInteractionController {
 
       // Validate required parameters
       if (!profileData || !conversationTopic) {
-        const error = new Error('Missing required parameters: profileData and conversationTopic are required');
-        const { response, httpStatus} = LinkedInErrorHandler.createErrorResponse(
+        const error = new Error(
+          'Missing required parameters: profileData and conversationTopic are required'
+        );
+        const { response, httpStatus } = LinkedInErrorHandler.createErrorResponse(
           error,
           { operation: 'generatePersonalizedMessage', validation: 'required_fields' },
           requestId
@@ -486,7 +529,7 @@ export class LinkedInInteractionController {
         hasProfileData: !!profileData,
         conversationTopic,
         hasMessageHistory: !!messageHistory,
-        userId
+        userId,
       });
 
       // Placeholder response
@@ -494,20 +537,26 @@ export class LinkedInInteractionController {
         success: true,
         data: {
           personalizedMessage: `Hi ${profileData.name || 'there'}, I'd love to discuss ${conversationTopic} with you.`,
-          generatedAt: new Date().toISOString()
+          generatedAt: new Date().toISOString(),
         },
         message: 'Personalized message generation functionality not yet implemented',
         timestamp: new Date().toISOString(),
         userId,
-        requestId
+        requestId,
       });
-
     } catch (error) {
-      logger.error('Generate personalized message controller error:', { requestId, error: error.message, stack: error.stack });
+      logger.error('Generate personalized message controller error:', {
+        requestId,
+        error: error.message,
+        stack: error.stack,
+      });
 
       const { response, httpStatus } = LinkedInErrorHandler.createErrorResponse(
         error,
-        { operation: 'generatePersonalizedMessage', userId: this._extractUserIdFromToken(req.jwtToken) },
+        {
+          operation: 'generatePersonalizedMessage',
+          userId: this._extractUserIdFromToken(req.jwtToken),
+        },
         requestId
       );
 
@@ -525,7 +574,7 @@ export class LinkedInInteractionController {
     logger.info('LinkedIn follow profile request received', {
       requestId,
       hasToken: !!req.jwtToken,
-      bodyKeys: req.body ? Object.keys(req.body) : 'no body'
+      bodyKeys: req.body ? Object.keys(req.body) : 'no body',
     });
 
     try {
@@ -588,8 +637,13 @@ export class LinkedInInteractionController {
             );
           }
         } catch (loginErr) {
-          logger.error('LinkedIn login failed during follow profile', { error: loginErr.message, stack: loginErr.stack });
-          throw new Error(`Login required but failed to authenticate to LinkedIn: ${loginErr.message}`);
+          logger.error('LinkedIn login failed during follow profile', {
+            error: loginErr.message,
+            stack: loginErr.stack,
+          });
+          throw new Error(
+            `Login required but failed to authenticate to LinkedIn: ${loginErr.message}`
+          );
         }
 
         // Follow profile via service layer
@@ -603,15 +657,18 @@ export class LinkedInInteractionController {
         data: {
           status: result.status,
           profileId,
-          followedAt: result.followedAt
+          followedAt: result.followedAt,
         },
         timestamp: new Date().toISOString(),
         userId,
-        requestId
+        requestId,
       });
-
     } catch (error) {
-      logger.error('Follow profile controller error:', { requestId, error: error.message, stack: error.stack });
+      logger.error('Follow profile controller error:', {
+        requestId,
+        error: error.message,
+        stack: error.stack,
+      });
 
       const { response, httpStatus } = LinkedInErrorHandler.createErrorResponse(
         error,
@@ -632,7 +689,7 @@ export class LinkedInInteractionController {
 
     logger.info('LinkedIn session status request received', {
       requestId,
-      hasToken: !!req.jwtToken
+      hasToken: !!req.jwtToken,
     });
 
     try {
@@ -670,17 +727,20 @@ export class LinkedInInteractionController {
             rss: sessionStatus.memoryUsage.rss,
             heapUsed: sessionStatus.memoryUsage.heapUsed,
             heapTotal: sessionStatus.memoryUsage.heapTotal,
-            external: sessionStatus.memoryUsage.external
+            external: sessionStatus.memoryUsage.external,
           },
-          currentUrl: sessionStatus.currentUrl
+          currentUrl: sessionStatus.currentUrl,
         },
         timestamp: new Date().toISOString(),
         userId,
-        requestId
+        requestId,
       });
-
     } catch (error) {
-      logger.error('Session status controller error:', { requestId, error: error.message, stack: error.stack });
+      logger.error('Session status controller error:', {
+        requestId,
+        error: error.message,
+        stack: error.stack,
+      });
 
       const { response, httpStatus } = LinkedInErrorHandler.createErrorResponse(
         error,

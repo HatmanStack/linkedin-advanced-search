@@ -1,11 +1,7 @@
 import { CognitoUserPool, CognitoUserSession } from 'amazon-cognito-identity-js';
 import { cognitoConfig } from '@/config/appConfig';
 import type { SearchFormData } from '@/shared/utils/validation';
-import type {
-  PuppeteerApiResponse,
-  Connection,
-  Message,
-} from '@/shared/types';
+import type { PuppeteerApiResponse, Connection, Message } from '@/shared/types';
 import { createLogger } from '@/shared/utils/logger';
 
 const logger = createLogger('PuppeteerApiService');
@@ -23,13 +19,12 @@ const PUPPETEER_BACKEND_URL =
 
 // Service for interacting with the local puppeteer backend that handles LinkedIn automation
 class PuppeteerApiService {
-
   private async getAuthHeaders(): Promise<HeadersInit> {
     // Get JWT token from Cognito session
     const token = await this.getCognitoToken();
     return {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`,
+      Authorization: `Bearer ${token}`,
     };
   }
 
@@ -77,7 +72,7 @@ class PuppeteerApiService {
       logger.debug('Making request', {
         endpoint,
         shouldAttach,
-        method: options.method || 'GET'
+        method: options.method || 'GET',
       });
 
       if (shouldAttach) {
@@ -91,33 +86,40 @@ class PuppeteerApiService {
         while (!ciphertextTag && Date.now() < deadline) {
           try {
             const fromSession = sessionStorage.getItem('li_credentials_ciphertext');
-            ciphertextTag = (fromSession && fromSession.startsWith('sealbox_x25519:b64:')) ? fromSession : null;
+            ciphertextTag =
+              fromSession && fromSession.startsWith('sealbox_x25519:b64:') ? fromSession : null;
           } catch (e) {
             logger.error('Error reading sessionStorage', { error: e });
             break;
           }
           if (!ciphertextTag) {
-            await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
+            await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
           }
         }
 
         logger.debug('Credentials check', {
           hasCredentials: !!ciphertextTag,
-          length: ciphertextTag ? ciphertextTag.length : 0
+          length: ciphertextTag ? ciphertextTag.length : 0,
         });
 
         if (!ciphertextTag) {
           logger.error('No valid credentials found after waiting, aborting request');
           return {
             success: false,
-            error: 'LinkedIn credentials are missing. Please add your encrypted LinkedIn credentials on the Profile page first.',
+            error:
+              'LinkedIn credentials are missing. Please add your encrypted LinkedIn credentials on the Profile page first.',
           };
         }
 
         const original = options.body ? JSON.parse(options.body as string) : {};
-        augmentedBody = JSON.stringify({ ...original, linkedinCredentialsCiphertext: ciphertextTag });
+        augmentedBody = JSON.stringify({
+          ...original,
+          linkedinCredentialsCiphertext: ciphertextTag,
+        });
         if (import.meta.env.DEV) {
-          logger.debug('Credentials attached', { bodyKeys: Object.keys(JSON.parse(augmentedBody)) });
+          logger.debug('Credentials attached', {
+            bodyKeys: Object.keys(JSON.parse(augmentedBody)),
+          });
         }
       }
 
@@ -138,13 +140,17 @@ class PuppeteerApiService {
       if (!response.ok) {
         let parsedError: Record<string, unknown> | null = null;
         try {
-          parsedError = textBody && contentType.includes('application/json') ? JSON.parse(textBody) : null;
+          parsedError =
+            textBody && contentType.includes('application/json') ? JSON.parse(textBody) : null;
         } catch {
           // Ignore JSON parse errors
         }
         return {
           success: false,
-          error: (parsedError && ((parsedError.error as string) || (parsedError.message as string))) || (textBody || `HTTP ${response.status}`),
+          error:
+            (parsedError && ((parsedError.error as string) || (parsedError.message as string))) ||
+            textBody ||
+            `HTTP ${response.status}`,
         };
       }
 
@@ -165,7 +171,7 @@ class PuppeteerApiService {
 
       return {
         success: true,
-        data: (typeof parsed === 'object' && parsed.data) ? parsed.data : parsed,
+        data: typeof parsed === 'object' && parsed.data ? parsed.data : parsed,
         message: typeof parsed === 'object' ? (parsed.message as string) : undefined,
       } as PuppeteerApiResponse<T>;
     } catch (error) {
@@ -198,14 +204,19 @@ class PuppeteerApiService {
     );
   }
 
-  async createConnection(connection: Partial<Connection>): Promise<PuppeteerApiResponse<Connection>> {
+  async createConnection(
+    connection: Partial<Connection>
+  ): Promise<PuppeteerApiResponse<Connection>> {
     return this.makeRequest<Connection>('/connections', {
       method: 'POST',
       body: JSON.stringify(connection),
     });
   }
 
-  async updateConnection(connectionId: string, updates: Partial<Connection>): Promise<PuppeteerApiResponse<Connection>> {
+  async updateConnection(
+    connectionId: string,
+    updates: Partial<Connection>
+  ): Promise<PuppeteerApiResponse<Connection>> {
     return this.makeRequest<Connection>(`/connections/${connectionId}`, {
       method: 'PUT',
       body: JSON.stringify(updates),
@@ -241,7 +252,9 @@ class PuppeteerApiService {
     return this.makeRequest<Record<string, unknown>[]>('/topics');
   }
 
-  async createTopic(topic: Record<string, unknown>): Promise<PuppeteerApiResponse<Record<string, unknown>>> {
+  async createTopic(
+    topic: Record<string, unknown>
+  ): Promise<PuppeteerApiResponse<Record<string, unknown>>> {
     return this.makeRequest<Record<string, unknown>>('/topics', {
       method: 'POST',
       body: JSON.stringify(topic),
@@ -253,7 +266,9 @@ class PuppeteerApiService {
     return this.makeRequest<Record<string, unknown>[]>('/drafts');
   }
 
-  async createDraft(draft: Record<string, unknown>): Promise<PuppeteerApiResponse<Record<string, unknown>>> {
+  async createDraft(
+    draft: Record<string, unknown>
+  ): Promise<PuppeteerApiResponse<Record<string, unknown>>> {
     return this.makeRequest<Record<string, unknown>>('/drafts', {
       method: 'POST',
       body: JSON.stringify(draft),
@@ -261,14 +276,19 @@ class PuppeteerApiService {
   }
 
   // LinkedIn Integration
-  async performLinkedInSearch(criteria: SearchFormData): Promise<PuppeteerApiResponse<{ results: Connection[] }>> {
+  async performLinkedInSearch(
+    criteria: SearchFormData
+  ): Promise<PuppeteerApiResponse<{ results: Connection[] }>> {
     return this.makeRequest<{ results: Connection[] }>('/search', {
       method: 'POST',
       body: JSON.stringify(criteria),
     });
   }
 
-  async generateMessage(connectionId: string, topicId?: string): Promise<PuppeteerApiResponse<{ message: string }>> {
+  async generateMessage(
+    connectionId: string,
+    topicId?: string
+  ): Promise<PuppeteerApiResponse<{ message: string }>> {
     return this.makeRequest<{ message: string }>('/ai/generate-message', {
       method: 'POST',
       body: JSON.stringify({ connectionId, topicId }),
@@ -310,32 +330,46 @@ class PuppeteerApiService {
 
   async createLinkedInPost(params: {
     content: string;
-    mediaAttachments?: Array<{ type: 'image' | 'video' | 'document'; url: string; filename: string }>;
+    mediaAttachments?: Array<{
+      type: 'image' | 'video' | 'document';
+      url: string;
+      filename: string;
+    }>;
   }): Promise<PuppeteerApiResponse<{ postId: string; postUrl: string; publishStatus: string }>> {
-    const response = await this.makeRequest<{ postId: string; postUrl: string; publishStatus: string }>(
-      '/linkedin-interactions/create-post',
-      {
-        method: 'POST',
-        body: JSON.stringify(params),
-      }
-    );
+    const response = await this.makeRequest<{
+      postId: string;
+      postUrl: string;
+      publishStatus: string;
+    }>('/linkedin-interactions/create-post', {
+      method: 'POST',
+      body: JSON.stringify(params),
+    });
 
     return response;
   }
 
   // Heal and Restore Operations
-  async authorizeHealAndRestore(sessionId: string, autoApprove: boolean = false): Promise<PuppeteerApiResponse<{ success: boolean }>> {
+  async authorizeHealAndRestore(
+    sessionId: string,
+    autoApprove: boolean = false
+  ): Promise<PuppeteerApiResponse<{ success: boolean }>> {
     return this.makeRequest<{ success: boolean }>('/heal-restore/authorize', {
       method: 'POST',
       body: JSON.stringify({ sessionId, autoApprove }),
     });
   }
 
-  async checkHealAndRestoreStatus(): Promise<PuppeteerApiResponse<{ pendingSession?: { sessionId: string; timestamp: number } }>> {
-    return this.makeRequest<{ pendingSession?: { sessionId: string; timestamp: number } }>('/heal-restore/status');
+  async checkHealAndRestoreStatus(): Promise<
+    PuppeteerApiResponse<{ pendingSession?: { sessionId: string; timestamp: number } }>
+  > {
+    return this.makeRequest<{ pendingSession?: { sessionId: string; timestamp: number } }>(
+      '/heal-restore/status'
+    );
   }
 
-  async cancelHealAndRestore(sessionId: string): Promise<PuppeteerApiResponse<{ success: boolean }>> {
+  async cancelHealAndRestore(
+    sessionId: string
+  ): Promise<PuppeteerApiResponse<{ success: boolean }>> {
     return this.makeRequest<{ success: boolean }>('/heal-restore/cancel', {
       method: 'POST',
       body: JSON.stringify({ sessionId }),
@@ -347,21 +381,21 @@ class PuppeteerApiService {
     searchName?: string;
     searchPassword?: string;
   }): Promise<PuppeteerApiResponse<{ success?: boolean; healing?: boolean; message?: string }>> {
-    return this.makeRequest<{ success?: boolean; healing?: boolean; message?: string }>('/profile-init', {
-      method: 'POST',
-      body: JSON.stringify(credentials || {}),
-    });
+    return this.makeRequest<{ success?: boolean; healing?: boolean; message?: string }>(
+      '/profile-init',
+      {
+        method: 'POST',
+        body: JSON.stringify(credentials || {}),
+      }
+    );
   }
 
   // LinkedIn Search Operations
   async searchLinkedIn(searchData: SearchFormData): Promise<unknown> {
-    const response = await this.makeRequest<unknown>(
-      '/search',
-      {
-        method: 'POST',
-        body: JSON.stringify(searchData),
-      }
-    );
+    const response = await this.makeRequest<unknown>('/search', {
+      method: 'POST',
+      body: JSON.stringify(searchData),
+    });
     return response;
   }
 }

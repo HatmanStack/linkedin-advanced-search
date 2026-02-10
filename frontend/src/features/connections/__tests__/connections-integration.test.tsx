@@ -108,7 +108,7 @@ describe('Connection Management Integration', () => {
       const result = filterConnections(mockConnections, filters);
 
       expect(result).toHaveLength(2);
-      expect(result.every(c => c.status === 'possible')).toBe(true);
+      expect(result.every((c) => c.status === 'possible')).toBe(true);
     });
 
     it('should filter connections by conversion likelihood enum', () => {
@@ -116,7 +116,7 @@ describe('Connection Management Integration', () => {
       const result = filterConnections(mockConnections, filters);
 
       expect(result).toHaveLength(2);
-      expect(result.every(c => c.conversion_likelihood === 'high')).toBe(true);
+      expect(result.every((c) => c.conversion_likelihood === 'high')).toBe(true);
     });
 
     it('should filter by multiple criteria simultaneously', () => {
@@ -139,7 +139,7 @@ describe('Connection Management Integration', () => {
       const result = filterConnections(mockConnections, filters);
 
       expect(result).toHaveLength(2);
-      expect(result.every(c => c.company === 'TechCorp')).toBe(true);
+      expect(result.every((c) => c.company === 'TechCorp')).toBe(true);
     });
   });
 

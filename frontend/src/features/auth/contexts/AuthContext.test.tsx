@@ -64,9 +64,7 @@ vi.mock('@/shared/utils/logger', () => ({
 import { AuthProvider, useAuth } from './AuthContext';
 
 function createWrapper() {
-  return ({ children }: { children: ReactNode }) => (
-    <AuthProvider>{children}</AuthProvider>
-  );
+  return ({ children }: { children: ReactNode }) => <AuthProvider>{children}</AuthProvider>;
 }
 
 describe('AuthContext', () => {
@@ -400,7 +398,10 @@ describe('AuthContext', () => {
 
     it('should sign up via Cognito', async () => {
       mockGetCurrentUser.mockResolvedValue(null);
-      mockSignUp.mockResolvedValue({ error: null, user: { id: 'new-sub', email: 'new@example.com' } });
+      mockSignUp.mockResolvedValue({
+        error: null,
+        user: { id: 'new-sub', email: 'new@example.com' },
+      });
 
       const { result } = renderHook(() => useAuth(), { wrapper: createWrapper() });
 

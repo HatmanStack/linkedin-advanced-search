@@ -1,6 +1,9 @@
 import config from '#shared-config/index.js';
 import { logger } from '#utils/logger.js';
-import { initializeLinkedInServices, cleanupLinkedInServices } from '../../../shared/utils/serviceFactory.js';
+import {
+  initializeLinkedInServices,
+  cleanupLinkedInServices,
+} from '../../../shared/utils/serviceFactory.js';
 import FileHelpers from '#utils/fileHelpers.js';
 import { SearchRequestValidator } from '../utils/searchRequestValidator.js';
 import { SearchStateManager } from '../utils/searchStateManager.js';
@@ -16,7 +19,7 @@ export class SearchController {
 
     // Sanitize headers to remove sensitive data before logging
     const sanitizedHeaders = { ...req.headers };
-    ['authorization', 'Authorization', 'cookie', 'Cookie'].forEach(key => {
+    ['authorization', 'Authorization', 'cookie', 'Cookie'].forEach((key) => {
       if (sanitizedHeaders[key]) {
         sanitizedHeaders[key] = '[REDACTED]';
       }
@@ -31,15 +34,21 @@ export class SearchController {
 
     // In development with explicit bypass flag, allow requests without JWT for testing
     // SECURITY: Requires both NODE_ENV=development AND explicit ALLOW_DEV_AUTH_BYPASS=true
-    if (!jwtToken && config.nodeEnv === 'development' && process.env.ALLOW_DEV_AUTH_BYPASS === 'true') {
-      logger.warn('No JWT token found, using development test token (ALLOW_DEV_AUTH_BYPASS enabled)');
+    if (
+      !jwtToken &&
+      config.nodeEnv === 'development' &&
+      process.env.ALLOW_DEV_AUTH_BYPASS === 'true'
+    ) {
+      logger.warn(
+        'No JWT token found, using development test token (ALLOW_DEV_AUTH_BYPASS enabled)'
+      );
       jwtToken = 'development-test-token';
     }
 
     if (!jwtToken) {
       logger.error('JWT token missing after fallback, rejecting request');
       return res.status(401).json({
-        error: 'Missing or invalid Authorization header'
+        error: 'Missing or invalid Authorization header',
       });
     }
 
@@ -49,7 +58,7 @@ export class SearchController {
     if (!validationResult.isValid) {
       return res.status(validationResult.statusCode).json({
         error: validationResult.error,
-        message: validationResult.message
+        message: validationResult.message,
       });
     }
 
@@ -64,7 +73,7 @@ export class SearchController {
       companyName,
       companyRole,
       companyLocation,
-      username: searchName ? '[REDACTED]' : 'not provided'
+      username: searchName ? '[REDACTED]' : 'not provided',
     });
 
     const state = SearchStateManager.buildInitialState({
@@ -75,7 +84,7 @@ export class SearchController {
       searchPassword,
       credentialsCiphertext: linkedinCredentialsCiphertext,
       jwtToken,
-      ...opts
+      ...opts,
     });
 
     if (!state.healPhase) {
@@ -90,7 +99,7 @@ export class SearchController {
       if (result === undefined) {
         return res.status(202).json({
           status: 'healing',
-          message: 'Worker process started for healing/recovery.'
+          message: 'Worker process started for healing/recovery.',
         });
       }
 
@@ -106,8 +115,6 @@ export class SearchController {
     let searchData = {};
 
     try {
-
-
       await this._performLogin(services.linkedInService, state);
 
       if (state.healPhase === 'profile-parsing') {
@@ -120,7 +127,6 @@ export class SearchController {
       const goodContacts = await this._processContacts(services, searchData.uniqueLinks, state);
 
       return this._buildSearchResult(goodContacts, searchData.uniqueLinks);
-
     } catch (error) {
       logger.error('Search failed:', error);
       throw error;
@@ -170,15 +176,13 @@ export class SearchController {
   async _collectLinks(linkedInService, state, companyData) {
     const linkCollector = new LinkCollector(linkedInService, config);
 
-    if (state.healPhase === "link-collection") {
+    if (state.healPhase === 'link-collection') {
       const allLinks = await this._loadLinksFromFile(config.paths.linksFile);
       return { uniqueLinks: [...new Set(allLinks)] };
     }
 
-    const allLinks = await linkCollector.collectAllLinks(
-      state,
-      companyData,
-      (pageNumber) => this._handleLinkCollectionHealing(state, companyData, pageNumber)
+    const allLinks = await linkCollector.collectAllLinks(state, companyData, (pageNumber) =>
+      this._handleLinkCollectionHealing(state, companyData, pageNumber)
     );
 
     const uniqueLinks = [...new Set(allLinks)];
@@ -195,12 +199,12 @@ export class SearchController {
       config
     );
 
-    logger.info(`Loaded ${uniqueLinks.length} unique links to process. Starting at index: ${state.resumeIndex}`);
+    logger.info(
+      `Loaded ${uniqueLinks.length} unique links to process. Starting at index: ${state.resumeIndex}`
+    );
 
-    return await contactProcessor.processAllContacts(
-      uniqueLinks,
-      state,
-      (restartParams) => this._handleContactProcessingHealing(restartParams)
+    return await contactProcessor.processAllContacts(uniqueLinks, state, (restartParams) =>
+      this._handleContactProcessingHealing(restartParams)
     );
   }
 
@@ -263,7 +267,7 @@ export class SearchController {
     // Sanitize headers to prevent credential leakage in logs
     const sanitizedHeaders = { ...req.headers };
     const sensitiveHeaders = ['authorization', 'cookie', 'x-api-key', 'x-auth-token'];
-    sensitiveHeaders.forEach(key => {
+    sensitiveHeaders.forEach((key) => {
       if (sanitizedHeaders[key]) sanitizedHeaders[key] = '[REDACTED]';
       if (sanitizedHeaders[key.toLowerCase()]) sanitizedHeaders[key.toLowerCase()] = '[REDACTED]';
     });
@@ -273,15 +277,13 @@ export class SearchController {
       url: req.url,
       headers: sanitizedHeaders,
       bodyType: typeof req.body,
-      bodyKeys: req.body ? Object.keys(req.body) : 'no body'
+      bodyKeys: req.body ? Object.keys(req.body) : 'no body',
     });
   }
 
   _extractJwtToken(req) {
     const authHeader = req.headers.authorization;
-    return authHeader && authHeader.startsWith('Bearer ')
-      ? authHeader.substring(7)
-      : null;
+    return authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
   }
 
   _buildSuccessResponse(result, searchParameters) {
@@ -291,8 +293,8 @@ export class SearchController {
         totalProfilesAnalyzed: result.uniqueLinks?.length,
         goodContactsFound: result.goodContacts?.length,
         successRate: result.stats?.successRate,
-        searchParameters
-      }
+        searchParameters,
+      },
     };
   }
 
@@ -300,7 +302,7 @@ export class SearchController {
     return {
       error: 'Internal server error during search',
       message: error.message,
-      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined,
     };
   }
 
@@ -309,8 +311,8 @@ export class SearchController {
       goodContacts,
       uniqueLinks,
       stats: {
-        successRate: ((goodContacts.length / uniqueLinks.length) * 100).toFixed(2) + '%'
-      }
+        successRate: ((goodContacts.length / uniqueLinks.length) * 100).toFixed(2) + '%',
+      },
     };
   }
 

@@ -100,7 +100,11 @@ describe('useProfileInit', () => {
 
     it('should set loading state during initialization', async () => {
       let resolveInit: (v: unknown) => void;
-      mockInitializeProfileDatabase.mockReturnValue(new Promise((resolve) => { resolveInit = resolve; }));
+      mockInitializeProfileDatabase.mockReturnValue(
+        new Promise((resolve) => {
+          resolveInit = resolve;
+        })
+      );
 
       const { result } = renderHook(() => useProfileInit(), { wrapper: createWrapper() });
 

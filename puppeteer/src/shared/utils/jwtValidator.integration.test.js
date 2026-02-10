@@ -10,7 +10,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Mock logger
 vi.mock('#utils/logger.js', () => ({
-  logger: { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn() }
+  logger: { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn() },
 }));
 
 // Test helper to create JWT
@@ -42,7 +42,7 @@ describe('JWT validation integration', () => {
       const token = createTestJwt({
         sub: 'cognito-user-id-123',
         email: 'user@example.com',
-        exp: currentTime + 14400 // 4 hours from now (matching Cognito TTL)
+        exp: currentTime + 14400, // 4 hours from now (matching Cognito TTL)
       });
 
       const result = validateJwt(token);
@@ -55,7 +55,7 @@ describe('JWT validation integration', () => {
     it('rejects expired token (would return 401)', () => {
       const token = createTestJwt({
         sub: 'cognito-user-id-123',
-        exp: currentTime - 3600 // 1 hour ago
+        exp: currentTime - 3600, // 1 hour ago
       });
 
       const result = validateJwt(token);
@@ -68,7 +68,7 @@ describe('JWT validation integration', () => {
 
     it('rejects token without required claims', () => {
       const token = createTestJwt({
-        exp: currentTime + 3600
+        exp: currentTime + 3600,
         // Missing sub/user_id
       });
 
@@ -92,7 +92,7 @@ describe('JWT validation integration', () => {
         exp: currentTime + 14400, // 4 hours (new TTL)
         iat: currentTime - 100,
         jti: 'jwt-id',
-        username: 'user@example.com'
+        username: 'user@example.com',
       });
 
       const result = validateJwt(token);
@@ -113,7 +113,7 @@ describe('JWT validation integration', () => {
       // Token expired exactly 31 seconds ago (just outside 30s tolerance)
       const token = createTestJwt({
         sub: 'user-123',
-        exp: currentTime - 31
+        exp: currentTime - 31,
       });
 
       const result = validateJwt(token);
@@ -126,7 +126,7 @@ describe('JWT validation integration', () => {
       // Token expired 29 seconds ago (within 30s tolerance)
       const token = createTestJwt({
         sub: 'user-123',
-        exp: currentTime - 29
+        exp: currentTime - 29,
       });
 
       const result = validateJwt(token);
@@ -144,7 +144,7 @@ describe('JWT validation integration', () => {
       // This is an accepted limitation per ADR-001
       const manipulatedToken = createTestJwt({
         sub: 'user-123',
-        exp: currentTime + 86400 * 365 // 1 year from now
+        exp: currentTime + 86400 * 365, // 1 year from now
       });
 
       const result = validateJwt(manipulatedToken);
@@ -189,7 +189,7 @@ describe('Healing encryption integration', () => {
       // Without key, encryption should return null
       const result = await encryptCredentials({
         searchPassword: 'secret-password',
-        jwtToken: 'secret.jwt.token'
+        jwtToken: 'secret.jwt.token',
       });
 
       expect(result).toBeNull();
@@ -227,13 +227,13 @@ describe('Healing encryption integration', () => {
       vi.doMock('#utils/crypto.js', () => ({
         encryptCredentials: vi.fn(async (_creds) => ({
           searchPassword: 'sealbox_x25519:b64:encrypted_pass',
-          jwtToken: 'sealbox_x25519:b64:encrypted_token'
-        }))
+          jwtToken: 'sealbox_x25519:b64:encrypted_token',
+        })),
       }));
 
       vi.doMock('fs', () => ({
         default: { writeFileSync: vi.fn() },
-        writeFileSync: vi.fn()
+        writeFileSync: vi.fn(),
       }));
 
       const { HealingManager } = await import('../../domains/automation/utils/healingManager.js');
@@ -242,7 +242,7 @@ describe('Healing encryption integration', () => {
       const manager = new HealingManager();
       await manager._createStateFile({
         searchPassword: 'plaintext-password',
-        jwtToken: 'plaintext-jwt'
+        jwtToken: 'plaintext-jwt',
       });
 
       // Verify write was called

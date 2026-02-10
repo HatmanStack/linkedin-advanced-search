@@ -53,7 +53,7 @@ export function validateJwt(token) {
     logger.warn('JWT validation failed: Token expired', {
       exp: payload.exp,
       currentTime,
-      toleranceSeconds: CLOCK_SKEW_TOLERANCE_SECONDS
+      toleranceSeconds: CLOCK_SKEW_TOLERANCE_SECONDS,
     });
     return { valid: false, reason: 'Token expired' };
   }
@@ -63,7 +63,7 @@ export function validateJwt(token) {
 
   if (!rawUserId) {
     logger.warn('JWT validation failed: Missing user identifier', {
-      availableClaims: Object.keys(payload)
+      availableClaims: Object.keys(payload),
     });
     return { valid: false, reason: 'Missing user identifier' };
   }
@@ -73,13 +73,13 @@ export function validateJwt(token) {
 
   logger.debug('JWT validation successful', {
     userId: userId.substring(0, 8) + '...',
-    exp: payload.exp
+    exp: payload.exp,
   });
 
   return {
     valid: true,
     payload,
-    userId
+    userId,
   };
 }
 
@@ -94,9 +94,7 @@ function decodeJwtPayload(payloadB64) {
   try {
     // Convert base64url to standard base64
     // Replace URL-safe characters and add padding if needed
-    let base64 = payloadB64
-      .replace(/-/g, '+')
-      .replace(/_/g, '/');
+    let base64 = payloadB64.replace(/-/g, '+').replace(/_/g, '/');
 
     // Add padding if needed
     const padding = base64.length % 4;

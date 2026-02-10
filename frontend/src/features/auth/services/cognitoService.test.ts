@@ -112,7 +112,12 @@ describe('CognitoAuthService', () => {
         });
       });
 
-      const result = await CognitoAuthService.signUp('test@example.com', 'Password1!', 'John', 'Doe');
+      const result = await CognitoAuthService.signUp(
+        'test@example.com',
+        'Password1!',
+        'John',
+        'Doe'
+      );
 
       expect(result.error).toBeNull();
       expect(result.user).toBeDefined();
@@ -174,7 +179,10 @@ describe('CognitoAuthService', () => {
 
     it('should return error on wrong credentials', async () => {
       mockAuthenticateUser.mockImplementation((_details, callbacks) => {
-        callbacks.onFailure({ message: 'Incorrect username or password.', code: 'NotAuthorizedException' });
+        callbacks.onFailure({
+          message: 'Incorrect username or password.',
+          code: 'NotAuthorizedException',
+        });
       });
 
       const result = await CognitoAuthService.signIn('test@example.com', 'wrong');
@@ -230,7 +238,10 @@ describe('CognitoAuthService', () => {
         callbacks.newPasswordRequired({});
       });
       mockCompleteNewPasswordChallenge.mockImplementation((_password, _attrs, callbacks) => {
-        callbacks.onFailure({ message: 'Password does not meet requirements', code: 'InvalidPasswordException' });
+        callbacks.onFailure({
+          message: 'Password does not meet requirements',
+          code: 'InvalidPasswordException',
+        });
       });
 
       const result = await CognitoAuthService.signIn('test@example.com', 'weak');
@@ -410,7 +421,11 @@ describe('CognitoAuthService', () => {
         callbacks.onSuccess();
       });
 
-      const result = await CognitoAuthService.confirmPassword('test@example.com', '123456', 'NewPass1!');
+      const result = await CognitoAuthService.confirmPassword(
+        'test@example.com',
+        '123456',
+        'NewPass1!'
+      );
 
       expect(result.error).toBeNull();
     });
@@ -420,7 +435,11 @@ describe('CognitoAuthService', () => {
         callbacks.onFailure(new Error('Code expired'));
       });
 
-      const result = await CognitoAuthService.confirmPassword('test@example.com', 'expired', 'NewPass1!');
+      const result = await CognitoAuthService.confirmPassword(
+        'test@example.com',
+        'expired',
+        'NewPass1!'
+      );
 
       expect(result.error).not.toBeNull();
       expect(result.error!.message).toBe('Code expired');

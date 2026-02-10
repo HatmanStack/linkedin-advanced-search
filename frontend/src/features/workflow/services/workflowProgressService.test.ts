@@ -12,7 +12,11 @@ vi.mock('@/shared/utils/logger', () => ({
 
 import { WorkflowProgressService } from './workflowProgressService';
 
-const mockConnection = (id: string, firstName: string = 'John', lastName: string = 'Doe'): Connection => ({
+const mockConnection = (
+  id: string,
+  firstName: string = 'John',
+  lastName: string = 'Doe'
+): Connection => ({
   id,
   first_name: firstName,
   last_name: lastName,
@@ -92,7 +96,12 @@ describe('WorkflowProgressService', () => {
     });
 
     it('should calculate percentage correctly', () => {
-      service.initializeWorkflow([mockConnection('1'), mockConnection('2'), mockConnection('3'), mockConnection('4')]);
+      service.initializeWorkflow([
+        mockConnection('1'),
+        mockConnection('2'),
+        mockConnection('3'),
+        mockConnection('4'),
+      ]);
       service.markConnectionSuccess('1');
       service.markConnectionFailure('2');
 
@@ -171,13 +180,15 @@ describe('WorkflowProgressService', () => {
       service.markConnectionFailure('2');
       service.markConnectionSkipped('3');
 
-      expect(callback).toHaveBeenCalledWith(expect.objectContaining({
-        totalProcessed: 3,
-        successful: 1,
-        failed: 1,
-        skipped: 1,
-        successRate: 33,
-      }));
+      expect(callback).toHaveBeenCalledWith(
+        expect.objectContaining({
+          totalProcessed: 3,
+          successful: 1,
+          failed: 1,
+          skipped: 1,
+          successRate: 33,
+        })
+      );
     });
 
     it('should return unsubscribe function', () => {

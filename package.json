@@ -15,6 +15,8 @@
     "lint:frontend": "cd frontend && npm run lint",
     "lint:puppeteer": "cd puppeteer && npm run lint",
     "lint:backend": "cd backend && uvx ruff check lambdas --exclude .aws-sam && uvx ruff format --check lambdas --exclude .aws-sam",
+    "format": "npx prettier --write 'frontend/src/**/*.{ts,tsx}' 'puppeteer/src/**/*.{js,ts}' 'mock-linkedin/**/*.js'",
+    "format:check": "npx prettier --check 'frontend/src/**/*.{ts,tsx}' 'puppeteer/src/**/*.{js,ts}' 'mock-linkedin/**/*.js'",
     "check": "npm run lint && npm run test",
     "benchmark": "node scripts/benchmarks/benchmark-performance.js",
     "cleanup": "bash scripts/cleanup/code-cleanup.sh",
@@ -23,5 +25,8 @@
     "deploy:ragstack": "node scripts/deploy/deploy-ragstack.js"
   },
   "author": "HatmanStack",
-  "license": "Apache-2.0"
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "prettier": "^3.8.1"
+  }
 }

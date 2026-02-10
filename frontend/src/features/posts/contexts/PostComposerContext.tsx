@@ -1,4 +1,12 @@
-import { createContext, useContext, type ReactNode, useState, useCallback, useMemo, useEffect } from 'react';
+import {
+  createContext,
+  useContext,
+  type ReactNode,
+  useState,
+  useCallback,
+  useMemo,
+  useEffect,
+} from 'react';
 import { postsService } from '@/features/posts';
 import { useAuth } from '@/features/auth';
 import { useUserProfile } from '@/features/profile';
@@ -61,7 +69,9 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
         sessionStorage.removeItem(SELECTED_IDEAS_STORAGE_KEY);
         sessionStorage.removeItem(RESEARCH_STORAGE_KEY);
         sessionStorage.removeItem(SYNTHESIZED_STORAGE_KEY);
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
       return;
     }
 
@@ -70,20 +80,28 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
       if (storedIdeas) {
         setIdeas(JSON.parse(storedIdeas));
       } else {
-        const fromProfile = (userProfile as Record<string, unknown>).ai_generated_ideas as string[] | undefined;
+        const fromProfile = (userProfile as Record<string, unknown>).ai_generated_ideas as
+          | string[]
+          | undefined;
         if (Array.isArray(fromProfile)) setIdeas(fromProfile);
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
 
     try {
       const storedResearch = sessionStorage.getItem(RESEARCH_STORAGE_KEY);
       if (storedResearch) setResearchContent(storedResearch);
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
 
     try {
       const storedPost = sessionStorage.getItem(SYNTHESIZED_STORAGE_KEY);
       if (storedPost) setSynthesizedPost(storedPost);
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
 
     try {
       const storedSelected = sessionStorage.getItem(SELECTED_IDEAS_STORAGE_KEY);
@@ -91,55 +109,89 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
         const parsed = JSON.parse(storedSelected);
         if (Array.isArray(parsed)) setSelectedIdeas(parsed);
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }, [user, userProfile]);
 
-  const generateIdeas = useCallback(async (prompt?: string): Promise<string[]> => {
-    setIsGeneratingIdeas(true);
-    try {
-      const result = await postsService.generateIdeas(prompt, userProfile || undefined);
-      setIdeas(result);
-      try { sessionStorage.setItem(IDEAS_STORAGE_KEY, JSON.stringify(result)); } catch { /* ignore */ }
-      return result;
-    } finally {
-      setIsGeneratingIdeas(false);
-    }
-  }, [userProfile]);
-
-  const researchTopics = useCallback(async (topics: string[]) => {
-    setIsResearching(true);
-    try {
-      const result = await postsService.researchTopics(topics, userProfile || undefined);
-      if (result) {
-        setResearchContent(result);
-        try { sessionStorage.setItem(RESEARCH_STORAGE_KEY, result); } catch { /* ignore */ }
-      } else {
-        setResearchContent(null);
-        try { sessionStorage.removeItem(RESEARCH_STORAGE_KEY); } catch { /* ignore */ }
+  const generateIdeas = useCallback(
+    async (prompt?: string): Promise<string[]> => {
+      setIsGeneratingIdeas(true);
+      try {
+        const result = await postsService.generateIdeas(prompt, userProfile || undefined);
+        setIdeas(result);
+        try {
+          sessionStorage.setItem(IDEAS_STORAGE_KEY, JSON.stringify(result));
+        } catch {
+          /* ignore */
+        }
+        return result;
+      } finally {
+        setIsGeneratingIdeas(false);
       }
-    } finally {
-      setIsResearching(false);
-    }
-  }, [userProfile]);
+    },
+    [userProfile]
+  );
+
+  const researchTopics = useCallback(
+    async (topics: string[]) => {
+      setIsResearching(true);
+      try {
+        const result = await postsService.researchTopics(topics, userProfile || undefined);
+        if (result) {
+          setResearchContent(result);
+          try {
+            sessionStorage.setItem(RESEARCH_STORAGE_KEY, result);
+          } catch {
+            /* ignore */
+          }
+        } else {
+          setResearchContent(null);
+          try {
+            sessionStorage.removeItem(RESEARCH_STORAGE_KEY);
+          } catch {
+            /* ignore */
+          }
+        }
+      } finally {
+        setIsResearching(false);
+      }
+    },
+    [userProfile]
+  );
 
   const updateSelectedIdeas = useCallback((ideas: string[]) => {
     setSelectedIdeas(ideas);
-    try { sessionStorage.setItem(SELECTED_IDEAS_STORAGE_KEY, JSON.stringify(ideas)); } catch { /* ignore */ }
+    try {
+      sessionStorage.setItem(SELECTED_IDEAS_STORAGE_KEY, JSON.stringify(ideas));
+    } catch {
+      /* ignore */
+    }
   }, []);
 
   const synthesizeResearch = useCallback(async () => {
     const ideasForSynthesis = selectedIdeas.length > 0 ? selectedIdeas : undefined;
-    logger.debug('synthesize: start', { hasResearch: !!researchContent, ideasCount: ideasForSynthesis?.length || 0 });
+    logger.debug('synthesize: start', {
+      hasResearch: !!researchContent,
+      ideasCount: ideasForSynthesis?.length || 0,
+    });
     setIsSynthesizing(true);
     try {
-      const synthesized = await postsService.synthesizeResearch({
-        existing_content: '',
-        research_content: researchContent ?? undefined,
-        selected_ideas: ideasForSynthesis,
-      }, userProfile || undefined);
+      const synthesized = await postsService.synthesizeResearch(
+        {
+          existing_content: '',
+          research_content: researchContent ?? undefined,
+          selected_ideas: ideasForSynthesis,
+        },
+        userProfile || undefined
+      );
       if (synthesized?.content) {
         setSynthesizedPost(synthesized.content);
-        try { sessionStorage.setItem(SYNTHESIZED_STORAGE_KEY, synthesized.content); } catch { /* ignore */ }
+        try {
+          sessionStorage.setItem(SYNTHESIZED_STORAGE_KEY, synthesized.content);
+        } catch {
+          /* ignore */
+        }
       }
     } finally {
       setIsSynthesizing(false);
@@ -148,7 +200,11 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
 
   const clearResearch = useCallback(async () => {
     setResearchContent(null);
-    try { sessionStorage.removeItem(RESEARCH_STORAGE_KEY); } catch { /* ignore */ }
+    try {
+      sessionStorage.removeItem(RESEARCH_STORAGE_KEY);
+    } catch {
+      /* ignore */
+    }
     try {
       await lambdaApiService.updateUserProfile({ ai_generated_research: '' });
     } catch (error) {
@@ -158,7 +214,11 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
 
   const clearIdea = useCallback(async (newIdeas: string[]) => {
     setIdeas(newIdeas);
-    try { sessionStorage.setItem(IDEAS_STORAGE_KEY, JSON.stringify(newIdeas)); } catch { /* ignore */ }
+    try {
+      sessionStorage.setItem(IDEAS_STORAGE_KEY, JSON.stringify(newIdeas));
+    } catch {
+      /* ignore */
+    }
     try {
       await lambdaApiService.updateUserProfile({ ai_generated_ideas: newIdeas });
     } catch (error) {
@@ -168,35 +228,58 @@ export const PostComposerProvider = ({ children }: { children: ReactNode }) => {
 
   const clearSynthesizedPost = useCallback(() => {
     setSynthesizedPost(null);
-    try { sessionStorage.removeItem(SYNTHESIZED_STORAGE_KEY); } catch { /* ignore */ }
+    try {
+      sessionStorage.removeItem(SYNTHESIZED_STORAGE_KEY);
+    } catch {
+      /* ignore */
+    }
   }, []);
 
   const updateIdeas = useCallback((newIdeas: string[]) => {
     setIdeas(newIdeas);
-    try { sessionStorage.setItem(IDEAS_STORAGE_KEY, JSON.stringify(newIdeas)); } catch { /* ignore */ }
+    try {
+      sessionStorage.setItem(IDEAS_STORAGE_KEY, JSON.stringify(newIdeas));
+    } catch {
+      /* ignore */
+    }
   }, []);
 
-  const value = useMemo(() => ({
-    isGeneratingIdeas,
-    isResearching,
-    isSynthesizing,
-    ideas,
-    updateIdeas,
-    selectedIdeas,
-    updateSelectedIdeas,
-    researchContent,
-    synthesizedPost,
-    generateIdeas,
-    researchTopics,
-    synthesizeResearch,
-    clearResearch,
-    clearIdea,
-    clearSynthesizedPost,
-  }), [isGeneratingIdeas, isResearching, isSynthesizing, ideas, updateIdeas, selectedIdeas, updateSelectedIdeas, researchContent, synthesizedPost, generateIdeas, researchTopics, synthesizeResearch, clearResearch, clearIdea, clearSynthesizedPost]);
-
-  return (
-    <PostComposerContext.Provider value={value}>
-      {children}
-    </PostComposerContext.Provider>
+  const value = useMemo(
+    () => ({
+      isGeneratingIdeas,
+      isResearching,
+      isSynthesizing,
+      ideas,
+      updateIdeas,
+      selectedIdeas,
+      updateSelectedIdeas,
+      researchContent,
+      synthesizedPost,
+      generateIdeas,
+      researchTopics,
+      synthesizeResearch,
+      clearResearch,
+      clearIdea,
+      clearSynthesizedPost,
+    }),
+    [
+      isGeneratingIdeas,
+      isResearching,
+      isSynthesizing,
+      ideas,
+      updateIdeas,
+      selectedIdeas,
+      updateSelectedIdeas,
+      researchContent,
+      synthesizedPost,
+      generateIdeas,
+      researchTopics,
+      synthesizeResearch,
+      clearResearch,
+      clearIdea,
+      clearSynthesizedPost,
+    ]
   );
+
+  return <PostComposerContext.Provider value={value}>{children}</PostComposerContext.Provider>;
 };

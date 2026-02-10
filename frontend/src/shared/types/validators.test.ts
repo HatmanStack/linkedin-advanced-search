@@ -136,7 +136,7 @@ describe('validateConnection (conversion_likelihood enum)', () => {
 
     // Type guard fails first, so error is about invalid structure
     expect(result.isValid).toBe(false);
-    expect(result.errors.some(e => e.includes('Invalid connection'))).toBe(true);
+    expect(result.errors.some((e) => e.includes('Invalid connection'))).toBe(true);
   });
 
   it('should reject numeric conversion likelihood (old format)', () => {
@@ -145,6 +145,6 @@ describe('validateConnection (conversion_likelihood enum)', () => {
 
     // Type guard fails first, so error is about invalid structure
     expect(result.isValid).toBe(false);
-    expect(result.errors.some(e => e.includes('Invalid connection'))).toBe(true);
+    expect(result.errors.some((e) => e.includes('Invalid connection'))).toBe(true);
   });
 });

@@ -252,7 +252,7 @@ export class ProfileInitService {
         isResuming: ProfileInitStateManager.isResumingState(state),
         currentProcessingList: state.currentProcessingList,
         currentBatch: state.currentBatch,
-        currentIndex: state.currentIndex
+        currentIndex: state.currentIndex,
       });
 
       // Set auth token for DynamoDB operations
@@ -279,7 +279,7 @@ export class ProfileInitService {
         processed: result.processed,
         skipped: result.skipped,
         errors: result.errors,
-        progressSummary: result.progressSummary
+        progressSummary: result.progressSummary,
       });
 
       return {
@@ -289,10 +289,9 @@ export class ProfileInitService {
         metadata: {
           requestId,
           duration: totalDuration,
-          timestamp: new Date().toISOString()
-        }
+          timestamp: new Date().toISOString(),
+        },
       };
-
     } catch (err) {
       const error = err as Error & { context?: Record<string, unknown> };
       const totalDuration = Date.now() - startTime;
@@ -310,8 +309,8 @@ export class ProfileInitService {
           processingList: state.currentProcessingList,
           batch: state.currentBatch,
           index: state.currentIndex,
-          recursionCount: state.recursionCount
-        }
+          recursionCount: state.recursionCount,
+        },
       });
 
       // Add context to error for better debugging
@@ -322,9 +321,9 @@ export class ProfileInitService {
           processingList: state.currentProcessingList,
           batch: state.currentBatch,
           index: state.currentIndex,
-          recursionCount: state.recursionCount
+          recursionCount: state.recursionCount,
         },
-        errorDetails
+        errorDetails,
       };
 
       throw error;
@@ -356,7 +355,7 @@ export class ProfileInitService {
         state.totalConnections = {
           ally: masterIndex.metadata.totalAllies || 0,
           incoming: masterIndex.metadata.totalIncoming || 0,
-          outgoing: masterIndex.metadata.totalOutgoing || 0
+          outgoing: masterIndex.metadata.totalOutgoing || 0,
         };
       }
 
@@ -367,7 +366,7 @@ export class ProfileInitService {
         skipped: 0,
         errors: 0,
         connectionTypes: {},
-        progressSummary: ProfileInitStateManager.getProgressSummary(state)
+        progressSummary: ProfileInitStateManager.getProgressSummary(state),
       };
 
       // Track what we've processed in this run to prevent duplicates
@@ -382,7 +381,9 @@ export class ProfileInitService {
 
         // Skip if we're resuming from a specific list and this isn't it
         if (state.currentProcessingList && state.currentProcessingList !== connectionType) {
-          logger.info(`Skipping ${connectionType} connections - resuming from ${state.currentProcessingList}`);
+          logger.info(
+            `Skipping ${connectionType} connections - resuming from ${state.currentProcessingList}`
+          );
           continue;
         }
 
@@ -392,11 +393,7 @@ export class ProfileInitService {
         processedInThisRun.add(connectionType);
 
         try {
-          const typeResult = await this._processConnectionType(
-            connectionType,
-            masterIndex,
-            state
-          );
+          const typeResult = await this._processConnectionType(connectionType, masterIndex, state);
 
           results.connectionTypes![connectionType] = typeResult;
           results.processed += typeResult.processed;
@@ -406,12 +403,11 @@ export class ProfileInitService {
           // Update state with progress
           state = ProfileInitStateManager.updateBatchProgress(state, {
             currentProcessingList: connectionType,
-            completedBatches: masterIndex.processingState.completedBatches
+            completedBatches: masterIndex.processingState.completedBatches,
           });
 
           // Update master index with progress
           await this._updateMasterIndex(masterIndexFile, masterIndex);
-
         } catch (error) {
           logger.error(`Failed to process ${connectionType} connections:`, error);
 
@@ -419,7 +415,7 @@ export class ProfileInitService {
           state.lastError = {
             connectionType,
             message: (error as Error).message,
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
           };
 
           throw error;
@@ -433,11 +429,10 @@ export class ProfileInitService {
         processed: results.processed,
         skipped: results.skipped,
         errors: results.errors,
-        progress: results.progressSummary
+        progress: results.progressSummary,
       });
 
       return results;
-
     } catch (error) {
       logger.error('Connection list processing failed:', error);
       throw error;
@@ -458,26 +453,25 @@ export class ProfileInitService {
           totalAllies: 0,
           totalIncoming: 0,
           totalOutgoing: 0,
-          batchSize: this.batchSize
+          batchSize: this.batchSize,
         },
         files: {
           allyConnections: [],
           incomingConnections: [],
-          outgoingConnections: []
+          outgoingConnections: [],
         },
         processingState: {
           currentList: 'ally',
           currentBatch: 0,
           currentIndex: 0,
-          completedBatches: []
-        }
+          completedBatches: [],
+        },
       };
 
       await fs.writeFile(masterIndexFile, JSON.stringify(masterIndex, null, 2));
       logger.info(`Created master index file: ${masterIndexFile}`);
 
       return masterIndexFile;
-
     } catch (error) {
       logger.error('Failed to create master index file:', error);
       throw error;
@@ -500,7 +494,10 @@ export class ProfileInitService {
   /**
    * Update master index file with current progress
    */
-  private async _updateMasterIndex(masterIndexFile: string, masterIndex: MasterIndex): Promise<void> {
+  private async _updateMasterIndex(
+    masterIndexFile: string,
+    masterIndex: MasterIndex
+  ): Promise<void> {
     try {
       await fs.writeFile(masterIndexFile, JSON.stringify(masterIndex, null, 2));
       logger.debug(`Updated master index file: ${masterIndexFile}`);
@@ -525,13 +522,13 @@ export class ProfileInitService {
         processed: 0,
         skipped: 0,
         errors: 0,
-        batches: []
+        batches: [],
       };
 
       // Get connections using LinkedInService
       const connections = await this.linkedInService.getConnections({
         connectionType: connectionType,
-        maxScrolls: 15
+        maxScrolls: 15,
       });
 
       if (!connections || connections.length === 0) {
@@ -574,7 +571,6 @@ export class ProfileInitService {
 
       logger.info(`Completed processing ${connectionType} connections:`, result);
       return result;
-
     } catch (error) {
       logger.error(`Failed to process ${connectionType} connections:`, error);
       throw error;
@@ -608,8 +604,8 @@ export class ProfileInitService {
           batchMetadata: {
             startIndex: startIndex,
             endIndex: endIndex - 1,
-            capturedAt: new Date().toISOString()
-          }
+            capturedAt: new Date().toISOString(),
+          },
         };
 
         await fs.writeFile(batchFilePath, JSON.stringify(batchData, null, 2));
@@ -625,7 +621,6 @@ export class ProfileInitService {
 
       logger.info(`Created ${batchFiles.length} batch files for ${connectionType} connections`);
       return batchFiles;
-
     } catch (error) {
       logger.error(`Failed to create batch files for ${connectionType}:`, error);
       throw error;
@@ -635,7 +630,10 @@ export class ProfileInitService {
   /**
    * Process a single batch file
    */
-  private async _processBatch(batchFilePath: string, state: ProfileInitState): Promise<BatchResult> {
+  private async _processBatch(
+    batchFilePath: string,
+    state: ProfileInitState
+  ): Promise<BatchResult> {
     const requestId = state.requestId || 'unknown';
     const startTime = Date.now();
     let batchData: BatchData | null = null;
@@ -645,7 +643,7 @@ export class ProfileInitService {
         requestId,
         batchFilePath,
         currentIndex: state.currentIndex,
-        recursionCount: state.recursionCount
+        recursionCount: state.recursionCount,
       });
 
       // Load batch data with error handling
@@ -656,7 +654,7 @@ export class ProfileInitService {
         logger.error(`Failed to load batch file: ${batchFilePath}`, {
           requestId,
           batchFilePath,
-          error: (fileError as Error).message
+          error: (fileError as Error).message,
         });
         throw new Error(`Batch file loading failed: ${(fileError as Error).message}`);
       }
@@ -668,26 +666,29 @@ export class ProfileInitService {
         skipped: 0,
         errors: 0,
         connections: [],
-        startTime: new Date().toISOString()
+        startTime: new Date().toISOString(),
       };
 
       logger.info('Starting batch processing', {
         requestId,
         batchNumber: batchData.batchNumber,
         totalConnections: batchData.connections.length,
-        resumingFromIndex: state.currentIndex || 0
+        resumingFromIndex: state.currentIndex || 0,
       });
 
       // Process each connection in the batch
       for (let i = 19; i < batchData.connections.length; i++) {
         // Skip if resuming from a specific index
         if (state.currentIndex && i < state.currentIndex) {
-          logger.debug(`Skipping connection at index ${i} - resuming from index ${state.currentIndex}`, {
-            requestId,
-            batchNumber: batchData.batchNumber,
-            skipIndex: i,
-            resumeIndex: state.currentIndex
-          });
+          logger.debug(
+            `Skipping connection at index ${i} - resuming from index ${state.currentIndex}`,
+            {
+              requestId,
+              batchNumber: batchData.batchNumber,
+              skipIndex: i,
+              resumeIndex: state.currentIndex,
+            }
+          );
           continue;
         }
 
@@ -703,7 +704,7 @@ export class ProfileInitService {
             batchNumber: batchData.batchNumber,
             connectionIndex: i,
             profileId: connectionProfileId,
-            status: connectionStatus
+            status: connectionStatus,
           });
 
           // Check if edge already exists to avoid reprocessing
@@ -724,7 +725,7 @@ export class ProfileInitService {
             profileInitMonitor.recordConnection(requestId, connectionProfileId, 'skipped', 0, {
               batchNumber: batchData.batchNumber,
               connectionIndex: i,
-              reason: 'Edge already exists'
+              reason: 'Edge already exists',
             });
 
             continue;
@@ -744,16 +745,15 @@ export class ProfileInitService {
           profileInitMonitor.recordConnection(requestId, connectionProfileId, 'processed', 0, {
             batchNumber: batchData.batchNumber,
             connectionIndex: i,
-            batchProgress: `${i + 1}/${batchData.connections.length}`
+            batchProgress: `${i + 1}/${batchData.connections.length}`,
           });
 
           logger.debug(`Successfully processed connection ${connectionProfileId} at index ${i}`, {
             requestId,
             profileId: connectionProfileId,
             connectionIndex: i,
-            batchProgress: `${i + 1}/${batchData.connections.length}`
+            batchProgress: `${i + 1}/${batchData.connections.length}`,
           });
-
         } catch (err) {
           const error = err as Error & { context?: Record<string, unknown> };
           const errorDetails = LinkedInErrorHandler.categorizeError(error);
@@ -766,7 +766,7 @@ export class ProfileInitService {
             errorCategory: errorDetails.category,
             message: error.message,
             isConnectionLevel: errorDetails.skipConnection || false,
-            batchNumber: batchData.batchNumber
+            batchNumber: batchData.batchNumber,
           });
 
           result.errors++;
@@ -785,17 +785,20 @@ export class ProfileInitService {
             connectionIndex: i,
             errorType: errorDetails.type,
             errorCategory: errorDetails.category,
-            isConnectionLevel: errorDetails.skipConnection || false
+            isConnectionLevel: errorDetails.skipConnection || false,
           });
 
           // For certain errors, we might want to continue processing other connections
           if (this._isConnectionLevelError(error)) {
-            logger.warn(`Connection-level error for ${connectionProfileId}, continuing with next connection`, {
-              requestId,
-              profileId: connectionProfileId,
-              errorType: errorDetails.type,
-              continuingBatch: true
-            });
+            logger.warn(
+              `Connection-level error for ${connectionProfileId}, continuing with next connection`,
+              {
+                requestId,
+                profileId: connectionProfileId,
+                errorType: errorDetails.type,
+                continuingBatch: true,
+              }
+            );
             continue;
           }
 
@@ -805,7 +808,7 @@ export class ProfileInitService {
             batchNumber: batchData.batchNumber,
             profileId: connectionProfileId,
             errorType: errorDetails.type,
-            errorCategory: errorDetails.category
+            errorCategory: errorDetails.category,
           });
 
           // Add batch context to error
@@ -817,7 +820,7 @@ export class ProfileInitService {
             totalConnections: batchData.connections.length,
             processedSoFar: result.processed,
             skippedSoFar: result.skipped,
-            errorsSoFar: result.errors
+            errorsSoFar: result.errors,
           };
 
           throw error;
@@ -839,12 +842,13 @@ export class ProfileInitService {
         skipped: result.skipped,
         errors: result.errors,
         totalConnections: batchData.connections.length,
-        successRate: batchData.connections.length > 0 ?
-          ((result.processed / batchData.connections.length) * 100).toFixed(2) + '%' : '0%'
+        successRate:
+          batchData.connections.length > 0
+            ? ((result.processed / batchData.connections.length) * 100).toFixed(2) + '%'
+            : '0%',
       });
 
       return result;
-
     } catch (err) {
       const error = err as Error & { context?: Record<string, unknown> };
       const batchDuration = Date.now() - startTime;
@@ -857,7 +861,7 @@ export class ProfileInitService {
         message: error.message,
         stack: error.stack,
         currentIndex: state.currentIndex,
-        recursionCount: state.recursionCount
+        recursionCount: state.recursionCount,
       });
 
       // Add batch context to error if not already present
@@ -871,7 +875,7 @@ export class ProfileInitService {
         batchNumber: batchData?.batchNumber || 'unknown',
         batchDuration,
         currentIndex: state.currentIndex,
-        recursionCount: state.recursionCount
+        recursionCount: state.recursionCount,
       };
 
       throw error;
@@ -888,11 +892,11 @@ export class ProfileInitService {
       /profile.*unavailable/i,
       /scrape.*failed/i,
       /invalid.*profile/i,
-      /profile.*deleted/i
+      /profile.*deleted/i,
     ];
 
     const errorMessage = error.message || error.toString();
-    return connectionLevelErrors.some(pattern => pattern.test(errorMessage));
+    return connectionLevelErrors.some((pattern) => pattern.test(errorMessage));
   }
 
   /**
@@ -911,7 +915,7 @@ export class ProfileInitService {
         requestId,
         profileId: connectionProfileId,
         currentBatch: state.currentBatch,
-        currentIndex: state.currentIndex
+        currentIndex: state.currentIndex,
       });
 
       let scrapeResult: ScrapeResult | null = null;
@@ -921,7 +925,7 @@ export class ProfileInitService {
         // Scrape profile using RAGStack
         logger.debug(`Initiating profile scrape for connection: ${connectionProfileId}`, {
           requestId,
-          profileId: connectionProfileId
+          profileId: connectionProfileId,
         });
 
         scrapeResult = await this.performProfileScrape(connectionProfileId, connectionType);
@@ -929,30 +933,33 @@ export class ProfileInitService {
         if (scrapeResult && scrapeResult.success) {
           logger.debug(`Profile scrape successful for ${connectionProfileId}`, {
             requestId,
-            profileId: connectionProfileId
+            profileId: connectionProfileId,
           });
         } else {
           logger.warn(`Profile scrape failed for ${connectionProfileId}`, {
             requestId,
             profileId: connectionProfileId,
-            reason: scrapeResult?.message || 'Unknown scrape error'
+            reason: scrapeResult?.message || 'Unknown scrape error',
           });
         }
 
         // Create database entry for the connection
         logger.debug(`Creating database entry for connection: ${connectionProfileId}`, {
           requestId,
-          profileId: connectionProfileId
+          profileId: connectionProfileId,
         });
 
-        databaseResult = await this.dynamoDBService.upsertEdgeStatus(connectionProfileId, connectionType);
+        databaseResult = await this.dynamoDBService.upsertEdgeStatus(
+          connectionProfileId,
+          connectionType
+        );
 
         // Trigger RAGStack ingestion (fire-and-forget)
-        this.triggerRAGStackIngestion(connectionProfileId, state).catch(err => {
+        this.triggerRAGStackIngestion(connectionProfileId, state).catch((err) => {
           logger.debug('Async RAGStack ingestion failed (non-blocking)', {
             requestId,
             profileId: connectionProfileId,
-            error: (err as Error).message
+            error: (err as Error).message,
           });
         });
 
@@ -962,9 +969,8 @@ export class ProfileInitService {
           profileId: connectionProfileId,
           processingDuration,
           scrapeSuccess: scrapeResult?.success || false,
-          databaseSuccess: !!databaseResult
+          databaseSuccess: !!databaseResult,
         });
-
       } catch (processingErr) {
         const processingError = processingErr as Error & { context?: Record<string, unknown> };
         const processingDuration = Date.now() - startTime;
@@ -979,7 +985,7 @@ export class ProfileInitService {
           message: processingError.message,
           isConnectionLevel: errorDetails.skipConnection || false,
           currentBatch: state.currentBatch,
-          currentIndex: state.currentIndex
+          currentIndex: state.currentIndex,
         });
 
         // Add context to the error
@@ -990,12 +996,11 @@ export class ProfileInitService {
           errorDetails,
           scrapeAttempted: !!scrapeResult,
           scrapeSuccess: scrapeResult?.success || false,
-          databaseAttempted: !!databaseResult
+          databaseAttempted: !!databaseResult,
         };
 
         throw processingError;
       }
-
     } catch (error) {
       const totalDuration = Date.now() - startTime;
 
@@ -1008,8 +1013,8 @@ export class ProfileInitService {
         currentState: {
           batch: state.currentBatch,
           index: state.currentIndex,
-          processingList: state.currentProcessingList
-        }
+          processingList: state.currentProcessingList,
+        },
       });
 
       throw error;
@@ -1027,7 +1032,6 @@ export class ProfileInitService {
 
       logger.info(`RAGStack scrape completed for: ${profileId}`);
       return result;
-
     } catch (error) {
       logger.error(`Failed to scrape profile ${profileId}:`, error);
       throw error;
@@ -1037,7 +1041,10 @@ export class ProfileInitService {
   /**
    * Load existing links from saved files for healing recovery
    */
-  private async _loadExistingLinksFromFiles(connectionType: string, masterIndex: MasterIndex): Promise<string[]> {
+  private async _loadExistingLinksFromFiles(
+    connectionType: string,
+    masterIndex: MasterIndex
+  ): Promise<string[]> {
     try {
       const connectionKey = `${connectionType}Connections` as keyof MasterIndex['files'];
       const fileReferences = masterIndex.files[connectionKey] || [];
@@ -1047,21 +1054,27 @@ export class ProfileInitService {
         try {
           const filePath = path.join('data', fileRef.fileName);
           const fileContent = await fs.readFile(filePath, 'utf8');
-          const fileData = JSON.parse(fileContent) as { links?: string[]; invitations?: Array<{ originalUrl?: string; profileId?: string }> };
+          const fileData = JSON.parse(fileContent) as {
+            links?: string[];
+            invitations?: Array<{ originalUrl?: string; profileId?: string }>;
+          };
 
           if (fileData.links) {
             allLinks.push(...fileData.links);
           } else if (fileData.invitations) {
-            allLinks.push(...fileData.invitations.map(inv => inv.originalUrl || `/in/${inv.profileId}`));
+            allLinks.push(
+              ...fileData.invitations.map((inv) => inv.originalUrl || `/in/${inv.profileId}`)
+            );
           }
         } catch (fileError) {
           logger.warn(`Failed to load file ${fileRef.fileName}:`, (fileError as Error).message);
         }
       }
 
-      logger.info(`Loaded ${allLinks.length} existing ${connectionType} links from ${fileReferences.length} files`);
+      logger.info(
+        `Loaded ${allLinks.length} existing ${connectionType} links from ${fileReferences.length} files`
+      );
       return allLinks;
-
     } catch (error) {
       logger.error(`Failed to load existing ${connectionType} links:`, error);
       throw error;
@@ -1085,11 +1098,11 @@ export class ProfileInitService {
       /linkedin.*error/i,
       /captcha/i,
       /checkpoint/i,
-      /rate.*limit/i
+      /rate.*limit/i,
     ];
 
     const errorMessage = error.message || error.toString();
-    return recoverableListCreationErrors.some(pattern => pattern.test(errorMessage));
+    return recoverableListCreationErrors.some((pattern) => pattern.test(errorMessage));
   }
 
   /**
@@ -1111,7 +1124,7 @@ export class ProfileInitService {
       expansionAttempt,
       currentFileIndex,
       errorMessage: error.message,
-      recursionCount: state.recursionCount || 0
+      recursionCount: state.recursionCount || 0,
     });
 
     // Create list creation healing state
@@ -1136,8 +1149,8 @@ export class ProfileInitService {
         connectionType: healingState.listCreationState?.connectionType,
         expansionAttempt: healingState.listCreationState?.expansionAttempt,
         currentFileIndex: healingState.listCreationState?.currentFileIndex,
-        recursionCount: healingState.recursionCount
-      }
+        recursionCount: healingState.recursionCount,
+      },
     });
 
     // Trigger healing process
@@ -1159,13 +1172,15 @@ export class ProfileInitService {
       const filePath = path.join('data', fileName);
 
       // Convert links to profile IDs if they're URLs
-      const profileIds = links.map(link => {
-        if (typeof link === 'string' && link.includes('/in/')) {
-          const match = link.match(/\/in\/([^\/\?]+)/);
-          return match && match[1] ? match[1].replace(/\/$/, '').split('?')[0] : null;
-        }
-        return link;
-      }).filter((id): id is string => id !== null && id !== 'undefined' && id.length > 0);
+      const profileIds = links
+        .map((link) => {
+          if (typeof link === 'string' && link.includes('/in/')) {
+            const match = link.match(/\/in\/([^\/\?]+)/);
+            return match && match[1] ? match[1].replace(/\/$/, '').split('?')[0] : null;
+          }
+          return link;
+        })
+        .filter((id): id is string => id !== null && id !== 'undefined' && id.length > 0);
 
       const fileData = {
         connectionType: connectionType,
@@ -1175,8 +1190,8 @@ export class ProfileInitService {
         links: profileIds,
         metadata: {
           batchSize: this.batchSize,
-          isComplete: profileIds.length < this.batchSize
-        }
+          isComplete: profileIds.length < this.batchSize,
+        },
       };
 
       // Ensure data directory exists
@@ -1192,8 +1207,8 @@ export class ProfileInitService {
       }
 
       // Update or add file reference in master index
-      const existingFileIndex = masterIndex.files[connectionKey].findIndex(f =>
-        f.fileIndex === fileIndex || f.fileName === fileName
+      const existingFileIndex = masterIndex.files[connectionKey].findIndex(
+        (f) => f.fileIndex === fileIndex || f.fileName === fileName
       );
 
       const fileReference: FileReference = {
@@ -1202,7 +1217,7 @@ export class ProfileInitService {
         fileIndex: fileIndex,
         totalLinks: profileIds.length,
         capturedAt: new Date().toISOString(),
-        isComplete: profileIds.length < this.batchSize
+        isComplete: profileIds.length < this.batchSize,
       };
 
       if (existingFileIndex >= 0) {
@@ -1213,18 +1228,20 @@ export class ProfileInitService {
 
       // Update metadata totals
       const totalKey = `total${connectionType.charAt(0).toUpperCase() + connectionType.slice(1)}`;
-      const currentTotal = masterIndex.files[connectionKey].reduce((sum, file) => sum + (file.totalLinks || 0), 0);
+      const currentTotal = masterIndex.files[connectionKey].reduce(
+        (sum, file) => sum + (file.totalLinks || 0),
+        0
+      );
       masterIndex.metadata[totalKey] = currentTotal;
 
       logger.info(`Saved ${profileIds.length} ${connectionType} links to ${fileName}`, {
         fileIndex,
         totalLinks: profileIds.length,
         filePath,
-        isComplete: fileData.metadata.isComplete
+        isComplete: fileData.metadata.isComplete,
       });
 
       return filePath;
-
     } catch (error) {
       logger.error(`Failed to save ${connectionType} links to file:`, error);
       throw error;
@@ -1244,7 +1261,7 @@ export class ProfileInitService {
           '[data-view-name="connections-profile"] a[href*="/in/"]',
           '[data-view-name="people-search-result"] a[href*="/in/"]',
           '[data-view-name="search-result-lockup-title"] a[href*="/in/"]',
-          '[data-test-id="connection-card"] a[href*="/in/"]'
+          '[data-test-id="connection-card"] a[href*="/in/"]',
         ];
 
         for (const selector of selectors) {
@@ -1266,13 +1283,14 @@ export class ProfileInitService {
 
       // Add new links to the main set
       const initialSize = allLinks.size;
-      newLinks.forEach(link => allLinks.add(link));
+      newLinks.forEach((link) => allLinks.add(link));
       const addedCount = allLinks.size - initialSize;
 
       if (addedCount > 0) {
-        logger.debug(`Collected ${addedCount} new links (${newLinks.length} found, ${allLinks.size} total unique)`);
+        logger.debug(
+          `Collected ${addedCount} new links (${newLinks.length} found, ${allLinks.size} total unique)`
+        );
       }
-
     } catch (error) {
       logger.error('Failed to collect visible links:', error);
       throw error;
@@ -1300,7 +1318,7 @@ export class ProfileInitService {
       retryCount,
       maxRetries: errorDetails.maxRetries || 0,
       message: error.message,
-      context
+      context,
     });
 
     switch (errorDetails.category) {
@@ -1320,7 +1338,7 @@ export class ProfileInitService {
         logger.error('Unhandled error type', {
           requestId,
           errorType: errorDetails.type,
-          message: error.message
+          message: error.message,
         });
         return false;
     }
@@ -1348,7 +1366,7 @@ export class ProfileInitService {
       logger.warn('Authentication error - will trigger healing', {
         requestId,
         retryCount,
-        maxRetries: errorDetails.maxRetries
+        maxRetries: errorDetails.maxRetries,
       });
       return true;
     }
@@ -1356,7 +1374,7 @@ export class ProfileInitService {
     logger.error('Authentication failed after maximum retries', {
       requestId,
       retryCount,
-      maxRetries: errorDetails.maxRetries
+      maxRetries: errorDetails.maxRetries,
     });
     return false;
   }
@@ -1379,7 +1397,7 @@ export class ProfileInitService {
         requestId,
         retryCount,
         maxRetries: errorDetails.maxRetries,
-        backoffDelay
+        backoffDelay,
       });
 
       await RandomHelpers.randomDelay(backoffDelay, backoffDelay + 1000);
@@ -1389,7 +1407,7 @@ export class ProfileInitService {
     logger.error('Network error failed after maximum retries', {
       requestId,
       retryCount,
-      maxRetries: errorDetails.maxRetries
+      maxRetries: errorDetails.maxRetries,
     });
     return false;
   }
@@ -1412,7 +1430,7 @@ export class ProfileInitService {
         requestId,
         retryCount,
         maxRetries: errorDetails.maxRetries,
-        backoffDelay
+        backoffDelay,
       });
 
       await RandomHelpers.randomDelay(backoffDelay, backoffDelay + 5000);
@@ -1422,7 +1440,7 @@ export class ProfileInitService {
     logger.error('LinkedIn error failed after maximum retries', {
       requestId,
       retryCount,
-      maxRetries: errorDetails.maxRetries
+      maxRetries: errorDetails.maxRetries,
     });
     return false;
   }
@@ -1442,7 +1460,7 @@ export class ProfileInitService {
       logger.warn('Browser error - will trigger healing with fresh browser instance', {
         requestId,
         retryCount,
-        maxRetries: errorDetails.maxRetries
+        maxRetries: errorDetails.maxRetries,
       });
       return true;
     }
@@ -1450,7 +1468,7 @@ export class ProfileInitService {
     logger.error('Browser error failed after maximum retries', {
       requestId,
       retryCount,
-      maxRetries: errorDetails.maxRetries
+      maxRetries: errorDetails.maxRetries,
     });
     return false;
   }
@@ -1458,13 +1476,16 @@ export class ProfileInitService {
   /**
    * Handle database-related errors
    */
-  private async _handleDatabaseError(error: Error, context: { requestId?: string }): Promise<boolean> {
+  private async _handleDatabaseError(
+    error: Error,
+    context: { requestId?: string }
+  ): Promise<boolean> {
     const requestId = context.requestId || 'unknown';
 
     logger.error('Database error - not retryable', {
       requestId,
       message: error.message,
-      context
+      context,
     });
 
     return false;
@@ -1473,13 +1494,16 @@ export class ProfileInitService {
   /**
    * Handle connection-level errors (profile-specific)
    */
-  private async _handleConnectionError(error: Error, context: { requestId?: string; profileId?: string }): Promise<boolean> {
+  private async _handleConnectionError(
+    error: Error,
+    context: { requestId?: string; profileId?: string }
+  ): Promise<boolean> {
     const requestId = context.requestId || 'unknown';
 
     logger.warn('Connection-level error - will skip this connection', {
       requestId,
       profileId: context.profileId,
-      message: error.message
+      message: error.message,
     });
 
     return false;
@@ -1496,7 +1520,7 @@ export class ProfileInitService {
       if (!apiBaseUrl) {
         logger.debug('RAGStack ingestion skipped: API_GATEWAY_BASE_URL not configured', {
           requestId,
-          profileId
+          profileId,
         });
         return null;
       }
@@ -1507,7 +1531,7 @@ export class ProfileInitService {
       if (!profileResponse || !profileResponse.profile) {
         logger.debug('RAGStack ingestion skipped: profile not found in DynamoDB', {
           requestId,
-          profileId
+          profileId,
         });
         return null;
       }
@@ -1518,7 +1542,7 @@ export class ProfileInitService {
       if (profile.ragstack_ingested) {
         logger.debug('RAGStack ingestion skipped: already ingested', {
           requestId,
-          profileId
+          profileId,
         });
         return null;
       }
@@ -1527,7 +1551,7 @@ export class ProfileInitService {
       if (!profile.name) {
         logger.debug('RAGStack ingestion skipped: profile missing required name field', {
           requestId,
-          profileId
+          profileId,
         });
         return null;
       }
@@ -1539,39 +1563,43 @@ export class ProfileInitService {
         location: profile.location || profile.currentLocation,
         profile_id: profileId,
         about: profile.about || profile.summary,
-        current_position: profile.currentTitle ? {
-          title: profile.currentTitle,
-          company: profile.currentCompany
-        } : profile.current_position,
+        current_position: profile.currentTitle
+          ? {
+              title: profile.currentTitle,
+              company: profile.currentCompany,
+            }
+          : profile.current_position,
         experience: profile.experience,
         education: profile.education,
-        skills: profile.skills
+        skills: profile.skills,
       });
 
       // Call RAGStack proxy to ingest
-      const result = await this._callRAGStackProxy({
-        operation: 'ingest',
-        profileId: profileId,
-        markdownContent: markdown,
-        metadata: {
-          source: 'profile_init',
-          ingested_at: new Date().toISOString()
-        }
-      }, state);
+      const result = await this._callRAGStackProxy(
+        {
+          operation: 'ingest',
+          profileId: profileId,
+          markdownContent: markdown,
+          metadata: {
+            source: 'profile_init',
+            ingested_at: new Date().toISOString(),
+          },
+        },
+        state
+      );
 
       logger.info('RAGStack ingestion triggered successfully', {
         requestId,
         profileId,
-        documentId: result?.documentId
+        documentId: result?.documentId,
       });
 
       return result;
-
     } catch (error) {
       logger.warn('RAGStack ingestion failed (non-fatal)', {
         requestId,
         profileId,
-        error: (error as Error).message
+        error: (error as Error).message,
       });
       return null;
     }
@@ -1592,15 +1620,15 @@ export class ProfileInitService {
         params: { profileId },
         headers: {
           'Content-Type': 'application/json',
-          ...(state.jwtToken && { 'Authorization': `Bearer ${state.jwtToken}` })
-        }
+          ...(state.jwtToken && { Authorization: `Bearer ${state.jwtToken}` }),
+        },
       });
 
       return response.data;
     } catch (error) {
       logger.debug('Failed to fetch profile for ingestion', {
         profileId,
-        error: (error as Error).message
+        error: (error as Error).message,
       });
       return null;
     }
@@ -1621,8 +1649,8 @@ export class ProfileInitService {
     const response = await axios.post(`${apiBaseUrl}ragstack`, payload, {
       headers: {
         'Content-Type': 'application/json',
-        ...(state.jwtToken && { 'Authorization': `Bearer ${state.jwtToken}` })
-      }
+        ...(state.jwtToken && { Authorization: `Bearer ${state.jwtToken}` }),
+      },
     });
 
     return response.data;

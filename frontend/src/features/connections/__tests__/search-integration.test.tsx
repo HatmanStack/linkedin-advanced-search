@@ -59,9 +59,7 @@ const TestSearchComponent: React.FC<{ connections: Connection[] }> = ({ connecti
         isLoading={isSearching}
         placeholder="Search connections..."
       />
-      {searchError && (
-        <div data-testid="search-error">Error: {searchError.message}</div>
-      )}
+      {searchError && <div data-testid="search-error">Error: {searchError.message}</div>}
       {isSearchActive && !isSearching && searchResults.length === 0 && !searchError && (
         <div data-testid="empty-results">No results found</div>
       )}
@@ -117,9 +115,7 @@ describe('Search Integration', () => {
   describe('Successful search flow', () => {
     it('should display search results after typing', async () => {
       mockSearchProfiles.mockResolvedValue({
-        results: [
-          { profileId: 'conn-1', score: 0.95, snippet: 'John Doe software engineer' },
-        ],
+        results: [{ profileId: 'conn-1', score: 0.95, snippet: 'John Doe software engineer' }],
         totalResults: 1,
       });
 
