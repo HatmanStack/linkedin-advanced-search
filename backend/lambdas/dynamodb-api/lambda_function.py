@@ -29,10 +29,12 @@ service = DynamoDBApiService(table)
 ALLOWED_ORIGINS_ENV = os.environ.get('ALLOWED_ORIGINS', 'http://localhost:5173')
 ALLOWED_ORIGINS = [o.strip() for o in ALLOWED_ORIGINS_ENV.split(',') if o.strip()]
 
+
 def _get_origin_from_event(event: dict[str, Any]) -> str | None:
     headers = event.get('headers') or {}
     origin = headers.get('origin') or headers.get('Origin')
     return origin
+
 
 def preflight_response(event: dict[str, Any]) -> dict[str, Any]:
     """Return a proper CORS preflight (OPTIONS) response without requiring auth."""
@@ -45,10 +47,11 @@ def preflight_response(event: dict[str, Any]) -> dict[str, Any]:
             'Access-Control-Allow-Origin': allow_origin,
             'Vary': 'Origin',
             'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-            'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'
+            'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
         },
-        'body': ''
+        'body': '',
     }
+
 
 def _extract_user_id(event: dict[str, Any]) -> str | None:
     """Extract user ID from Cognito JWT claims. Handles both HTTP API v2 and REST API formats."""
@@ -69,13 +72,14 @@ def lambda_handler(event: dict[str, Any], context) -> dict[str, Any]:
     """Main Lambda handler - thin routing layer delegating to DynamoDBApiService."""
     try:
         from shared_services.observability import setup_correlation_context
+
         setup_correlation_context(event, context)
 
-        logger.info("Received request")
+        logger.info('Received request')
 
-        http_method = (event.get('httpMethod')
-                       or event.get('requestContext', {}).get('http', {}).get('method')
-                       or '').upper()
+        http_method = (
+            event.get('httpMethod') or event.get('requestContext', {}).get('http', {}).get('method') or ''
+        ).upper()
 
         if http_method == 'OPTIONS':
             return preflight_response(event)
@@ -98,8 +102,10 @@ def lambda_handler(event: dict[str, Any], context) -> dict[str, Any]:
                 return create_response(200, {'profile': item})
 
             if not user_id:
-                logger.error("No user ID found in JWT token for profile GET")
-                return create_response(401, {'error': 'Unauthorized: Missing or invalid JWT token'}, _get_origin_from_event(event))
+                logger.error('No user ID found in JWT token for profile GET')
+                return create_response(
+                    401, {'error': 'Unauthorized: Missing or invalid JWT token'}, _get_origin_from_event(event)
+                )
 
             result = service.get_user_settings(user_id)
             return create_response(200, result)
@@ -118,20 +124,28 @@ def lambda_handler(event: dict[str, Any], context) -> dict[str, Any]:
                 return create_response(400, result)
             return create_response(200, result)
         else:
-            return create_response(400, {
-                'error': f'Unsupported operation: {operation}',
-                'supported_operations': [
-                    'create', 'get_details', 'get_user_settings', 'update_user_settings', 'update_user_profile'
-                ]
-            }, _get_origin_from_event(event))
+            return create_response(
+                400,
+                {
+                    'error': f'Unsupported operation: {operation}',
+                    'supported_operations': [
+                        'create',
+                        'get_details',
+                        'get_user_settings',
+                        'update_user_settings',
+                        'update_user_profile',
+                    ],
+                },
+                _get_origin_from_event(event),
+            )
 
     except ClientError:
-        logger.exception("DynamoDB error")
+        logger.exception('DynamoDB error')
         return create_response(500, {'error': 'Database error'})
     except Exception as e:
         # Intentionally catch broad Exception as top-level handler for Lambda.
         # This ensures malformed requests don't crash the Lambda and always return valid HTTP.
-        logger.error(f"Error processing request: {str(e)}")
+        logger.error(f'Error processing request: {str(e)}')
         return create_response(500, {'error': 'Internal server error'})
 
 
@@ -145,7 +159,7 @@ def handle_profiles_route(event: dict[str, Any], http_method: str, user_id: str 
             profile_data = service.get_user_profile(user_id)
             return create_response(200, {'success': True, 'data': profile_data})
         except ClientError:
-            logger.exception("DynamoDB error in get_user_profile")
+            logger.exception('DynamoDB error in get_user_profile')
             return create_response(500, {'error': 'Database error'})
     elif http_method == 'POST':
         return _update_user_profile(event, user_id)
@@ -187,7 +201,7 @@ def create_response(status_code: int, body: dict[str, Any], origin: str | None =
             'Access-Control-Allow-Origin': allow_origin,
             'Vary': 'Origin',
             'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-            'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'
+            'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
         },
-        'body': json.dumps(body, default=str)
+        'body': json.dumps(body, default=str),
     }

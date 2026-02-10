@@ -1,4 +1,5 @@
 """LinkedIn Edge Management Lambda - Routes edge and RAGStack operations."""
+
 import json
 import logging
 import os
@@ -22,6 +23,7 @@ _ingestion_service = None
 if RAGSTACK_GRAPHQL_ENDPOINT and RAGSTACK_API_KEY:
     from shared_services.ingestion_service import IngestionService
     from shared_services.ragstack_client import RAGStackClient
+
     _ragstack_client = RAGStackClient(RAGSTACK_GRAPHQL_ENDPOINT, RAGSTACK_API_KEY)
     _ingestion_service = IngestionService(_ragstack_client)
 
@@ -29,9 +31,11 @@ if RAGSTACK_GRAPHQL_ENDPOINT and RAGSTACK_API_KEY:
 ALLOWED_ORIGINS_ENV = os.environ.get('ALLOWED_ORIGINS', 'http://localhost:5173')
 ALLOWED_ORIGINS = [o.strip() for o in ALLOWED_ORIGINS_ENV.split(',') if o.strip()]
 
-BASE_HEADERS = {'Content-Type': 'application/json',
-                'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-                'Access-Control-Allow-Methods': 'POST,OPTIONS'}
+BASE_HEADERS = {
+    'Content-Type': 'application/json',
+    'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+    'Access-Control-Allow-Methods': 'POST,OPTIONS',
+}
 
 
 def _get_origin_from_event(event):
@@ -56,7 +60,9 @@ def _sanitize_request_context(request_context):
             sanitized[key] = '[REDACTED]'
         elif isinstance(value, dict):
             sanitized[key] = {
-                k: '[REDACTED]' if any(s in k.lower() for s in ('token', 'authorization', 'claim', 'secret', 'credential')) else v
+                k: '[REDACTED]'
+                if any(s in k.lower() for s in ('token', 'authorization', 'claim', 'secret', 'credential'))
+                else v
                 for k, v in value.items()
             }
         else:
@@ -65,7 +71,15 @@ def _sanitize_request_context(request_context):
 
 
 def _resp(code, body, event=None):
-    headers = _cors_headers(event) if event else {**BASE_HEADERS, 'Access-Control-Allow-Origin': ALLOWED_ORIGINS[0] if ALLOWED_ORIGINS else '*', 'Vary': 'Origin'}
+    headers = (
+        _cors_headers(event)
+        if event
+        else {
+            **BASE_HEADERS,
+            'Access-Control-Allow-Origin': ALLOWED_ORIGINS[0] if ALLOWED_ORIGINS else '*',
+            'Vary': 'Origin',
+        }
+    )
     return {'statusCode': code, 'headers': headers, 'body': json.dumps(body)}
 
 
@@ -128,20 +142,27 @@ def _handle_ragstack(body, user_id, svc, event=None):
 def lambda_handler(event, context):
     """Route edge operations to EdgeService."""
     from shared_services.observability import setup_correlation_context
+
     setup_correlation_context(event, context)
 
     # Debug logging
-    logger.info(f"Event keys: {list(event.keys())}")
-    logger.info(f"Request context: {json.dumps(_sanitize_request_context(event.get('requestContext', {})), default=str)}")
+    logger.info(f'Event keys: {list(event.keys())}')
+    logger.info(
+        f'Request context: {json.dumps(_sanitize_request_context(event.get("requestContext", {})), default=str)}'
+    )
 
     # Handle CORS preflight
     if event.get('requestContext', {}).get('http', {}).get('method') == 'OPTIONS':
         return _resp(200, {'message': 'OK'}, event)
 
     try:
-        body = json.loads(event.get('body', '{}')) if isinstance(event.get('body'), str) else event.get('body') or event or {}
+        body = (
+            json.loads(event.get('body', '{}'))
+            if isinstance(event.get('body'), str)
+            else event.get('body') or event or {}
+        )
         user_id = _get_user_id(event)
-        logger.info(f"Extracted user_id: {user_id}")
+        logger.info(f'Extracted user_id: {user_id}')
         if not user_id:
             return _resp(401, {'error': 'Unauthorized'}, event)
 
@@ -166,11 +187,27 @@ def lambda_handler(event, context):
         if op == 'upsert_status':
             if not pid:
                 return _resp(400, {'error': 'profileId required'}, event)
-            return _resp(200, {'result': svc.upsert_status(user_id, pid, updates.get('status', 'pending'), updates.get('addedAt'), updates.get('messages'))}, event)
+            return _resp(
+                200,
+                {
+                    'result': svc.upsert_status(
+                        user_id, pid, updates.get('status', 'pending'), updates.get('addedAt'), updates.get('messages')
+                    )
+                },
+                event,
+            )
         if op == 'add_message':
             if not pid:
                 return _resp(400, {'error': 'profileId required'}, event)
-            return _resp(200, {'result': svc.add_message(user_id, pid, updates.get('message', ''), updates.get('messageType', 'outbound'))}, event)
+            return _resp(
+                200,
+                {
+                    'result': svc.add_message(
+                        user_id, pid, updates.get('message', ''), updates.get('messageType', 'outbound')
+                    )
+                },
+                event,
+            )
         if op == 'get_messages':
             if not pid:
                 return _resp(400, {'error': 'profileId required'}, event)
@@ -193,5 +230,5 @@ def lambda_handler(event, context):
     except ServiceError as e:
         return _resp(500, {'error': e.message}, event)
     except Exception as e:
-        logger.error(f"Error: {e}")
+        logger.error(f'Error: {e}')
         return _resp(500, {'error': 'Internal server error'}, event)

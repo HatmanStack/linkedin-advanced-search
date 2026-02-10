@@ -3,6 +3,7 @@
 Provides correlation ID tracking and structured JSON logging across
 Lambda invocations for distributed tracing.
 """
+
 import json
 import logging
 import uuid
@@ -90,10 +91,7 @@ def setup_correlation_context(event: dict[str, Any], context: Any) -> str:
     # Extract trace ID from headers or generate new one
     headers = event.get('headers') or {}
     trace_id = (
-        headers.get('x-trace-id') or
-        headers.get('X-Trace-Id') or
-        headers.get('x-request-id') or
-        str(uuid.uuid4())
+        headers.get('x-trace-id') or headers.get('X-Trace-Id') or headers.get('x-request-id') or str(uuid.uuid4())
     )
 
     CorrelationContext.set_trace_id(trace_id)

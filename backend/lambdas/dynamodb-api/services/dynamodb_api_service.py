@@ -1,4 +1,5 @@
 """DynamoDBApiService - Business logic for user profile and settings operations."""
+
 import base64
 import ipaddress
 import logging
@@ -36,15 +37,9 @@ class DynamoDBApiService(BaseService):
         try:
             self.table.reload()
             status = self.table.table_status
-            return {
-                'healthy': status == 'ACTIVE',
-                'details': {'table_status': status}
-            }
+            return {'healthy': status == 'ACTIVE', 'details': {'table_status': status}}
         except Exception as e:
-            return {
-                'healthy': False,
-                'details': {'error': str(e)}
-            }
+            return {'healthy': False, 'details': {'error': str(e)}}
 
     def get_user_profile(self, user_id: str) -> dict[str, Any]:
         """Fetch user profile.
@@ -52,16 +47,12 @@ class DynamoDBApiService(BaseService):
         Returns profile-api compatible response format.
         """
         # Read from the canonical SETTINGS sort key first
-        response = self.table.get_item(
-            Key={'PK': f'USER#{user_id}', 'SK': '#SETTINGS'}
-        )
+        response = self.table.get_item(Key={'PK': f'USER#{user_id}', 'SK': '#SETTINGS'})
         item = response.get('Item')
 
         # Fallback to legacy PROFILE SK if #SETTINGS doesn't exist
         if not item:
-            response = self.table.get_item(
-                Key={'PK': f'USER#{user_id}', 'SK': 'PROFILE'}
-            )
+            response = self.table.get_item(Key={'PK': f'USER#{user_id}', 'SK': 'PROFILE'})
             item = response.get('Item')
 
         if not item:
@@ -74,7 +65,7 @@ class DynamoDBApiService(BaseService):
                 'lastName': '',
                 'linkedin_credentials': None,
                 'createdAt': now,
-                'updatedAt': now
+                'updatedAt': now,
             }
 
         # Build profile response (support both camelCase and snake_case field names)
@@ -96,7 +87,7 @@ class DynamoDBApiService(BaseService):
             'ai_generated_post_hook': item.get('ai_generated_post_hook', ''),
             'ai_generated_post_reasoning': item.get('ai_generated_post_reasoning', ''),
             'createdAt': item.get('createdAt', item.get('created_at', '')),
-            'updatedAt': item.get('updatedAt', item.get('updated_at', ''))
+            'updatedAt': item.get('updatedAt', item.get('updated_at', '')),
         }
 
     def update_user_settings(self, user_id: str, body: dict[str, Any]) -> dict[str, Any]:
@@ -108,9 +99,19 @@ class DynamoDBApiService(BaseService):
         # Extract profile fields
         profile_updates = {}
         allowed_profile_fields = [
-            'first_name', 'last_name', 'headline', 'profile_url', 'profile_picture_url',
-            'location', 'summary', 'industry', 'current_position', 'company', 'interests',
-            'unpublished_post_content', 'linkedin_credentials',
+            'first_name',
+            'last_name',
+            'headline',
+            'profile_url',
+            'profile_picture_url',
+            'location',
+            'summary',
+            'industry',
+            'current_position',
+            'company',
+            'interests',
+            'unpublished_post_content',
+            'linkedin_credentials',
             'ai_generated_ideas',
             'ai_generated_research',
             'ai_generated_post_hook',
@@ -132,21 +133,21 @@ class DynamoDBApiService(BaseService):
             expr_attr_names = {}
 
             for k, v in profile_updates.items():
-                name_key = f"#f_{k}"
+                name_key = f'#f_{k}'
                 expr_attr_names[name_key] = k
-                value_key = f":v_{k}"
+                value_key = f':v_{k}'
                 expr_attr_values[value_key] = v
-                update_expr_parts.append(f"{name_key} = {value_key}")
+                update_expr_parts.append(f'{name_key} = {value_key}')
 
-            update_expression = (
-                'SET ' + ', '.join(update_expr_parts + ['updated_at = :ts', 'created_at = if_not_exists(created_at, :ts)'])
+            update_expression = 'SET ' + ', '.join(
+                update_expr_parts + ['updated_at = :ts', 'created_at = if_not_exists(created_at, :ts)']
             )
 
             self.table.update_item(
                 Key={'PK': f'USER#{user_id}', 'SK': '#SETTINGS'},
                 UpdateExpression=update_expression,
                 ExpressionAttributeNames=expr_attr_names,
-                ExpressionAttributeValues=expr_attr_values
+                ExpressionAttributeValues=expr_attr_values,
             )
         else:
             logger.debug('No profile fields provided for update')
@@ -181,43 +182,35 @@ class DynamoDBApiService(BaseService):
             'education': updates.get('education', []),
             'skills': updates.get('skills', []),
             'fulltext': updates.get('fulltext', ''),
-            'evaluated': True
+            'evaluated': True,
         }
 
         self.table.put_item(Item=profile_metadata)
 
-        logger.info(f"Created/updated bad contact profile metadata (evaluated=True): {profile_id_b64} for user: {user_id}")
+        logger.info(
+            f'Created/updated bad contact profile metadata (evaluated=True): {profile_id_b64} for user: {user_id}'
+        )
 
         return {
             'message': 'Bad contact profile metadata updated successfully',
             'profileId': profile_id_b64,
-            'evaluated': True
+            'evaluated': True,
         }
 
     def get_user_settings(self, user_id: str) -> dict[str, Any] | None:
         """Get user settings item (e.g., encrypted linkedin_credentials).
         Key: PK=USER#<sub>, SK=#SETTINGS
         """
-        response = self.table.get_item(
-            Key={
-                'PK': f'USER#{user_id}',
-                'SK': '#SETTINGS'
-            }
-        )
+        response = self.table.get_item(Key={'PK': f'USER#{user_id}', 'SK': '#SETTINGS'})
         return response.get('Item')
 
     def get_profile_metadata(self, profile_id_b64: str) -> dict[str, Any] | None:
         """Get profile metadata by base64-encoded profile ID."""
         try:
-            response = self.table.get_item(
-                Key={
-                    'PK': f'PROFILE#{profile_id_b64}',
-                    'SK': '#METADATA'
-                }
-            )
+            response = self.table.get_item(Key={'PK': f'PROFILE#{profile_id_b64}', 'SK': '#METADATA'})
             return response.get('Item')
         except ClientError as e:
-            logger.error(f"Error getting profile metadata: {str(e)}")
+            logger.error(f'Error getting profile metadata: {str(e)}')
             return None
 
     def validate_profile_field(self, field: str, value: Any) -> bool:

@@ -72,6 +72,9 @@ jobs:
       - name: Run Ruff linting
         working-directory: ./backend
         run: uvx ruff check lambdas --exclude .aws-sam
+      - name: Run Ruff format check
+        working-directory: ./backend
+        run: uvx ruff format --check lambdas --exclude .aws-sam
       - name: Install test dependencies
         working-directory: ./tests/backend
         run: uv pip install pytest pytest-mock boto3 moto requests-mock --system

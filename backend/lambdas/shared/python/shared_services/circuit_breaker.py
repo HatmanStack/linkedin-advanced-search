@@ -4,6 +4,7 @@ Prevents cascading failures by tracking error rates and temporarily
 disabling calls to failing services. Transitions:
   closed (healthy) -> open (failing) -> half_open (testing) -> closed
 """
+
 import logging
 import time
 from collections.abc import Callable
@@ -18,10 +19,7 @@ class CircuitBreakerOpenError(Exception):
     def __init__(self, service_name: str, recovery_time_remaining: float):
         self.service_name = service_name
         self.recovery_time_remaining = recovery_time_remaining
-        super().__init__(
-            f"Circuit breaker open for '{service_name}'. "
-            f"Retry in {recovery_time_remaining:.1f}s"
-        )
+        super().__init__(f"Circuit breaker open for '{service_name}'. Retry in {recovery_time_remaining:.1f}s")
 
 
 class CircuitBreaker:
@@ -116,7 +114,7 @@ class CircuitBreaker:
         elif self._failure_count >= self.failure_threshold:
             logger.warning(
                 f"Circuit breaker '{self.service_name}': closed -> open "
-                f"(threshold {self.failure_threshold} reached: {error})"
+                f'(threshold {self.failure_threshold} reached: {error})'
             )
             self._state = 'open'
 

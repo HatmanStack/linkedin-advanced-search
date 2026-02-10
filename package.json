@@ -14,7 +14,7 @@
     "lint": "npm run lint:frontend && npm run lint:puppeteer && npm run lint:backend",
     "lint:frontend": "cd frontend && npm run lint",
     "lint:puppeteer": "cd puppeteer && npm run lint",
-    "lint:backend": "cd backend && uvx ruff check lambdas --exclude .aws-sam",
+    "lint:backend": "cd backend && uvx ruff check lambdas --exclude .aws-sam && uvx ruff format --check lambdas --exclude .aws-sam",
     "check": "npm run lint && npm run test",
     "benchmark": "node scripts/benchmarks/benchmark-performance.js",
     "cleanup": "bash scripts/cleanup/code-cleanup.sh",
