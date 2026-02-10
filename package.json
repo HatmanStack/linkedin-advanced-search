@@ -24,6 +24,8 @@
     "benchmark": "node scripts/benchmarks/benchmark-performance.js",
     "cleanup": "bash scripts/cleanup/code-cleanup.sh",
     "cleanup:audit": "bash scripts/cleanup/code-cleanup.sh audit",
+    "test:e2e": "npx playwright test",
+    "test:e2e:ui": "npx playwright test --ui",
     "deploy": "node scripts/deploy/deploy-sam.js",
     "deploy:ragstack": "node scripts/deploy/deploy-ragstack.js",
     "prepare": "husky"
@@ -31,11 +33,21 @@
   "author": "HatmanStack",
   "license": "Apache-2.0",
   "lint-staged": {
-    "frontend/src/**/*.{ts,tsx}": ["prettier --write", "eslint --max-warnings 0"],
-    "puppeteer/src/**/*.{js,ts}": ["prettier --write", "eslint --max-warnings 0"],
-    "backend/lambdas/**/*.py": ["uvx ruff check --fix", "uvx ruff format"]
+    "frontend/src/**/*.{ts,tsx}": [
+      "prettier --write",
+      "eslint --max-warnings 0"
+    ],
+    "puppeteer/src/**/*.{js,ts}": [
+      "prettier --write",
+      "eslint --max-warnings 0"
+    ],
+    "backend/lambdas/**/*.py": [
+      "uvx ruff check --fix",
+      "uvx ruff format"
+    ]
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
     "husky": "^9.1.7",
     "lint-staged": "^16.2.7",
     "prettier": "^3.8.1"
