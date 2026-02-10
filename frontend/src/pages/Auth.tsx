@@ -340,6 +340,7 @@ const Auth = () => {
                       </Label>
                       <Input
                         id="signin-email"
+                        data-testid="email-input"
                         type="email"
                         value={signInData.email}
                         onChange={(e) =>
@@ -358,6 +359,7 @@ const Auth = () => {
                       <div className="relative">
                         <Input
                           id="signin-password"
+                          data-testid="password-input"
                           type={showPassword ? 'text' : 'password'}
                           value={signInData.password}
                           onChange={(e) =>
@@ -386,6 +388,7 @@ const Auth = () => {
                     </div>
                     <Button
                       type="submit"
+                      data-testid="sign-in-button"
                       className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
                       disabled={isLoading}
                       aria-busy={isLoading || isPreloading}

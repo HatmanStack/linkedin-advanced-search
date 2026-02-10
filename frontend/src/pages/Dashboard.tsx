@@ -138,6 +138,7 @@ const Dashboard = () => {
               </Button>
               <Button
                 variant="ghost"
+                data-testid="sign-out-button"
                 onClick={handleSignOut}
                 className="text-white hover:bg-white/10"
               >
