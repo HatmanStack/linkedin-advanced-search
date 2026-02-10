@@ -15,6 +15,16 @@ table = boto3.resource('dynamodb').Table(os.environ.get('DYNAMODB_TABLE_NAME', '
 RAGSTACK_GRAPHQL_ENDPOINT = os.environ.get('RAGSTACK_GRAPHQL_ENDPOINT', '')
 RAGSTACK_API_KEY = os.environ.get('RAGSTACK_API_KEY', '')
 
+# Module-level RAGStack clients for warm container reuse
+_ragstack_client = None
+_ingestion_service = None
+
+if RAGSTACK_GRAPHQL_ENDPOINT and RAGSTACK_API_KEY:
+    from shared_services.ragstack_client import RAGStackClient
+    from shared_services.ingestion_service import IngestionService
+    _ragstack_client = RAGStackClient(RAGSTACK_GRAPHQL_ENDPOINT, RAGSTACK_API_KEY)
+    _ingestion_service = IngestionService(_ragstack_client)
+
 HEADERS = {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*',
            'Access-Control-Allow-Headers': 'Content-Type,Authorization', 'Access-Control-Allow-Methods': 'POST,OPTIONS'}
 
@@ -58,14 +68,12 @@ def _get_user_id(event):
 
 def _handle_ragstack(body, user_id):
     """Handle /ragstack route - search and ingest operations."""
-    if not RAGSTACK_GRAPHQL_ENDPOINT or not RAGSTACK_API_KEY:
+    if not _ragstack_client:
         return _resp(503, {'error': 'RAGStack not configured'})
 
     operation = body.get('operation')
 
     if operation == 'search':
-        from shared_services.ragstack_client import RAGStackClient
-        client = RAGStackClient(RAGSTACK_GRAPHQL_ENDPOINT, RAGSTACK_API_KEY)
         query = body.get('query', '')
         if not query:
             return _resp(400, {'error': 'query is required'})
@@ -73,14 +81,10 @@ def _handle_ragstack(body, user_id):
             max_results = min(int(body.get('maxResults', 100)), 200)
         except (TypeError, ValueError):
             return _resp(400, {'error': 'maxResults must be a number'})
-        results = client.search(query, max_results)
+        results = _ragstack_client.search(query, max_results)
         return _resp(200, {'results': results, 'totalResults': len(results)})
 
     elif operation == 'ingest':
-        from shared_services.ingestion_service import IngestionService
-        from shared_services.ragstack_client import RAGStackClient
-        client = RAGStackClient(RAGSTACK_GRAPHQL_ENDPOINT, RAGSTACK_API_KEY)
-        svc = IngestionService(client)
         profile_id = body.get('profileId')
         markdown_content = body.get('markdownContent')
         metadata = body.get('metadata') or {}
@@ -91,16 +95,14 @@ def _handle_ragstack(body, user_id):
         if not markdown_content:
             return _resp(400, {'error': 'markdownContent is required'})
         metadata['user_id'] = user_id
-        result = svc.ingest_profile(profile_id, markdown_content, metadata)
+        result = _ingestion_service.ingest_profile(profile_id, markdown_content, metadata)
         return _resp(200, result)
 
     elif operation == 'status':
-        from shared_services.ragstack_client import RAGStackClient
-        client = RAGStackClient(RAGSTACK_GRAPHQL_ENDPOINT, RAGSTACK_API_KEY)
         document_id = body.get('documentId')
         if not document_id:
             return _resp(400, {'error': 'documentId is required'})
-        status = client.get_document_status(document_id)
+        status = _ragstack_client.get_document_status(document_id)
         return _resp(200, status)
 
     else:
