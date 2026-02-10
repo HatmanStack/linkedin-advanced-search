@@ -310,11 +310,20 @@ Resources:
             Auth:
               Authorizer: NONE
 
+  ProfileProcessingDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub 'linkedin-profile-processing-dlq-${Environment}'
+      MessageRetentionPeriod: 1209600  # 14 days
+
   ProfileProcessingQueue:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: !Sub 'linkedin-profile-processing-queue-${Environment}'
       VisibilityTimeout: 300
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt ProfileProcessingDLQ.Arn
+        maxReceiveCount: 3
 
   ProfileProcessingFunction:
     Type: AWS::Serverless::Function
@@ -429,3 +438,6 @@ Outputs:
   ProfileProcessingQueueUrl:
     Description: SQS queue URL for profile processing
     Value: !Ref ProfileProcessingQueue
+  ProfileProcessingDLQUrl:
+    Description: Dead letter queue URL for failed profile processing
+    Value: !Ref ProfileProcessingDLQ
