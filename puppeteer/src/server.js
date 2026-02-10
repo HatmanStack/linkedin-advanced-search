@@ -213,10 +213,18 @@ async function initializeDirectories() {
 }
 
 // Graceful shutdown
+let httpServer = null;
+
 async function shutdown(signal) {
   logger.info(`${signal} received, shutting down gracefully`);
   stopProfileMonitoring();
+  await BrowserSessionManager.cleanup();
   await closeRedisConnection();
+  if (httpServer) {
+    httpServer.close();
+  }
+  // Safety net: force exit after 10 seconds
+  setTimeout(() => process.exit(1), 10_000).unref();
   process.exit(0);
 }
 
@@ -227,11 +235,11 @@ process.on('SIGINT', () => shutdown('SIGINT'));
 async function startServer() {
   try {
     await initializeDirectories();
-    
+
     // Initialize LinkedIn interaction configuration system
     logger.info('Initializing LinkedIn interaction configuration...');
     const configInitialized = await ConfigInitializer.initialize();
-    
+
     if (!configInitialized) {
       logger.error('Failed to initialize LinkedIn interaction configuration');
       if (config.nodeEnv === 'production') {
@@ -239,7 +247,7 @@ async function startServer() {
       }
     }
 
-    app.listen(config.port, () => {
+    httpServer = app.listen(config.port, () => {
       logger.info(`🚀 LinkedIn Advanced Search Backend started`, {
         port: config.port,
         nodeEnv: config.nodeEnv,
