@@ -261,6 +261,7 @@ const Profile = () => {
                     </Label>
                     <Input
                       id="name"
+                      data-testid="profile-name-input"
                       value={profile.name}
                       onChange={(e) => handleInputChange('name', e.target.value)}
                       className="bg-white/5 border-white/20 text-white placeholder-slate-400"
@@ -286,6 +287,7 @@ const Profile = () => {
                     </Label>
                     <Input
                       id="company"
+                      data-testid="profile-company-input"
                       value={profile.company}
                       onChange={(e) => handleInputChange('company', e.target.value)}
                       className="bg-white/5 border-white/20 text-white placeholder-slate-400"
@@ -448,6 +450,7 @@ const Profile = () => {
             </Card>
 
             <Button
+              data-testid="save-profile-button"
               onClick={handleSave}
               disabled={isSaving}
               className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
