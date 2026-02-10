@@ -24,11 +24,19 @@
     "cleanup": "bash scripts/cleanup/code-cleanup.sh",
     "cleanup:audit": "bash scripts/cleanup/code-cleanup.sh audit",
     "deploy": "node scripts/deploy/deploy-sam.js",
-    "deploy:ragstack": "node scripts/deploy/deploy-ragstack.js"
+    "deploy:ragstack": "node scripts/deploy/deploy-ragstack.js",
+    "prepare": "husky"
   },
   "author": "HatmanStack",
   "license": "Apache-2.0",
+  "lint-staged": {
+    "frontend/src/**/*.{ts,tsx}": ["prettier --write", "eslint --max-warnings 0"],
+    "puppeteer/src/**/*.{js,ts}": ["prettier --write", "eslint --max-warnings 0"],
+    "backend/lambdas/**/*.py": ["uvx ruff check --fix", "uvx ruff format"]
+  },
   "devDependencies": {
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.7",
     "prettier": "^3.8.1"
   }
 }
