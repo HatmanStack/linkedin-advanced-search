@@ -279,6 +279,7 @@ const ConnectionCard = ({
 
   return (
     <div
+      data-testid="connection-card"
       className={`p-4 my-3 rounded-lg border cursor-pointer transition-all duration-200 relative ${
         isSelected
           ? 'bg-blue-600/20 border-blue-500'

@@ -250,7 +250,10 @@ export const MessageModal: React.FC<MessageModalProps> = ({
         }
       }}
     >
-      <DialogContent className="sm:max-w-[600px] max-h-[80vh] flex flex-col">
+      <DialogContent
+        data-testid="message-modal"
+        className="sm:max-w-[600px] max-h-[80vh] flex flex-col"
+      >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <MessageSquare className="h-5 w-5" />
