@@ -1,26 +1,17 @@
 """LLMService - Business logic for LLM operations."""
-import importlib.util
 import json
 import logging
 import os
 import uuid
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 from typing import Any
 
 # Shared layer imports (from /opt/python via Lambda Layer)
 from shared_services.base_service import BaseService
 
-# Import prompts - will be loaded from parent directory
-PROMPTS_PATH = Path(__file__).parent.parent / 'prompts.py'
-if PROMPTS_PATH.exists():
-    spec = importlib.util.spec_from_file_location('prompts', PROMPTS_PATH)
-    prompts_module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(prompts_module)
-    LINKEDIN_IDEAS_PROMPT = getattr(prompts_module, 'LINKEDIN_IDEAS_PROMPT', '{user_data}\n{raw_ideas}')
-    LINKEDIN_RESEARCH_PROMPT = getattr(prompts_module, 'LINKEDIN_RESEARCH_PROMPT', '{topics}\n{user_data}')
-    SYNTHESIZE_RESEARCH_PROMPT = getattr(prompts_module, 'SYNTHESIZE_RESEARCH_PROMPT', '{user_data}\n{research_content}\n{post_content}\n{ideas_content}')
-else:
+try:
+    from prompts import LINKEDIN_IDEAS_PROMPT, LINKEDIN_RESEARCH_PROMPT, SYNTHESIZE_RESEARCH_PROMPT
+except ImportError:
     LINKEDIN_IDEAS_PROMPT = '{user_data}\n{raw_ideas}'
     LINKEDIN_RESEARCH_PROMPT = '{topics}\n{user_data}'
     SYNTHESIZE_RESEARCH_PROMPT = '{user_data}\n{research_content}\n{post_content}\n{ideas_content}'

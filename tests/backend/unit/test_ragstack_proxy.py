@@ -118,18 +118,17 @@ class TestSearchOperation:
     """Tests for search operation through edge-processing handler"""
 
     def test_search_requires_query(self, edge_module):
-        with patch.object(edge_module, 'RAGSTACK_GRAPHQL_ENDPOINT', 'https://api.example.com/graphql'), \
-             patch.object(edge_module, 'RAGSTACK_API_KEY', 'test-key'):
+        mock_client = MagicMock()
+        with patch.object(edge_module, '_ragstack_client', mock_client):
             result = edge_module._handle_ragstack({'operation': 'search'}, 'user-123')
             assert result['statusCode'] == 400
 
     def test_search_success(self, edge_module):
-        with patch.object(edge_module, 'RAGSTACK_GRAPHQL_ENDPOINT', 'https://api.example.com/graphql'), \
-             patch.object(edge_module, 'RAGSTACK_API_KEY', 'test-key'), \
-             patch('shared_services.ragstack_client.RAGStackClient.search') as mock_search:
-            mock_search.return_value = [
-                {'content': 'test', 'source': 'profile_1', 'score': 0.8}
-            ]
+        mock_client = MagicMock()
+        mock_client.search.return_value = [
+            {'content': 'test', 'source': 'profile_1', 'score': 0.8}
+        ]
+        with patch.object(edge_module, '_ragstack_client', mock_client):
             result = edge_module._handle_ragstack(
                 {'operation': 'search', 'query': 'engineer', 'maxResults': 10},
                 'user-123'
@@ -139,8 +138,7 @@ class TestSearchOperation:
             assert body['totalResults'] == 1
 
     def test_search_ragstack_not_configured(self, edge_module):
-        with patch.object(edge_module, 'RAGSTACK_GRAPHQL_ENDPOINT', ''), \
-             patch.object(edge_module, 'RAGSTACK_API_KEY', ''):
+        with patch.object(edge_module, '_ragstack_client', None):
             result = edge_module._handle_ragstack(
                 {'operation': 'search', 'query': 'test'},
                 'user-123'
@@ -152,8 +150,10 @@ class TestIngestOperation:
     """Tests for ingest operation"""
 
     def test_ingest_requires_profile_id(self, edge_module):
-        with patch.object(edge_module, 'RAGSTACK_GRAPHQL_ENDPOINT', 'https://api.example.com/graphql'), \
-             patch.object(edge_module, 'RAGSTACK_API_KEY', 'test-key'):
+        mock_client = MagicMock()
+        mock_svc = MagicMock()
+        with patch.object(edge_module, '_ragstack_client', mock_client), \
+             patch.object(edge_module, '_ingestion_service', mock_svc):
             result = edge_module._handle_ragstack(
                 {'operation': 'ingest', 'markdownContent': '# Profile'},
                 'user-123'
@@ -161,8 +161,10 @@ class TestIngestOperation:
             assert result['statusCode'] == 400
 
     def test_ingest_requires_content(self, edge_module):
-        with patch.object(edge_module, 'RAGSTACK_GRAPHQL_ENDPOINT', 'https://api.example.com/graphql'), \
-             patch.object(edge_module, 'RAGSTACK_API_KEY', 'test-key'):
+        mock_client = MagicMock()
+        mock_svc = MagicMock()
+        with patch.object(edge_module, '_ragstack_client', mock_client), \
+             patch.object(edge_module, '_ingestion_service', mock_svc):
             result = edge_module._handle_ragstack(
                 {'operation': 'ingest', 'profileId': 'profile-123'},
                 'user-123'
@@ -170,13 +172,14 @@ class TestIngestOperation:
             assert result['statusCode'] == 400
 
     def test_ingest_success(self, edge_module):
-        with patch.object(edge_module, 'RAGSTACK_GRAPHQL_ENDPOINT', 'https://api.example.com/graphql'), \
-             patch.object(edge_module, 'RAGSTACK_API_KEY', 'test-key'), \
-             patch('shared_services.ingestion_service.IngestionService.ingest_profile') as mock_ingest:
-            mock_ingest.return_value = {
-                'status': 'uploaded', 'documentId': 'doc-123',
-                'profileId': 'profile-123', 'error': None
-            }
+        mock_client = MagicMock()
+        mock_svc = MagicMock()
+        mock_svc.ingest_profile.return_value = {
+            'status': 'uploaded', 'documentId': 'doc-123',
+            'profileId': 'profile-123', 'error': None
+        }
+        with patch.object(edge_module, '_ragstack_client', mock_client), \
+             patch.object(edge_module, '_ingestion_service', mock_svc):
             result = edge_module._handle_ragstack({
                 'operation': 'ingest',
                 'profileId': 'profile-123',
@@ -189,17 +192,18 @@ class TestIngestOperation:
 
     def test_ingest_includes_user_id_in_metadata(self, edge_module):
         """Verify user_id is added to metadata"""
-        with patch.object(edge_module, 'RAGSTACK_GRAPHQL_ENDPOINT', 'https://api.example.com/graphql'), \
-             patch.object(edge_module, 'RAGSTACK_API_KEY', 'test-key'), \
-             patch('shared_services.ingestion_service.IngestionService.ingest_profile') as mock_ingest:
-            mock_ingest.return_value = {'status': 'uploaded', 'documentId': 'doc-1', 'error': None}
+        mock_client = MagicMock()
+        mock_svc = MagicMock()
+        mock_svc.ingest_profile.return_value = {'status': 'uploaded', 'documentId': 'doc-1', 'error': None}
+        with patch.object(edge_module, '_ragstack_client', mock_client), \
+             patch.object(edge_module, '_ingestion_service', mock_svc):
             edge_module._handle_ragstack({
                 'operation': 'ingest',
                 'profileId': 'p-1',
                 'markdownContent': '# Test',
             }, 'my-user-id')
             # ingest_profile called with positional args: (profile_id, markdown_content, metadata)
-            call_args = mock_ingest.call_args[0]
+            call_args = mock_svc.ingest_profile.call_args[0]
             assert call_args[2]['user_id'] == 'my-user-id'
 
 
@@ -207,18 +211,17 @@ class TestStatusOperation:
     """Tests for status operation"""
 
     def test_status_requires_document_id(self, edge_module):
-        with patch.object(edge_module, 'RAGSTACK_GRAPHQL_ENDPOINT', 'https://api.example.com/graphql'), \
-             patch.object(edge_module, 'RAGSTACK_API_KEY', 'test-key'):
+        mock_client = MagicMock()
+        with patch.object(edge_module, '_ragstack_client', mock_client):
             result = edge_module._handle_ragstack({'operation': 'status'}, 'user-123')
             assert result['statusCode'] == 400
 
     def test_status_success(self, edge_module):
-        with patch.object(edge_module, 'RAGSTACK_GRAPHQL_ENDPOINT', 'https://api.example.com/graphql'), \
-             patch.object(edge_module, 'RAGSTACK_API_KEY', 'test-key'), \
-             patch('shared_services.ragstack_client.RAGStackClient.get_document_status') as mock_status:
-            mock_status.return_value = {
-                'status': 'indexed', 'documentId': 'doc-123', 'error': None
-            }
+        mock_client = MagicMock()
+        mock_client.get_document_status.return_value = {
+            'status': 'indexed', 'documentId': 'doc-123', 'error': None
+        }
+        with patch.object(edge_module, '_ragstack_client', mock_client):
             result = edge_module._handle_ragstack(
                 {'operation': 'status', 'documentId': 'doc-123'},
                 'user-123'
