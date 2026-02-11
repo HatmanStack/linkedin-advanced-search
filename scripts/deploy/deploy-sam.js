@@ -98,6 +98,8 @@ function parseSamConfig() {
       s3Bucket: '',
       environment: '',
       openaiApiKey: '',
+      deployRAGStack: 'true',
+      adminEmail: '',
       ragstackEndpoint: '',
       ragstackApiKey: '',
     };
@@ -137,6 +139,11 @@ function parseSamConfig() {
       const openaiMatch = params.match(/OpenAIApiKey=(\S+)/);
       if (openaiMatch) config.openaiApiKey = openaiMatch[1];
 
+      const deployRAGStackMatch = params.match(/DeployRAGStack=(true|false)/);
+      if (deployRAGStackMatch) config.deployRAGStack = deployRAGStackMatch[1];
+
+      const adminEmailMatch = params.match(/AdminEmail=(\S+)/);
+      if (adminEmailMatch) config.adminEmail = adminEmailMatch[1];
 
       const ragEndpointMatch = params.match(/RagstackGraphqlEndpoint=(\S+)/);
       if (ragEndpointMatch) config.ragstackEndpoint = ragEndpointMatch[1];
@@ -178,11 +185,12 @@ function loadConfig() {
 
   return {
     stackName: 'linkedin-advanced-search',
-    region: 'us-west-2',
+    region: 'us-east-1',  // Default to us-east-1 for Nova Multimodal Embeddings
     s3Bucket: '',
     environment: 'prod',
     openaiApiKey: '',
-    openaiWebhookSecret: '',
+    deployRAGStack: 'true',  // New: deploy nested RAGStack
+    adminEmail: '',  // New: admin email for RAGStack
     ragstackEndpoint: '',
     ragstackApiKey: '',
   };
@@ -273,10 +281,20 @@ function generateSamConfig(config, accountId) {
   if (config.openaiApiKey) {
     paramOverrides.push(`OpenAIApiKey=${escapeTomlValue(config.openaiApiKey)}`);
   }
-  if (config.ragstackEndpoint) {
+
+  // RAGStack nested stack parameters
+  if (config.deployRAGStack) {
+    paramOverrides.push(`DeployRAGStack=${escapeTomlValue(config.deployRAGStack)}`);
+  }
+  if (config.adminEmail && config.deployRAGStack === 'true') {
+    paramOverrides.push(`AdminEmail=${escapeTomlValue(config.adminEmail)}`);
+  }
+
+  // External RAGStack parameters (used only if DeployRAGStack=false)
+  if (config.ragstackEndpoint && config.deployRAGStack === 'false') {
     paramOverrides.push(`RagstackGraphqlEndpoint=${escapeTomlValue(config.ragstackEndpoint)}`);
   }
-  if (config.ragstackApiKey) {
+  if (config.ragstackApiKey && config.deployRAGStack === 'false') {
     paramOverrides.push(`RagstackApiKey=${escapeTomlValue(config.ragstackApiKey)}`);
   }
 
@@ -444,6 +462,19 @@ function updateEnvFile(outputs, config) {
     DYNAMODB_TABLE: outputs.DynamoDBTableName || '',
   };
 
+  // Add RAGStack outputs if deployed as nested stack
+  if (config.deployRAGStack === 'true') {
+    if (outputs.RAGStackGraphQLEndpoint) {
+      updates.RAGSTACK_GRAPHQL_ENDPOINT = outputs.RAGStackGraphQLEndpoint;
+    }
+    if (outputs.RAGStackDashboardUrl) {
+      updates.RAGSTACK_DASHBOARD_URL = outputs.RAGStackDashboardUrl;
+    }
+    // Note: API key is in SSM Parameter Store, not directly in outputs
+    console.log('\n📝 RAGStack deployed as nested stack. Retrieve API key from SSM:');
+    console.log(`   aws ssm get-parameter --name "${outputs.RAGStackApiKey || '/linkedin-ragstack-prod/api-key'}" --with-decryption --query 'Parameter.Value' --output text`);
+  }
+
   // Merge with existing
   const merged = { ...existingEnv, ...updates };
 
@@ -530,35 +561,51 @@ async function collectConfiguration(config) {
 
   config.environment = await prompt('Environment (dev/prod)', config.environment);
 
-  console.log('\n📦 Optional: API Keys (press Enter to keep existing)\n');
+  // RAGStack deployment option
+  console.log('\n🔍 RAGStack Integration (semantic search for profiles)\n');
+  const deployChoice = await prompt('Deploy RAGStack as nested stack? (true/false)', config.deployRAGStack);
+  config.deployRAGStack = deployChoice.toLowerCase() === 'true' ? 'true' : 'false';
 
-  config.openaiApiKey = await promptSecret('OpenAI API key', config.openaiApiKey);
+  if (config.deployRAGStack === 'true') {
+    // Nested stack deployment - need admin email
+    console.log('\n📧 RAGStack Configuration (nested stack)\n');
+    config.adminEmail = await prompt('Admin email for RAGStack', config.adminEmail || '');
 
-  // Check for RAGStack configuration
-  const ragstackEnvPath = join(PROJECT_ROOT, '.env.ragstack');
-  if (existsSync(ragstackEnvPath)) {
-    console.log('\n✓ Found .env.ragstack - loading RAGStack configuration');
-    const ragstackEnv = readFileSync(ragstackEnvPath, 'utf-8');
-
-    // Helper to trim and strip surrounding quotes from env values
-    const cleanEnvValue = (value) => {
-      const trimmed = value.trim();
-      // Remove surrounding single or double quotes
-      return trimmed.replace(/^["']|["']$/g, '');
-    };
-
-    for (const line of ragstackEnv.split('\n')) {
-      if (line.startsWith('RAGSTACK_GRAPHQL_ENDPOINT=')) {
-        config.ragstackEndpoint = cleanEnvValue(line.substring(line.indexOf('=') + 1));
-      }
-      if (line.startsWith('RAGSTACK_API_KEY=')) {
-        config.ragstackApiKey = cleanEnvValue(line.substring(line.indexOf('=') + 1));
-      }
+    // Validate email if provided
+    if (config.adminEmail && !config.adminEmail.match(/^[\w.+-]+@([\w-]+\.)+[\w-]{2,6}$/)) {
+      throw new Error(`Invalid email format: ${config.adminEmail}`);
     }
   } else {
-    config.ragstackEndpoint = await prompt('RAGStack GraphQL endpoint (optional)', config.ragstackEndpoint || '');
-    config.ragstackApiKey = await promptSecret('RAGStack API key (optional)', config.ragstackApiKey);
+    // External RAGStack - need endpoint and API key
+    console.log('\n🔗 External RAGStack Configuration\n');
+
+    // Check for .env.ragstack file first
+    const ragstackEnvPath = join(PROJECT_ROOT, '.env.ragstack');
+    if (existsSync(ragstackEnvPath)) {
+      console.log('✓ Found .env.ragstack - loading external RAGStack configuration');
+      const ragstackEnv = readFileSync(ragstackEnvPath, 'utf-8');
+
+      const cleanEnvValue = (value) => {
+        const trimmed = value.trim();
+        return trimmed.replace(/^["']|["']$/g, '');
+      };
+
+      for (const line of ragstackEnv.split('\n')) {
+        if (line.startsWith('RAGSTACK_GRAPHQL_ENDPOINT=')) {
+          config.ragstackEndpoint = cleanEnvValue(line.substring(line.indexOf('=') + 1));
+        }
+        if (line.startsWith('RAGSTACK_API_KEY=')) {
+          config.ragstackApiKey = cleanEnvValue(line.substring(line.indexOf('=') + 1));
+        }
+      }
+    } else {
+      config.ragstackEndpoint = await prompt('RAGStack GraphQL endpoint', config.ragstackEndpoint || '');
+      config.ragstackApiKey = await promptSecret('RAGStack API key', config.ragstackApiKey);
+    }
   }
+
+  console.log('\n📦 Optional: API Keys (press Enter to keep existing)\n');
+  config.openaiApiKey = await promptSecret('OpenAI API key', config.openaiApiKey);
 
   return config;
 }
