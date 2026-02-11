@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: LinkedIn Advanced Search Backend - SAM Template
+Description: LinkedIn Advanced Search Backend - SAM Template with RAGStack Integration
 
 Parameters:
   Environment:

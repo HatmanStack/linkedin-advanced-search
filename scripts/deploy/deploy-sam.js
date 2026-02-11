@@ -313,7 +313,7 @@ stack_name = "${escapeTomlValue(config.stackName)}"
 ${s3Config}
 region = "${escapeTomlValue(config.region)}"
 confirm_changeset = false
-capabilities = "CAPABILITY_IAM"
+capabilities = "CAPABILITY_IAM CAPABILITY_AUTO_EXPAND"
 parameter_overrides = "${paramOverrides.join(' ')}"
 disable_rollback = false
 
