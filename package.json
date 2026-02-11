@@ -35,11 +35,11 @@
   "lint-staged": {
     "frontend/src/**/*.{ts,tsx}": [
       "prettier --write",
-      "eslint --max-warnings 0"
+      "eslint --config frontend/eslint.config.js --max-warnings 0"
     ],
     "puppeteer/src/**/*.{js,ts}": [
       "prettier --write",
-      "eslint --max-warnings 0"
+      "eslint --config puppeteer/eslint.config.js --max-warnings 0"
     ],
     "backend/lambdas/**/*.py": [
       "uvx ruff check --fix",

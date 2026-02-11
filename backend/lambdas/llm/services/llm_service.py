@@ -258,7 +258,13 @@ class LLMService(BaseService):
             if status != 'completed':
                 return {'success': False, 'status': status or 'pending'}
 
-            content = getattr(resp, 'output_text', None) or ''
+            content = self._extract_response_content(resp)
+
+            if not content or not content.strip():
+                logger.error(f'OpenAI response {response_id} completed but returned empty content')
+                return {'success': False, 'error': 'OpenAI returned empty content'}
+
+            content = content.strip()
 
             # Update DynamoDB with the completed result
             if self.table:
@@ -274,6 +280,32 @@ class LLMService(BaseService):
         except Exception as e:
             logger.error(f'Error checking OpenAI response: {e}')
             return {'success': False}
+
+    def _extract_response_content(self, response) -> str:
+        """Extract text content from an OpenAI response, handling multiple output formats."""
+        # Try output_text first (standard responses)
+        if hasattr(response, 'output_text') and response.output_text:
+            logger.info(f'Extracted content from output_text, length={len(response.output_text)}')
+            return response.output_text
+
+        # Fallback: extract text from output array (deep research responses)
+        if hasattr(response, 'output') and response.output:
+            text_parts = []
+            for item in response.output:
+                if hasattr(item, 'type') and item.type == 'message':
+                    if hasattr(item, 'content') and item.content:
+                        for content_item in item.content:
+                            if hasattr(content_item, 'text'):
+                                text_parts.append(content_item.text)
+                elif hasattr(item, 'text'):
+                    text_parts.append(item.text)
+            if text_parts:
+                content = '\n'.join(text_parts)
+                logger.info(f'Extracted content from output array, length={len(content)}')
+                return content
+
+        logger.warning('No content found in OpenAI response (neither output_text nor output array)')
+        return ''
 
     def synthesize_research(
         self, research_content, post_content, ideas_content, user_profile: dict, job_id: str | None, user_id: str | None
@@ -317,31 +349,7 @@ class LLMService(BaseService):
                 input=llm_prompt,
             )
 
-            # Try output_text first, then fallback to extracting from output array
-            content = None
-            if hasattr(response, 'output_text') and response.output_text:
-                content = response.output_text
-                logger.info(f'synthesize_research: got content from output_text, length={len(content)}')
-            elif hasattr(response, 'output') and response.output:
-                # Fallback: extract text from output array items
-                text_parts = []
-                for item in response.output:
-                    if hasattr(item, 'type') and item.type == 'message':
-                        if hasattr(item, 'content') and item.content:
-                            for content_item in item.content:
-                                if hasattr(content_item, 'text'):
-                                    text_parts.append(content_item.text)
-                    elif hasattr(item, 'text'):
-                        text_parts.append(item.text)
-                content = '\n'.join(text_parts) if text_parts else None
-                logger.info(
-                    f'synthesize_research: extracted content from output array, length={len(content) if content else 0}'
-                )
-
-            content_preview = content[:200] if content else 'EMPTY'
-            logger.info(
-                f'synthesize_research response: content_length={len(content) if content else 0}, content_preview={content_preview}'
-            )
+            content = self._extract_response_content(response)
 
             if not content or not content.strip():
                 logger.error('synthesize_research returned empty content from OpenAI')
