@@ -96,7 +96,7 @@ Resources:
     Properties:
       TemplateURL: https://ragstack-quicklaunch-public-631094035453.s3.us-east-1.amazonaws.com/ragstack-template.yaml
       Parameters:
-        StackPrefix: !Sub '${AWS::StackName}-ragstack'
+        StackPrefix: !Ref AWS::StackName
         AdminEmail: !Ref AdminEmail
         BuildDashboard: 'true'
         BuildWebComponent: 'true'
