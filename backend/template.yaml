@@ -259,7 +259,7 @@ Resources:
             - !Ref RagstackGraphqlEndpoint
           RAGSTACK_API_KEY: !If
             - DeployRAGStackCondition
-            - !GetAtt RAGStackNestedStack.Outputs.ApiKey
+            - !GetAtt RAGStackNestedStack.Outputs.GraphQLApiKey
             - !Ref RagstackApiKey
       Policies:
         - DynamoDBCrudPolicy:
@@ -381,7 +381,7 @@ Resources:
             - !Ref RagstackGraphqlEndpoint
           RAGSTACK_API_KEY: !If
             - DeployRAGStackCondition
-            - !GetAtt RAGStackNestedStack.Outputs.ApiKey
+            - !GetAtt RAGStackNestedStack.Outputs.GraphQLApiKey
             - !Ref RagstackApiKey
       Policies:
         - DynamoDBCrudPolicy:
@@ -497,5 +497,5 @@ Outputs:
     Value: !GetAtt RAGStackNestedStack.Outputs.UIUrl
   RAGStackApiKey:
     Condition: DeployRAGStackCondition
-    Description: RAGStack API key (retrieve from SSM Parameter Store)
-    Value: !GetAtt RAGStackNestedStack.Outputs.ApiKeyParameter
+    Description: RAGStack GraphQL API key
+    Value: !GetAtt RAGStackNestedStack.Outputs.GraphQLApiKey
