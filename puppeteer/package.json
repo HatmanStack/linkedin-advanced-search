@@ -33,6 +33,7 @@
     "puppeteer": "^24.2.0",
     "sharp": "^0.34.2",
     "tsx": "^4.19.2",
+    "uuid": "^13.0.0",
     "winston": "^3.11.0"
   },
   "devDependencies": {
