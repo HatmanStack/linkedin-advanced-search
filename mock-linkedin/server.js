@@ -722,8 +722,9 @@ app.post('/edge', (req, res) => {
   }
 
   if (operation === 'check_exists') {
-    const exists = !!(state.edges && state.edges[linkedinurl]);
-    console.log(`🔍 Edge exists check for "${linkedinurl}": ${exists}`);
+    const key = linkedinurl || profileId;
+    const exists = !!(state.edges && state.edges[key]);
+    console.log(`🔍 Edge exists check for "${key}": ${exists}`);
     return res.json({ result: { exists } });
   }
 
@@ -765,8 +766,24 @@ app.post('/profiles', (req, res) => {
       profileId,
       ...updates,
       createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      evaluated: updates.evaluated ?? false,
     };
     console.log(`✅ Created profile "${profileId}":`);
+    console.log('   Updates:', JSON.stringify(updates, null, 2));
+    return res.json({ success: true, profile: state.profiles[profileId] });
+  }
+
+  if (operation === 'update') {
+    if (!state.profiles[profileId]) {
+      return res.status(404).json({ error: 'Profile not found' });
+    }
+    state.profiles[profileId] = {
+      ...state.profiles[profileId],
+      ...updates,
+      updatedAt: new Date().toISOString(),
+    };
+    console.log(`✅ Updated profile "${profileId}":`);
     console.log('   Updates:', JSON.stringify(updates, null, 2));
     return res.json({ success: true, profile: state.profiles[profileId] });
   }
