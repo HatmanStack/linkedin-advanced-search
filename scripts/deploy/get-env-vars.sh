@@ -16,7 +16,6 @@ OUTPUTS=$(aws cloudformation describe-stacks \
 API_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="ApiUrl") | .OutputValue')
 USER_POOL_ID=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="UserPoolId") | .OutputValue')
 USER_POOL_CLIENT_ID=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="UserPoolClientId") | .OutputValue')
-SCREENSHOT_BUCKET=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="ScreenshotBucketName") | .OutputValue')
 TABLE_NAME=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="DynamoDBTableName") | .OutputValue')
 REGION=$(aws configure get region)
 
@@ -35,7 +34,6 @@ echo ""
 echo "# Backend (Puppeteer) - AWS Configuration"
 echo "API_GATEWAY_BASE_URL=$API_URL"
 echo "AWS_REGION=$REGION"
-echo "S3_SCREENSHOT_BUCKET_NAME=$SCREENSHOT_BUCKET"
 echo "DYNAMODB_TABLE=$TABLE_NAME"
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -52,7 +50,6 @@ echo "  • Client ID:   $USER_POOL_CLIENT_ID"
 echo ""
 echo "💾 Storage:"
 echo "  • DynamoDB:    $TABLE_NAME"
-echo "  • S3 Bucket:   $SCREENSHOT_BUCKET"
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
@@ -105,7 +102,6 @@ if [[ "${2}" == "--update-env" ]]; then
     update_env_var "VITE_COGNITO_USER_POOL_WEB_CLIENT_ID" "$USER_POOL_CLIENT_ID" "$ENV_FILE"
     update_env_var "API_GATEWAY_BASE_URL" "$API_URL" "$ENV_FILE"
     update_env_var "AWS_REGION" "$REGION" "$ENV_FILE"
-    update_env_var "S3_SCREENSHOT_BUCKET_NAME" "$SCREENSHOT_BUCKET" "$ENV_FILE"
     update_env_var "DYNAMODB_TABLE" "$TABLE_NAME" "$ENV_FILE"
 
     echo ""

@@ -103,7 +103,7 @@ Resources:
     Properties:
       TemplateURL: https://ragstack-quicklaunch-public-631094035453.s3.us-east-1.amazonaws.com/ragstack-template.yaml
       Parameters:
-        StackPrefix: !Ref AWS::StackName
+        StackPrefix: !Sub '${AWS::StackName}-ragstack'
         AdminEmail: !Ref AdminEmail
         BuildDashboard: 'true'
         BuildWebComponent: 'true'
@@ -145,40 +145,6 @@ Resources:
               KeyType: RANGE
           Projection:
             ProjectionType: ALL
-
-  ScreenshotBucket:
-    Type: AWS::S3::Bucket
-    DependsOn: S3ToSQSQueuePolicy
-    Properties:
-      BucketName: !Sub 'linkedin-screenshots-${AWS::AccountId}-${AWS::Region}'
-      CorsConfiguration:
-        CorsRules:
-          - AllowedHeaders:
-              - '*'
-            AllowedMethods:
-              - GET
-              - PUT
-              - POST
-            AllowedOrigins: !If
-              - HasProductionOrigin
-              - !If
-                - IncludeDevOriginsCondition
-                - - 'http://localhost:5173'
-                  - 'http://localhost:3000'
-                  - !Ref ProductionOrigin
-                - - !Ref ProductionOrigin
-              - - 'http://localhost:5173'
-                - 'http://localhost:3000'
-            MaxAge: 3000
-      NotificationConfiguration:
-        QueueConfigurations:
-          - Event: s3:ObjectCreated:*
-            Queue: !GetAtt ProfileProcessingQueue.Arn
-            Filter:
-              S3Key:
-                Rules:
-                  - Name: prefix
-                    Value: linkedin-profiles/
 
   UserPool:
     Type: AWS::Cognito::UserPool
@@ -356,83 +322,6 @@ Resources:
             Auth:
               Authorizer: NONE
 
-  ProfileProcessingDLQ:
-    Type: AWS::SQS::Queue
-    Properties:
-      QueueName: !Sub 'linkedin-profile-processing-dlq-${Environment}'
-      MessageRetentionPeriod: 1209600  # 14 days
-
-  ProfileProcessingQueue:
-    Type: AWS::SQS::Queue
-    Properties:
-      QueueName: !Sub 'linkedin-profile-processing-queue-${Environment}'
-      VisibilityTimeout: 300
-      RedrivePolicy:
-        deadLetterTargetArn: !GetAtt ProfileProcessingDLQ.Arn
-        maxReceiveCount: 3
-
-  ProfileProcessingFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      FunctionName: !Sub 'linkedin-profile-processing-${Environment}'
-      CodeUri: lambdas/profile-processing/
-      Handler: lambda_function.lambda_handler
-      Timeout: 120
-      MemorySize: 1024
-      Environment:
-        Variables:
-          AI_MODEL_ID: !Ref BedrockModelId
-          RAGSTACK_GRAPHQL_ENDPOINT: !If
-            - DeployRAGStackCondition
-            - !GetAtt RAGStackNestedStack.Outputs.GraphQLApiUrl
-            - !Ref RagstackGraphqlEndpoint
-          RAGSTACK_API_KEY: !If
-            - DeployRAGStackCondition
-            - !GetAtt RAGStackNestedStack.Outputs.GraphQLApiKey
-            - !Ref RagstackApiKey
-      Policies:
-        - DynamoDBCrudPolicy:
-            TableName: !Ref ProfilesTable
-        - S3ReadPolicy:
-            BucketName: !Ref ScreenshotBucket
-        - S3WritePolicy:
-            BucketName: !Ref ScreenshotBucket
-        - Statement:
-            - Effect: Allow
-              Action:
-                - bedrock:InvokeModel
-              Resource: !Sub 'arn:aws:bedrock:${AWS::Region}::foundation-model/*'
-      Events:
-        SQSEvent:
-          Type: SQS
-          Properties:
-            Queue: !GetAtt ProfileProcessingQueue.Arn
-            BatchSize: 1
-
-  S3ToSQSPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref ProfileProcessingFunction
-      Principal: sqs.amazonaws.com
-      SourceArn: !GetAtt ProfileProcessingQueue.Arn
-
-  S3ToSQSQueuePolicy:
-    Type: AWS::SQS::QueuePolicy
-    Properties:
-      Queues:
-        - !Ref ProfileProcessingQueue
-      PolicyDocument:
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: s3.amazonaws.com
-            Action: sqs:SendMessage
-            Resource: !GetAtt ProfileProcessingQueue.Arn
-            Condition:
-              ArnLike:
-                aws:SourceArn: !Sub 'arn:aws:s3:::linkedin-screenshots-${AWS::AccountId}-${AWS::Region}'
-
   LLMFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -484,15 +373,6 @@ Outputs:
   DynamoDBTableName:
     Description: DynamoDB table name
     Value: !Ref ProfilesTable
-  ScreenshotBucketName:
-    Description: S3 bucket for screenshots
-    Value: !Ref ScreenshotBucket
-  ProfileProcessingQueueUrl:
-    Description: SQS queue URL for profile processing
-    Value: !Ref ProfileProcessingQueue
-  ProfileProcessingDLQUrl:
-    Description: Dead letter queue URL for failed profile processing
-    Value: !Ref ProfileProcessingDLQ
   # RAGStack Outputs (only available when DeployRAGStack=true)
   RAGStackGraphQLEndpoint:
     Condition: DeployRAGStackCondition

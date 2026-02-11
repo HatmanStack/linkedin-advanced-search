@@ -24,7 +24,6 @@ sys.path.insert(0, str(SHARED_PYTHON))
 # Add Lambda-specific paths for service imports
 # We use a helper function to load Lambda services
 EDGE_PROCESSING_SERVICES = BACKEND_LAMBDAS / 'edge-processing' / 'services'
-PROFILE_PROCESSING_SERVICES = BACKEND_LAMBDAS / 'profile-processing' / 'services'
 LLM_SERVICES = BACKEND_LAMBDAS / 'llm' / 'services'
 
 # Set test environment variables before any Lambda imports

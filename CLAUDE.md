@@ -90,16 +90,14 @@ SAM template (`template.yaml`) defines:
   - `edge-processing/` - Edge data processing + RAGStack search/ingest (handles `/edges` and `/ragstack` routes)
   - `dynamodb-api/` - User settings/profile CRUD (handles `/dynamodb` and `/profiles` routes)
   - `llm/` - OpenAI/Bedrock LLM operations
-  - `profile-processing/` - SQS-triggered profile processing from S3 uploads with auto-RAGStack ingestion
 - **Cognito**: User pool with email-based auth
-- **S3**: Screenshot storage with SQS notification to profile-processing
 - **HttpApi**: API Gateway with Cognito JWT authorizer
 
 ### RAGStack-Lambda (separate stack)
 Deployed separately from [RAGStack-Lambda](https://github.com/HatmanStack/RAGStack-Lambda):
 - Vector embeddings + semantic search via Bedrock Knowledge Base
 - Connected via `RAGSTACK_GRAPHQL_ENDPOINT` and `RAGSTACK_API_KEY` env vars
-- Used by edge-processing (search/ingest) and profile-processing (auto-ingest)
+- Used by edge-processing (search/ingest)
 
 Lambdas share code via `lambdas/shared/python/`:
 - `shared_services/base_service.py` - Base class for all service layers
