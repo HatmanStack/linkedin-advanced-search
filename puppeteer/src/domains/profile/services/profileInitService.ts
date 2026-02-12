@@ -10,9 +10,7 @@ import path from 'path';
 import type { PuppeteerService } from '../../automation/services/puppeteerService.js';
 import type { LinkedInService, ConnectionType } from '../../linkedin/services/linkedinService.js';
 import type { Page } from 'puppeteer';
-// @ts-expect-error - JS module without type declarations
 import { LinkedInMessageScraperService } from '../../messaging/services/linkedinMessageScraperService.js';
-// @ts-expect-error - JS module without type declarations
 import { BrowserSessionManager } from '../../session/services/browserSessionManager.js';
 
 /**

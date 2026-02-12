@@ -1,7 +1,23 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
-import { useMessageHistory } from './useMessageHistory';
 import type { Message } from '@/types';
+
+// Mock cognito service to prevent UserPool init error
+vi.mock('@/features/auth/services/cognitoService', () => ({
+  default: {
+    signIn: vi.fn(),
+    signOut: vi.fn(),
+    getCurrentUser: vi.fn(),
+    getToken: vi.fn().mockResolvedValue(null),
+  },
+}));
+
+vi.mock('@/features/auth', () => ({
+  useAuth: () => ({ user: null, isAuthenticated: false, signIn: vi.fn(), signOut: vi.fn() }),
+  CognitoAuthService: { getToken: vi.fn().mockResolvedValue(null) },
+}));
+
+import { useMessageHistory } from './useMessageHistory';
 
 describe('useMessageHistory', () => {
   it('starts with empty messages', () => {
