@@ -195,6 +195,7 @@ interface DynamoDBService {
   upsertEdgeStatus(profileId: string, status: string): Promise<unknown>;
   getProfileDetails(profileId: string): Promise<unknown>;
   markBadContact(profileId: string): Promise<void>;
+  createProfileMetadata?(profileId: string, metadata: Record<string, string>): Promise<unknown>;
 }
 
 /**

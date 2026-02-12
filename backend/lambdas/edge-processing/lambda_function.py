@@ -143,6 +143,8 @@ def _handle_ragstack(body, user_id, svc, event=None):
         if not cookies:
             return _resp(400, {'error': 'cookies is required'}, event)
         scrape_config = body.get('scrapeConfig', {})
+        if not isinstance(scrape_config, dict):
+            return _resp(400, {'error': 'scrapeConfig must be a JSON object'}, event)
         result = svc.ragstack_scrape_start(profile_id, cookies, scrape_config)
         return _resp(200, result, event)
 

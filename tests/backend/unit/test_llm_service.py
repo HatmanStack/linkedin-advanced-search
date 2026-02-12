@@ -355,27 +355,61 @@ class TestGenerateMessage:
         assert 'outbound' in prompt
         assert 'Hello!' in prompt
 
-    def test_generate_message_enriches_from_dynamodb(self, service, mock_openai_client, mock_dynamodb_table):
+    def test_generate_message_enriches_from_dynamodb(self, mock_openai_client, mock_bedrock_client):
         """Should fetch additional context from DynamoDB when connectionId provided."""
-        mock_dynamodb_table.get_item.return_value = {
-            'Item': {
-                'summary': 'Expert in machine learning',
-                'skills': ['ML', 'Python', 'TensorFlow'],
-                'workExperience': [{'title': 'ML Lead', 'company': 'DeepTech'}],
-            }
-        }
-        mock_openai_client.responses.create.return_value.output_text = 'Enriched message'
-        result = service.generate_message(
-            connection_profile={'firstName': 'A', 'lastName': 'B', 'position': 'X', 'company': 'Y'},
-            conversation_topic='AI',
-            connection_id='john-doe-12345',
-        )
+        import base64
 
-        assert result['generatedMessage'] == 'Enriched message'
-        mock_dynamodb_table.get_item.assert_called_once()
-        call_args = mock_openai_client.responses.create.call_args
-        prompt = call_args[1]['input']
-        assert 'machine learning' in prompt
+        from moto import mock_aws
+
+        with mock_aws():
+            import boto3
+
+            dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
+            table = dynamodb.create_table(
+                TableName='test-table',
+                KeySchema=[
+                    {'AttributeName': 'PK', 'KeyType': 'HASH'},
+                    {'AttributeName': 'SK', 'KeyType': 'RANGE'},
+                ],
+                AttributeDefinitions=[
+                    {'AttributeName': 'PK', 'AttributeType': 'S'},
+                    {'AttributeName': 'SK', 'AttributeType': 'S'},
+                ],
+                BillingMode='PAY_PER_REQUEST',
+            )
+
+            # Seed the profile metadata item
+            profile_id_b64 = base64.urlsafe_b64encode(b'john-doe-12345').decode()
+            table.put_item(
+                Item={
+                    'PK': f'PROFILE#{profile_id_b64}',
+                    'SK': '#METADATA',
+                    'summary': 'Expert in machine learning',
+                    'skills': ['ML', 'Python', 'TensorFlow'],
+                    'workExperience': [{'title': 'ML Lead', 'company': 'DeepTech'}],
+                }
+            )
+
+            from conftest import load_service_class
+
+            module = load_service_class('llm', 'llm_service')
+            svc = module.LLMService(
+                openai_client=mock_openai_client,
+                bedrock_client=mock_bedrock_client,
+                table=table,
+            )
+
+            mock_openai_client.responses.create.return_value.output_text = 'Enriched message'
+            result = svc.generate_message(
+                connection_profile={'firstName': 'A', 'lastName': 'B', 'position': 'X', 'company': 'Y'},
+                conversation_topic='AI',
+                connection_id='john-doe-12345',
+            )
+
+            assert result['generatedMessage'] == 'Enriched message'
+            call_args = mock_openai_client.responses.create.call_args
+            prompt = call_args[1]['input']
+            assert 'machine learning' in prompt
 
     def test_generate_message_without_user_profile(self, service, mock_openai_client):
         """Should work without user profile."""

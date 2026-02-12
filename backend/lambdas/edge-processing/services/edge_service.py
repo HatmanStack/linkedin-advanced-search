@@ -101,24 +101,33 @@ class EdgeService(BaseService):
             if status == 'processed':
                 user_profile_edge['processedAt'] = current_time
 
-            # Write both edges — put forward edge, update reverse edge with attempts counter
+            # Write both edges — put forward edge, update reverse edge with attempts counter.
+            # Compensating delete on reverse-edge failure prevents partial state.
             self.table.put_item(Item=user_profile_edge)
-            self.table.update_item(
-                Key={
-                    'PK': f'PROFILE#{profile_id_b64}',
-                    'SK': f'USER#{user_id}',
-                },
-                UpdateExpression='SET addedAt = if_not_exists(addedAt, :added), #status = :status, lastAttempt = :lastAttempt, updatedAt = :updated, attempts = if_not_exists(attempts, :zero) + :inc',
-                ExpressionAttributeNames={'#status': 'status'},
-                ExpressionAttributeValues={
-                    ':added': added_at or current_time,
-                    ':status': status,
-                    ':lastAttempt': current_time,
-                    ':updated': current_time,
-                    ':zero': 0,
-                    ':inc': 1,
-                },
-            )
+            try:
+                self.table.update_item(
+                    Key={
+                        'PK': f'PROFILE#{profile_id_b64}',
+                        'SK': f'USER#{user_id}',
+                    },
+                    UpdateExpression='SET addedAt = if_not_exists(addedAt, :added), #status = :status, lastAttempt = :lastAttempt, updatedAt = :updated, attempts = if_not_exists(attempts, :zero) + :inc',
+                    ExpressionAttributeNames={'#status': 'status'},
+                    ExpressionAttributeValues={
+                        ':added': added_at or current_time,
+                        ':status': status,
+                        ':lastAttempt': current_time,
+                        ':updated': current_time,
+                        ':zero': 0,
+                        ':inc': 1,
+                    },
+                )
+            except Exception:
+                logger.error(
+                    'Reverse edge write failed, rolling back forward edge',
+                    extra={'user_id': user_id, 'profile_id': profile_id_b64},
+                )
+                self.table.delete_item(Key={'PK': f'USER#{user_id}', 'SK': f'PROFILE#{profile_id_b64}'})
+                raise
 
             # Trigger RAGStack ingestion for established relationships
             ragstack_ingested = False

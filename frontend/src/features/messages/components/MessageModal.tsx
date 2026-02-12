@@ -53,7 +53,8 @@ export const MessageModal: React.FC<MessageModalProps> = ({
   // Handle pre-populated message content
   useEffect(() => {
     logger.info('MessageModal useEffect', {
-      prePopulatedMessage: prePopulatedMessage?.substring(0, 80),
+      hasPrePopulatedMessage: Boolean(prePopulatedMessage),
+      prePopulatedMessageLength: prePopulatedMessage?.length ?? 0,
       isOpen,
       connectionId: connection?.id,
     });

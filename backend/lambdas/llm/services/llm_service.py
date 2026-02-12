@@ -403,7 +403,10 @@ class LLMService(BaseService):
             recipient_position = connection_profile.get('position', '')
             recipient_company = connection_profile.get('company', '')
             recipient_headline = connection_profile.get('headline', '')
-            recipient_tags = ', '.join(connection_profile.get('tags', []))
+            raw_tags = connection_profile.get('tags') or []
+            if not isinstance(raw_tags, list):
+                raw_tags = []
+            recipient_tags = ', '.join(str(t) for t in raw_tags)
 
             # Optionally enrich from DynamoDB profile metadata
             recipient_context = ''

@@ -157,7 +157,6 @@ export function useMessageGeneration({
 
     logger.info('Starting message generation workflow', {
       connectionCount: selectedConnections.length,
-      selectedIds: selectedConnections,
     });
 
     // Log connection statuses to diagnose ally filter
@@ -166,7 +165,6 @@ export function useMessageGeneration({
       .map((conn) => ({
         id: conn.id,
         status: conn.status,
-        name: `${conn.first_name} ${conn.last_name}`,
       }));
     logger.info('Selected connections before ally filter', { connections: selectedWithStatus });
 
