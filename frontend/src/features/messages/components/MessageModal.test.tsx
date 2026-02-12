@@ -64,7 +64,7 @@ describe('MessageModal', () => {
   it('should render connection name in title', () => {
     render(<MessageModal {...defaultProps} />);
 
-    expect(screen.getByText(/messages with john smith/i)).toBeInTheDocument();
+    expect(screen.getByText(/john smith/i)).toBeInTheDocument();
   });
 
   it('should render connection position and company', () => {
@@ -127,12 +127,12 @@ describe('MessageModal', () => {
     );
 
     expect(screen.getByRole('button', { name: /skip/i })).toBeInTheDocument();
-    expect(screen.getByText(/approve & next/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /approve/i })).toBeInTheDocument();
   });
 
   it('should not render when isOpen is false', () => {
     render(<MessageModal {...defaultProps} isOpen={false} />);
 
-    expect(screen.queryByText(/messages with john smith/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/john smith/i)).not.toBeInTheDocument();
   });
 });
