@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: LinkedIn Advanced Search Backend - SAM Template
+Description: LinkedIn Advanced Search Backend - SAM Template with RAGStack Integration
 
 Parameters:
   Environment:
@@ -32,15 +32,36 @@ Parameters:
     Type: String
     Default: us.meta.llama3-2-90b-instruct-v1:0
     Description: Bedrock model ID for LLM operations
+  # RAGStack Integration - Nested Stack (recommended)
+  DeployRAGStack:
+    Type: String
+    Default: 'true'
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Description: Deploy RAGStack as nested stack (true) or use external endpoint (false)
+  AdminEmail:
+    Type: String
+    Default: ''
+    Description: Admin email for RAGStack deployment (required if DeployRAGStack=true)
+    AllowedPattern: '^([\w.+-]+@([\w-]+\.)+[\w-]{2,6})?$'
+  # RAGStack Integration - External Endpoint (alternative to nested deployment)
   RagstackGraphqlEndpoint:
     Type: String
     Default: ''
-    Description: RAGStack GraphQL API endpoint URL
+    Description: External RAGStack GraphQL endpoint (used only if DeployRAGStack=false)
   RagstackApiKey:
     Type: String
     Default: ''
     NoEcho: true
-    Description: RAGStack API key for authentication
+    Description: External RAGStack API key (used only if DeployRAGStack=false)
+
+Rules:
+  AdminEmailRequiredForRAGStack:
+    RuleCondition: !Equals [!Ref DeployRAGStack, 'true']
+    Assertions:
+      - Assert: !Not [!Equals [!Ref AdminEmail, '']]
+        AssertDescription: AdminEmail is required when DeployRAGStack is true
 
 Globals:
   Function:
@@ -61,6 +82,7 @@ Globals:
 Conditions:
   IncludeDevOriginsCondition: !Equals [!Ref IncludeDevOrigins, 'true']
   HasProductionOrigin: !Not [!Equals [!Ref ProductionOrigin, '']]
+  DeployRAGStackCondition: !Equals [!Ref DeployRAGStack, 'true']
 
 Resources:
   # Shared Python Layer for common code (errors, utils, services)
@@ -73,6 +95,24 @@ Resources:
       CompatibleRuntimes:
         - python3.13
       RetentionPolicy: Delete
+
+  # RAGStack-Lambda Nested Stack for semantic search and profile ingestion
+  RAGStackNestedStack:
+    Type: AWS::CloudFormation::Stack
+    Condition: DeployRAGStackCondition
+    Properties:
+      TemplateURL: https://ragstack-quicklaunch-public-631094035453.s3.us-east-1.amazonaws.com/ragstack-template.yaml
+      Parameters:
+        StackPrefix: !Ref AWS::StackName
+        AdminEmail: !Ref AdminEmail
+        BuildDashboard: 'true'
+        BuildWebComponent: 'true'
+      TimeoutInMinutes: 60
+      Tags:
+        - Key: Application
+          Value: linkedin-advanced-search
+        - Key: Environment
+          Value: !Ref Environment
 
   ProfilesTable:
     Type: AWS::DynamoDB::Table
@@ -220,8 +260,14 @@ Resources:
       Timeout: 60
       Environment:
         Variables:
-          RAGSTACK_GRAPHQL_ENDPOINT: !Ref RagstackGraphqlEndpoint
-          RAGSTACK_API_KEY: !Ref RagstackApiKey
+          RAGSTACK_GRAPHQL_ENDPOINT: !If
+            - DeployRAGStackCondition
+            - !GetAtt RAGStackNestedStack.Outputs.GraphQLApiUrl
+            - !Ref RagstackGraphqlEndpoint
+          RAGSTACK_API_KEY: !If
+            - DeployRAGStackCondition
+            - !GetAtt RAGStackNestedStack.Outputs.GraphQLApiKey
+            - !Ref RagstackApiKey
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref ProfilesTable
@@ -336,8 +382,14 @@ Resources:
       Environment:
         Variables:
           AI_MODEL_ID: !Ref BedrockModelId
-          RAGSTACK_GRAPHQL_ENDPOINT: !Ref RagstackGraphqlEndpoint
-          RAGSTACK_API_KEY: !Ref RagstackApiKey
+          RAGSTACK_GRAPHQL_ENDPOINT: !If
+            - DeployRAGStackCondition
+            - !GetAtt RAGStackNestedStack.Outputs.GraphQLApiUrl
+            - !Ref RagstackGraphqlEndpoint
+          RAGSTACK_API_KEY: !If
+            - DeployRAGStackCondition
+            - !GetAtt RAGStackNestedStack.Outputs.GraphQLApiKey
+            - !Ref RagstackApiKey
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref ProfilesTable
@@ -441,3 +493,12 @@ Outputs:
   ProfileProcessingDLQUrl:
     Description: Dead letter queue URL for failed profile processing
     Value: !Ref ProfileProcessingDLQ
+  # RAGStack Outputs (only available when DeployRAGStack=true)
+  RAGStackGraphQLEndpoint:
+    Condition: DeployRAGStackCondition
+    Description: RAGStack GraphQL API endpoint for semantic search
+    Value: !GetAtt RAGStackNestedStack.Outputs.GraphQLApiUrl
+  RAGStackDashboardUrl:
+    Condition: DeployRAGStackCondition
+    Description: RAGStack Dashboard URL for document management
+    Value: !GetAtt RAGStackNestedStack.Outputs.UIUrl
