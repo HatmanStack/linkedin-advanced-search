@@ -10,6 +10,8 @@ import path from 'path';
 import type { PuppeteerService } from '../../automation/services/puppeteerService.js';
 import type { LinkedInService, ConnectionType } from '../../linkedin/services/linkedinService.js';
 import type { Page } from 'puppeteer';
+import { LinkedInMessageScraperService } from '../../messaging/services/linkedinMessageScraperService.js';
+import { BrowserSessionManager } from '../../session/services/browserSessionManager.js';
 
 /**
  * Profile initialization state
@@ -192,7 +194,12 @@ interface ErrorDetails {
 interface DynamoDBService {
   setAuthToken(token: string): void;
   checkEdgeExists(profileId: string): Promise<boolean>;
-  upsertEdgeStatus(profileId: string, status: string): Promise<unknown>;
+  upsertEdgeStatus(
+    profileId: string,
+    status: string,
+    extraUpdates?: Record<string, unknown>
+  ): Promise<unknown>;
+  updateMessages(profileId: string, messages: unknown[]): Promise<unknown>;
   getProfileDetails(profileId: string): Promise<unknown>;
   markBadContact(profileId: string): Promise<void>;
   createProfileMetadata?(profileId: string, metadata: Record<string, string>): Promise<unknown>;
@@ -224,6 +231,7 @@ export class ProfileInitService {
   private linkedInService: LinkedInService;
   private linkedInContactService: LinkedInContactService;
   private dynamoDBService: DynamoDBService;
+  private messageScraperService: InstanceType<typeof LinkedInMessageScraperService>;
   private batchSize: number;
 
   constructor(
@@ -236,6 +244,9 @@ export class ProfileInitService {
     this.linkedInService = linkedInService;
     this.linkedInContactService = linkedInContactService;
     this.dynamoDBService = dynamoDBService;
+    this.messageScraperService = new LinkedInMessageScraperService({
+      sessionManager: BrowserSessionManager,
+    });
     this.batchSize = 100;
   }
 
@@ -425,6 +436,9 @@ export class ProfileInitService {
         }
       }
 
+      // Phase 2: Scrape message histories and update edges
+      await this._scrapeAndStoreMessages(masterIndexFile);
+
       // Update final progress summary
       results.progressSummary = ProfileInitStateManager.getProgressSummary(state);
 
@@ -439,6 +453,63 @@ export class ProfileInitService {
     } catch (error) {
       logger.error('Connection list processing failed:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Scrape LinkedIn message histories and store them on edges.
+   * Runs after edge creation so failures don't block profile init.
+   */
+  private async _scrapeAndStoreMessages(masterIndexFile: string): Promise<void> {
+    try {
+      logger.info('Starting message history scraping phase');
+
+      // Collect all connection IDs from batch files in the master index
+      const masterIndex = await this._loadMasterIndex(masterIndexFile);
+      const allConnectionIds: string[] = [];
+
+      for (const connectionType of ['ally', 'outgoing', 'incoming'] as const) {
+        const links = await this._loadExistingLinksFromFiles(connectionType, masterIndex);
+        // Convert URLs to profile IDs if needed
+        for (const link of links) {
+          const match = link.match(/\/in\/([^/?\s]+)/);
+          const profileId = match ? match[1].replace(/\/$/, '') : link;
+          if (profileId && profileId !== 'undefined') {
+            allConnectionIds.push(profileId);
+          }
+        }
+      }
+
+      if (allConnectionIds.length === 0) {
+        logger.info('No connection IDs found for message scraping');
+        return;
+      }
+
+      logger.info(`Scraping message histories for ${allConnectionIds.length} connections`);
+
+      const scrapedMessages =
+        await this.messageScraperService.scrapeAllConversations(allConnectionIds);
+
+      if (scrapedMessages.size === 0) {
+        logger.info('No message histories scraped');
+        return;
+      }
+
+      // Store scraped messages on edges
+      let stored = 0;
+      for (const [profileId, messages] of scrapedMessages) {
+        try {
+          await this.dynamoDBService.updateMessages(profileId, messages);
+          stored++;
+        } catch (error) {
+          logger.warn(`Failed to store messages for ${profileId}: ${(error as Error).message}`);
+        }
+      }
+
+      logger.info(`Message scraping phase complete: ${stored}/${scrapedMessages.size} stored`);
+    } catch (error) {
+      // Message scraping failure should NOT block profile init
+      logger.warn(`Message scraping phase failed (non-blocking): ${(error as Error).message}`);
     }
   }
 
@@ -1101,6 +1172,7 @@ export class ProfileInitService {
           const fileData = JSON.parse(fileContent) as {
             links?: string[];
             invitations?: Array<{ originalUrl?: string; profileId?: string }>;
+            connections?: string[] | Array<{ url?: string; id?: string; profileId?: string }>;
           };
 
           if (fileData.links) {
@@ -1109,6 +1181,14 @@ export class ProfileInitService {
             allLinks.push(
               ...fileData.invitations.map((inv) => inv.originalUrl || `/in/${inv.profileId}`)
             );
+          } else if (fileData.connections) {
+            for (const conn of fileData.connections) {
+              if (typeof conn === 'string') {
+                allLinks.push(conn);
+              } else if (conn.url || conn.id || conn.profileId) {
+                allLinks.push(conn.url || `/in/${conn.id || conn.profileId}`);
+              }
+            }
           }
         } catch (fileError) {
           logger.warn(`Failed to load file ${fileRef.fileName}:`, (fileError as Error).message);

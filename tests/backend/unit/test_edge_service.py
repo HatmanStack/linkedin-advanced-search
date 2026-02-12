@@ -273,7 +273,7 @@ class TestEdgeServiceCheckExists:
 
         result = service.check_exists(
             user_id='test-user',
-            profile_id_b64='dGVzdC1wcm9maWxl'
+            profile_id='test-profile'
         )
 
         assert result['success'] is True
@@ -289,7 +289,7 @@ class TestEdgeServiceCheckExists:
 
         result = service.check_exists(
             user_id='test-user',
-            profile_id_b64='dGVzdC1wcm9maWxl'
+            profile_id='test-profile'
         )
 
         assert result['success'] is True
@@ -539,6 +539,121 @@ class TestEdgeServiceMessageCap:
         )
 
         assert result['success'] is True
+
+
+class TestEdgeServiceUpdateMessages:
+    """Tests for update_messages operation."""
+
+    def test_update_messages_success(self):
+        """Should replace the full messages list on an edge."""
+        mock_table = MagicMock()
+        service = EdgeService(table=mock_table)
+
+        messages = [
+            {'content': 'Hello', 'timestamp': '2024-01-01T00:00:00', 'type': 'outbound'},
+            {'content': 'Hi there', 'timestamp': '2024-01-01T00:01:00', 'type': 'inbound'},
+        ]
+
+        result = service.update_messages(
+            user_id='test-user',
+            profile_id='john-doe',
+            messages=messages
+        )
+
+        assert result['success'] is True
+        assert result['messageCount'] == 2
+        mock_table.update_item.assert_called_once()
+
+        # Verify the update expression sets messages
+        call_kwargs = mock_table.update_item.call_args[1]
+        assert ':msgs' in call_kwargs['ExpressionAttributeValues']
+        assert len(call_kwargs['ExpressionAttributeValues'][':msgs']) == 2
+
+    def test_update_messages_caps_at_max(self):
+        """Should trim to MAX_MESSAGES_PER_EDGE when list exceeds cap."""
+        mock_table = MagicMock()
+        service = EdgeService(table=mock_table)
+
+        messages = [
+            {'content': f'msg-{i}', 'timestamp': f'2024-01-01T{i:02d}:00:00', 'type': 'outbound'}
+            for i in range(150)
+        ]
+
+        result = service.update_messages(
+            user_id='test-user',
+            profile_id='john-doe',
+            messages=messages
+        )
+
+        assert result['success'] is True
+        assert result['messageCount'] == 100
+
+        call_kwargs = mock_table.update_item.call_args[1]
+        stored_msgs = call_kwargs['ExpressionAttributeValues'][':msgs']
+        assert len(stored_msgs) == 100
+        # Should keep the most recent (last 100)
+        assert stored_msgs[0]['content'] == 'msg-50'
+        assert stored_msgs[-1]['content'] == 'msg-149'
+
+    def test_update_messages_empty_list(self):
+        """Should handle empty messages list."""
+        mock_table = MagicMock()
+        service = EdgeService(table=mock_table)
+
+        result = service.update_messages(
+            user_id='test-user',
+            profile_id='john-doe',
+            messages=[]
+        )
+
+        assert result['success'] is True
+        assert result['messageCount'] == 0
+
+    def test_update_messages_none_list(self):
+        """Should handle None messages."""
+        mock_table = MagicMock()
+        service = EdgeService(table=mock_table)
+
+        result = service.update_messages(
+            user_id='test-user',
+            profile_id='john-doe',
+            messages=None
+        )
+
+        assert result['success'] is True
+        assert result['messageCount'] == 0
+
+    def test_update_messages_dynamo_error(self):
+        """Should raise ExternalServiceError on DynamoDB failure."""
+        mock_table = MagicMock()
+        mock_table.update_item.side_effect = ClientError(
+            {'Error': {'Code': 'InternalServerError', 'Message': 'Test error'}},
+            'UpdateItem'
+        )
+        service = EdgeService(table=mock_table)
+
+        with pytest.raises(ExternalServiceError):
+            service.update_messages(
+                user_id='test-user',
+                profile_id='john-doe',
+                messages=[{'content': 'test', 'timestamp': '2024-01-01', 'type': 'outbound'}]
+            )
+
+    def test_update_messages_encodes_profile_id(self):
+        """Should base64-encode profile ID for DynamoDB key."""
+        mock_table = MagicMock()
+        service = EdgeService(table=mock_table)
+
+        result = service.update_messages(
+            user_id='test-user',
+            profile_id='john-doe',
+            messages=[]
+        )
+
+        call_kwargs = mock_table.update_item.call_args[1]
+        expected_b64 = base64.urlsafe_b64encode('john-doe'.encode()).decode()
+        assert call_kwargs['Key']['SK'] == f'PROFILE#{expected_b64}'
+        assert result['profileId'] == expected_b64
 
 
 class TestEdgeServiceMaxResults:

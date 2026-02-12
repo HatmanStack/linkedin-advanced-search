@@ -213,6 +213,40 @@ class EdgeService(BaseService):
                 message='Failed to add message', service='DynamoDB', original_error=str(e)
             ) from e
 
+    def update_messages(self, user_id: str, profile_id: str, messages: list) -> dict[str, Any]:
+        """
+        Replace the full messages list on an edge (used after scraping a conversation).
+
+        Args:
+            user_id: User ID from Cognito
+            profile_id: LinkedIn profile identifier (plain, not base64)
+            messages: List of message dicts {content, timestamp, type}
+
+        Returns:
+            dict with success status and message count
+        """
+        try:
+            profile_id_b64 = base64.urlsafe_b64encode(profile_id.encode()).decode()
+            current_time = datetime.now(UTC).isoformat()
+            trimmed = messages[-MAX_MESSAGES_PER_EDGE:] if messages else []
+
+            self.table.update_item(
+                Key={'PK': f'USER#{user_id}', 'SK': f'PROFILE#{profile_id_b64}'},
+                UpdateExpression='SET messages = :msgs, updatedAt = :updated',
+                ExpressionAttributeValues={
+                    ':msgs': trimmed,
+                    ':updated': current_time,
+                },
+            )
+
+            return {'success': True, 'messageCount': len(trimmed), 'profileId': profile_id_b64}
+
+        except ClientError as e:
+            logger.error(f'DynamoDB error in update_messages: {e}')
+            raise ExternalServiceError(
+                message='Failed to update messages', service='DynamoDB', original_error=str(e)
+            ) from e
+
     def get_connections_by_status(self, user_id: str, status: str | None = None) -> dict[str, Any]:
         """
         Get user connections, optionally filtered by status.
@@ -284,18 +318,19 @@ class EdgeService(BaseService):
                 message='Failed to get messages', service='DynamoDB', original_error=str(e)
             ) from e
 
-    def check_exists(self, user_id: str, profile_id_b64: str) -> dict[str, Any]:
+    def check_exists(self, user_id: str, profile_id: str) -> dict[str, Any]:
         """
         Check if an edge exists between user and profile.
 
         Args:
             user_id: User ID
-            profile_id_b64: Base64-encoded profile ID
+            profile_id: LinkedIn profile identifier (plain, not base64)
 
         Returns:
             dict with exists flag and edge data if exists
         """
         try:
+            profile_id_b64 = base64.urlsafe_b64encode(profile_id.encode()).decode()
             response = self.table.get_item(Key={'PK': f'USER#{user_id}', 'SK': f'PROFILE#{profile_id_b64}'})
 
             edge_exists = 'Item' in response
