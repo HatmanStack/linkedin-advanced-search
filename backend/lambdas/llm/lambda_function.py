@@ -27,7 +27,7 @@ BASE_HEADERS = {
     'Access-Control-Allow-Headers': 'Content-Type,Authorization',
     'Access-Control-Allow-Methods': 'POST,OPTIONS',
 }
-OPS = {'generate_ideas', 'research_selected_ideas', 'get_research_result', 'synthesize_research'}
+OPS = {'generate_ideas', 'research_selected_ideas', 'get_research_result', 'synthesize_research', 'generate_message'}
 
 
 def _get_origin_from_event(event):
@@ -120,6 +120,23 @@ def lambda_handler(event, _context):
                     body.get('user_profile', {}),
                     body['job_id'],
                     user_id,
+                ),
+                event,
+            )
+
+        if op == 'generate_message':
+            if not body.get('conversationTopic'):
+                return _resp(400, {'error': 'conversationTopic required'}, event)
+            if not body.get('connectionProfile'):
+                return _resp(400, {'error': 'connectionProfile required'}, event)
+            return _resp(
+                200,
+                svc.generate_message(
+                    connection_profile=body['connectionProfile'],
+                    conversation_topic=body['conversationTopic'],
+                    user_profile=body.get('userProfile'),
+                    message_history=body.get('messageHistory'),
+                    connection_id=body.get('connectionId'),
                 ),
                 event,
             )

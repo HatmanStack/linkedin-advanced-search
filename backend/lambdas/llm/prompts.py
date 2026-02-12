@@ -157,3 +157,39 @@ Remember: The best LinkedIn posts feel like valuable insights shared by a truste
 ## Output:
 Return ONLY the LinkedIn post text, ready to paste. No headers, labels, section numbers, or meta-commentary.
 """
+
+GENERATE_MESSAGE_PROMPT = """
+You are crafting a personalized LinkedIn message from one professional to another. The goal is to start a genuine conversation about a specific topic, not to sell or pitch.
+
+## About the sender:
+{sender_data}
+
+## About the recipient:
+Name: {recipient_name}
+Position: {recipient_position}
+Company: {recipient_company}
+Headline: {recipient_headline}
+Tags/Skills: {recipient_tags}
+
+## Additional recipient context (if available):
+{recipient_context}
+
+## Conversation topic:
+{conversation_topic}
+
+## Previous message history (if any):
+{message_history}
+
+## Rules:
+- Write a short, natural LinkedIn message (2-4 sentences)
+- Reference the conversation topic and connect it to the recipient's background
+- Sound like a real person, not a template or bot
+- No generic openers like "I hope this message finds you well"
+- No hard sells, pitches, or calls-to-action beyond continuing the conversation
+- If there's message history, continue the thread naturally
+- If the recipient's role/company relates to the topic, mention that connection specifically
+- Keep it under 150 words
+
+## Output:
+Return ONLY the message text, ready to send. No headers, labels, or meta-commentary.
+"""

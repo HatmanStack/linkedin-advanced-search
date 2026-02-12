@@ -11,11 +11,17 @@ from typing import Any
 from shared_services.base_service import BaseService
 
 try:
-    from prompts import LINKEDIN_IDEAS_PROMPT, LINKEDIN_RESEARCH_PROMPT, SYNTHESIZE_RESEARCH_PROMPT
+    from prompts import (
+        GENERATE_MESSAGE_PROMPT,
+        LINKEDIN_IDEAS_PROMPT,
+        LINKEDIN_RESEARCH_PROMPT,
+        SYNTHESIZE_RESEARCH_PROMPT,
+    )
 except ImportError:
     LINKEDIN_IDEAS_PROMPT = '{user_data}\n{raw_ideas}'
     LINKEDIN_RESEARCH_PROMPT = '{topics}\n{user_data}'
     SYNTHESIZE_RESEARCH_PROMPT = '{user_data}\n{research_content}\n{post_content}\n{ideas_content}'
+    GENERATE_MESSAGE_PROMPT = '{sender_data}\n{recipient_name}\n{recipient_position}\n{recipient_company}\n{recipient_headline}\n{recipient_tags}\n{recipient_context}\n{conversation_topic}\n{message_history}'
 
 logger = logging.getLogger(__name__)
 
@@ -88,7 +94,7 @@ class LLMService(BaseService):
             )
 
             response = self.openai_client.responses.create(
-                model='gpt-4.1',
+                model='gpt-5.2',
                 input=llm_prompt,
             )
 
@@ -360,6 +366,121 @@ class LLMService(BaseService):
         except Exception as e:
             logger.error(f'Error in synthesize_research: {e}')
             return {'success': False, 'error': 'Failed to synthesize research into post'}
+
+    def generate_message(
+        self,
+        connection_profile: dict,
+        conversation_topic: str,
+        user_profile: dict | None = None,
+        message_history: list | None = None,
+        connection_id: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Generate a personalized LinkedIn message for a connection.
+
+        Args:
+            connection_profile: Recipient profile data (firstName, lastName, position, company, headline, tags)
+            conversation_topic: Topic the user wants to discuss
+            user_profile: Sender's profile data for context
+            message_history: Previous messages with this connection
+            connection_id: Raw profile slug for optional DynamoDB enrichment
+
+        Returns:
+            dict with generatedMessage and confidence
+        """
+        try:
+            # Build sender context
+            sender_data = ''
+            if user_profile:
+                for key, value in user_profile.items():
+                    if value and key != 'linkedin_credentials':
+                        sender_data += f'{key}: {value}\n'
+
+            # Build recipient context from request
+            first_name = connection_profile.get('firstName', '')
+            last_name = connection_profile.get('lastName', '')
+            recipient_name = f'{first_name} {last_name}'.strip()
+            recipient_position = connection_profile.get('position', '')
+            recipient_company = connection_profile.get('company', '')
+            recipient_headline = connection_profile.get('headline', '')
+            recipient_tags = ', '.join(connection_profile.get('tags', []))
+
+            # Optionally enrich from DynamoDB profile metadata
+            recipient_context = ''
+            if connection_id and self.table:
+                recipient_context = self._fetch_profile_context(connection_id)
+
+            # Format message history
+            history_text = ''
+            if message_history:
+                for msg in message_history[:10]:  # Limit to last 10 messages
+                    role = msg.get('type', 'unknown')
+                    content = self._sanitize_prompt(msg.get('content', ''), 500)
+                    history_text += f'{role}: {content}\n'
+            if not history_text:
+                history_text = 'No previous messages.'
+
+            llm_prompt = GENERATE_MESSAGE_PROMPT.format(
+                sender_data=sender_data or 'No sender profile provided.',
+                recipient_name=recipient_name or 'Unknown',
+                recipient_position=self._sanitize_prompt(recipient_position, 200),
+                recipient_company=self._sanitize_prompt(recipient_company, 200),
+                recipient_headline=self._sanitize_prompt(recipient_headline, 300),
+                recipient_tags=self._sanitize_prompt(recipient_tags, 500),
+                recipient_context=recipient_context or 'No additional context available.',
+                conversation_topic=self._sanitize_prompt(conversation_topic, 1000),
+                message_history=history_text,
+            )
+
+            response = self.openai_client.responses.create(
+                model='gpt-5.2',
+                input=llm_prompt,
+            )
+
+            content = self._extract_response_content(response)
+
+            if not content or not content.strip():
+                logger.error('generate_message returned empty content from OpenAI')
+                return {'generatedMessage': '', 'confidence': 0, 'error': 'Empty response from AI'}
+
+            return {'generatedMessage': content.strip(), 'confidence': 0.85}
+
+        except Exception as e:
+            logger.error(f'Error in generate_message: {e}')
+            return {'generatedMessage': '', 'confidence': 0, 'error': 'Failed to generate message'}
+
+    def _fetch_profile_context(self, connection_id: str) -> str:
+        """Fetch enriched profile context from DynamoDB metadata."""
+        import base64
+
+        try:
+            profile_id_b64 = base64.urlsafe_b64encode(connection_id.encode()).decode()
+            response = self.table.get_item(Key={'PK': f'PROFILE#{profile_id_b64}', 'SK': '#METADATA'})
+            item = response.get('Item')
+            if not item:
+                return ''
+
+            parts = []
+            if item.get('summary'):
+                parts.append(f'About: {item["summary"][:1000]}')
+            if item.get('skills'):
+                skills = item['skills']
+                if isinstance(skills, list):
+                    parts.append(f'Skills: {", ".join(skills[:20])}')
+            if item.get('workExperience'):
+                exp = item['workExperience']
+                if isinstance(exp, list) and exp:
+                    recent = exp[0] if isinstance(exp[0], dict) else {}
+                    title = recent.get('title', '')
+                    company = recent.get('company', '')
+                    if title or company:
+                        parts.append(f'Recent experience: {title} at {company}')
+
+            return '\n'.join(parts)
+
+        except Exception as e:
+            logger.debug(f'Could not fetch profile context for {connection_id}: {e}')
+            return ''
 
     # Private helpers
 

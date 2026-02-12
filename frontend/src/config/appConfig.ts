@@ -33,7 +33,7 @@ export const API_CONFIG = {
     'https://2c6mr2rri0.execute-api.us-west-2.amazonaws.com/prod',
   ENDPOINTS: {
     SEARCH: '/',
-    MESSAGE_GENERATION: '/ai/generate-message',
+    MESSAGE_GENERATION: '/llm',
   },
   TIMEOUT: 100000000,
 } as const;
