@@ -204,7 +204,7 @@ class DynamoDBApiService(BaseService):
             return {'error': 'profileId is required'}
 
         picture_url = body.get('profilePictureUrl', '')
-        if picture_url and (not picture_url.startswith('https://') or len(picture_url) > 500):
+        if picture_url and (len(picture_url) > 500 or not self._is_safe_url(picture_url)):
             return {'error': 'Invalid profilePictureUrl'}
 
         profile_id_b64 = base64.urlsafe_b64encode(profile_id.encode()).decode()

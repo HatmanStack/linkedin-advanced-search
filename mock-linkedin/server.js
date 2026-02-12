@@ -265,7 +265,7 @@ function generatePlaceholderPage(pageName, data = {}) {
             (person) => `
           <li class="reusable-search__result-container">
             <div class="entity-result">
-              ${person.profilePictureUrl ? `<img src="${person.profilePictureUrl}" alt="" style="width:72px;height:72px;border-radius:50%;object-fit:cover;">` : ''}
+              ${person.profilePictureUrl ? `<img src="${escapeHtml(person.profilePictureUrl)}" alt="" style="width:72px;height:72px;border-radius:50%;object-fit:cover;">` : ''}
               <a href="/in/${person.profileId}/" class="entity-result__title-text">
                 <span>${person.name}</span>
               </a>
