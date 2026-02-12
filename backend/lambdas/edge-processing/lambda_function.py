@@ -228,6 +228,12 @@ def lambda_handler(event, context):
                 },
                 event,
             )
+        if op == 'update_messages':
+            if not pid:
+                return _resp(400, {'error': 'profileId required'}, event)
+            msgs = updates.get('messages', [])
+            r = svc.update_messages(user_id, pid, msgs)
+            return _resp(200, {'result': r}, event)
         if op == 'get_messages':
             if not pid:
                 return _resp(400, {'error': 'profileId required'}, event)

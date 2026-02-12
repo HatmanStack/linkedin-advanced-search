@@ -7,6 +7,7 @@ import { BrowserSessionManager } from '../../session/services/browserSessionMana
 import { LinkedInNavigationService } from '../../navigation/services/linkedinNavigationService.js';
 import { LinkedInMessagingService } from '../../messaging/services/linkedinMessagingService.js';
 import { LinkedInConnectionService } from '../../connections/services/linkedinConnectionService.js';
+import { LinkedInMessageScraperService } from '../../messaging/services/linkedinMessageScraperService.js';
 
 const RandomHelpers = {
   /**
@@ -79,6 +80,12 @@ export class LinkedInInteractionService {
         sessionManager: this.sessionManager,
         navigationService: this.navigationService,
         dynamoDBService: this.dynamoDBService,
+      });
+
+    this.messageScraperService =
+      options.messageScraperService ||
+      new LinkedInMessageScraperService({
+        sessionManager: this.sessionManager,
       });
 
     // Get configuration values
@@ -542,6 +549,14 @@ export class LinkedInInteractionService {
     // Update session activity
     this.sessionManager.lastActivity = new Date();
 
+    // Scrape the visible conversation thread and update DynamoDB (fire-and-forget)
+    this._scrapeAndStoreConversation(recipientProfileId).catch((err) => {
+      logger.warn('Post-send conversation scrape failed (non-blocking)', {
+        recipientProfileId,
+        error: err.message,
+      });
+    });
+
     logger.info(`Successfully sent LinkedIn message`, {
       recipientProfileId,
       messageId: messageResult.messageId,
@@ -555,6 +570,22 @@ export class LinkedInInteractionService {
       recipientProfileId,
       userId,
     };
+  }
+
+  /**
+   * Scrape the visible conversation thread after sending a message and update DynamoDB.
+   * @param {string} profileId - Recipient profile ID
+   */
+  async _scrapeAndStoreConversation(profileId) {
+    try {
+      const messages = await this.messageScraperService.scrapeConversationThread(profileId);
+      if (messages.length > 0) {
+        await this.dynamoDBService.updateMessages(profileId, messages);
+        logger.info(`Stored ${messages.length} messages for ${profileId} after send`);
+      }
+    } catch (error) {
+      logger.warn(`Failed to scrape/store conversation for ${profileId}: ${error.message}`);
+    }
   }
 
   /**

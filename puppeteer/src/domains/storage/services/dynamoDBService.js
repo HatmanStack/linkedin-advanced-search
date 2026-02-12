@@ -166,6 +166,20 @@ class DynamoDBService {
   }
 
   /**
+   * Replace the full messages list on an edge (used after scraping a conversation).
+   * @param {string} profileId - Connection profile ID
+   * @param {Array} messages - Array of message objects {content, timestamp, sender}
+   * @returns {Promise<Object>} Update result
+   */
+  async updateMessages(profileId, messages) {
+    return await this._post('edges', {
+      operation: 'update_messages',
+      profileId,
+      updates: { messages },
+    });
+  }
+
+  /**
    * Check if an edge relationship exists between user and connection profile
    * The user ID is extracted from the JWT token in the Lambda function
    * @param {string} connectionProfileId - Connection profile ID to check
