@@ -3,7 +3,7 @@
 /**
  * Performance Benchmarking Script
  *
- * Tests performance of LinkedIn Advanced Search components:
+ * Tests performance of WarmReach components:
  * - Text extraction from profiles
  * - S3 upload performance
  * - Search API response time
@@ -400,7 +400,7 @@ async function main() {
   const args = process.argv.slice(2);
   const testFilter = args.find(arg => arg.startsWith('--test='))?.split('=')[1];
 
-  console.log('🚀 LinkedIn Advanced Search - Performance Benchmark');
+  console.log('🚀 WarmReach - Performance Benchmark');
   console.log('='.repeat(60));
 
   // Check configuration

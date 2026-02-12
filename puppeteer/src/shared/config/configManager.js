@@ -98,6 +98,17 @@ export class ConfigManager {
   }
 
   /**
+   * Override a configuration value at runtime.
+   * Updates both the live config and the cache.
+   * @param {string} key - Configuration key
+   * @param {any} value - New value
+   */
+  setOverride(key, value) {
+    this.config[key] = value;
+    ConfigManager.configCache.set(key, value);
+  }
+
+  /**
    * Get all configuration values
    * @returns {Object} All LinkedIn interaction configuration
    */

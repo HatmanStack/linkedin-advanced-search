@@ -88,3 +88,4 @@ coverage/
 reports/
 puppeteer/.sealbox_private_key
 .serena/
+cl.md

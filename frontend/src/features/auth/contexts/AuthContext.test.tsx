@@ -110,7 +110,7 @@ describe('AuthContext', () => {
         lastName: 'User',
         emailVerified: true,
       };
-      localStorage.setItem('linkedin_advanced_search_user', JSON.stringify(storedUser));
+      localStorage.setItem('warmreach_user', JSON.stringify(storedUser));
 
       const { result } = renderHook(() => useAuth(), { wrapper: createWrapper() });
 
@@ -123,7 +123,7 @@ describe('AuthContext', () => {
     });
 
     it('should clear invalid stored user', async () => {
-      localStorage.setItem('linkedin_advanced_search_user', JSON.stringify({ id: '', email: '' }));
+      localStorage.setItem('warmreach_user', JSON.stringify({ id: '', email: '' }));
 
       const { result } = renderHook(() => useAuth(), { wrapper: createWrapper() });
 
@@ -132,11 +132,11 @@ describe('AuthContext', () => {
       });
 
       expect(result.current.user).toBeNull();
-      expect(localStorage.getItem('linkedin_advanced_search_user')).toBeNull();
+      expect(localStorage.getItem('warmreach_user')).toBeNull();
     });
 
     it('should clear corrupted stored user', async () => {
-      localStorage.setItem('linkedin_advanced_search_user', 'not-json');
+      localStorage.setItem('warmreach_user', 'not-json');
 
       const { result } = renderHook(() => useAuth(), { wrapper: createWrapper() });
 
@@ -145,7 +145,7 @@ describe('AuthContext', () => {
       });
 
       expect(result.current.user).toBeNull();
-      expect(localStorage.getItem('linkedin_advanced_search_user')).toBeNull();
+      expect(localStorage.getItem('warmreach_user')).toBeNull();
     });
 
     it('should sign in with mock user', async () => {
@@ -163,7 +163,7 @@ describe('AuthContext', () => {
       expect(signInResult!.error).toBeNull();
       expect(result.current.user).not.toBeNull();
       expect(result.current.user!.email).toBe('test@example.com');
-      expect(localStorage.getItem('linkedin_advanced_search_user')).not.toBeNull();
+      expect(localStorage.getItem('warmreach_user')).not.toBeNull();
     });
 
     it('should reject invalid email on sign in', async () => {
@@ -199,7 +199,7 @@ describe('AuthContext', () => {
       });
 
       expect(result.current.user).toBeNull();
-      expect(localStorage.getItem('linkedin_advanced_search_user')).toBeNull();
+      expect(localStorage.getItem('warmreach_user')).toBeNull();
     });
 
     it('should return mock token when signed in', async () => {

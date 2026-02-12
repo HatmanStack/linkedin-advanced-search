@@ -1,6 +1,6 @@
 # Troubleshooting Guide
 
-This guide covers common issues encountered during development and deployment of the LinkedIn Advanced Search tool.
+This guide covers common issues encountered during development and deployment of the WarmReach tool.
 
 ## Puppeteer & LinkedIn Issues
 

@@ -12,7 +12,7 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 # Configuration and clients
-table = boto3.resource('dynamodb').Table(os.environ.get('DYNAMODB_TABLE_NAME', 'linkedin-advanced-search'))
+table = boto3.resource('dynamodb').Table(os.environ.get('DYNAMODB_TABLE_NAME', 'warmreach'))
 RAGSTACK_GRAPHQL_ENDPOINT = os.environ.get('RAGSTACK_GRAPHQL_ENDPOINT', '')
 RAGSTACK_API_KEY = os.environ.get('RAGSTACK_API_KEY', '')
 

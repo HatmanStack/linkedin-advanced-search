@@ -48,7 +48,7 @@ const Index = () => {
           <div className="flex justify-between items-center py-4">
             <div className="flex items-center space-x-2">
               <MessageSquare className="h-8 w-8 text-blue-400" />
-              <span className="text-2xl font-bold text-white">LinkedIn Advanced Search</span>
+              <span className="text-2xl font-bold text-white">WarmReach</span>
             </div>
             <div className="flex items-center space-x-4">
               {user ? (
@@ -164,9 +164,7 @@ const Index = () => {
         <div className="bg-gradient-to-r from-blue-600/20 to-purple-600/20 backdrop-blur-md rounded-2xl p-8 md:p-12 border border-white/10">
           <div className="grid md:grid-cols-2 gap-12 items-center">
             <div>
-              <h3 className="text-3xl font-bold text-white mb-6">
-                Why LinkedIn Advanced Search Works
-              </h3>
+              <h3 className="text-3xl font-bold text-white mb-6">Why WarmReach Works</h3>
               <div className="space-y-4">
                 {[
                   'Personalized messages get 3x higher response rates',
@@ -233,10 +231,10 @@ const Index = () => {
           <div className="flex justify-between items-center">
             <div className="flex items-center space-x-2">
               <MessageSquare className="h-6 w-6 text-blue-400" />
-              <span className="text-white font-semibold">LinkedIn Advanced Search</span>
+              <span className="text-white font-semibold">WarmReach</span>
             </div>
             <div className="text-slate-400 text-sm text-center">
-              © 2025 LinkedIn Advanced Search. Some stuff from{' '}
+              © {new Date().getFullYear()} WarmReach. Some stuff from{' '}
               <a href="https://github.com/hatmanstack" className="text-red-400">
                 Hatman
               </a>

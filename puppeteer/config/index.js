@@ -21,6 +21,16 @@ const parseBoolean = (value, defaultValue = false) => {
   return defaultValue;
 };
 
+// Hard-coded safety ceilings — cannot be exceeded via env vars.
+// These protect LinkedIn's ecosystem and the project's reputation.
+export const RATE_LIMIT_CEILINGS = {
+  dailyInteractionLimit: 500,
+  hourlyInteractionLimit: 100,
+  rateLimitMax: 30,
+  actionsPerMinute: 15,
+  actionsPerHour: 200,
+};
+
 export const config = {
   // Server
   port: parseInt(process.env.PORT) || 3001,
@@ -82,9 +92,9 @@ export const config = {
     
     // Rate Limiting (Requirement 9.4)
     rateLimitWindow: parseInt(process.env.RATE_LIMIT_WINDOW) || 60000, // 1 minute
-    rateLimitMax: parseInt(process.env.RATE_LIMIT_MAX) || 10,
-    dailyInteractionLimit: parseInt(process.env.DAILY_INTERACTION_LIMIT) || 500,
-    hourlyInteractionLimit: parseInt(process.env.HOURLY_INTERACTION_LIMIT) || 100,
+    rateLimitMax: Math.min(parseInt(process.env.RATE_LIMIT_MAX) || 10, RATE_LIMIT_CEILINGS.rateLimitMax),
+    dailyInteractionLimit: Math.min(parseInt(process.env.DAILY_INTERACTION_LIMIT) || 500, RATE_LIMIT_CEILINGS.dailyInteractionLimit),
+    hourlyInteractionLimit: Math.min(parseInt(process.env.HOURLY_INTERACTION_LIMIT) || 100, RATE_LIMIT_CEILINGS.hourlyInteractionLimit),
     
     // Retry Configuration (Requirement 4.4)
     retryAttempts: parseInt(process.env.INTERACTION_RETRY_ATTEMPTS) || 3,
@@ -95,8 +105,8 @@ export const config = {
     // Human Behavior Simulation (Requirement 9.4)
     humanDelayMin: parseInt(process.env.HUMAN_DELAY_MIN) || 1000,
     humanDelayMax: parseInt(process.env.HUMAN_DELAY_MAX) || 3000,
-    actionsPerMinute: parseInt(process.env.ACTIONS_PER_MINUTE) || 8,
-    actionsPerHour: parseInt(process.env.ACTIONS_PER_HOUR) || 100,
+    actionsPerMinute: Math.min(parseInt(process.env.ACTIONS_PER_MINUTE) || 8, RATE_LIMIT_CEILINGS.actionsPerMinute),
+    actionsPerHour: Math.min(parseInt(process.env.ACTIONS_PER_HOUR) || 100, RATE_LIMIT_CEILINGS.actionsPerHour),
     
     // Typing Simulation
     typingSpeedMin: parseInt(process.env.TYPING_SPEED_MIN) || 80, // WPM equivalent in ms
@@ -161,6 +171,13 @@ export const config = {
   paths: {
     linksFile: process.env.LINKS_FILE || './data/possible-links.json',
     goodConnectionsFile: process.env.GOOD_CONNECTIONS_FILE || './data/good-connections-links.json',
+  },
+
+  // Control Plane
+  controlPlane: {
+    url: process.env.CONTROL_PLANE_URL || '',
+    deploymentId: process.env.CONTROL_PLANE_DEPLOYMENT_ID || '',
+    apiKey: process.env.CONTROL_PLANE_API_KEY || '',
   },
 
   // RAGStack Configuration

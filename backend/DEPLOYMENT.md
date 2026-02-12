@@ -1,8 +1,8 @@
-# LinkedIn Advanced Search - Deployment Guide
+# WarmReach - Deployment Guide
 
 ## Overview
 
-This guide covers deploying LinkedIn Advanced Search with integrated RAGStack for semantic profile search.
+This guide covers deploying WarmReach with integrated RAGStack for semantic profile search.
 
 ## Deployment Options
 
@@ -27,7 +27,7 @@ sam deploy --guided
 ```
 
 **During guided deployment, provide:**
-- **Stack name:** `linkedin-advanced-search` (or your choice)
+- **Stack name:** `warmreach` (or your choice)
 - **AWS Region:** `us-east-1` (recommended - Nova Multimodal Embeddings available)
 - **DeployRAGStack:** `true` (default)
 - **AdminEmail:** Your email address (for RAGStack dashboard login)
@@ -79,7 +79,7 @@ Deploy RAGStack separately, then link it to LinkedIn backend.
 
 3. **Deploy LinkedIn backend with external RAGStack:**
    ```bash
-   cd ~/projects/linkedin-advanced-search/backend
+   cd ~/projects/warmreach/backend
    sam build
    sam deploy --guided
    ```
@@ -232,7 +232,7 @@ sam deploy --parameter-overrides \
 ```bash
 # Verify outputs exist
 aws cloudformation describe-stacks \
-  --stack-name linkedin-advanced-search \
+  --stack-name warmreach \
   --query 'Stacks[0].Outputs[?OutputKey==`RAGStackGraphQLEndpoint`]'
 
 # Check Lambda env vars

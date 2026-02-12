@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: LinkedIn Advanced Search Backend - SAM Template with RAGStack Integration
+Description: WarmReach Backend - SAM Template with RAGStack Integration
 
 Parameters:
   Environment:
@@ -89,8 +89,8 @@ Resources:
   SharedPythonLayer:
     Type: AWS::Serverless::LayerVersion
     Properties:
-      LayerName: !Sub 'linkedin-shared-python-${Environment}'
-      Description: Shared Python utilities for LinkedIn Advanced Search Lambdas
+      LayerName: !Sub 'warmreach-shared-python-${Environment}'
+      Description: Shared Python utilities for WarmReach Lambdas
       ContentUri: lambdas/shared/
       CompatibleRuntimes:
         - python3.13
@@ -110,14 +110,14 @@ Resources:
       TimeoutInMinutes: 60
       Tags:
         - Key: Application
-          Value: linkedin-advanced-search
+          Value: warmreach
         - Key: Environment
           Value: !Ref Environment
 
   ProfilesTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub 'linkedin-advanced-search-${Environment}'
+      TableName: !Sub 'warmreach-${Environment}'
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: PK
@@ -149,7 +149,7 @@ Resources:
   UserPool:
     Type: AWS::Cognito::UserPool
     Properties:
-      UserPoolName: !Sub 'linkedin-advanced-search-${Environment}'
+      UserPoolName: !Sub 'warmreach-${Environment}'
       AutoVerifiedAttributes:
         - email
       UsernameAttributes:
@@ -165,7 +165,7 @@ Resources:
   UserPoolClient:
     Type: AWS::Cognito::UserPoolClient
     Properties:
-      ClientName: !Sub 'linkedin-advanced-search-client-${Environment}'
+      ClientName: !Sub 'warmreach-client-${Environment}'
       UserPoolId: !Ref UserPool
       ExplicitAuthFlows:
         - ALLOW_USER_SRP_AUTH
@@ -220,7 +220,7 @@ Resources:
   EdgeProcessingFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub 'linkedin-edge-processing-${Environment}'
+      FunctionName: !Sub 'warmreach-edge-processing-${Environment}'
       CodeUri: lambdas/edge-processing/
       Handler: lambda_function.lambda_handler
       Timeout: 60
@@ -270,7 +270,7 @@ Resources:
   DynamoDBApiFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub 'linkedin-dynamodb-api-${Environment}'
+      FunctionName: !Sub 'warmreach-dynamodb-api-${Environment}'
       CodeUri: lambdas/dynamodb-api/
       Handler: lambda_function.lambda_handler
       Environment:
@@ -325,7 +325,7 @@ Resources:
   LLMFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub 'linkedin-llm-${Environment}'
+      FunctionName: !Sub 'warmreach-llm-${Environment}'
       CodeUri: lambdas/llm/
       Handler: lambda_function.lambda_handler
       Timeout: 90

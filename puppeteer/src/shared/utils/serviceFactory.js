@@ -10,6 +10,7 @@ import { PuppeteerService } from '../../domains/automation/services/puppeteerSer
 import { LinkedInService } from '../../domains/linkedin/services/linkedinService.js';
 import { LinkedInContactService } from '../../domains/linkedin/services/linkedinContactService.js';
 import DynamoDBService from '../../domains/storage/services/dynamoDBService.js';
+import ControlPlaneService from '../../shared/services/controlPlaneService.js';
 
 /**
  * Initialize the standard set of services used by search and profile controllers
@@ -19,16 +20,19 @@ import DynamoDBService from '../../domains/storage/services/dynamoDBService.js';
  * @returns {LinkedInService} services.linkedInService - LinkedIn interaction service
  * @returns {LinkedInContactService} services.linkedInContactService - Contact management service
  * @returns {DynamoDBService} services.dynamoDBService - Database service
+ * @returns {ControlPlaneService} services.controlPlaneService - Control plane client
  */
 export async function initializeLinkedInServices() {
   const puppeteerService = new PuppeteerService();
   await puppeteerService.initialize();
+  const controlPlaneService = new ControlPlaneService();
 
   return {
     puppeteerService,
     linkedInService: new LinkedInService(puppeteerService),
     linkedInContactService: new LinkedInContactService(puppeteerService),
     dynamoDBService: new DynamoDBService(),
+    controlPlaneService,
   };
 }
 

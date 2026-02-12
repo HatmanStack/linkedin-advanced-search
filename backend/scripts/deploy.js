@@ -16,7 +16,7 @@ const FRONTEND_ENV_FILE = join(ROOT_DIR, 'frontend', '.env');
 
 const DEFAULTS = {
   region: 'us-west-2',
-  stackName: 'linkedin-advanced-search',
+  stackName: 'warmreach',
   includeDevOrigins: true,
   productionOrigins: '',
   environment: 'prod'
@@ -300,7 +300,7 @@ async function updateEnvFile(config) {
 
 async function main() {
   console.log('\n╔═══════════════════════════════════════════╗');
-  console.log('║   LinkedIn Advanced Search - Deployment   ║');
+  console.log('║   WarmReach - Deployment   ║');
   console.log('╚═══════════════════════════════════════════╝\n');
 
   await checkPrerequisites();
