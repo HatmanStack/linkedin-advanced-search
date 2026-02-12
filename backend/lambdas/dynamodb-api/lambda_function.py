@@ -127,6 +127,11 @@ def lambda_handler(event: dict[str, Any], context) -> dict[str, Any]:
             if 'error' in result:
                 return create_response(400, result)
             return create_response(200, result)
+        elif operation == 'update_profile_picture':
+            result = service.update_profile_picture(user_id, body)
+            if 'error' in result:
+                return create_response(400, result)
+            return create_response(200, result)
         else:
             return create_response(
                 400,
@@ -138,6 +143,7 @@ def lambda_handler(event: dict[str, Any], context) -> dict[str, Any]:
                         'get_user_settings',
                         'update_user_settings',
                         'update_user_profile',
+                        'update_profile_picture',
                     ],
                 },
                 _get_origin_from_event(event),

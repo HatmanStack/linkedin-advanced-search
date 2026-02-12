@@ -11,7 +11,8 @@
       "about": "Building serverless AI platforms on AWS.",
       "isConnected": false,
       "connectionDegree": "2nd",
-      "recentActivity": "Liked multiple posts recently"
+      "recentActivity": "Liked multiple posts recently",
+      "profilePictureUrl": "https://media.licdn.com/dms/image/mock/christopher-galliart.jpg"
     },
     {
       "profileId": "john-smith-12345",
@@ -24,7 +25,8 @@
       "about": "Building scalable systems at AWS.",
       "isConnected": true,
       "connectionDegree": "1st",
-      "recentActivity": "Liked a post about cloud architecture"
+      "recentActivity": "Liked a post about cloud architecture",
+      "profilePictureUrl": "https://media.licdn.com/dms/image/mock/john-smith.jpg"
     },
     {
       "profileId": "jane-doe-67890",
@@ -37,7 +39,8 @@
       "about": "Building products that users love at AWS.",
       "isConnected": true,
       "connectionDegree": "1st",
-      "recentActivity": "Shared an article about serverless"
+      "recentActivity": "Shared an article about serverless",
+      "profilePictureUrl": "https://media.licdn.com/dms/image/mock/jane-doe.jpg"
     },
     {
       "profileId": "bob-wilson-11111",
@@ -50,7 +53,8 @@
       "about": "Technology leader focused on AI and machine learning at AWS.",
       "isConnected": true,
       "connectionDegree": "1st",
-      "recentActivity": "Commented on a post about ML pipelines"
+      "recentActivity": "Commented on a post about ML pipelines",
+      "profilePictureUrl": "https://media.licdn.com/dms/image/mock/bob-wilson.jpg"
     },
     {
       "profileId": "alice-johnson-22222",
@@ -63,7 +67,8 @@
       "about": "Turning data into insights. PhD in Statistics.",
       "isConnected": false,
       "connectionDegree": "2nd",
-      "recentActivity": "Liked 3 posts this week"
+      "recentActivity": "Liked 3 posts this week",
+      "profilePictureUrl": "https://media.licdn.com/dms/image/mock/alice-johnson.jpg"
     }
   ],
   "pendingInvitations": [],

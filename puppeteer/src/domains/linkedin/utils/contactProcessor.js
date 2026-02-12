@@ -11,7 +11,7 @@ export class ContactProcessor {
     this.config = config;
   }
 
-  async processAllContacts(uniqueLinks, state, onHealingNeeded) {
+  async processAllContacts(uniqueLinks, state, onHealingNeeded, pictureUrls = {}) {
     const goodContacts = await this._loadExistingGoodContacts();
     let errorQueue = [];
     let i = state.resumeIndex;
@@ -30,7 +30,8 @@ export class ContactProcessor {
           state.jwtToken,
           goodContacts,
           i,
-          uniqueLinks.length
+          uniqueLinks.length,
+          pictureUrls[link]
         );
         if (result.processed) {
           errorQueue = [];
@@ -62,7 +63,7 @@ export class ContactProcessor {
     return goodContacts;
   }
 
-  async _processContact(link, jwtToken, goodContacts, index, total) {
+  async _processContact(link, jwtToken, goodContacts, index, total, pictureUrl) {
     logger.info(`Analyzing contact ${index + 1}/${total}: ${link}`);
     const result = await this.linkedInService.analyzeContactActivity(link, jwtToken);
 
@@ -72,6 +73,15 @@ export class ContactProcessor {
 
       // During Search, scrape profile to RAGStack and mark edges as "possible"
       await this.linkedInContactService.scrapeProfile(link, 'possible');
+
+      // Update profile picture URL if available (non-fatal)
+      if (pictureUrl) {
+        try {
+          await this.dynamoDBService.updateProfilePictureUrl(link, pictureUrl);
+        } catch {
+          logger.warn(`Failed to update profile picture for ${link} (non-fatal)`);
+        }
+      }
 
       await FileHelpers.writeJSON(this.config.paths.goodConnectionsFile, goodContacts);
     }

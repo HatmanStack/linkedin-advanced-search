@@ -119,12 +119,18 @@ export class SearchController {
 
       if (state.healPhase === 'profile-parsing') {
         searchData.uniqueLinks = await this._loadLinksFromFile(state.lastPartialLinksFile);
+        searchData.pictureUrls = {};
       } else {
         const companyData = await this._extractCompanyData(services.linkedInService, state);
         searchData = await this._collectLinks(services.linkedInService, state, companyData);
       }
 
-      const goodContacts = await this._processContacts(services, searchData.uniqueLinks, state);
+      const goodContacts = await this._processContacts(
+        services,
+        searchData.uniqueLinks,
+        state,
+        searchData.pictureUrls
+      );
 
       return this._buildSearchResult(goodContacts, searchData.uniqueLinks);
     } catch (error) {
@@ -178,20 +184,22 @@ export class SearchController {
 
     if (state.healPhase === 'link-collection') {
       const allLinks = await this._loadLinksFromFile(config.paths.linksFile);
-      return { uniqueLinks: [...new Set(allLinks)] };
+      return { uniqueLinks: [...new Set(allLinks)], pictureUrls: {} };
     }
 
-    const allLinks = await linkCollector.collectAllLinks(state, companyData, (pageNumber) =>
+    const result = await linkCollector.collectAllLinks(state, companyData, (pageNumber) =>
       this._handleLinkCollectionHealing(state, companyData, pageNumber)
     );
+
+    const { links: allLinks, pictureUrls } = result;
 
     const uniqueLinks = [...new Set(allLinks)];
     await FileHelpers.writeJSON(config.paths.linksFile, uniqueLinks);
 
-    return { uniqueLinks };
+    return { uniqueLinks, pictureUrls: pictureUrls || {} };
   }
 
-  async _processContacts(services, uniqueLinks, state) {
+  async _processContacts(services, uniqueLinks, state, pictureUrls = {}) {
     const contactProcessor = new ContactProcessor(
       services.linkedInService,
       services.linkedInContactService,
@@ -203,8 +211,11 @@ export class SearchController {
       `Loaded ${uniqueLinks.length} unique links to process. Starting at index: ${state.resumeIndex}`
     );
 
-    return await contactProcessor.processAllContacts(uniqueLinks, state, (restartParams) =>
-      this._handleContactProcessingHealing(restartParams)
+    return await contactProcessor.processAllContacts(
+      uniqueLinks,
+      state,
+      (restartParams) => this._handleContactProcessingHealing(restartParams),
+      pictureUrls
     );
   }
 

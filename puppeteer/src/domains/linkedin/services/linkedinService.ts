@@ -499,7 +499,7 @@ export class LinkedInService {
     extractedCompanyNumber: string | null = null,
     encodedRole: string | null = null,
     extractedGeoNumber: string | null = null
-  ): Promise<string[]> {
+  ): Promise<{ links: string[]; pictureUrls: Record<string, string> }> {
     try {
       // Build URL conditionally based on available parameters
       const urlParts = [`${config.linkedin.baseUrl}/search/results/people/?`];
@@ -530,17 +530,25 @@ export class LinkedInService {
       const hasContent = await this.puppeteer.waitForSelector('ul li', { timeout: 5000 });
       if (!hasContent) {
         logger.warn(`No content found on page ${pageNumber}`);
-        return [];
+        return { links: [], pictureUrls: {} };
       }
 
       const links = await this.puppeteer.extractLinks();
       logger.debug(`Found ${links.length} links on page ${pageNumber}`);
 
-      return links;
+      // Extract profile picture URLs from the same page (no extra navigation)
+      let pictureUrls: Record<string, string> = {};
+      try {
+        pictureUrls = await this.puppeteer.extractProfilePictures();
+      } catch {
+        // non-fatal
+      }
+
+      return { links, pictureUrls };
     } catch (error) {
-      // Return empty array instead of throwing to allow pagination to continue.
+      // Return empty result instead of throwing to allow pagination to continue.
       logger.error(`Failed to get links from page ${pageNumber}:`, error);
-      return [];
+      return { links: [], pictureUrls: {} };
     }
   }
 

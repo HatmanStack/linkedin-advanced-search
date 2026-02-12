@@ -197,6 +197,29 @@ class DynamoDBApiService(BaseService):
             'evaluated': True,
         }
 
+    def update_profile_picture(self, user_id: str, body: dict[str, Any]) -> dict[str, Any]:
+        """Update only the profilePictureUrl field on an existing profile metadata record."""
+        profile_id = body.get('profileId')
+        if not profile_id:
+            return {'error': 'profileId is required'}
+
+        picture_url = body.get('profilePictureUrl', '')
+        if picture_url and (len(picture_url) > 500 or not self._is_safe_url(picture_url)):
+            return {'error': 'Invalid profilePictureUrl'}
+
+        profile_id_b64 = base64.urlsafe_b64encode(profile_id.encode()).decode()
+
+        self.table.update_item(
+            Key={'PK': f'PROFILE#{profile_id_b64}', 'SK': '#METADATA'},
+            UpdateExpression='SET profilePictureUrl = :url, updatedAt = :now',
+            ExpressionAttributeValues={
+                ':url': picture_url,
+                ':now': datetime.now(UTC).isoformat(),
+            },
+        )
+
+        return {'message': 'Profile picture updated', 'profileId': profile_id_b64}
+
     def get_user_settings(self, user_id: str) -> dict[str, Any] | None:
         """Get user settings item (e.g., encrypted linkedin_credentials).
         Key: PK=USER#<sub>, SK=#SETTINGS

@@ -92,6 +92,7 @@ function createMockPuppeteerService() {
     waitForSelector: vi.fn().mockResolvedValue({ click: vi.fn() }),
     waitForFunction: vi.fn().mockResolvedValue(),
     extractLinks: vi.fn().mockResolvedValue([]),
+    extractProfilePictures: vi.fn().mockResolvedValue({}),
     _page: mockInternalPage,
   };
 }
@@ -273,22 +274,22 @@ describe('LinkedInService', () => {
     it('returns extracted links from page', async () => {
       mockPuppeteer.extractLinks.mockResolvedValue(['/in/user1', '/in/user2']);
 
-      const links = await service.getLinksFromPeoplePage(1, '12345');
-      expect(links).toEqual(['/in/user1', '/in/user2']);
+      const result = await service.getLinksFromPeoplePage(1, '12345');
+      expect(result.links).toEqual(['/in/user1', '/in/user2']);
     });
 
-    it('returns empty array on navigation error', async () => {
+    it('returns empty result on navigation error', async () => {
       mockPuppeteer.goto.mockRejectedValue(new Error('Navigation failed'));
 
-      const links = await service.getLinksFromPeoplePage(1, '12345');
-      expect(links).toEqual([]);
+      const result = await service.getLinksFromPeoplePage(1, '12345');
+      expect(result).toEqual({ links: [], pictureUrls: {} });
     });
 
-    it('returns empty array when no content found', async () => {
+    it('returns empty result when no content found', async () => {
       mockPuppeteer.waitForSelector.mockResolvedValue(false);
 
-      const links = await service.getLinksFromPeoplePage(1, '12345');
-      expect(links).toEqual([]);
+      const result = await service.getLinksFromPeoplePage(1, '12345');
+      expect(result).toEqual({ links: [], pictureUrls: {} });
     });
   });
 
