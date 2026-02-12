@@ -437,6 +437,58 @@ export class PuppeteerService {
     }
   }
 
+  /**
+   * Extract profile picture URLs from the current connections list page.
+   * Returns a map of profileId → pictureUrl.
+   */
+  async extractProfilePictures(): Promise<Record<string, string>> {
+    try {
+      if (!this.page) {
+        logger.warn('extractProfilePictures: No page available');
+        return {};
+      }
+
+      const pictureMap = await this.page.evaluate(() => {
+        const result: Record<string, string> = {};
+        const anchors = Array.from(document.querySelectorAll('a[href*="/in/"]'));
+
+        for (const a of anchors) {
+          const href = a.getAttribute('href') || '';
+          const match = href.match(/\/in\/([^\/?#]+)/i);
+          if (!match || !match[1]) continue;
+
+          const profileId = match[1];
+          if (result[profileId]) continue;
+
+          // Walk up to the card container (typically a <li> or div with card-like role)
+          let container: Element | null = a;
+          for (let i = 0; i < 5 && container; i++) {
+            container = container.parentElement;
+            if (container?.tagName === 'LI' || container?.classList.contains('entity-result')) {
+              break;
+            }
+          }
+          if (!container) continue;
+
+          const img = container.querySelector(
+            'img[src*="media.licdn.com"]'
+          ) as HTMLImageElement | null;
+          if (img?.src) {
+            result[profileId] = img.src;
+          }
+        }
+
+        return result;
+      });
+
+      logger.debug(`extractProfilePictures: found ${Object.keys(pictureMap).length} picture URLs`);
+      return pictureMap;
+    } catch (error) {
+      logger.error('Failed to extract profile pictures:', error);
+      return {};
+    }
+  }
+
   async close(): Promise<void> {
     try {
       if (this.browser) {

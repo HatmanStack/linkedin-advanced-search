@@ -140,6 +140,7 @@ const connectionSchema = z.object({
     .max(MAX_ARRAY_LENGTH.COMMON_INTERESTS)
     .optional(),
   tags: z.array(z.string().min(1).max(MAX_TEXT_LENGTH.TAG)).max(MAX_ARRAY_LENGTH.TAGS).optional(),
+  profile_picture_url: z.string().url().max(500).optional(),
   message_history: z.array(messageSchema).max(MAX_ARRAY_LENGTH.MESSAGES).optional(),
   isFakeData: z.boolean().optional(),
 });
@@ -253,6 +254,7 @@ export function validateConnection(
         'last_action_summary',
         'date_added',
         'linkedin_url',
+        'profile_picture_url',
       ].includes(path0);
       if (isOptionalField && issue.code === 'too_big') {
         warnings.push(msg);
@@ -423,6 +425,12 @@ export function sanitizeConnectionData(data: unknown): Connection | null {
       connection.date_added = obj.date_added;
     if (typeof obj.linkedin_url === 'string' && isValidUrl(obj.linkedin_url))
       connection.linkedin_url = obj.linkedin_url;
+    if (
+      typeof obj.profile_picture_url === 'string' &&
+      obj.profile_picture_url.length > 0 &&
+      isValidUrl(obj.profile_picture_url)
+    )
+      connection.profile_picture_url = obj.profile_picture_url.substring(0, 500);
     if (typeof obj.isFakeData === 'boolean') connection.isFakeData = obj.isFakeData;
     if (Array.isArray(obj.common_interests)) {
       connection.common_interests = obj.common_interests

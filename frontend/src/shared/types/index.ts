@@ -117,6 +117,9 @@ export interface Connection {
   /** Conversion likelihood classification for 'possible' connections (enum string, optional) */
   conversion_likelihood?: ConversionLikelihood;
 
+  /** Profile picture URL from LinkedIn CDN (optional, may expire) */
+  profile_picture_url?: string;
+
   /** Array of message history (optional) */
   message_history?: Message[];
 

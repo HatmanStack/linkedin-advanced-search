@@ -93,4 +93,42 @@ describe('ConnectionCard', () => {
     // Avatar shows first letters of first and last name
     expect(screen.getByText('JD')).toBeInTheDocument();
   });
+
+  it('should render profile picture when profile_picture_url is set', () => {
+    const connectionWithPic = {
+      ...mockConnection,
+      profile_picture_url: 'https://media.licdn.com/dms/image/test/photo.jpg',
+    };
+    const { container } = render(<ConnectionCard connection={connectionWithPic} />);
+
+    const img = container.querySelector('img') as HTMLImageElement;
+    expect(img).toBeInTheDocument();
+    expect(img.src).toBe('https://media.licdn.com/dms/image/test/photo.jpg');
+    expect(img.getAttribute('referrerpolicy')).toBe('no-referrer');
+    // Initials should not be shown
+    expect(screen.queryByText('JD')).not.toBeInTheDocument();
+  });
+
+  it('should render initials when no profile_picture_url', () => {
+    const { container } = render(<ConnectionCard connection={mockConnection} />);
+
+    expect(container.querySelector('img')).not.toBeInTheDocument();
+    expect(screen.getByText('JD')).toBeInTheDocument();
+  });
+
+  it('should fall back to initials on image error', () => {
+    const connectionWithPic = {
+      ...mockConnection,
+      profile_picture_url: 'https://media.licdn.com/dms/image/test/expired.jpg',
+    };
+    const { container } = render(<ConnectionCard connection={connectionWithPic} />);
+
+    const img = container.querySelector('img') as HTMLImageElement;
+    expect(img).toBeInTheDocument();
+    fireEvent.error(img);
+
+    // After error, should show initials instead
+    expect(container.querySelector('img')).not.toBeInTheDocument();
+    expect(screen.getByText('JD')).toBeInTheDocument();
+  });
 });

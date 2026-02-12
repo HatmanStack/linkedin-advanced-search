@@ -91,6 +91,7 @@ interface BatchData {
   batchNumber: number;
   connectionType: string;
   connections: string[];
+  pictureUrls?: Record<string, string>;
   batchMetadata?: {
     startIndex: number;
     endIndex: number;
@@ -610,8 +611,21 @@ export class ProfileInitService {
         return result;
       }
 
+      // Extract profile picture URLs while still on the connections list page
+      let pictureUrls: Record<string, string> = {};
+      try {
+        pictureUrls = await this.puppeteerService.extractProfilePictures();
+      } catch (error) {
+        logger.warn('Failed to extract profile pictures (non-fatal):', error);
+      }
+
       // Create batch files
-      const batchFiles = await this._createBatchFiles(connectionType, connections, masterIndex);
+      const batchFiles = await this._createBatchFiles(
+        connectionType,
+        connections,
+        masterIndex,
+        pictureUrls
+      );
 
       // Process each batch
       for (let batchIndex = 0; batchIndex < batchFiles.length; batchIndex++) {
@@ -657,7 +671,8 @@ export class ProfileInitService {
   private async _createBatchFiles(
     connectionType: ConnectionType,
     connections: string[],
-    masterIndex: MasterIndex
+    masterIndex: MasterIndex,
+    pictureUrls?: Record<string, string>
   ): Promise<string[]> {
     try {
       const batchFiles: string[] = [];
@@ -675,6 +690,7 @@ export class ProfileInitService {
           batchNumber: i,
           connectionType: connectionType,
           connections: batchConnections,
+          ...(pictureUrls && Object.keys(pictureUrls).length > 0 ? { pictureUrls } : {}),
           batchMetadata: {
             startIndex: startIndex,
             endIndex: endIndex - 1,
@@ -806,7 +822,8 @@ export class ProfileInitService {
           }
 
           // Process the connection (create database entry)
-          await this._processConnection(connectionProfileId, state, connectionStatus);
+          const pictureUrl = batchData.pictureUrls?.[connectionProfileId];
+          await this._processConnection(connectionProfileId, state, connectionStatus, pictureUrl);
 
           result.processed++;
           result.connections.push({
@@ -979,7 +996,8 @@ export class ProfileInitService {
   private async _processConnection(
     connectionProfileId: string,
     state: ProfileInitState,
-    connectionType: string
+    connectionType: string,
+    pictureUrl?: string
   ): Promise<void> {
     const requestId = state.requestId || 'unknown';
     const startTime = Date.now();
@@ -1019,6 +1037,7 @@ export class ProfileInitService {
               currentTitle: 'Mock Title',
               currentCompany: 'Mock Company',
               headline: `${name} - Mock Profile`,
+              ...(pictureUrl ? { profilePictureUrl: pictureUrl } : {}),
             });
           } catch {
             // non-fatal
@@ -1051,7 +1070,10 @@ export class ProfileInitService {
                 .split('-')
                 .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1))
                 .join(' ');
-              await this.dynamoDBService.createProfileMetadata?.(connectionProfileId, { name });
+              await this.dynamoDBService.createProfileMetadata?.(connectionProfileId, {
+                name,
+                ...(pictureUrl ? { profilePictureUrl: pictureUrl } : {}),
+              });
             } catch {
               // non-fatal
             }

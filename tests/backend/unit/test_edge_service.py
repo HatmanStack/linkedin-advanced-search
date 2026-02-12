@@ -656,6 +656,65 @@ class TestEdgeServiceUpdateMessages:
         assert result['profileId'] == expected_b64
 
 
+class TestEdgeServiceProfilePicture:
+    """Tests for profile_picture_url in _format_connection_object."""
+
+    def test_format_connection_returns_profile_picture_url(self):
+        """Should return profile_picture_url from profile metadata."""
+        mock_table = MagicMock()
+        mock_table.query.return_value = {
+            'Items': [
+                {
+                    'PK': 'USER#test-user',
+                    'SK': 'PROFILE#dGVzdC1wcm9maWxl',
+                    'status': 'ally',
+                    'addedAt': '2024-01-01T00:00:00+00:00',
+                    'messages': []
+                }
+            ]
+        }
+        mock_table.get_item.return_value = {
+            'Item': {
+                'name': 'John Doe',
+                'profilePictureUrl': 'https://media.licdn.com/dms/image/test/photo.jpg',
+            }
+        }
+
+        service = EdgeService(table=mock_table)
+        result = service.get_connections_by_status(user_id='test-user', status='ally')
+
+        assert result['success'] is True
+        conn = result['connections'][0]
+        assert conn['profile_picture_url'] == 'https://media.licdn.com/dms/image/test/photo.jpg'
+
+    def test_format_connection_returns_empty_string_when_no_picture(self):
+        """Should return empty string when profilePictureUrl not in metadata."""
+        mock_table = MagicMock()
+        mock_table.query.return_value = {
+            'Items': [
+                {
+                    'PK': 'USER#test-user',
+                    'SK': 'PROFILE#dGVzdC1wcm9maWxl',
+                    'status': 'ally',
+                    'addedAt': '2024-01-01T00:00:00+00:00',
+                    'messages': []
+                }
+            ]
+        }
+        mock_table.get_item.return_value = {
+            'Item': {
+                'name': 'John Doe',
+            }
+        }
+
+        service = EdgeService(table=mock_table)
+        result = service.get_connections_by_status(user_id='test-user', status='ally')
+
+        assert result['success'] is True
+        conn = result['connections'][0]
+        assert conn['profile_picture_url'] == ''
+
+
 class TestEdgeServiceMaxResults:
     """Tests for maxResults cap in search."""
 
