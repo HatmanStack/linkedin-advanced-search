@@ -47,6 +47,11 @@ const ConnectionCard = ({
   const [isSummaryOpen, setIsSummaryOpen] = useState(false);
   const [isTagsOpen, setIsTagsOpen] = useState(false);
   const [imgError, setImgError] = useState(false);
+
+  useEffect(() => {
+    setImgError(false);
+  }, [connection.profile_picture_url]);
+
   const isHttpUrl = (value: string): boolean => /^https?:\/\//i.test(value);
 
   const isVanitySlug = (value: string): boolean => /^[a-zA-Z0-9-]+$/.test(value);

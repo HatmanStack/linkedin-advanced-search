@@ -614,7 +614,7 @@ export class ProfileInitService {
       // Extract profile picture URLs while still on the connections list page
       let pictureUrls: Record<string, string> = {};
       try {
-        pictureUrls = await this.puppeteerService.extractProfilePictures();
+        pictureUrls = await this.puppeteer.extractProfilePictures();
       } catch (error) {
         logger.warn('Failed to extract profile pictures (non-fatal):', error);
       }
