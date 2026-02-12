@@ -224,7 +224,7 @@ const Profile = () => {
               </Button>
               <div className="flex items-center space-x-2">
                 <MessageSquare className="h-8 w-8 text-blue-400" />
-                <span className="text-2xl font-bold text-white">LinkedIn Advanced Search</span>
+                <span className="text-2xl font-bold text-white">WarmReach</span>
               </div>
             </div>
           </div>

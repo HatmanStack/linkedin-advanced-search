@@ -1,8 +1,8 @@
 #!/bin/bash
-# Setup script for LinkedIn Advanced Search local development
+# Setup script for WarmReach local development
 set -euo pipefail
 
-echo "=== LinkedIn Advanced Search — Setup ==="
+echo "=== WarmReach — Setup ==="
 
 # Check prerequisites
 check_command() {

@@ -260,7 +260,7 @@ async function startServer() {
     }
 
     httpServer = app.listen(config.port, () => {
-      logger.info(`🚀 LinkedIn Advanced Search Backend started`, {
+      logger.info(`🚀 WarmReach Backend started`, {
         port: config.port,
         nodeEnv: config.nodeEnv,
         frontendUrls: config.frontendUrls,

@@ -1,4 +1,4 @@
-# LinkedIn Advanced Search - Puppeteer Backend
+# WarmReach - Puppeteer Backend
 
 Node.js automation backend for LinkedIn interactions with queue-based processing.
 

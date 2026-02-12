@@ -10,7 +10,7 @@ import {
 
 const LOCALSTACK_ENDPOINT = process.env.LOCALSTACK_ENDPOINT || 'http://localhost:4566';
 const REGION = process.env.AWS_DEFAULT_REGION || 'us-east-1';
-const TABLE_NAME = process.env.DYNAMODB_TABLE_NAME || 'linkedin-advanced-search-test';
+const TABLE_NAME = process.env.DYNAMODB_TABLE_NAME || 'warmreach-test';
 
 const awsConfig = {
   endpoint: LOCALSTACK_ENDPOINT,

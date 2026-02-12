@@ -1,6 +1,6 @@
 # Development Guide
 
-This guide provides instructions for setting up your development environment and working with the LinkedIn Advanced Search codebase.
+This guide provides instructions for setting up your development environment and working with the WarmReach codebase.
 
 ## Prerequisites
 
@@ -20,7 +20,7 @@ The fastest way to set up is with the automated script:
 
 ```bash
 git clone <repository-url>
-cd linkedin-advanced-search
+cd warmreach
 bash scripts/setup.sh
 ```
 

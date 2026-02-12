@@ -1,6 +1,6 @@
 # Security Architecture
 
-Security is a core component of the LinkedIn Advanced Search platform, designed to protect user credentials, isolate data, and ensure secure communication.
+Security is a core component of the WarmReach platform, designed to protect user credentials, isolate data, and ensure secure communication.
 
 ## Credential Management (Sealbox)
 

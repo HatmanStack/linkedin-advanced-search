@@ -1,5 +1,5 @@
 #!/bin/bash
-# Code Cleanup Script for linkedin-advanced-search
+# Code Cleanup Script for warmreach
 # Uses AST-aware tools: knip (JS/TS), vulture (Python), ruff (Python)
 set -euo pipefail
 

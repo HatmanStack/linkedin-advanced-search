@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-STACK_NAME=${1:-linkedin-advanced-search}
+STACK_NAME=${1:-warmreach}
 
 echo "📊 Fetching outputs from stack: $STACK_NAME"
 echo ""

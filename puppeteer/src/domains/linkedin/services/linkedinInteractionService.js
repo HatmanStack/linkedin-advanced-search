@@ -38,12 +38,14 @@ export class LinkedInInteractionService {
    * @param {Object} options.configManager - Config manager (defaults to ConfigManager)
    * @param {Object} options.dynamoDBService - DynamoDB service instance
    * @param {Object} options.humanBehavior - Human behavior simulator (defaults to no-op)
+   * @param {Object} options.controlPlaneService - Control plane service (defaults to no-op)
    */
   constructor(options = {}) {
     // Inject core dependencies or use defaults
     this.sessionManager = options.sessionManager || BrowserSessionManager;
     this.configManager = options.configManager || ConfigManager;
     this.dynamoDBService = options.dynamoDBService || new DynamoDBService();
+    this.controlPlaneService = options.controlPlaneService || null;
 
     // Provide safe no-op fallbacks for human behavior simulation
     this.humanBehavior = options.humanBehavior || {
@@ -99,6 +101,52 @@ export class LinkedInInteractionService {
       injectedDependencies: Object.keys(options).length > 0,
       domainServices: ['navigation', 'messaging', 'connection'],
     });
+  }
+
+  /**
+   * Apply centralized rate limits from the control plane (if configured).
+   * The control plane can only make limits stricter, never more lenient
+   * than the hard-coded ceilings.
+   * @param {string} operation - Operation type for telemetry
+   */
+  async _applyControlPlaneRateLimits(_operation) {
+    if (!this.controlPlaneService?.isConfigured) return;
+    try {
+      const cpLimits = await this.controlPlaneService.syncRateLimits();
+      if (cpLimits?.linkedin_interactions) {
+        const cp = cpLimits.linkedin_interactions;
+        // Merge CP limits into configManager — CP can only tighten, not loosen
+        if (cp.daily_limit != null) {
+          const current = this.configManager.get('dailyInteractionLimit', 500);
+          this.configManager.setOverride(
+            'dailyInteractionLimit',
+            Math.min(current, cp.daily_limit)
+          );
+        }
+        if (cp.hourly_limit != null) {
+          const current = this.configManager.get('hourlyInteractionLimit', 100);
+          this.configManager.setOverride(
+            'hourlyInteractionLimit',
+            Math.min(current, cp.hourly_limit)
+          );
+        }
+      }
+    } catch (error) {
+      logger.debug('Control plane rate limit sync skipped', { error: error.message });
+    }
+  }
+
+  /**
+   * Report a completed interaction to the control plane (fire-and-forget).
+   * @param {string} operation - Operation type
+   */
+  _reportInteraction(operation) {
+    if (!this.controlPlaneService?.isConfigured) return;
+    try {
+      this.controlPlaneService.reportInteraction(operation);
+    } catch {
+      // Never block on telemetry failures
+    }
   }
 
   /**
@@ -528,6 +576,9 @@ export class LinkedInInteractionService {
       `Sending LinkedIn message to profile ${recipientProfileId} by user ${userId}`,
       context
     );
+    // Apply control plane rate limits (if configured)
+    await this._applyControlPlaneRateLimits('sendMessage');
+
     // Check for suspicious activity before starting
     await this.checkSuspiciousActivity();
 
@@ -556,6 +607,9 @@ export class LinkedInInteractionService {
         error: err.message,
       });
     });
+
+    // Report interaction telemetry (fire-and-forget)
+    this._reportInteraction('sendMessage');
 
     logger.info(`Successfully sent LinkedIn message`, {
       recipientProfileId,
@@ -873,6 +927,9 @@ export class LinkedInInteractionService {
     };
 
     logger.info(`Creating LinkedIn post by user ${userId}`, context);
+    // Apply control plane rate limits (if configured)
+    await this._applyControlPlaneRateLimits('createPost');
+
     // Check for suspicious activity before starting
     await this.checkSuspiciousActivity();
 
@@ -902,6 +959,9 @@ export class LinkedInInteractionService {
       hasMedia: mediaAttachments.length > 0,
       userId,
     });
+
+    // Report interaction telemetry (fire-and-forget)
+    this._reportInteraction('createPost');
 
     logger.info(`Successfully created LinkedIn post`, {
       postId: postResult.postId,
@@ -1863,6 +1923,9 @@ export class LinkedInInteractionService {
     };
 
     logger.info('Executing complete LinkedIn connection workflow', context);
+    // Apply control plane rate limits (if configured)
+    await this._applyControlPlaneRateLimits('executeConnectionWorkflow');
+
     // Step 1: Check for suspicious activity and apply cooling-off
     await this.checkSuspiciousActivity();
 
@@ -1931,6 +1994,9 @@ export class LinkedInInteractionService {
       connectionMessage,
       normalWorkflowData
     );
+
+    // Report interaction telemetry (fire-and-forget)
+    this._reportInteraction('executeConnectionWorkflow');
 
     logger.info('LinkedIn connection workflow completed successfully', result);
     return result;
@@ -2036,6 +2102,9 @@ export class LinkedInInteractionService {
     logger.info('Executing LinkedIn follow profile workflow', context);
 
     try {
+      // Apply control plane rate limits (if configured)
+      await this._applyControlPlaneRateLimits('followProfile');
+
       // Step 1: Check for suspicious activity
       await this.checkSuspiciousActivity();
 
@@ -2078,6 +2147,9 @@ export class LinkedInInteractionService {
         profileId,
         timestamp: new Date().toISOString(),
       });
+
+      // Report interaction telemetry (fire-and-forget)
+      this._reportInteraction('followProfile');
 
       logger.info('LinkedIn follow profile workflow completed successfully', {
         profileId,

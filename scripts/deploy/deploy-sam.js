@@ -2,7 +2,7 @@
 /**
  * SAM Deployment Script
  *
- * Deploys the LinkedIn Advanced Search backend via SAM.
+ * Deploys the WarmReach backend via SAM.
  * - Prompts for configuration if not present
  * - Generates samconfig.toml
  * - Executes SAM build and deploy
@@ -184,7 +184,7 @@ function loadConfig() {
   }
 
   return {
-    stackName: 'linkedin-advanced-search',
+    stackName: 'warmreach',
     region: 'us-east-1',  // Default to us-east-1 for Nova Multimodal Embeddings
     s3Bucket: '',
     environment: 'prod',
@@ -622,7 +622,7 @@ function isDryRun() {
  */
 async function main() {
   console.log('╔════════════════════════════════════════════════════════════╗');
-  console.log('║       LinkedIn Advanced Search - SAM Deployment            ║');
+  console.log('║       WarmReach - SAM Deployment            ║');
   console.log('╚════════════════════════════════════════════════════════════╝\n');
 
   try {

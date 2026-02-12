@@ -1,9 +1,9 @@
 {
-  "name": "linkedin-advanced-search",
+  "name": "warmreach",
   "version": "1.0.0",
   "type": "module",
   "private": true,
-  "description": "LinkedIn Advanced Search - Monorepo",
+  "description": "WarmReach - Monorepo",
   "scripts": {
     "dev": "cd frontend && npm run dev",
     "dev:puppeteer": "cd puppeteer && npm run dev",

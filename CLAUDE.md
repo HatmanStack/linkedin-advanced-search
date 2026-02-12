@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **This tool is NOT for spam, mass outreach, or scraping LinkedIn.**
 
-LinkedIn Advanced Search helps users build more authentic professional relationships by:
+WarmReach helps users build more authentic professional relationships by:
 
 - **Surfacing buried interactions** - LinkedIn's algorithm often swallows engagement into a black hole. This tool helps users see who's actually active and engaging with their content.
 - **Identifying active connections** - Find people in your network who are genuinely engaged, helping users grow their network through interaction.
@@ -17,7 +17,7 @@ The goal is to make LinkedIn more useful for genuine professional networking, no
 
 ## Project Overview
 
-LinkedIn Advanced Search is a monorepo with three main components:
+WarmReach is a monorepo with three main components:
 - **frontend/**: React 18 + TypeScript + Vite application
 - **puppeteer/**: Node.js Express backend with Puppeteer for LinkedIn automation
 - **backend/**: AWS SAM serverless stack (Python Lambdas + DynamoDB + Cognito)

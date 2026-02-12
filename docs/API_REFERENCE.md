@@ -1,6 +1,6 @@
 # API Reference
 
-This document provides an overview of the API endpoints available in the LinkedIn Advanced Search platform. The system consists of two primary API layers: the **Puppeteer Backend** (browser automation) and the **AWS Cloud API** (data storage and AI services).
+This document provides an overview of the API endpoints available in the WarmReach platform. The system consists of two primary API layers: the **Puppeteer Backend** (browser automation) and the **AWS Cloud API** (data storage and AI services).
 
 ## Puppeteer Backend (Internal/Automation)
 

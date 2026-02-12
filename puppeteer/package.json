@@ -1,7 +1,7 @@
 {
-  "name": "linkedin-advanced-search-backend",
+  "name": "warmreach-puppeteer",
   "version": "1.0.0",
-  "description": "Refactored backend for LinkedIn Advanced Search with modern architecture",
+  "description": "WarmReach Puppeteer backend for LinkedIn automation",
   "main": "src/server.js",
   "type": "module",
   "imports": {

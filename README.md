@@ -1,4 +1,4 @@
-# LinkedIn Advanced Search
+# WarmReach
 
 <p align="center">
 <a href="https://www.apache.org/licenses/LICENSE-2.0.html"><img src="https://img.shields.io/badge/license-Apache2.0-blue" alt="Apache 2.0 License" /></a>
@@ -7,7 +7,7 @@
 <a href="https://aws.amazon.com/lambda/"><img src="https://img.shields.io/badge/AWS-Lambda-FF9900" alt="AWS Lambda" /></a>
 </p>
 
-LinkedIn networking tool with automation and cloud infrastructure. Built for efficiency, security, and scalability.
+LinkedIn networking tool that helps build authentic professional relationships through active connection analysis, engagement surfacing, and AI-assisted outreach. Built for efficiency, security, and scalability.
 
 ** THIS REPO IS IN ACTIVE DEVELOPMENT AND WILL CHANGE OFTEN **
 
@@ -36,7 +36,7 @@ LinkedIn networking tool with automation and cloud infrastructure. Built for eff
 
 ```bash
 git clone <your-repo-url>
-cd linkedin-advanced-search
+cd warmreach
 bash scripts/setup.sh
 docker compose up
 ```

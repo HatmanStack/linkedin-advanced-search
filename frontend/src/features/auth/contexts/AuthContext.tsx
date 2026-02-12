@@ -52,7 +52,7 @@ const useAuth = () => {
 };
 
 // Local storage key for mock authentication fallback
-const LOCAL_STORAGE_KEY = 'linkedin_advanced_search_user';
+const LOCAL_STORAGE_KEY = 'warmreach_user';
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
