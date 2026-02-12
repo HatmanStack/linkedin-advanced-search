@@ -134,14 +134,10 @@ aws cognito-idp admin-set-user-password \
 ### 3. Test RAGStack Integration
 
 ```bash
-# Get API key from SSM Parameter Store
-# The SSM path is /<StackPrefix>/api-key where StackPrefix is the parent stack name
-# passed to the nested RAGStack stack (see StackPrefix in template.yaml).
-# For example, if your stack name is "linkedin-advanced-search":
-RAGSTACK_API_KEY=$(aws ssm get-parameter \
-  --name "/<your-stack-name>/api-key" \
-  --with-decryption \
-  --query 'Parameter.Value' \
+# Get API key from Lambda environment variables
+RAGSTACK_API_KEY=$(aws lambda get-function-configuration \
+  --function-name linkedin-edge-processing-<Environment> \
+  --query 'Environment.Variables.RAGSTACK_API_KEY' \
   --output text)
 
 # Test search (should return empty results initially)
@@ -151,7 +147,7 @@ curl -X POST '<RAGStackGraphQLEndpoint>' \
   -d '{"query":"query { searchKnowledgeBase(query: \"software engineer\") { results { content } } }"}'
 ```
 
-> **Note:** Replace `<your-stack-name>` with the stack name you chose during deployment (e.g., `linkedin-advanced-search`). The nested RAGStack stack uses the parent stack name as its `StackPrefix`, so the SSM parameter is stored at `/<parent-stack-name>/api-key`.
+> **Note:** Replace `<Environment>` with `prod` or `dev` to match your deployment. The API key is injected into Lambda env vars from the nested RAGStack stack output and is not stored separately in SSM.
 
 ## Updating the Stack
 

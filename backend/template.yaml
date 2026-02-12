@@ -502,7 +502,3 @@ Outputs:
     Condition: DeployRAGStackCondition
     Description: RAGStack Dashboard URL for document management
     Value: !GetAtt RAGStackNestedStack.Outputs.UIUrl
-  RAGStackApiKeySSMPath:
-    Condition: DeployRAGStackCondition
-    Description: SSM Parameter Store path for the RAGStack API key (retrieve with aws ssm get-parameter --with-decryption)
-    Value: !Sub '/${AWS::StackName}/api-key'

@@ -470,11 +470,10 @@ function updateEnvFile(outputs, config) {
     if (outputs.RAGStackDashboardUrl) {
       updates.RAGSTACK_DASHBOARD_URL = outputs.RAGStackDashboardUrl;
     }
-    // API key is stored in SSM Parameter Store by the nested RAGStack stack.
-    // The SSM path is /<StackPrefix>/api-key where StackPrefix = parent stack name.
-    const ssmPath = outputs.RAGStackApiKeySSMPath || `/${config.stackName}/api-key`;
-    console.log('\n📝 RAGStack deployed as nested stack. Retrieve API key from SSM:');
-    console.log(`   aws ssm get-parameter --name "${ssmPath}" --with-decryption --query 'Parameter.Value' --output text`);
+    // API key is injected into Lambda env vars from the nested stack output.
+    // Retrieve it from a Lambda's configuration if needed for manual testing.
+    console.log('\n📝 RAGStack deployed as nested stack. Retrieve API key from Lambda env vars:');
+    console.log(`   aws lambda get-function-configuration --function-name linkedin-edge-processing-${config.environment || 'prod'} --query 'Environment.Variables.RAGSTACK_API_KEY' --output text`);
   }
 
   // Merge with existing
