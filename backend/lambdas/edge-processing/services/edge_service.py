@@ -470,6 +470,7 @@ class EdgeService(BaseService):
             'last_action_summary': edge_item.get('lastActionSummary', ''),
             'status': edge_item.get('status', ''),
             'conversion_likelihood': conversion_likelihood,
+            'profile_picture_url': profile_data.get('profilePictureUrl', ''),
             'message_history': messages if isinstance(messages, list) else [],
         }
 

@@ -46,6 +46,12 @@ const ConnectionCard = ({
 }: ConnectionCardProps) => {
   const [isSummaryOpen, setIsSummaryOpen] = useState(false);
   const [isTagsOpen, setIsTagsOpen] = useState(false);
+  const [imgError, setImgError] = useState(false);
+
+  useEffect(() => {
+    setImgError(false);
+  }, [connection.profile_picture_url]);
+
   const isHttpUrl = (value: string): boolean => /^https?:\/\//i.test(value);
 
   const isVanitySlug = (value: string): boolean => /^[a-zA-Z0-9-]+$/.test(value);
@@ -302,9 +308,21 @@ const ConnectionCard = ({
             </div>
           )}
           {/* Profile Picture Space */}
-          <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white font-semibold">
-            {connection.first_name[0]}
-            {connection.last_name[0]}
+          <div className="w-12 h-12 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0">
+            {connection.profile_picture_url && !imgError ? (
+              <img
+                src={connection.profile_picture_url}
+                alt=""
+                className="w-full h-full object-cover"
+                onError={() => setImgError(true)}
+                referrerPolicy="no-referrer"
+              />
+            ) : (
+              <div className="w-full h-full bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center text-white font-semibold">
+                {connection.first_name[0]}
+                {connection.last_name[0]}
+              </div>
+            )}
           </div>
         </div>
 
