@@ -622,7 +622,7 @@ function isDryRun() {
  */
 async function main() {
   console.log('╔════════════════════════════════════════════════════════════╗');
-  console.log('║       WarmReach - SAM Deployment            ║');
+  console.log('║            WarmReach - SAM Deployment                     ║');
   console.log('╚════════════════════════════════════════════════════════════╝\n');
 
   try {

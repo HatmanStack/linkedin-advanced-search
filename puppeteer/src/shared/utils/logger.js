@@ -18,7 +18,7 @@ const consoleFormat = winston.format.combine(
 export const logger = winston.createLogger({
   level: config.nodeEnv === 'development' ? 'debug' : 'info',
   format: logFormat,
-  defaultMeta: { service: 'linkedin-search-backend' },
+  defaultMeta: { service: 'warmreach-backend' },
   transports: [
     // Write logs to file
     new winston.transports.File({

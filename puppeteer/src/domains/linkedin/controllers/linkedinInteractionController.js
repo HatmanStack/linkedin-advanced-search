@@ -4,8 +4,12 @@ import { LinkedInInteractionService } from '../services/linkedinInteractionServi
 import LinkedInService from '../services/linkedinService.js';
 import LinkedInErrorHandler from '../utils/linkedinErrorHandler.js';
 import LinkedInAuditLogger from '../utils/linkedinAuditLogger.js';
+import ControlPlaneService from '../../../shared/services/controlPlaneService.js';
 import { v4 as uuidv4 } from 'uuid';
 import { linkedInInteractionQueue } from '../../automation/utils/interactionQueue.js';
+
+// Shared singleton — same instance for all controller methods
+const _controlPlaneService = new ControlPlaneService();
 
 export class LinkedInInteractionController {
   /**
@@ -103,7 +107,9 @@ export class LinkedInInteractionController {
       const meta = { type: 'send-message', requestId, userId, recipientProfileId };
       const result = await linkedInInteractionQueue.enqueue(async () => {
         // Initialize LinkedIn interaction service
-        const linkedinService = new LinkedInInteractionService();
+        const linkedinService = new LinkedInInteractionService({
+          controlPlaneService: _controlPlaneService,
+        });
 
         // Ensure we are logged in if no active authenticated session
         try {
@@ -270,7 +276,9 @@ export class LinkedInInteractionController {
       const meta = { type: 'add-connection', requestId, userId, profileId };
       const result = await linkedInInteractionQueue.enqueue(async () => {
         // Initialize LinkedIn interaction service
-        const linkedinService = new LinkedInInteractionService();
+        const linkedinService = new LinkedInInteractionService({
+          controlPlaneService: _controlPlaneService,
+        });
 
         // Ensure we are logged in if no active authenticated session
         try {
@@ -445,7 +453,9 @@ export class LinkedInInteractionController {
       const meta = { type: 'create-post', requestId, userId };
       const result = await linkedInInteractionQueue.enqueue(async () => {
         // Initialize LinkedIn interaction service
-        const linkedinService = new LinkedInInteractionService();
+        const linkedinService = new LinkedInInteractionService({
+          controlPlaneService: _controlPlaneService,
+        });
 
         logger.info('Attempting to create LinkedIn post', {
           requestId,
@@ -619,7 +629,9 @@ export class LinkedInInteractionController {
       const meta = { type: 'follow-profile', requestId, userId, profileId };
       const result = await linkedInInteractionQueue.enqueue(async () => {
         // Initialize LinkedIn interaction service
-        const linkedinService = new LinkedInInteractionService();
+        const linkedinService = new LinkedInInteractionService({
+          controlPlaneService: _controlPlaneService,
+        });
 
         // Ensure we are logged in if no active authenticated session
         try {
@@ -706,7 +718,9 @@ export class LinkedInInteractionController {
       }
 
       // Initialize LinkedIn interaction service
-      const linkedinService = new LinkedInInteractionService();
+      const linkedinService = new LinkedInInteractionService({
+        controlPlaneService: _controlPlaneService,
+      });
 
       // Get comprehensive session status via service layer
       logger.info('Checking LinkedIn session status', { requestId, userId });

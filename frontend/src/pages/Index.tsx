@@ -234,7 +234,7 @@ const Index = () => {
               <span className="text-white font-semibold">WarmReach</span>
             </div>
             <div className="text-slate-400 text-sm text-center">
-              © 2025 WarmReach. Some stuff from{' '}
+              © {new Date().getFullYear()} WarmReach. Some stuff from{' '}
               <a href="https://github.com/hatmanstack" className="text-red-400">
                 Hatman
               </a>

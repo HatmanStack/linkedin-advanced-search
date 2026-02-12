@@ -84,8 +84,9 @@ class ControlPlaneService {
 
   /**
    * Fetch dynamic rate limits from the control plane.
-   * Returns null when not configured, circuit is open, or on error.
-   * Cached for CACHE_TTL_MS.
+   * Returns null when not configured and no cache exists.
+   * Returns stale cached data when the circuit is open or on fetch error.
+   * Returns fresh data after a successful fetch, cached for 5 minutes.
    */
   async syncRateLimits() {
     if (!this.isConfigured) return null;

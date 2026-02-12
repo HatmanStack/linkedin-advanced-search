@@ -53,12 +53,22 @@ const useAuth = () => {
 
 // Local storage key for mock authentication fallback
 const LOCAL_STORAGE_KEY = 'warmreach_user';
+const LEGACY_STORAGE_KEY = 'linkedin_advanced_search_user';
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Migrate legacy localStorage key to new key
+    const legacyData = localStorage.getItem(LEGACY_STORAGE_KEY);
+    if (legacyData && !localStorage.getItem(LOCAL_STORAGE_KEY)) {
+      localStorage.setItem(LOCAL_STORAGE_KEY, legacyData);
+    }
+    if (legacyData) {
+      localStorage.removeItem(LEGACY_STORAGE_KEY);
+    }
+
     initializeAuth();
   }, []);
 

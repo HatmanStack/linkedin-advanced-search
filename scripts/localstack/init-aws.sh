@@ -7,7 +7,7 @@ set -euo pipefail
 ENDPOINT="${LOCALSTACK_ENDPOINT:-http://localhost:4566}"
 REGION="${AWS_DEFAULT_REGION:-us-east-1}"
 TABLE_NAME="warmreach-test"
-BUCKET_NAME="linkedin-screenshots-test"
+BUCKET_NAME="warmreach-screenshots-test"
 QUEUE_NAME="profile-processing-test"
 DLQ_NAME="profile-processing-dlq-test"
 POOL_NAME="warmreach-test"

@@ -1823,6 +1823,9 @@ export class LinkedInInteractionService {
     };
 
     logger.info('Executing complete LinkedIn messaging workflow', context);
+    // Apply control plane rate limits (if configured)
+    await this._applyControlPlaneRateLimits('executeMessagingWorkflow');
+
     // Step 1: Check for suspicious activity and apply cooling-off
     await this.checkSuspiciousActivity();
 
@@ -1871,6 +1874,9 @@ export class LinkedInInteractionService {
         { step: 'message_delivery', status: deliveryConfirmed ? 'confirmed' : 'pending' },
       ],
     };
+
+    // Report interaction telemetry (fire-and-forget)
+    this._reportInteraction('executeMessagingWorkflow');
 
     logger.info('LinkedIn messaging workflow completed successfully', result);
     return result;
@@ -2021,6 +2027,9 @@ export class LinkedInInteractionService {
 
     logger.info('Executing complete LinkedIn post creation workflow', context);
 
+    // Apply control plane rate limits (if configured)
+    await this._applyControlPlaneRateLimits('executePostCreationWorkflow');
+
     // No retries: run once
     // Step 1: Check for suspicious activity and apply cooling-off
     await this.checkSuspiciousActivity();
@@ -2078,6 +2087,9 @@ export class LinkedInInteractionService {
         },
       ],
     };
+
+    // Report interaction telemetry (fire-and-forget)
+    this._reportInteraction('executePostCreationWorkflow');
 
     logger.info('LinkedIn post creation workflow completed successfully', result);
     return result;
