@@ -123,10 +123,15 @@ export class LinkedInMessageScraperService {
       const conversationEntries = await this._extractConversationEntries();
       const targetEntry = conversationEntries.find((e) => e.profileId === profileId);
 
-      if (targetEntry) {
-        await this._clickConversation(targetEntry);
-        await this._delay(1000, 1500);
+      if (!targetEntry) {
+        logger.warn(
+          `No conversation found for ${profileId} in sidebar (${conversationEntries.length} conversations available)`
+        );
+        return [];
       }
+
+      await this._clickConversation(targetEntry);
+      await this._delay(1000, 1500);
 
       await this._scrollThreadUp(10);
       const messages = await this._extractMessages();
@@ -395,8 +400,9 @@ export class LinkedInMessageScraperService {
 
         if (!content) return; // Skip non-message events (e.g., connection requests)
 
-        // Extract timestamp
-        let timestamp = new Date().toISOString();
+        // Extract timestamp — only use exact datetime, never synthesize scrape time
+        let timestamp = null;
+        let timestampApproximate = false;
         const timeEl =
           item.querySelector('time[datetime]') ||
           item.querySelector('.msg-s-message-list__time-heading');
@@ -405,7 +411,9 @@ export class LinkedInMessageScraperService {
           if (dt) {
             timestamp = dt;
           } else if (timeEl.textContent) {
+            // Relative text like "3 hours ago" — not a reliable ISO timestamp
             timestamp = timeEl.textContent.trim();
+            timestampApproximate = true;
           }
         }
 
@@ -419,6 +427,7 @@ export class LinkedInMessageScraperService {
           id: `msg-${Date.now()}-${index}`,
           content,
           timestamp,
+          timestampApproximate,
           sender: isInbound ? 'inbound' : 'outbound',
         });
       });

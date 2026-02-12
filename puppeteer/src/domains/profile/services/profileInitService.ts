@@ -1172,6 +1172,7 @@ export class ProfileInitService {
           const fileData = JSON.parse(fileContent) as {
             links?: string[];
             invitations?: Array<{ originalUrl?: string; profileId?: string }>;
+            connections?: string[] | Array<{ url?: string; id?: string; profileId?: string }>;
           };
 
           if (fileData.links) {
@@ -1180,6 +1181,14 @@ export class ProfileInitService {
             allLinks.push(
               ...fileData.invitations.map((inv) => inv.originalUrl || `/in/${inv.profileId}`)
             );
+          } else if (fileData.connections) {
+            for (const conn of fileData.connections) {
+              if (typeof conn === 'string') {
+                allLinks.push(conn);
+              } else if (conn.url || conn.id || conn.profileId) {
+                allLinks.push(conn.url || `/in/${conn.id || conn.profileId}`);
+              }
+            }
           }
         } catch (fileError) {
           logger.warn(`Failed to load file ${fileRef.fileName}:`, (fileError as Error).message);

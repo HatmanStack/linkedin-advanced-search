@@ -17,7 +17,11 @@ export function useMessageHistory() {
     setError(null);
     try {
       const fetched = await lambdaApiService.getMessageHistory(connectionId);
-      setMessages(fetched);
+      if (Array.isArray(fetched)) {
+        setMessages(fetched);
+      } else {
+        setMessages([]);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load messages');
       setMessages([]);

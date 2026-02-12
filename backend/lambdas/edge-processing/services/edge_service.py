@@ -318,18 +318,19 @@ class EdgeService(BaseService):
                 message='Failed to get messages', service='DynamoDB', original_error=str(e)
             ) from e
 
-    def check_exists(self, user_id: str, profile_id_b64: str) -> dict[str, Any]:
+    def check_exists(self, user_id: str, profile_id: str) -> dict[str, Any]:
         """
         Check if an edge exists between user and profile.
 
         Args:
             user_id: User ID
-            profile_id_b64: Base64-encoded profile ID
+            profile_id: LinkedIn profile identifier (plain, not base64)
 
         Returns:
             dict with exists flag and edge data if exists
         """
         try:
+            profile_id_b64 = base64.urlsafe_b64encode(profile_id.encode()).decode()
             response = self.table.get_item(Key={'PK': f'USER#{user_id}', 'SK': f'PROFILE#{profile_id_b64}'})
 
             edge_exists = 'Item' in response

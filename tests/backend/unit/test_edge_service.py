@@ -273,7 +273,7 @@ class TestEdgeServiceCheckExists:
 
         result = service.check_exists(
             user_id='test-user',
-            profile_id_b64='dGVzdC1wcm9maWxl'
+            profile_id='test-profile'
         )
 
         assert result['success'] is True
@@ -289,7 +289,7 @@ class TestEdgeServiceCheckExists:
 
         result = service.check_exists(
             user_id='test-user',
-            profile_id_b64='dGVzdC1wcm9maWxl'
+            profile_id='test-profile'
         )
 
         assert result['success'] is True
