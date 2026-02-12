@@ -265,6 +265,7 @@ function generatePlaceholderPage(pageName, data = {}) {
             (person) => `
           <li class="reusable-search__result-container">
             <div class="entity-result">
+              ${person.profilePictureUrl ? `<img src="${person.profilePictureUrl}" alt="" style="width:72px;height:72px;border-radius:50%;object-fit:cover;">` : ''}
               <a href="/in/${person.profileId}/" class="entity-result__title-text">
                 <span>${person.name}</span>
               </a>
@@ -349,6 +350,7 @@ function generatePlaceholderPage(pageName, data = {}) {
           .map(
             (conn) => `
           <li class="mn-connection-card">
+            ${conn.profilePictureUrl ? `<img src="${escapeHtml(conn.profilePictureUrl)}" alt="" style="width:48px;height:48px;border-radius:50%;object-fit:cover;">` : ''}
             <a href="/in/${conn.profileId}/" data-test-id="connection-card">
               <span class="mn-connection-card__name">${conn.name}</span>
             </a>
@@ -578,7 +580,7 @@ function generateSearchResultsHtml(people) {
       (person) => `
     <li class="reusable-search__result-container" style="padding:12px; margin-bottom:8px; background:white; border-radius:8px; list-style:none;">
       <div class="entity-result" style="display:flex; align-items:flex-start; gap:12px;">
-        <div style="width:72px; height:72px; background:#e7e2dc; border-radius:50%; flex-shrink:0;"></div>
+        ${person.profilePictureUrl ? `<img src="${escapeHtml(person.profilePictureUrl)}" alt="" style="width:72px; height:72px; border-radius:50%; object-fit:cover; flex-shrink:0;">` : `<div style="width:72px; height:72px; background:#e7e2dc; border-radius:50%; flex-shrink:0;"></div>`}
         <div style="flex:1;">
           <a href="https://www.linkedin.com/in/${escapeHtml(person.profileId)}/" class="entity-result__title-text app-aware-link" style="font-weight:600; color:#000; text-decoration:none; display:block; margin-bottom:4px;">
             <span>${escapeHtml(person.name)}</span>
@@ -842,6 +844,15 @@ app.post('/profiles', (req, res) => {
     console.log(`✅ Updated profile "${profileId}":`);
     console.log('   Updates:', JSON.stringify(updates, null, 2));
     return res.json({ success: true, profile: state.profiles[profileId] });
+  }
+
+  if (operation === 'update_profile_picture') {
+    const pictureUrl = req.body.profilePictureUrl || '';
+    state.profiles[profileId] = state.profiles[profileId] || {};
+    state.profiles[profileId].profilePictureUrl = pictureUrl;
+    state.profiles[profileId].updatedAt = new Date().toISOString();
+    console.log(`✅ Updated profile picture for "${profileId}": ${pictureUrl}`);
+    return res.json({ message: 'Profile picture updated', profileId });
   }
 
   console.log('❌ Unknown operation:', operation);

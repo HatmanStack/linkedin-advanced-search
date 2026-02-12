@@ -154,6 +154,20 @@ class DynamoDBService {
   }
 
   /**
+   * Update only the profile picture URL on an existing profile metadata record.
+   * @param {string} profileId - Profile identifier
+   * @param {string} pictureUrl - LinkedIn CDN picture URL
+   * @returns {Promise<Object>} Update result
+   */
+  async updateProfilePictureUrl(profileId, pictureUrl) {
+    return await this._post('dynamodb', {
+      operation: 'update_profile_picture',
+      profileId,
+      profilePictureUrl: pictureUrl,
+    });
+  }
+
+  /**
    * Public: Single entrypoint to upsert edge status (create if missing, update otherwise)
    */
   async upsertEdgeStatus(profileId, status, extraUpdates = {}) {

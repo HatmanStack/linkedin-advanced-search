@@ -13,6 +13,7 @@ export class LinkCollector {
     const encodedRole = state.companyRole ? encodeURIComponent(state.companyRole) : null;
 
     let allLinks = await this._loadExistingLinks();
+    const allPictureUrls = {};
     const { pageNumberStart, pageNumberEnd } = this.config.linkedin;
 
     let emptyPageCount = 0;
@@ -20,18 +21,20 @@ export class LinkCollector {
 
     while (pageNumber <= pageNumberEnd) {
       try {
-        const pageLinks = await this.linkedInService.getLinksFromPeoplePage(
+        const pageResult = await this.linkedInService.getLinksFromPeoplePage(
           pageNumber,
           extractedCompanyNumber,
           encodedRole,
           extractedGeoNumber
         );
 
+        const { links: pageLinks, pictureUrls } = pageResult;
+
         if (pageLinks.length === 0) {
           emptyPageCount++;
           if (emptyPageCount >= 3 && pageNumber < pageNumberEnd) {
             await onHealingNeeded(pageNumber);
-            return;
+            return { links: allLinks, pictureUrls: allPictureUrls };
           }
           pageNumber++;
           continue;
@@ -40,6 +43,7 @@ export class LinkCollector {
         }
 
         allLinks.push(...pageLinks);
+        Object.assign(allPictureUrls, pictureUrls);
         await FileHelpers.writeJSON(this.config.paths.linksFile, allLinks);
         pageNumber++;
       } catch (error) {
@@ -49,7 +53,7 @@ export class LinkCollector {
       }
     }
 
-    return allLinks;
+    return { links: allLinks, pictureUrls: allPictureUrls };
   }
 
   async _loadExistingLinks() {
