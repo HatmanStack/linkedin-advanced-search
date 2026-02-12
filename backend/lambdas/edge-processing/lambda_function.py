@@ -135,6 +135,26 @@ def _handle_ragstack(body, user_id, svc, event=None):
         result = svc.ragstack_status(document_id)
         return _resp(200, result, event)
 
+    elif operation == 'scrape_start':
+        profile_id = body.get('profileId')
+        cookies = body.get('cookies')
+        if not profile_id:
+            return _resp(400, {'error': 'profileId is required'}, event)
+        if not cookies:
+            return _resp(400, {'error': 'cookies is required'}, event)
+        scrape_config = body.get('scrapeConfig', {})
+        if not isinstance(scrape_config, dict):
+            return _resp(400, {'error': 'scrapeConfig must be a JSON object'}, event)
+        result = svc.ragstack_scrape_start(profile_id, cookies, scrape_config)
+        return _resp(200, result, event)
+
+    elif operation == 'scrape_status':
+        job_id = body.get('jobId')
+        if not job_id:
+            return _resp(400, {'error': 'jobId is required'}, event)
+        result = svc.ragstack_scrape_status(job_id)
+        return _resp(200, result, event)
+
     else:
         return _resp(400, {'error': f'Unsupported ragstack operation: {operation}'}, event)
 

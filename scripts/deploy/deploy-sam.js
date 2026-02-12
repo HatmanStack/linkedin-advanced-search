@@ -458,7 +458,6 @@ function updateEnvFile(outputs, config) {
     VITE_COGNITO_USER_POOL_WEB_CLIENT_ID: outputs.UserPoolClientId || '',
     API_GATEWAY_BASE_URL: outputs.ApiUrl || '',
     AWS_REGION: config.region,
-    S3_SCREENSHOT_BUCKET_NAME: outputs.ScreenshotBucketName || '',
     DYNAMODB_TABLE: outputs.DynamoDBTableName || '',
   };
 

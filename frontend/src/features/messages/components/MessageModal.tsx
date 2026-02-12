@@ -1,12 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/shared/components/ui/button';
-import { Input } from '@/shared/components/ui/input';
 import { ScrollArea } from '@/shared/components/ui/scroll-area';
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/shared/components/ui/dialog';
@@ -33,24 +31,6 @@ import { NoMessagesState } from '@/shared/components/ui/empty-state';
 import LoadingOverlay from '@/shared/components/ui/loading-overlay';
 import type { MessageModalProps } from '@/types';
 
-/**
- * MessageModal Component
- *
- * Modal component for displaying and managing message history with connections.
- * Provides scrollable message display, message input functionality, and error handling.
- *
- * @param props - The component props
- * @param props.isOpen - Whether the modal is open
- * @param props.connection - Connection whose messages to display
- * @param props.onClose - Callback to close the modal
- * @param props.onSendMessage - Callback to send a new message (optional)
- * @param props.isLoadingMessages - Whether messages are currently loading
- * @param props.messagesError - Error message if message loading failed
- * @param props.onRetryLoadMessages - Callback to retry loading messages
- * @param props.className - Additional CSS classes
- *
- * @returns JSX element representing the message modal
- */
 export const MessageModal: React.FC<MessageModalProps> = ({
   isOpen,
   connection,
@@ -72,26 +52,23 @@ export const MessageModal: React.FC<MessageModalProps> = ({
 
   // Handle pre-populated message content
   useEffect(() => {
+    logger.info('MessageModal useEffect', {
+      hasPrePopulatedMessage: Boolean(prePopulatedMessage),
+      prePopulatedMessageLength: prePopulatedMessage?.length ?? 0,
+      isOpen,
+      connectionId: connection?.id,
+    });
     if (prePopulatedMessage && isOpen) {
       setMessageInput(prePopulatedMessage);
     } else if (!prePopulatedMessage && isOpen) {
       setMessageInput('');
     }
-  }, [prePopulatedMessage, isOpen]);
+  }, [prePopulatedMessage, isOpen, connection?.id]);
 
-  /**
-   * Formats a timestamp string for display in the message history
-   *
-   * @param timestamp - ISO timestamp string to format
-   * @returns Formatted timestamp string for display
-   */
   const formatTimestamp = (timestamp: string): string => {
     try {
       const date = new Date(timestamp);
-      // Check if the date is valid
-      if (isNaN(date.getTime())) {
-        return 'Unknown time';
-      }
+      if (isNaN(date.getTime())) return 'Unknown time';
       return date.toLocaleString('en-US', {
         month: 'short',
         day: 'numeric',
@@ -115,46 +92,26 @@ export const MessageModal: React.FC<MessageModalProps> = ({
     }
   }, [connection.message_history]);
 
-  // Handle generation workflow shortcuts (Escape is handled by Dialog's onOpenChange)
+  // Handle generation workflow shortcuts
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (!isOpen) return;
-
-      // Generation workflow keyboard shortcuts
       if (showGenerationControls) {
         if (event.key === 'Enter' && !event.shiftKey && event.ctrlKey) {
-          // Ctrl+Enter to approve and next
           event.preventDefault();
-          if (onApproveAndNext) {
-            onApproveAndNext();
-          }
+          if (onApproveAndNext) onApproveAndNext();
         } else if (event.key === 's' && event.ctrlKey) {
-          // Ctrl+S to skip
           event.preventDefault();
-          if (onSkipConnection) {
-            onSkipConnection();
-          }
+          if (onSkipConnection) onSkipConnection();
         }
       }
     };
-
-    if (isOpen) {
-      document.addEventListener('keydown', handleKeyDown);
-    }
-
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-    };
+    if (isOpen) document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, showGenerationControls, onApproveAndNext, onSkipConnection]);
 
-  /**
-   * Handles sending a new message with validation, error handling, and user feedback
-   * Validates message length, calls the onSendMessage callback, and shows appropriate toasts
-   */
   const handleSendMessage = async () => {
     const trimmedMessage = messageInput.trim();
-
-    // Validate message input
     if (!trimmedMessage) {
       toast({
         title: 'Empty Message',
@@ -163,30 +120,26 @@ export const MessageModal: React.FC<MessageModalProps> = ({
       });
       return;
     }
-
     if (trimmedMessage.length > 1000) {
       toast({
         title: 'Message Too Long',
-        description: 'Messages must be 1000 characters or less. Please shorten your message.',
+        description: 'Messages must be 1000 characters or less.',
         variant: 'destructive',
       });
       return;
     }
-
     if (!onSendMessage) {
       toast({
         title: 'Feature Not Available',
-        description: 'Message sending functionality will be available in a future update.',
+        description: 'Message sending will be available in a future update.',
         variant: 'default',
       });
       return;
     }
-
     setIsSending(true);
     try {
       await onSendMessage(trimmedMessage);
-      setMessageInput(''); // Clear input on success
-
+      setMessageInput('');
       toast({
         title: 'Message Sent',
         description: 'Your message has been sent successfully.',
@@ -194,16 +147,9 @@ export const MessageModal: React.FC<MessageModalProps> = ({
       });
     } catch (error) {
       logger.error('Error sending message', { error });
-
-      // Transform error for user-friendly display
       const errorInfo = transformErrorForUser(error, ERROR_MESSAGES.SEND_MESSAGE, [
-        {
-          label: 'Try Again',
-          action: () => handleSendMessage(),
-          primary: true,
-        },
+        { label: 'Try Again', action: () => handleSendMessage(), primary: true },
       ]);
-
       toast({
         title: 'Send Failed',
         description: errorInfo.userMessage,
@@ -214,17 +160,9 @@ export const MessageModal: React.FC<MessageModalProps> = ({
     }
   };
 
-  /**
-   * Handles keyboard events in the message input field
-   * Sends message on Enter key press (without Shift modifier) for normal mode
-   * In generation mode, Enter approves and moves to next connection
-   *
-   * @param event - The keyboard event
-   */
-  const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
-
       if (showGenerationControls && onApproveAndNext) {
         onApproveAndNext();
       } else {
@@ -252,29 +190,23 @@ export const MessageModal: React.FC<MessageModalProps> = ({
     >
       <DialogContent
         data-testid="message-modal"
-        className="sm:max-w-[600px] max-h-[80vh] flex flex-col"
+        className="sm:max-w-[700px] max-h-[85vh] flex flex-col bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 border-white/10"
       >
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <MessageSquare className="h-5 w-5" />
-            Messages with {connectionName}
+          <DialogTitle className="flex items-center gap-2 text-white">
+            <MessageSquare className="h-5 w-5 text-blue-400" />
+            {connectionName}
             {isGeneratedContent && (
-              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-500/20 text-blue-300 border border-blue-500/30">
                 <Sparkles className="h-3 w-3 mr-1" />
                 AI Generated
               </span>
             )}
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-slate-400">
             {connection.position && connection.company
               ? `${connection.position} at ${connection.company}`
               : connection.position || connection.company || 'LinkedIn Connection'}
-            {isGeneratedContent && (
-              <div className="mt-2 text-sm text-blue-600 dark:text-blue-400">
-                This message was generated by AI based on your conversation topic. You can edit it
-                before sending.
-              </div>
-            )}
           </DialogDescription>
         </DialogHeader>
 
@@ -283,9 +215,12 @@ export const MessageModal: React.FC<MessageModalProps> = ({
           <LoadingOverlay
             isLoading={isLoadingMessages}
             message="Loading message history..."
-            className="h-[400px] w-full border rounded-md"
+            className="h-[500px] w-full border border-white/10 rounded-md"
           >
-            <ScrollArea ref={scrollAreaRef} className="h-[400px] w-full border rounded-md p-4">
+            <ScrollArea
+              ref={scrollAreaRef}
+              className="h-[500px] w-full border border-white/10 rounded-md p-4"
+            >
               {messagesError ? (
                 <div className="flex flex-col items-center justify-center h-full text-center">
                   <AlertCircle className="h-12 w-12 mb-4 text-red-400 opacity-50" />
@@ -318,13 +253,13 @@ export const MessageModal: React.FC<MessageModalProps> = ({
                         className={cn(
                           'rounded-lg px-4 py-2 text-sm',
                           message.sender === 'user'
-                            ? 'bg-primary text-primary-foreground'
-                            : 'bg-muted text-muted-foreground'
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-white/10 text-slate-300'
                         )}
                       >
                         <p className="whitespace-pre-wrap break-words">{message.content}</p>
                       </div>
-                      <span className="text-xs text-muted-foreground mt-1">
+                      <span className="text-xs text-slate-500 mt-1">
                         {formatTimestamp(message.timestamp)}
                       </span>
                     </div>
@@ -336,93 +271,60 @@ export const MessageModal: React.FC<MessageModalProps> = ({
         </div>
 
         {/* Message Input */}
-        <DialogFooter className="flex-col space-y-2 sm:flex-row sm:space-y-0">
-          {isGeneratedContent && (
-            <div className="w-full mb-2 p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-md">
-              <div className="flex items-center gap-2 text-sm text-blue-700 dark:text-blue-300">
-                <Sparkles className="h-4 w-4" />
-                <span className="font-medium">AI-Generated Message</span>
-              </div>
-              <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                This message was created based on your conversation topic and connection profile.
-                Feel free to edit it before sending.
-              </p>
-            </div>
-          )}
-
-          <div className="flex w-full gap-2">
-            <Input
-              placeholder={
-                isGeneratedContent ? 'Edit the AI-generated message...' : 'Type your message...'
-              }
+        <div className="flex flex-col gap-1 pt-2 min-h-[120px]">
+          <div className="flex w-full gap-2 flex-1">
+            <textarea
+              placeholder="Type your message..."
               value={messageInput}
               onChange={(e) => setMessageInput(e.target.value)}
               onKeyDown={handleKeyDown}
               disabled={isSending}
-              className={cn(
-                'flex-1',
-                isGeneratedContent &&
-                  'border-blue-300 dark:border-blue-700 bg-blue-50/50 dark:bg-blue-950/20'
-              )}
               maxLength={1000}
+              className="flex-1 rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 resize-none"
             />
-
-            {showGenerationControls ? (
-              <div className="flex gap-2">
+            <div className="flex flex-col gap-2">
+              {showGenerationControls ? (
+                <>
+                  <Button
+                    onClick={() => onApproveAndNext?.()}
+                    size="sm"
+                    className="shrink-0 bg-green-600 hover:bg-green-700 text-white"
+                    disabled={isSending}
+                  >
+                    <Check className="h-4 w-4 mr-1" />
+                    Approve
+                  </Button>
+                  <Button
+                    onClick={() => onSkipConnection?.()}
+                    size="sm"
+                    className="shrink-0 bg-slate-600 hover:bg-slate-700 text-white"
+                    disabled={isSending}
+                  >
+                    <SkipForward className="h-4 w-4 mr-1" />
+                    Skip
+                  </Button>
+                </>
+              ) : (
                 <Button
-                  onClick={() => {
-                    if (onSkipConnection) {
-                      onSkipConnection();
-                    }
-                  }}
-                  variant="outline"
-                  size="sm"
-                  className="shrink-0"
-                  disabled={isSending}
+                  onClick={handleSendMessage}
+                  disabled={isSending || !messageInput.trim()}
+                  size="icon"
+                  className="shrink-0 bg-blue-600 hover:bg-blue-700"
+                  aria-label="Send message"
                 >
-                  <SkipForward className="h-4 w-4 mr-1" />
-                  Skip
+                  {isSending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Send className="h-4 w-4" />
+                  )}
                 </Button>
-                <Button
-                  onClick={() => {
-                    if (onApproveAndNext) {
-                      onApproveAndNext();
-                    }
-                  }}
-                  size="sm"
-                  className="shrink-0 bg-green-600 hover:bg-green-700"
-                  disabled={isSending}
-                >
-                  <Check className="h-4 w-4 mr-1" />
-                  Approve & Next
-                </Button>
-              </div>
-            ) : (
-              <Button
-                onClick={handleSendMessage}
-                disabled={isSending || !messageInput.trim()}
-                size="icon"
-                className="shrink-0"
-                aria-label="Send message"
-              >
-                {isSending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Send className="h-4 w-4" />
-                )}
-              </Button>
-            )}
+              )}
+            </div>
           </div>
-
-          <div className="flex justify-between w-full text-xs text-muted-foreground">
-            <span>
-              {showGenerationControls
-                ? 'Enter to approve, Ctrl+S to skip, Esc to skip'
-                : 'Press Enter to send, Shift+Enter for new line'}
-            </span>
+          <div className="flex justify-end w-full text-xs text-slate-500">
             <span>{messageInput.length}/1000</span>
           </div>
-        </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   );

@@ -79,7 +79,7 @@ class DynamoDBService {
    */
   async getProfileDetails(profileId) {
     try {
-      const data = await this._get('profiles', {
+      const data = await this._get('dynamodb', {
         profileId: profileId,
       });
       if (!data || !data.profile) return true;
@@ -107,26 +107,15 @@ class DynamoDBService {
    * @returns {Promise<Object>} Creation result
    */
   async createBadContactProfile(profileId) {
-    try {
-      const response = await this.apiClient.post(
-        'profiles',
-        {
-          operation: 'create',
-          profileId: profileId,
-          updates: {
-            evaluated: true,
-            addedAt: new Date().toISOString(),
-            processedAt: new Date().toISOString(),
-          },
-        },
-        { headers: this.getHeaders() }
-      );
-
-      return response.data;
-    } catch (error) {
-      logger.error('Error creating bad contact profile', { error: error.message });
-      throw this.handleError(error);
-    }
+    return await this._post('dynamodb', {
+      operation: 'create',
+      profileId: profileId,
+      updates: {
+        evaluated: true,
+        addedAt: new Date().toISOString(),
+        processedAt: new Date().toISOString(),
+      },
+    });
   }
 
   /**
@@ -147,11 +136,29 @@ class DynamoDBService {
   }
 
   /**
+   * Create or update profile metadata record.
+   * @param {string} profileId - Profile identifier
+   * @param {Object} metadata - Profile metadata (name, headline, etc.)
+   * @returns {Promise<Object>} Creation result
+   */
+  async createProfileMetadata(profileId, metadata = {}) {
+    return await this._post('dynamodb', {
+      operation: 'create',
+      profileId,
+      updates: {
+        evaluated: false,
+        addedAt: new Date().toISOString(),
+        ...metadata,
+      },
+    });
+  }
+
+  /**
    * Public: Single entrypoint to upsert edge status (create if missing, update otherwise)
    */
   async upsertEdgeStatus(profileId, status, extraUpdates = {}) {
     const now = new Date().toISOString();
-    return await this._post('edge', {
+    return await this._post('edges', {
       operation: 'upsert_status',
       profileId,
       updates: { status, ...extraUpdates, updatedAt: now },
@@ -166,9 +173,9 @@ class DynamoDBService {
    */
   async checkEdgeExists(connectionProfileId) {
     try {
-      const data = await this._post('edge', {
+      const data = await this._post('edges', {
         operation: 'check_exists',
-        linkedinurl: connectionProfileId,
+        profileId: connectionProfileId,
       });
       const exists = !!data?.result?.exists;
       logger.info(`Edge existence for ${connectionProfileId}: ${exists}`);

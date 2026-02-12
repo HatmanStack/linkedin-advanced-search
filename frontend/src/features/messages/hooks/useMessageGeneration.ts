@@ -158,6 +158,16 @@ export function useMessageGeneration({
     logger.info('Starting message generation workflow', {
       connectionCount: selectedConnections.length,
     });
+
+    // Log connection statuses to diagnose ally filter
+    const selectedWithStatus = connections
+      .filter((conn) => selectedConnections.includes(conn.id))
+      .map((conn) => ({
+        id: conn.id,
+        status: conn.status,
+      }));
+    logger.info('Selected connections before ally filter', { connections: selectedWithStatus });
+
     progressTracker.initializeProgress(selectedConnections.length);
     progressTracker.setLoadingMessage('Preparing message generation...', 0, true);
 
@@ -167,6 +177,11 @@ export function useMessageGeneration({
     const selectedConnectionsData = connections.filter(
       (conn) => selectedConnections.includes(conn.id) && conn.status === 'ally'
     );
+
+    logger.info('Connections after ally filter', {
+      count: selectedConnectionsData.length,
+      ids: selectedConnectionsData.map((c) => c.id),
+    });
 
     let wasStopped = false;
 
@@ -200,7 +215,16 @@ export function useMessageGeneration({
         }
 
         try {
+          logger.info('Generating message for connection', {
+            id: connection.id,
+            name: connectionName,
+          });
           const generatedMessage = await generateMessageForConnection(connection);
+          logger.info('Message generated', {
+            id: connection.id,
+            messageLength: generatedMessage?.length,
+            messagePreview: generatedMessage?.substring(0, 80),
+          });
           setGeneratedMessages((prev) => new Map(prev).set(connection.id, generatedMessage));
 
           progressTracker.updateProgress(i, connectionName, 'waiting_approval');

@@ -60,3 +60,37 @@ def test_missing_job_id_returns_400(lambda_context, llm_module):
     assert response['statusCode'] == 400
     body = json.loads(response['body'])
     assert 'job_id' in body['error']
+
+
+def test_generate_message_missing_topic_returns_400(lambda_context, llm_module):
+    """generate_message without conversationTopic returns 400."""
+    event = {
+        'body': json.dumps({
+            'operation': 'generate_message',
+            'connectionProfile': {'firstName': 'A', 'lastName': 'B', 'position': 'X', 'company': 'Y'},
+        }),
+        'requestContext': {
+            'authorizer': {'claims': {'sub': 'test-user'}}
+        },
+    }
+    response = llm_module.lambda_handler(event, lambda_context)
+    assert response['statusCode'] == 400
+    body = json.loads(response['body'])
+    assert 'conversationTopic' in body['error']
+
+
+def test_generate_message_missing_profile_returns_400(lambda_context, llm_module):
+    """generate_message without connectionProfile returns 400."""
+    event = {
+        'body': json.dumps({
+            'operation': 'generate_message',
+            'conversationTopic': 'AI trends',
+        }),
+        'requestContext': {
+            'authorizer': {'claims': {'sub': 'test-user'}}
+        },
+    }
+    response = llm_module.lambda_handler(event, lambda_context)
+    assert response['statusCode'] == 400
+    body = json.loads(response['body'])
+    assert 'connectionProfile' in body['error']

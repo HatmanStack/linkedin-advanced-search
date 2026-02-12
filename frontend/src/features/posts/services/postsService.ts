@@ -86,9 +86,10 @@ export const postsService = {
       }
 
       // Poll for deep research results (backend checks OpenAI response status)
+      // Deep research (o4-mini / o3) typically takes 5-30+ minutes to complete
       const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
       const intervalMs = 15_000;
-      const maxChecks = 60;
+      const maxChecks = 200;
 
       await sleep(intervalMs);
       for (let i = 0; i < maxChecks; i++) {

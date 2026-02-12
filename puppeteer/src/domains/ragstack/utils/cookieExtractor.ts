@@ -19,7 +19,23 @@ const ESSENTIAL_LINKEDIN_COOKIES = [
 ];
 
 /**
+ * Check if a cookie domain matches LinkedIn or the local mock server.
+ */
+function isLinkedInDomain(domain: string): boolean {
+  const d = domain.toLowerCase();
+  return d === 'linkedin.com' || d === '.linkedin.com' || d.endsWith('.linkedin.com');
+}
+
+function isLocalDomain(domain: string): boolean {
+  const d = domain.toLowerCase();
+  return d === 'localhost' || d === '127.0.0.1';
+}
+
+/**
  * Extract LinkedIn cookies from a Puppeteer page and serialize them.
+ *
+ * In testing mode (LINKEDIN_TESTING_MODE=true), accepts localhost cookies
+ * since the browser is pointed at the mock server instead of linkedin.com.
  *
  * @param page - Puppeteer Page instance with active LinkedIn session
  * @returns Serialized cookie string (e.g., "li_at=xxx; JSESSIONID=yyy")
@@ -27,39 +43,40 @@ const ESSENTIAL_LINKEDIN_COOKIES = [
  */
 export async function extractLinkedInCookies(page: Page): Promise<string> {
   const cookies = await page.cookies();
+  const testingMode = process.env.LINKEDIN_TESTING_MODE === 'true';
 
-  // Filter to LinkedIn domain cookies
-  // Match: .linkedin.com, linkedin.com, www.linkedin.com
-  // Don't match: notlinkedin.com, fakelinkedin.com
-  const linkedInCookies = cookies.filter((cookie) => {
-    const domain = cookie.domain.toLowerCase();
-    return (
-      domain === 'linkedin.com' || domain === '.linkedin.com' || domain.endsWith('.linkedin.com')
-    );
+  const matchedCookies = cookies.filter((cookie) => {
+    const domain = cookie.domain;
+    return isLinkedInDomain(domain) || (testingMode && isLocalDomain(domain));
   });
 
-  if (linkedInCookies.length === 0) {
+  if (matchedCookies.length === 0) {
     throw new Error('No LinkedIn cookies found. User may not be logged in.');
   }
 
-  // Check for essential auth cookies
-  const cookieNames = new Set(linkedInCookies.map((c) => c.name));
-  const hasAuthCookie = ESSENTIAL_LINKEDIN_COOKIES.some((name) => cookieNames.has(name));
+  // Check for essential auth cookies (skip in testing mode)
+  if (!testingMode) {
+    const cookieNames = new Set(matchedCookies.map((c) => c.name));
+    const hasAuthCookie = ESSENTIAL_LINKEDIN_COOKIES.some((name) => cookieNames.has(name));
 
-  if (!hasAuthCookie) {
-    logger.warn(
-      'LinkedIn cookies found but no essential auth cookies (li_at, JSESSIONID). ' +
-        'Scraping may fail due to missing authentication.'
-    );
+    if (!hasAuthCookie) {
+      logger.warn(
+        'LinkedIn cookies found but no essential auth cookies (li_at, JSESSIONID). ' +
+          'Scraping may fail due to missing authentication.'
+      );
+    }
   }
 
-  // Serialize cookies
-  const serialized = serializeCookies(linkedInCookies);
+  const serialized = serializeCookies(matchedCookies);
+  const cookieNames = matchedCookies.map((c) => c.name);
 
-  logger.debug(`Extracted ${linkedInCookies.length} LinkedIn cookies`, {
-    cookieNames: Array.from(cookieNames),
-    serializedLength: serialized.length,
-  });
+  logger.debug(
+    `Extracted ${matchedCookies.length} cookies${testingMode ? ' (testing mode)' : ''}`,
+    {
+      cookieNames,
+      serializedLength: serialized.length,
+    }
+  );
 
   return serialized;
 }

@@ -345,6 +345,7 @@ class MessageGenerationService {
    */
   private formatRequestPayload(request: MessageGenerationRequest): Record<string, unknown> {
     return {
+      operation: 'generate_message',
       connectionId: request.connectionId,
       connectionProfile: {
         firstName: request.connectionProfile.firstName,

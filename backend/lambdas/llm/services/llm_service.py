@@ -11,11 +11,17 @@ from typing import Any
 from shared_services.base_service import BaseService
 
 try:
-    from prompts import LINKEDIN_IDEAS_PROMPT, LINKEDIN_RESEARCH_PROMPT, SYNTHESIZE_RESEARCH_PROMPT
+    from prompts import (
+        GENERATE_MESSAGE_PROMPT,
+        LINKEDIN_IDEAS_PROMPT,
+        LINKEDIN_RESEARCH_PROMPT,
+        SYNTHESIZE_RESEARCH_PROMPT,
+    )
 except ImportError:
     LINKEDIN_IDEAS_PROMPT = '{user_data}\n{raw_ideas}'
     LINKEDIN_RESEARCH_PROMPT = '{topics}\n{user_data}'
     SYNTHESIZE_RESEARCH_PROMPT = '{user_data}\n{research_content}\n{post_content}\n{ideas_content}'
+    GENERATE_MESSAGE_PROMPT = '{sender_data}\n{recipient_name}\n{recipient_position}\n{recipient_company}\n{recipient_headline}\n{recipient_tags}\n{recipient_context}\n{conversation_topic}\n{message_history}'
 
 logger = logging.getLogger(__name__)
 
@@ -88,7 +94,7 @@ class LLMService(BaseService):
             )
 
             response = self.openai_client.responses.create(
-                model='gpt-4.1',
+                model='gpt-5.2',
                 input=llm_prompt,
             )
 
@@ -258,7 +264,13 @@ class LLMService(BaseService):
             if status != 'completed':
                 return {'success': False, 'status': status or 'pending'}
 
-            content = getattr(resp, 'output_text', None) or ''
+            content = self._extract_response_content(resp)
+
+            if not content or not content.strip():
+                logger.error(f'OpenAI response {response_id} completed but returned empty content')
+                return {'success': False, 'error': 'OpenAI returned empty content'}
+
+            content = content.strip()
 
             # Update DynamoDB with the completed result
             if self.table:
@@ -274,6 +286,32 @@ class LLMService(BaseService):
         except Exception as e:
             logger.error(f'Error checking OpenAI response: {e}')
             return {'success': False}
+
+    def _extract_response_content(self, response) -> str:
+        """Extract text content from an OpenAI response, handling multiple output formats."""
+        # Try output_text first (standard responses)
+        if hasattr(response, 'output_text') and response.output_text:
+            logger.info(f'Extracted content from output_text, length={len(response.output_text)}')
+            return response.output_text
+
+        # Fallback: extract text from output array (deep research responses)
+        if hasattr(response, 'output') and response.output:
+            text_parts = []
+            for item in response.output:
+                if hasattr(item, 'type') and item.type == 'message':
+                    if hasattr(item, 'content') and item.content:
+                        for content_item in item.content:
+                            if hasattr(content_item, 'text'):
+                                text_parts.append(content_item.text)
+                elif hasattr(item, 'text'):
+                    text_parts.append(item.text)
+            if text_parts:
+                content = '\n'.join(text_parts)
+                logger.info(f'Extracted content from output array, length={len(content)}')
+                return content
+
+        logger.warning('No content found in OpenAI response (neither output_text nor output array)')
+        return ''
 
     def synthesize_research(
         self, research_content, post_content, ideas_content, user_profile: dict, job_id: str | None, user_id: str | None
@@ -317,31 +355,7 @@ class LLMService(BaseService):
                 input=llm_prompt,
             )
 
-            # Try output_text first, then fallback to extracting from output array
-            content = None
-            if hasattr(response, 'output_text') and response.output_text:
-                content = response.output_text
-                logger.info(f'synthesize_research: got content from output_text, length={len(content)}')
-            elif hasattr(response, 'output') and response.output:
-                # Fallback: extract text from output array items
-                text_parts = []
-                for item in response.output:
-                    if hasattr(item, 'type') and item.type == 'message':
-                        if hasattr(item, 'content') and item.content:
-                            for content_item in item.content:
-                                if hasattr(content_item, 'text'):
-                                    text_parts.append(content_item.text)
-                    elif hasattr(item, 'text'):
-                        text_parts.append(item.text)
-                content = '\n'.join(text_parts) if text_parts else None
-                logger.info(
-                    f'synthesize_research: extracted content from output array, length={len(content) if content else 0}'
-                )
-
-            content_preview = content[:200] if content else 'EMPTY'
-            logger.info(
-                f'synthesize_research response: content_length={len(content) if content else 0}, content_preview={content_preview}'
-            )
+            content = self._extract_response_content(response)
 
             if not content or not content.strip():
                 logger.error('synthesize_research returned empty content from OpenAI')
@@ -352,6 +366,124 @@ class LLMService(BaseService):
         except Exception as e:
             logger.error(f'Error in synthesize_research: {e}')
             return {'success': False, 'error': 'Failed to synthesize research into post'}
+
+    def generate_message(
+        self,
+        connection_profile: dict,
+        conversation_topic: str,
+        user_profile: dict | None = None,
+        message_history: list | None = None,
+        connection_id: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Generate a personalized LinkedIn message for a connection.
+
+        Args:
+            connection_profile: Recipient profile data (firstName, lastName, position, company, headline, tags)
+            conversation_topic: Topic the user wants to discuss
+            user_profile: Sender's profile data for context
+            message_history: Previous messages with this connection
+            connection_id: Raw profile slug for optional DynamoDB enrichment
+
+        Returns:
+            dict with generatedMessage and confidence
+        """
+        try:
+            # Build sender context
+            sender_data = ''
+            if user_profile:
+                for key, value in user_profile.items():
+                    if value and key != 'linkedin_credentials':
+                        sender_data += f'{key}: {value}\n'
+
+            # Build recipient context from request
+            first_name = connection_profile.get('firstName', '')
+            last_name = connection_profile.get('lastName', '')
+            recipient_name = f'{first_name} {last_name}'.strip()
+            recipient_position = connection_profile.get('position', '')
+            recipient_company = connection_profile.get('company', '')
+            recipient_headline = connection_profile.get('headline', '')
+            raw_tags = connection_profile.get('tags') or []
+            if not isinstance(raw_tags, list):
+                raw_tags = []
+            recipient_tags = ', '.join(str(t) for t in raw_tags)
+
+            # Optionally enrich from DynamoDB profile metadata
+            recipient_context = ''
+            if connection_id and self.table:
+                recipient_context = self._fetch_profile_context(connection_id)
+
+            # Format message history
+            history_text = ''
+            if message_history:
+                for msg in message_history[:10]:  # Limit to last 10 messages
+                    role = msg.get('type', 'unknown')
+                    content = self._sanitize_prompt(msg.get('content', ''), 500)
+                    history_text += f'{role}: {content}\n'
+            if not history_text:
+                history_text = 'No previous messages.'
+
+            llm_prompt = GENERATE_MESSAGE_PROMPT.format(
+                sender_data=sender_data or 'No sender profile provided.',
+                recipient_name=recipient_name or 'Unknown',
+                recipient_position=self._sanitize_prompt(recipient_position, 200),
+                recipient_company=self._sanitize_prompt(recipient_company, 200),
+                recipient_headline=self._sanitize_prompt(recipient_headline, 300),
+                recipient_tags=self._sanitize_prompt(recipient_tags, 500),
+                recipient_context=recipient_context or 'No additional context available.',
+                conversation_topic=self._sanitize_prompt(conversation_topic, 1000),
+                message_history=history_text,
+            )
+
+            response = self.openai_client.responses.create(
+                model='gpt-5.2',
+                input=llm_prompt,
+            )
+
+            content = self._extract_response_content(response)
+
+            if not content or not content.strip():
+                logger.error('generate_message returned empty content from OpenAI')
+                return {'generatedMessage': '', 'confidence': 0, 'error': 'Empty response from AI'}
+
+            return {'generatedMessage': content.strip(), 'confidence': 0.85}
+
+        except Exception as e:
+            logger.error(f'Error in generate_message: {e}')
+            return {'generatedMessage': '', 'confidence': 0, 'error': 'Failed to generate message'}
+
+    def _fetch_profile_context(self, connection_id: str) -> str:
+        """Fetch enriched profile context from DynamoDB metadata."""
+        import base64
+
+        try:
+            profile_id_b64 = base64.urlsafe_b64encode(connection_id.encode()).decode()
+            response = self.table.get_item(Key={'PK': f'PROFILE#{profile_id_b64}', 'SK': '#METADATA'})
+            item = response.get('Item')
+            if not item:
+                return ''
+
+            parts = []
+            if item.get('summary'):
+                parts.append(f'About: {item["summary"][:1000]}')
+            if item.get('skills'):
+                skills = item['skills']
+                if isinstance(skills, list):
+                    parts.append(f'Skills: {", ".join(skills[:20])}')
+            if item.get('workExperience'):
+                exp = item['workExperience']
+                if isinstance(exp, list) and exp:
+                    recent = exp[0] if isinstance(exp[0], dict) else {}
+                    title = recent.get('title', '')
+                    company = recent.get('company', '')
+                    if title or company:
+                        parts.append(f'Recent experience: {title} at {company}')
+
+            return '\n'.join(parts)
+
+        except Exception as e:
+            logger.debug(f'Could not fetch profile context for {connection_id}: {e}')
+            return ''
 
     # Private helpers
 

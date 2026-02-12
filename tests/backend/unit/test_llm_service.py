@@ -290,6 +290,138 @@ class TestSanitizePrompt:
         assert result == text
 
 
+class TestGenerateMessage:
+    """Tests for generate_message operation."""
+
+    def test_generate_message_returns_message(self, service, mock_openai_client):
+        """Should return generated message from OpenAI."""
+        mock_openai_client.responses.create.return_value.output_text = 'Hi John, I noticed your work in AI...'
+        result = service.generate_message(
+            connection_profile={
+                'firstName': 'John',
+                'lastName': 'Doe',
+                'position': 'Engineer',
+                'company': 'Acme',
+                'headline': 'Building things',
+                'tags': ['python', 'AI'],
+            },
+            conversation_topic='AI trends in 2025',
+            user_profile={'name': 'Jane Smith', 'title': 'PM'},
+        )
+
+        assert result['generatedMessage'] == 'Hi John, I noticed your work in AI...'
+        assert result['confidence'] > 0
+        mock_openai_client.responses.create.assert_called_once()
+
+    def test_generate_message_handles_api_error(self, service, mock_openai_client):
+        """Should handle OpenAI API errors gracefully."""
+        mock_openai_client.responses.create.side_effect = Exception('API error')
+
+        result = service.generate_message(
+            connection_profile={'firstName': 'John', 'lastName': 'Doe', 'position': 'Eng', 'company': 'Co'},
+            conversation_topic='test topic',
+        )
+
+        assert result['generatedMessage'] == ''
+        assert 'error' in result
+
+    def test_generate_message_handles_empty_response(self, service, mock_openai_client):
+        """Should handle empty OpenAI response."""
+        mock_openai_client.responses.create.return_value.output_text = ''
+
+        result = service.generate_message(
+            connection_profile={'firstName': 'A', 'lastName': 'B', 'position': 'X', 'company': 'Y'},
+            conversation_topic='topic',
+        )
+
+        assert result['generatedMessage'] == ''
+        assert result['confidence'] == 0
+
+    def test_generate_message_includes_message_history(self, service, mock_openai_client):
+        """Should include message history in prompt."""
+        mock_openai_client.responses.create.return_value.output_text = 'Follow-up message'
+        result = service.generate_message(
+            connection_profile={'firstName': 'A', 'lastName': 'B', 'position': 'X', 'company': 'Y'},
+            conversation_topic='topic',
+            message_history=[
+                {'type': 'outbound', 'content': 'Hello!'},
+                {'type': 'inbound', 'content': 'Hi there!'},
+            ],
+        )
+
+        assert result['generatedMessage'] == 'Follow-up message'
+        call_args = mock_openai_client.responses.create.call_args
+        prompt = call_args[1]['input']
+        assert 'outbound' in prompt
+        assert 'Hello!' in prompt
+
+    def test_generate_message_enriches_from_dynamodb(self, mock_openai_client, mock_bedrock_client):
+        """Should fetch additional context from DynamoDB when connectionId provided."""
+        import base64
+
+        from moto import mock_aws
+
+        with mock_aws():
+            import boto3
+
+            dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
+            table = dynamodb.create_table(
+                TableName='test-table',
+                KeySchema=[
+                    {'AttributeName': 'PK', 'KeyType': 'HASH'},
+                    {'AttributeName': 'SK', 'KeyType': 'RANGE'},
+                ],
+                AttributeDefinitions=[
+                    {'AttributeName': 'PK', 'AttributeType': 'S'},
+                    {'AttributeName': 'SK', 'AttributeType': 'S'},
+                ],
+                BillingMode='PAY_PER_REQUEST',
+            )
+
+            # Seed the profile metadata item
+            profile_id_b64 = base64.urlsafe_b64encode(b'john-doe-12345').decode()
+            table.put_item(
+                Item={
+                    'PK': f'PROFILE#{profile_id_b64}',
+                    'SK': '#METADATA',
+                    'summary': 'Expert in machine learning',
+                    'skills': ['ML', 'Python', 'TensorFlow'],
+                    'workExperience': [{'title': 'ML Lead', 'company': 'DeepTech'}],
+                }
+            )
+
+            from conftest import load_service_class
+
+            module = load_service_class('llm', 'llm_service')
+            svc = module.LLMService(
+                openai_client=mock_openai_client,
+                bedrock_client=mock_bedrock_client,
+                table=table,
+            )
+
+            mock_openai_client.responses.create.return_value.output_text = 'Enriched message'
+            result = svc.generate_message(
+                connection_profile={'firstName': 'A', 'lastName': 'B', 'position': 'X', 'company': 'Y'},
+                conversation_topic='AI',
+                connection_id='john-doe-12345',
+            )
+
+            assert result['generatedMessage'] == 'Enriched message'
+            call_args = mock_openai_client.responses.create.call_args
+            prompt = call_args[1]['input']
+            assert 'machine learning' in prompt
+
+    def test_generate_message_without_user_profile(self, service, mock_openai_client):
+        """Should work without user profile."""
+        mock_openai_client.responses.create.return_value.output_text = 'Message without sender context'
+        result = service.generate_message(
+            connection_profile={'firstName': 'A', 'lastName': 'B', 'position': 'X', 'company': 'Y'},
+            conversation_topic='topic',
+        )
+
+        assert result['generatedMessage'] == 'Message without sender context'
+
+
 class TestGenerateIdeasTTL:
     """Tests for TTL on generated items."""
 

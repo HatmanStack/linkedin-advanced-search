@@ -48,7 +48,7 @@ class TestEdgeServiceUpsertStatus:
     """Tests for upsert_status operation."""
 
     def test_upsert_status_creates_edges(self):
-        """Should create user-to-profile and profile-to-user edges atomically."""
+        """Should create user-to-profile and profile-to-user edges."""
         mock_table = MagicMock()
         mock_table.table_name = 'test-table'
         service = EdgeService(table=mock_table)
@@ -60,10 +60,8 @@ class TestEdgeServiceUpsertStatus:
         )
 
         assert result['success'] is True
-        # Now uses transact_write_items for atomic writes
-        mock_table.meta.client.transact_write_items.assert_called_once()
-        call_args = mock_table.meta.client.transact_write_items.call_args
-        assert len(call_args.kwargs['TransactItems']) == 2
+        mock_table.put_item.assert_called_once()
+        mock_table.update_item.assert_called_once()
 
     def test_upsert_status_returns_profile_id_b64(self):
         """Should return base64-encoded profile ID."""
@@ -407,9 +405,9 @@ class TestEdgeServiceErrorHandling:
         """Should raise ExternalServiceError on DynamoDB failures."""
         mock_table = MagicMock()
         mock_table.table_name = 'test-table'
-        mock_table.meta.client.transact_write_items.side_effect = ClientError(
+        mock_table.put_item.side_effect = ClientError(
             {'Error': {'Code': 'InternalServerError', 'Message': 'Test error'}},
-            'TransactWriteItems'
+            'PutItem'
         )
 
         service = EdgeService(table=mock_table)
@@ -571,9 +569,9 @@ class TestEdgeServiceTransactionErrors:
         """Should handle ConditionalCheckFailedException."""
         mock_table = MagicMock()
         mock_table.table_name = 'test-table'
-        mock_table.meta.client.transact_write_items.side_effect = ClientError(
+        mock_table.update_item.side_effect = ClientError(
             {'Error': {'Code': 'ConditionalCheckFailedException', 'Message': 'Condition not met'}},
-            'TransactWriteItems'
+            'UpdateItem'
         )
         service = EdgeService(table=mock_table)
 
@@ -588,9 +586,9 @@ class TestEdgeServiceTransactionErrors:
         """Should handle ValidationException."""
         mock_table = MagicMock()
         mock_table.table_name = 'test-table'
-        mock_table.meta.client.transact_write_items.side_effect = ClientError(
+        mock_table.update_item.side_effect = ClientError(
             {'Error': {'Code': 'ValidationException', 'Message': 'Invalid input'}},
-            'TransactWriteItems'
+            'UpdateItem'
         )
         service = EdgeService(table=mock_table)
 

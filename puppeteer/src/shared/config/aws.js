@@ -11,5 +11,4 @@ export const awsConfig = {
 
   // S3 Buckets
   PROFILE_TEXT_BUCKET: process.env.PROFILE_TEXT_BUCKET || 'linkedin-profile-text',
-  SCREENSHOTS_BUCKET: process.env.SCREENSHOTS_BUCKET || 'linkedin-screenshots',
 };

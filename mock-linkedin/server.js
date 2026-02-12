@@ -697,10 +697,66 @@ app.get('/api/state', (req, res) => {
   res.json(state);
 });
 
+// ============ RAGStack Proxy (mock) ============
+
+let mockScrapeJobCounter = 0;
+
+app.post('/ragstack', (req, res) => {
+  const { operation } = req.body;
+
+  console.log('\n========== MOCK RAGStack: POST /ragstack ==========');
+  console.log('Operation:', operation);
+  console.log('Request body:', JSON.stringify(req.body, null, 2));
+  console.log('===================================================\n');
+
+  if (operation === 'scrape_start') {
+    const { profileId } = req.body;
+    mockScrapeJobCounter++;
+    const jobId = `mock-scrape-job-${mockScrapeJobCounter}`;
+    const baseUrl = `https://www.linkedin.com/in/${profileId}/`;
+    console.log(`✅ Started mock scrape job ${jobId} for ${profileId}`);
+    return res.json({ jobId, baseUrl, status: 'COMPLETED' });
+  }
+
+  if (operation === 'scrape_status') {
+    const { jobId } = req.body;
+    console.log(`🔍 Scrape status check for ${jobId}`);
+    return res.json({
+      jobId,
+      baseUrl: '',
+      status: 'COMPLETED',
+      totalUrls: 1,
+      processedCount: 1,
+      failedCount: 0,
+    });
+  }
+
+  if (operation === 'ingest') {
+    const { profileId } = req.body;
+    console.log(`✅ Mock ingest for ${profileId}`);
+    return res.json({ status: 'uploaded', documentId: `mock-doc-${profileId}` });
+  }
+
+  if (operation === 'search') {
+    const { query } = req.body;
+    console.log(`🔍 Mock search for "${query}"`);
+    return res.json({ results: [], totalResults: 0 });
+  }
+
+  if (operation === 'status') {
+    const { documentId } = req.body;
+    console.log(`🔍 Mock document status for ${documentId}`);
+    return res.json({ status: 'indexed', documentId, error: null });
+  }
+
+  console.log('❌ Unknown RAGStack operation:', operation);
+  res.status(400).json({ error: `Unsupported ragstack operation: ${operation}` });
+});
+
 // ============ MOCK DynamoDB API (for testing) ============
 
 // Edge operations (upsert_status, check_exists)
-app.post('/edge', (req, res) => {
+app.post('/edges', (req, res) => {
   const { operation, profileId, linkedinurl, updates } = req.body;
 
   console.log('\n========== MOCK DynamoDB: POST /edge ==========');
@@ -722,8 +778,9 @@ app.post('/edge', (req, res) => {
   }
 
   if (operation === 'check_exists') {
-    const exists = !!(state.edges && state.edges[linkedinurl]);
-    console.log(`🔍 Edge exists check for "${linkedinurl}": ${exists}`);
+    const key = linkedinurl || profileId;
+    const exists = !!(state.edges && state.edges[key]);
+    console.log(`🔍 Edge exists check for "${key}": ${exists}`);
     return res.json({ result: { exists } });
   }
 
@@ -765,8 +822,24 @@ app.post('/profiles', (req, res) => {
       profileId,
       ...updates,
       createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      evaluated: updates.evaluated ?? false,
     };
     console.log(`✅ Created profile "${profileId}":`);
+    console.log('   Updates:', JSON.stringify(updates, null, 2));
+    return res.json({ success: true, profile: state.profiles[profileId] });
+  }
+
+  if (operation === 'update') {
+    if (!state.profiles[profileId]) {
+      return res.status(404).json({ error: 'Profile not found' });
+    }
+    state.profiles[profileId] = {
+      ...state.profiles[profileId],
+      ...updates,
+      updatedAt: new Date().toISOString(),
+    };
+    console.log(`✅ Updated profile "${profileId}":`);
     console.log('   Updates:', JSON.stringify(updates, null, 2));
     return res.json({ success: true, profile: state.profiles[profileId] });
   }

@@ -5,7 +5,6 @@ import logging
 from datetime import UTC, datetime
 from typing import Any
 
-from boto3.dynamodb.types import TypeSerializer
 from botocore.exceptions import ClientError
 
 # Shared layer imports (from /opt/python via Lambda Layer)
@@ -102,33 +101,33 @@ class EdgeService(BaseService):
             if status == 'processed':
                 user_profile_edge['processedAt'] = current_time
 
-            # Use transactional write for atomicity - both edges succeed or both fail
-            # profile_user_edge uses Update to preserve/increment attempts counter
-            table_name = self.table.table_name
-            serializer = TypeSerializer()
-            self.table.meta.client.transact_write_items(
-                TransactItems=[
-                    {'Put': {'TableName': table_name, 'Item': self._serialize_item(user_profile_edge)}},
-                    {
-                        'Update': {
-                            'TableName': table_name,
-                            'Key': {
-                                'PK': serializer.serialize(f'PROFILE#{profile_id_b64}'),
-                                'SK': serializer.serialize(f'USER#{user_id}'),
-                            },
-                            'UpdateExpression': 'SET addedAt = if_not_exists(addedAt, :added), #status = :status, lastAttempt = :lastAttempt, updatedAt = :updated ADD attempts :inc',
-                            'ExpressionAttributeNames': {'#status': 'status'},
-                            'ExpressionAttributeValues': {
-                                ':added': serializer.serialize(added_at or current_time),
-                                ':status': serializer.serialize(status),
-                                ':lastAttempt': serializer.serialize(current_time),
-                                ':updated': serializer.serialize(current_time),
-                                ':inc': serializer.serialize(1),
-                            },
-                        }
+            # Write both edges — put forward edge, update reverse edge with attempts counter.
+            # Compensating delete on reverse-edge failure prevents partial state.
+            self.table.put_item(Item=user_profile_edge)
+            try:
+                self.table.update_item(
+                    Key={
+                        'PK': f'PROFILE#{profile_id_b64}',
+                        'SK': f'USER#{user_id}',
                     },
-                ]
-            )
+                    UpdateExpression='SET addedAt = if_not_exists(addedAt, :added), #status = :status, lastAttempt = :lastAttempt, updatedAt = :updated, attempts = if_not_exists(attempts, :zero) + :inc',
+                    ExpressionAttributeNames={'#status': 'status'},
+                    ExpressionAttributeValues={
+                        ':added': added_at or current_time,
+                        ':status': status,
+                        ':lastAttempt': current_time,
+                        ':updated': current_time,
+                        ':zero': 0,
+                        ':inc': 1,
+                    },
+                )
+            except Exception:
+                logger.error(
+                    'Reverse edge write failed, rolling back forward edge',
+                    extra={'user_id': user_id, 'profile_id': profile_id_b64},
+                )
+                self.table.delete_item(Key={'PK': f'USER#{user_id}', 'SK': f'PROFILE#{profile_id_b64}'})
+                raise
 
             # Trigger RAGStack ingestion for established relationships
             ragstack_ingested = False
@@ -361,14 +360,39 @@ class EdgeService(BaseService):
             )
         return self.ragstack_client.get_document_status(document_id)
 
+    def ragstack_scrape_start(
+        self, profile_id: str, cookies: str, scrape_config: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
+        """Start a RAGStack scrape job for a LinkedIn profile."""
+        if not self.ragstack_client:
+            raise ExternalServiceError(
+                message='RAGStack not configured',
+                service='RAGStack',
+            )
+        config = scrape_config or {}
+        url = f'https://www.linkedin.com/in/{profile_id}/'
+        return self.ragstack_client.start_scrape(
+            url=url,
+            cookies=cookies,
+            max_pages=config.get('maxPages', 5),
+            max_depth=config.get('maxDepth', 1),
+            scope=config.get('scope', 'SUBPAGES'),
+            include_patterns=config.get('includePatterns'),
+            scrape_mode=config.get('scrapeMode', 'FULL'),
+        )
+
+    def ragstack_scrape_status(self, job_id: str) -> dict[str, Any]:
+        """Get the status of a RAGStack scrape job."""
+        if not self.ragstack_client:
+            raise ExternalServiceError(
+                message='RAGStack not configured',
+                service='RAGStack',
+            )
+        return self.ragstack_client.get_scrape_job(job_id)
+
     # =========================================================================
     # Private helper methods
     # =========================================================================
-
-    def _serialize_item(self, item: dict) -> dict:
-        """Serialize a Python dict to DynamoDB low-level format for transact_write_items."""
-        serializer = TypeSerializer()
-        return {k: serializer.serialize(v) for k, v in item.items()}
 
     def _get_profile_metadata(self, profile_id: str) -> dict:
         """Fetch profile metadata from DynamoDB."""
