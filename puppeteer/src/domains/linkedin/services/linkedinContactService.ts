@@ -1,15 +1,17 @@
 /**
  * LinkedIn Contact Service
  *
- * Handles LinkedIn profile data collection using RAGStack web scraping.
- * Replaces the previous screenshot-based approach with direct scraping.
+ * Handles LinkedIn profile data collection by proxying RAGStack scrape
+ * operations through the edge-processing Lambda.
  */
 
 import { logger } from '#utils/logger.js';
-import { RagstackScrapeService, extractLinkedInCookies } from '../../ragstack/index.js';
-import { ragstackConfig } from '#shared-config/index.js';
-import type { ScrapeJob } from '../../ragstack/types/ragstack.js';
+import { extractLinkedInCookies } from '../../ragstack/index.js';
+import axios from 'axios';
 import type { PuppeteerService } from '../../automation/services/puppeteerService.js';
+
+/** Terminal scrape job statuses */
+const TERMINAL_STATUSES = new Set(['COMPLETED', 'FAILED', 'CANCELLED']);
 
 /**
  * Result of a profile scrape operation
@@ -19,29 +21,51 @@ export interface ScrapeProfileResult {
   message: string;
   profileId: string;
   jobId?: string;
-  scrapeJob?: ScrapeJob;
+  scrapeJob?: {
+    jobId: string;
+    baseUrl: string;
+    status: string;
+    totalUrls: number;
+    processedCount: number;
+    failedCount: number;
+  };
 }
 
 /**
- * Service for LinkedIn contact data collection via RAGStack scraping
+ * Gets the API base URL from environment, with proper normalization
+ */
+function getApiBaseUrl(): string | undefined {
+  const baseUrl = process.env.API_GATEWAY_BASE_URL;
+  if (!baseUrl) return undefined;
+  return baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
+}
+
+/**
+ * Service for LinkedIn contact data collection via Lambda-proxied RAGStack scraping
  */
 export class LinkedInContactService {
   private puppeteer: PuppeteerService;
-  private ragstackService: RagstackScrapeService | null = null;
+  private apiBaseUrl: string | undefined;
+  private jwtToken: string | undefined;
 
   constructor(puppeteerService: PuppeteerService) {
     this.puppeteer = puppeteerService;
+    this.apiBaseUrl = getApiBaseUrl();
 
-    // Initialize RAGStack if configured
-    if (ragstackConfig.isConfigured()) {
-      this.ragstackService = new RagstackScrapeService();
-    } else {
-      logger.warn('RAGStack not configured. Profile scraping disabled.');
+    if (!this.apiBaseUrl) {
+      logger.warn('API_GATEWAY_BASE_URL not configured. Profile scraping disabled.');
     }
   }
 
   /**
-   * Scrape a LinkedIn profile using RAGStack.
+   * Set the JWT token for authenticated Lambda calls.
+   */
+  setAuthToken(token: string): void {
+    this.jwtToken = token;
+  }
+
+  /**
+   * Scrape a LinkedIn profile via the Lambda proxy.
    *
    * @param profileId - LinkedIn profile ID (e.g., "john-doe")
    * @param status - Connection status (for metadata, not used in scraping)
@@ -51,10 +75,10 @@ export class LinkedInContactService {
     profileId: string,
     status: string = 'possible'
   ): Promise<ScrapeProfileResult> {
-    if (!this.ragstackService) {
+    if (!this.apiBaseUrl) {
       return {
         success: false,
-        message: 'RAGStack not configured',
+        message: 'API_GATEWAY_BASE_URL not configured',
         profileId,
       };
     }
@@ -69,20 +93,52 @@ export class LinkedInContactService {
     }
 
     try {
-      logger.info(`Starting RAGStack scrape for profile: ${profileId}`, { status });
+      logger.info(`Starting Lambda-proxied scrape for profile: ${profileId}`, { status });
 
       // Extract cookies from current session
       const cookies = await extractLinkedInCookies(page);
 
-      // Start scrape job
-      const job = await this.ragstackService.startScrape(profileId, cookies);
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (this.jwtToken) {
+        headers['Authorization'] = `Bearer ${this.jwtToken}`;
+      }
+
+      const ragstackUrl = `${this.apiBaseUrl}ragstack`;
+
+      // Start scrape job via Lambda
+      const startResponse = await axios.post(
+        ragstackUrl,
+        { operation: 'scrape_start', profileId, cookies },
+        { headers }
+      );
+      const job = startResponse.data;
       logger.info(`Scrape job started: ${job.jobId}`, { profileId, status: job.status });
 
-      // Wait for completion (with timeout)
-      const finalJob = await this.ragstackService.waitForCompletion(job.jobId, {
-        pollInterval: 3000, // 3 seconds
-        timeout: 180000, // 3 minutes
-      });
+      // Poll for completion
+      const pollInterval = 3000;
+      const timeout = 180000;
+      const deadline = Date.now() + timeout;
+      let finalJob = job;
+
+      while (!TERMINAL_STATUSES.has(finalJob.status) && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, pollInterval));
+        const statusResponse = await axios.post(
+          ragstackUrl,
+          { operation: 'scrape_status', jobId: job.jobId },
+          { headers }
+        );
+        finalJob = statusResponse.data;
+      }
+
+      if (!TERMINAL_STATUSES.has(finalJob.status)) {
+        return {
+          success: false,
+          message: `Scrape timed out after ${timeout / 1000}s (status: ${finalJob.status})`,
+          profileId,
+          jobId: job.jobId,
+          scrapeJob: finalJob,
+        };
+      }
 
       const success = finalJob.status === 'COMPLETED';
 

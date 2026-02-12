@@ -398,8 +398,10 @@ export class PuppeteerService {
             continue;
           }
 
-          // Quick filter to LinkedIn domains
-          if (!/linkedin\.com/i.test(href)) {
+          // Quick filter to LinkedIn domains (skip when on mock/localhost)
+          const isLinkedIn = /linkedin\.com/i.test(href);
+          const isSameOrigin = href.startsWith(window.location.origin);
+          if (!isLinkedIn && !isSameOrigin) {
             continue;
           }
 

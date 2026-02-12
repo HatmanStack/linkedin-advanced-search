@@ -1,27 +1,18 @@
-import { vi, describe, it, expect, beforeEach, type Mock } from 'vitest';
+import { vi, describe, it, expect, beforeEach, afterEach, type Mock } from 'vitest';
 
 // Use vi.hoisted to create mock functions that are available at mock initialization time
-const { mockStartScrape, mockWaitForCompletion, mockExtractLinkedInCookies, mockIsConfigured } =
-  vi.hoisted(() => ({
-    mockStartScrape: vi.fn(),
-    mockWaitForCompletion: vi.fn(),
-    mockExtractLinkedInCookies: vi.fn(),
-    mockIsConfigured: vi.fn(),
-  }));
+const { mockExtractLinkedInCookies, mockAxiosPost } = vi.hoisted(() => ({
+  mockExtractLinkedInCookies: vi.fn(),
+  mockAxiosPost: vi.fn(),
+}));
 
 // Mock dependencies before importing the module
 vi.mock('../../ragstack/index.js', () => ({
-  RagstackScrapeService: class MockRagstackScrapeService {
-    startScrape = mockStartScrape;
-    waitForCompletion = mockWaitForCompletion;
-  },
   extractLinkedInCookies: mockExtractLinkedInCookies,
 }));
 
-vi.mock('#shared-config/index.js', () => ({
-  ragstackConfig: {
-    isConfigured: mockIsConfigured,
-  },
+vi.mock('axios', () => ({
+  default: { post: mockAxiosPost },
 }));
 
 vi.mock('#utils/logger.js', () => ({
@@ -38,9 +29,11 @@ import { LinkedInContactService } from './linkedinContactService.js';
 describe('LinkedInContactService', () => {
   let service: LinkedInContactService;
   let mockPuppeteerService: { getPage: Mock };
+  const originalEnv = process.env.API_GATEWAY_BASE_URL;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    process.env.API_GATEWAY_BASE_URL = 'https://api.example.com/';
 
     mockPuppeteerService = {
       getPage: vi.fn().mockReturnValue({
@@ -48,41 +41,41 @@ describe('LinkedInContactService', () => {
       }),
     };
 
-    mockStartScrape.mockResolvedValue({
-      jobId: 'job-123',
-      status: 'PENDING',
-      baseUrl: 'https://www.linkedin.com/in/john-doe/',
-    });
-
-    mockWaitForCompletion.mockResolvedValue({
-      jobId: 'job-123',
-      status: 'COMPLETED',
-      processedCount: 2,
-      totalUrls: 2,
-      baseUrl: 'https://www.linkedin.com/in/john-doe/',
-    });
-
     mockExtractLinkedInCookies.mockResolvedValue('li_at=token; JSESSIONID=ajax:123');
-    mockIsConfigured.mockReturnValue(true);
+
+    // Default: scrape_start returns COMPLETED immediately (no polling needed)
+    mockAxiosPost.mockResolvedValue({
+      data: {
+        jobId: 'job-123',
+        baseUrl: 'https://www.linkedin.com/in/john-doe/',
+        status: 'COMPLETED',
+        processedCount: 2,
+        totalUrls: 2,
+        failedCount: 0,
+      },
+    });
 
     service = new LinkedInContactService(mockPuppeteerService as any);
   });
 
+  afterEach(() => {
+    if (originalEnv === undefined) {
+      delete process.env.API_GATEWAY_BASE_URL;
+    } else {
+      process.env.API_GATEWAY_BASE_URL = originalEnv;
+    }
+  });
+
   describe('constructor', () => {
-    it('should initialize RAGStack service when configured', () => {
-      // Service was created in beforeEach with isConfigured returning true
-      // Just verify the service exists
+    it('should initialize when API_GATEWAY_BASE_URL is set', () => {
       expect(service).toBeDefined();
     });
 
-    it('should not initialize RAGStack service when not configured', async () => {
-      vi.clearAllMocks();
-      mockIsConfigured.mockReturnValue(false);
-
+    it('should report not configured when API_GATEWAY_BASE_URL is missing', async () => {
+      delete process.env.API_GATEWAY_BASE_URL;
       const unconfiguredService = new LinkedInContactService(mockPuppeteerService as any);
-      const result = await unconfiguredService.scrapeProfile('test');
 
-      // Should fail with "not configured" message
+      const result = await unconfiguredService.scrapeProfile('test');
       expect(result.success).toBe(false);
       expect(result.message).toContain('not configured');
     });
@@ -97,26 +90,62 @@ describe('LinkedInContactService', () => {
       expect(result.profileId).toBe('john-doe');
       expect(result.message).toContain('successfully');
       expect(mockExtractLinkedInCookies).toHaveBeenCalled();
-      expect(mockStartScrape).toHaveBeenCalledWith('john-doe', 'li_at=token; JSESSIONID=ajax:123');
-      expect(mockWaitForCompletion).toHaveBeenCalledWith(
-        'job-123',
+      expect(mockAxiosPost).toHaveBeenCalledWith(
+        'https://api.example.com/ragstack',
+        {
+          operation: 'scrape_start',
+          profileId: 'john-doe',
+          cookies: 'li_at=token; JSESSIONID=ajax:123',
+        },
+        expect.objectContaining({ headers: expect.any(Object) })
+      );
+    });
+
+    it('should include Authorization header when token is set', async () => {
+      service.setAuthToken('my-jwt-token');
+      await service.scrapeProfile('john-doe');
+
+      expect(mockAxiosPost).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.any(Object),
         expect.objectContaining({
-          pollInterval: 3000,
-          timeout: 180000,
+          headers: expect.objectContaining({
+            Authorization: 'Bearer my-jwt-token',
+          }),
         })
       );
     });
 
-    it('should return failure when RAGStack not configured', async () => {
-      vi.clearAllMocks();
-      mockIsConfigured.mockReturnValue(false);
-      const unconfiguredService = new LinkedInContactService(mockPuppeteerService as any);
+    it('should poll for completion when initial status is not terminal', async () => {
+      // First call (scrape_start) returns PENDING
+      mockAxiosPost
+        .mockResolvedValueOnce({
+          data: {
+            jobId: 'job-123',
+            baseUrl: 'https://www.linkedin.com/in/john-doe/',
+            status: 'PENDING',
+          },
+        })
+        // Second call (scrape_status poll) returns COMPLETED
+        .mockResolvedValueOnce({
+          data: {
+            jobId: 'job-123',
+            status: 'COMPLETED',
+            processedCount: 2,
+            totalUrls: 2,
+            failedCount: 0,
+          },
+        });
 
-      const result = await unconfiguredService.scrapeProfile('john-doe');
+      const result = await service.scrapeProfile('john-doe');
 
-      expect(result.success).toBe(false);
-      expect(result.message).toContain('not configured');
-      expect(result.profileId).toBe('john-doe');
+      expect(result.success).toBe(true);
+      expect(mockAxiosPost).toHaveBeenCalledTimes(2);
+      expect(mockAxiosPost).toHaveBeenLastCalledWith(
+        'https://api.example.com/ragstack',
+        { operation: 'scrape_status', jobId: 'job-123' },
+        expect.any(Object)
+      );
     });
 
     it('should return failure when browser not initialized', async () => {
@@ -129,10 +158,12 @@ describe('LinkedInContactService', () => {
     });
 
     it('should handle scrape failures', async () => {
-      mockWaitForCompletion.mockResolvedValue({
-        jobId: 'job-123',
-        status: 'FAILED',
-        baseUrl: 'https://www.linkedin.com/in/john-doe/',
+      mockAxiosPost.mockResolvedValue({
+        data: {
+          jobId: 'job-123',
+          status: 'FAILED',
+          baseUrl: 'https://www.linkedin.com/in/john-doe/',
+        },
       });
 
       const result = await service.scrapeProfile('john-doe');
@@ -141,8 +172,8 @@ describe('LinkedInContactService', () => {
       expect(result.message).toContain('FAILED');
     });
 
-    it('should handle errors gracefully', async () => {
-      mockStartScrape.mockRejectedValue(new Error('Network error'));
+    it('should handle network errors gracefully', async () => {
+      mockAxiosPost.mockRejectedValue(new Error('Network error'));
 
       const result = await service.scrapeProfile('john-doe');
 
@@ -153,7 +184,7 @@ describe('LinkedInContactService', () => {
     it('should pass status parameter to logging', async () => {
       await service.scrapeProfile('john-doe', 'ally');
 
-      expect(mockStartScrape).toHaveBeenCalled();
+      expect(mockAxiosPost).toHaveBeenCalled();
     });
   });
 
@@ -162,7 +193,7 @@ describe('LinkedInContactService', () => {
       const result = await service.takeScreenShotAndUploadToS3('john-doe', 'ally');
 
       expect(result.success).toBe(true);
-      expect(mockStartScrape).toHaveBeenCalled();
+      expect(mockAxiosPost).toHaveBeenCalled();
     });
 
     it('should return compatible response format', async () => {
@@ -174,7 +205,7 @@ describe('LinkedInContactService', () => {
     });
 
     it('should handle failures from scrapeProfile', async () => {
-      mockStartScrape.mockRejectedValue(new Error('API error'));
+      mockAxiosPost.mockRejectedValue(new Error('API error'));
 
       const result = await service.takeScreenShotAndUploadToS3('john-doe', 'ally');
 

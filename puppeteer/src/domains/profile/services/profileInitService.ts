@@ -202,6 +202,7 @@ interface DynamoDBService {
  */
 interface LinkedInContactService {
   scrapeProfile(profileId: string, status: string): Promise<ScrapeResult>;
+  setAuthToken?(token: string): void;
 }
 
 /**
@@ -255,9 +256,10 @@ export class ProfileInitService {
         currentIndex: state.currentIndex,
       });
 
-      // Set auth token for DynamoDB operations
+      // Set auth token for DynamoDB and scrape operations
       if (state.jwtToken) {
         this.dynamoDBService.setAuthToken(state.jwtToken);
+        this.linkedInContactService.setAuthToken?.(state.jwtToken);
       }
 
       // Perform LinkedIn login using existing LinkedInService
@@ -677,7 +679,7 @@ export class ProfileInitService {
       });
 
       // Process each connection in the batch
-      for (let i = 19; i < batchData.connections.length; i++) {
+      for (let i = 0; i < batchData.connections.length; i++) {
         // Skip if resuming from a specific index
         if (state.currentIndex && i < state.currentIndex) {
           logger.debug(
@@ -922,25 +924,66 @@ export class ProfileInitService {
       let databaseResult: unknown = null;
 
       try {
-        // Scrape profile using RAGStack
-        logger.debug(`Initiating profile scrape for connection: ${connectionProfileId}`, {
-          requestId,
-          profileId: connectionProfileId,
-        });
+        const testingMode = process.env.LINKEDIN_TESTING_MODE === 'true';
 
-        scrapeResult = await this.performProfileScrape(connectionProfileId, connectionType);
-
-        if (scrapeResult && scrapeResult.success) {
-          logger.debug(`Profile scrape successful for ${connectionProfileId}`, {
-            requestId,
-            profileId: connectionProfileId,
-          });
+        if (testingMode) {
+          // In testing mode, skip RAGStack scrape (it would try real linkedin.com)
+          // and create fallback metadata directly from the profileId
+          logger.debug(
+            `Testing mode: skipping scrape, creating fallback metadata for ${connectionProfileId}`,
+            {
+              requestId,
+              profileId: connectionProfileId,
+            }
+          );
+          try {
+            const name = connectionProfileId
+              .replace(/-\d+$/, '')
+              .split('-')
+              .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1))
+              .join(' ');
+            await this.dynamoDBService.createProfileMetadata?.(connectionProfileId, {
+              name,
+              currentTitle: 'Mock Title',
+              currentCompany: 'Mock Company',
+              headline: `${name} - Mock Profile`,
+            });
+          } catch {
+            // non-fatal
+          }
         } else {
-          logger.warn(`Profile scrape failed for ${connectionProfileId}`, {
+          // Production: scrape profile using RAGStack
+          logger.debug(`Initiating profile scrape for connection: ${connectionProfileId}`, {
             requestId,
             profileId: connectionProfileId,
-            reason: scrapeResult?.message || 'Unknown scrape error',
           });
+
+          scrapeResult = await this.performProfileScrape(connectionProfileId, connectionType);
+
+          if (scrapeResult && scrapeResult.success) {
+            logger.debug(`Profile scrape successful for ${connectionProfileId}`, {
+              requestId,
+              profileId: connectionProfileId,
+            });
+          } else {
+            logger.warn(`Profile scrape failed for ${connectionProfileId}`, {
+              requestId,
+              profileId: connectionProfileId,
+              reason: scrapeResult?.message || 'Unknown scrape error',
+            });
+
+            // Create a basic metadata record so the connection isn't blank
+            try {
+              const name = connectionProfileId
+                .replace(/-\d+$/, '')
+                .split('-')
+                .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1))
+                .join(' ');
+              await this.dynamoDBService.createProfileMetadata?.(connectionProfileId, { name });
+            } catch {
+              // non-fatal
+            }
+          }
         }
 
         // Create database entry for the connection
