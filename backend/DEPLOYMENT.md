@@ -106,9 +106,11 @@ cat > .env << EOF
 VITE_API_URL=<ApiUrl from outputs>
 VITE_COGNITO_USER_POOL_ID=<UserPoolId>
 VITE_COGNITO_CLIENT_ID=<UserPoolClientId>
-VITE_COGNITO_REGION=us-east-1
+VITE_COGNITO_REGION=<region>
 EOF
 ```
+
+> **Note:** Set `VITE_COGNITO_REGION` to the AWS region where you deployed the stack (e.g., `us-east-1`).
 
 ### 2. Create Admin User
 
@@ -133,8 +135,11 @@ aws cognito-idp admin-set-user-password \
 
 ```bash
 # Get API key from SSM Parameter Store
+# The SSM path is /<StackPrefix>/api-key where StackPrefix is the parent stack name
+# passed to the nested RAGStack stack (see StackPrefix in template.yaml).
+# For example, if your stack name is "linkedin-advanced-search":
 RAGSTACK_API_KEY=$(aws ssm get-parameter \
-  --name "/linkedin-ragstack-prod/api-key" \
+  --name "/<your-stack-name>/api-key" \
   --with-decryption \
   --query 'Parameter.Value' \
   --output text)
@@ -145,6 +150,8 @@ curl -X POST '<RAGStackGraphQLEndpoint>' \
   -H 'Content-Type: application/json' \
   -d '{"query":"query { searchKnowledgeBase(query: \"software engineer\") { results { content } } }"}'
 ```
+
+> **Note:** Replace `<your-stack-name>` with the stack name you chose during deployment (e.g., `linkedin-advanced-search`). The nested RAGStack stack uses the parent stack name as its `StackPrefix`, so the SSM parameter is stored at `/<parent-stack-name>/api-key`.
 
 ## Updating the Stack
 

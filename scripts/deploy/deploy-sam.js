@@ -470,9 +470,11 @@ function updateEnvFile(outputs, config) {
     if (outputs.RAGStackDashboardUrl) {
       updates.RAGSTACK_DASHBOARD_URL = outputs.RAGStackDashboardUrl;
     }
-    // Note: API key is in SSM Parameter Store, not directly in outputs
+    // API key is stored in SSM Parameter Store by the nested RAGStack stack.
+    // The SSM path is /<StackPrefix>/api-key where StackPrefix = parent stack name.
+    const ssmPath = outputs.RAGStackApiKeySSMPath || `/${config.stackName}/api-key`;
     console.log('\n📝 RAGStack deployed as nested stack. Retrieve API key from SSM:');
-    console.log(`   aws ssm get-parameter --name "${outputs.RAGStackApiKey || '/linkedin-ragstack-prod/api-key'}" --with-decryption --query 'Parameter.Value' --output text`);
+    console.log(`   aws ssm get-parameter --name "${ssmPath}" --with-decryption --query 'Parameter.Value' --output text`);
   }
 
   // Merge with existing

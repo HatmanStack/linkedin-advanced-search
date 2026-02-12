@@ -56,6 +56,13 @@ Parameters:
     NoEcho: true
     Description: External RAGStack API key (used only if DeployRAGStack=false)
 
+Rules:
+  AdminEmailRequiredForRAGStack:
+    RuleCondition: !Equals [!Ref DeployRAGStack, 'true']
+    Assertions:
+      - Assert: !Not [!Equals [!Ref AdminEmail, '']]
+        AssertDescription: AdminEmail is required when DeployRAGStack is true
+
 Globals:
   Function:
     Runtime: python3.13
@@ -495,7 +502,7 @@ Outputs:
     Condition: DeployRAGStackCondition
     Description: RAGStack Dashboard URL for document management
     Value: !GetAtt RAGStackNestedStack.Outputs.UIUrl
-  RAGStackApiKey:
+  RAGStackApiKeySSMPath:
     Condition: DeployRAGStackCondition
-    Description: RAGStack GraphQL API key
-    Value: !GetAtt RAGStackNestedStack.Outputs.GraphQLApiKey
+    Description: SSM Parameter Store path for the RAGStack API key (retrieve with aws ssm get-parameter --with-decryption)
+    Value: !Sub '/${AWS::StackName}/api-key'
